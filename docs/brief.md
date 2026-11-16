@@ -121,6 +121,7 @@ library/<series-slug>/
     - 4c-1: story.json format + validator. DONE.
     - 4c-2: rule-based shot planner (shots stage). DONE.
 - Step 5: Render engine, parallel chunks, resume.
+  - 5.1: engine core (sets, stickman cards, camera), stills + cast sheets, approvals. DONE.
 - Step 5b: audio (synth music + SFX), mix, finish + QA.
 - Step 6: FastAPI + Vue web view.
 - Step 7: Polish and QA.

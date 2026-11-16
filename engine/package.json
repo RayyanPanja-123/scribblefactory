@@ -2,6 +2,7 @@
   "name": "scribblefactory-engine",
   "private": true,
   "type": "module",
+  "scripts": { "test": "node --test test/*.test.mjs" },
   "dependencies": {
     "playwright": "1.65.1",
     "three": "0.160.0"

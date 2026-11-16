@@ -6,15 +6,22 @@ Exit codes: 0 ok, 1 user error or stage failed, 2 not implemented.
 import argparse
 import os
 import re
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
 from pydantic import TypeAdapter, ValidationError
 
+from . import sheet
 from .io import load_part, load_series, save_part, save_series
-from .schemas import CastMember, PartId, PartModel, SeriesModel, Slug, Stages, Style, Voice, utcnow
+from .schemas import CastMember, PartId, PartModel, SeriesModel, Slug, Stages, StoryModel, Style, Voice, utcnow
 from .stages import STAGES
 from .stages.runner import run_stage
+
+RENDER = Path(__file__).resolve().parents[2] / "engine" / "render.mjs"
+CAST_SHEET_COLS = 9    # one row per cast member: idle, walk, talk + 6 expressions (engine/render.mjs POSES)
+STILLS_SHEET_COLS = 6
 
 
 class UserError(Exception):
@@ -159,15 +166,19 @@ def _print_table(d: Path, parts: list[str]) -> None:
         print("  ".join(c.ljust(w) for c, w in zip(r, widths)).rstrip())
 
 
-def cmd_run(args) -> int:
-    d = series_dir(args)
+def part_dir(args) -> Path:
     try:
         TypeAdapter(PartId).validate_python(args.part)
     except ValidationError:
         raise UserError(f"invalid part {args.part!r}: expected part-NN")
-    pdir = d / args.part
+    pdir = series_dir(args) / args.part
     if not (pdir / "part.json").exists():
         raise UserError(f"part {args.part!r} not found at {pdir}")
+    return pdir
+
+
+def cmd_run(args) -> int:
+    pdir = part_dir(args)
     stage = STAGES[args.stage]
     result = run_stage(pdir, args.stage, stage.run, force=args.force, inputs=stage.INPUTS, outputs=stage.OUTPUTS)
     return 1 if result == "failed" else 0
@@ -176,6 +187,71 @@ def cmd_run(args) -> int:
 def cmd_render(args) -> int:
     print("render not implemented yet (Step 5)")
     return 2
+
+
+def run_engine(*args) -> None:
+    """node engine/render.mjs <args>; its output streams straight to the terminal."""
+    node = shutil.which("node")
+    if not node:
+        raise UserError("node not found on PATH")
+    r = subprocess.run([node, str(RENDER), *map(str, args)])
+    if r.returncode != 0:
+        raise UserError(f"render.mjs failed (exit {r.returncode})")
+
+
+def cmd_cast_sheet(args) -> int:
+    f, series = load_existing_series(args)
+    if not series.cast:
+        raise UserError(f"{args.slug} has no cast: add some with cast-add")
+    run_engine("--series", f.parent, "--cast-sheet")
+    out = sheet.from_manifest(f.parent / "cast-frames", f.parent / "cast-sheet.png", cols=CAST_SHEET_COLS)
+    print(f"cast sheet: {out}")
+    return 0
+
+
+def cmd_render_stills(args) -> int:
+    pdir = part_dir(args)
+    if not (pdir / "story.json").exists():
+        raise UserError(f"{pdir / 'story.json'} not found: run --stage shots first")
+    story = StoryModel.model_validate_json((pdir / "story.json").read_bytes())
+    _, series = load_existing_series(args)
+    approved = {c.id for c in series.cast if c.approved_at}
+    on_stage = list(dict.fromkeys(a.cast_id for s in story.shots for a in s.actors))
+    waiting = [c for c in on_stage if c not in approved]
+    if waiting:
+        raise UserError(f"cast not approved: {', '.join(waiting)}. Check the cast sheet (cast-sheet {args.slug}), "
+                        f"then approve-cast {args.slug} <id>.")
+    run_engine("--part", pdir, "--stills")
+    out = sheet.from_manifest(pdir / "frames" / "stills", pdir / "stills-sheet.png", cols=STILLS_SHEET_COLS)
+    print(f"stills sheet: {out}")
+    return 0
+
+
+def cmd_approve(args) -> int:
+    pdir = part_dir(args)
+    part = load_part(pdir / "part.json")
+    a = getattr(part.approvals, args.what)
+    if a.approved_at:
+        print(f"{args.part} {args.what} already approved at {a.approved_at:%Y-%m-%d %H:%M} UTC (kept)")
+        return 0
+    a.approved_at = utcnow()
+    save_part(pdir / "part.json", part)
+    print(f"{args.part} {args.what} approved")
+    return 0
+
+
+def cmd_approve_cast(args) -> int:
+    f, series = load_existing_series(args)
+    c = next((c for c in series.cast if c.id == args.cast_id), None)
+    if c is None:
+        raise UserError(f"cast id {args.cast_id!r} not in {args.slug} (cast: {', '.join(x.id for x in series.cast) or '-'})")
+    if c.approved_at:
+        print(f"{c.id} already approved at {c.approved_at:%Y-%m-%d %H:%M} UTC (kept)")
+        return 0
+    c.approved_at = utcnow()
+    save_series(f, series)
+    print(f"{c.id} approved")
+    return 0
 
 
 def build_parser() -> Parser:
@@ -227,6 +303,26 @@ def build_parser() -> Parser:
     c.add_argument("slug")
     c.add_argument("part")
     c.set_defaults(func=cmd_render)
+
+    c = sub.add_parser("cast-sheet", parents=[common], help="render the cast sheet -> <series>/cast-sheet.png")
+    c.add_argument("slug")
+    c.set_defaults(func=cmd_cast_sheet)
+
+    c = sub.add_parser("render-stills", parents=[common], help="render one still per shot -> part-NN/stills-sheet.png")
+    c.add_argument("slug")
+    c.add_argument("part")
+    c.set_defaults(func=cmd_render_stills)
+
+    c = sub.add_parser("approve", parents=[common], help="approve a part's stills, test render or final")
+    c.add_argument("slug")
+    c.add_argument("part")
+    c.add_argument("what", choices=["stills", "test_render", "final"])
+    c.set_defaults(func=cmd_approve)
+
+    c = sub.add_parser("approve-cast", parents=[common], help="approve a cast member after checking the cast sheet")
+    c.add_argument("slug")
+    c.add_argument("cast_id")
+    c.set_defaults(func=cmd_approve_cast)
     return p
 
 

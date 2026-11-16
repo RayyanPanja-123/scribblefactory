@@ -1,0 +1,144 @@
+// Our stickman (docs/brief.md "Stickman style"), drawn on a 512 x 1024 canvas, feet at y = FEET_Y.
+// Pure function of its options: same options -> same pixels. Facing "right" is the base drawing;
+// "left" is the same drawing mirrored; "camera" looks straight out.
+import { Pen, ellPts } from "./borrowed.js";
+import { rng } from "./rng.js";
+
+export const CW = 512, CH = 1024, FEET_Y = 1000;
+const INK = "#1c1a1a";
+const HEAD_R = 150;
+const LEG = 220;         // leg length; hip height follows the leg angle, so feet stay planted
+const ARM = 175;
+const TAU = Math.PI * 2;
+const deg = (d) => (d * Math.PI) / 180;
+
+// brows per expression: [outer dy, inner dy, arch] (negative = up)
+const BROWS = {
+  neutral: [0, 0, 8], happy: [-6, -8, 12], sad: [10, -16, 4],
+  angry: [-8, 16, 0], surprised: [-12, -12, 14], sleepy: [5, 5, 2],
+};
+
+/** closed wobbly loop: stable per-character lumps (shape) + small per-boil jitter (boil) */
+function wobble(cx, cy, rx, ry, shape, boil, lump = 0.035, jit = 0.012, n = 44) {
+  const ph = [shape() * TAU, shape() * TAU, shape() * TAU];
+  const pts = [];
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * TAU;
+    const k = 1 + lump * (Math.cos(2 * a + ph[0]) + 0.6 * Math.cos(3 * a + ph[1]) + 0.4 * Math.cos(5 * a + ph[2]))
+      + jit * (boil() * 2 - 1);
+    pts.push([cx + rx * k * Math.cos(a), cy + ry * k * Math.sin(a)]);
+  }
+  return pts;
+}
+
+/** marker wobble: the stroke drifts smoothly from one random offset at its start to another at its end */
+const jitter = (pts, boil, amp = 2.5) => {
+  const d = [boil(), boil(), boil(), boil()].map((v) => amp * (v * 2 - 1)), n = Math.max(1, pts.length - 1);
+  return pts.map(([x, y], i) => [x + d[0] + ((d[2] - d[0]) * i) / n, y + d[1] + ((d[3] - d[1]) * i) / n]);
+};
+const at = ([x, y], ang, len) => [x + Math.sin(ang) * len, y + Math.cos(ang) * len]; // ang from straight down, + toward +x
+const quad = (a, c, b, n = 10) => Array.from({ length: n + 1 }, (_, i) => {
+  const t = i / n, s = 1 - t;
+  return [s * s * a[0] + 2 * s * t * c[0] + t * t * b[0], s * s * a[1] + 2 * s * t * c[1] + t * t * b[1]];
+});
+
+/**
+ * o: { seed, boil, color, eyes: "dots"|"half_closed", expression, action, phase (walk cycles), lid (0 | 0.5 | 1),
+ *      mouth (0..1 open), breath (-1..1), facing: "left"|"right"|"camera", t (seconds) }
+ */
+export function drawStickman(canvas, o) {
+  const g = canvas.getContext("2d");
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.clearRect(0, 0, CW, CH);
+  if (o.facing === "left") g.setTransform(-1, 0, 0, 1, CW, 0);
+  const p = new Pen(g, INK);
+  const boil = rng(o.seed, "boil", o.boil);
+  const look = o.facing === "camera" ? 0 : 1;
+  const moving = o.action === "walk" || o.action === "run";
+  const run = o.action === "run";
+
+  // whole-figure lean about the feet
+  const lean = run ? deg(9) : o.action === "react" ? deg(-6) : o.action === "walk" ? deg(3) : 0;
+  g.translate(CW / 2, FEET_Y); g.rotate(lean); g.translate(-CW / 2, -FEET_Y);
+
+  // legs: walk phase drives the swing; hip height = FEET_Y - LEG cos(angle)
+  const s = Math.sin(TAU * (o.phase || 0));
+  const A = moving ? deg(run ? 34 : 24) * s : deg(6);
+  const hipY = FEET_Y - LEG * Math.cos(A);
+  const hipL = [CW / 2 - 18, hipY], hipR = [CW / 2 + 18, hipY];
+  p.stroke(jitter([hipL, at(hipL, -A, LEG)], boil), 10);
+  p.stroke(jitter([hipR, at(hipR, A, LEG)], boil), 10);
+
+  // body: flat outfit-colour blob, breathing scales its height from the hips up
+  const ry = 150 * (1 + 0.03 * (o.breath || 0)), cy = hipY + 12 - ry, top = cy - ry;
+  p.poly(wobble(CW / 2, cy, 92, ry, rng(o.seed, "body"), boil), o.color, 12 + boil());
+
+  // arms (screen angles from straight down, + toward +x) and dot hands, over the body
+  const sh = top + 58, shL = [CW / 2 - 66, sh], shR = [CW / 2 + 66, sh];
+  let aL = deg(-16), aR = deg(16), bendL = 0, bendR = 0;
+  if (moving) {
+    const S = deg(run ? 16 : 13) * s; // both arms sway with the stride; small enough never to cross the body
+    aL = deg(-18) + S; aR = deg(18) + S;
+    if (run) { bendL = deg(70); bendR = deg(70); }
+  } else if (o.action === "talk") {
+    aR = deg(34 + 22 * Math.sin(TAU * 1.1 * (o.t || 0))); bendR = deg(-50);
+  } else if (o.action === "point") {
+    aR = deg(96);
+  } else if (o.action === "react") {
+    aL = deg(-128); aR = deg(128); bendL = deg(-25); bendR = deg(25); // hands up beside the head
+  } else {
+    aL -= deg(2) * (o.breath || 0); aR += deg(2) * (o.breath || 0);
+  }
+  for (const [shp, a, bend] of [[shL, aL, bendL], [shR, aR, bendR]]) {
+    const elbow = at(shp, a, ARM * 0.52), hand = at(elbow, a + bend, ARM * 0.48);
+    p.stroke(jitter([shp, elbow, hand], boil), 9);
+    p.dot(hand[0], hand[1], 15);
+  }
+
+  // head last: wobbly white circle, thick outline, sits on the body (raised arms go behind it)
+  const hx = CW / 2 + (o.action === "react" ? -10 : 0), hy = top - HEAD_R + 24;
+  p.poly(wobble(hx, hy, HEAD_R, HEAD_R * 0.97, rng(o.seed, "head"), boil), "#ffffff", 14 + boil() * 1.5);
+  face(p, boil, o, hx + 26 * look, hy, look);
+}
+
+function face(p, boil, o, fx, hy, look) {
+  const ex = [fx - 50, fx + 50], ey = hy - 8;
+  const expr = o.expression || "neutral";
+  const big = expr === "surprised" || o.action === "react";
+  const half = o.eyes === "half_closed" || expr === "sleepy" || o.lid === 0.5;
+  for (const x of ex) {
+    if (o.lid >= 1) {
+      p.stroke(jitter(ellPts(x, ey - 6, 26, 10, 20, 160, 0, 12), boil, 1.5), 9);         // blink: closed
+    } else if (half) {
+      p.poly(ellPts(x + 4 * look, ey, 15, 13, 0, 180, 0, 12), "#1c1a1a", 0);           // pupil under the lid
+      p.stroke(jitter([[x - 28, ey], [x + 28, ey]], boil, 1.5), 9);                    // lid line
+    } else {
+      const r = big ? 36 : 30;
+      p.poly(ellPts(x, ey, r, r, 0, 360, 0, 28), "#ffffff", 7);
+      p.dot(x + 8 * look, ey + 2, big ? 9 : 12);
+    }
+  }
+  // bold curved brows
+  const [outer, inner, arch] = BROWS[expr] || BROWS.neutral;
+  const by = ey - (big ? 64 : expr === "sleepy" ? 44 : 54);
+  for (const [x, side] of [[ex[0], -1], [ex[1], 1]]) {
+    const o0 = [x + side * 34, by + outer], i0 = [x - side * 30, by + inner];
+    const c = [(o0[0] + i0[0]) / 2, Math.min(o0[1], i0[1]) - arch * 2];
+    p.stroke(jitter(quad(o0, c, i0), boil, 1.2), 14);
+  }
+  // small mouth line; talking opens it
+  const mx = fx + 4 * look, my = hy + 74;
+  if ((o.mouth || 0) > 0.05) {
+    p.poly(ellPts(mx, my, 20, 4 + 18 * o.mouth, 0, 360, 0, 20), "#1c1a1a", 0);
+    return;
+  }
+  const M = {
+    neutral: [[mx - 22, my], [mx + 22, my]],
+    happy: ellPts(mx, my - 14, 28, 18, 25, 155, 0, 12),
+    sad: ellPts(mx, my + 14, 26, 12, 205, 335, 0, 12),
+    angry: [[mx - 20, my + 5], [mx, my - 1], [mx + 20, my + 5]],
+    sleepy: [[mx - 12, my], [mx + 12, my]],
+  };
+  if (expr === "surprised") p.poly(ellPts(mx, my, 12, 15, 0, 360, 0, 20), null, 7);
+  else p.stroke(jitter(M[expr] || M.neutral, boil, 1.2), 8);
+}
