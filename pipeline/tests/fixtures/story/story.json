@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "fps": 30,
+  "width": 1080,
+  "height": 1920,
+  "duration_frames": 180,
+  "seed": 42,
+  "shots": [
+    {
+      "id": "s01", "start_frame": 0, "end_frame": 60, "set": "office", "phrase_range": [0, 0],
+      "camera": {"angle": "wide", "move": "push_in", "speed": 0.3},
+      "actors": [
+        {"cast_id": "bob", "action": "walk", "start_pos": [0, 0], "end_pos": [2.4, 0],
+         "facing": "right", "expression": "neutral"}
+      ]
+    },
+    {
+      "id": "s02", "start_frame": 60, "end_frame": 120, "set": "office", "phrase_range": [1, 1],
+      "camera": {"angle": "close", "move": "truck_left", "speed": 0.2},
+      "actors": [
+        {"cast_id": "bob", "action": "talk", "start_pos": [2.4, 0], "end_pos": null,
+         "facing": "camera", "expression": "happy"},
+        {"cast_id": "amy", "action": "idle", "start_pos": [3.5, 0.5],
+         "facing": "left", "expression": "sleepy"}
+      ]
+    },
+    {
+      "id": "s03", "start_frame": 120, "end_frame": 180, "set": "office", "phrase_range": [2, 2],
+      "camera": {"angle": "medium", "move": "push_in", "speed": 0.6, "roll_deg": 4},
+      "actors": [
+        {"cast_id": "bob", "action": "react", "start_pos": [2.4, 0],
+         "facing": "camera", "expression": "surprised"}
+      ],
+      "twist": true
+    }
+  ],
+  "cues": [
+    {"frame": 0, "kind": "music_start"},
+    {"frame": 120, "kind": "music_stop"},
+    {"frame": 121, "kind": "low_hit"}
+  ]
+}

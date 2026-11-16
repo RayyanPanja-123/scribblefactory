@@ -1,4 +1,4 @@
-"""series.json / part.json models. These are the source of truth; docs/schemas/ is generated."""
+"""series.json / part.json / phrases.json / story.json models. These are the source of truth; docs/schemas/ is generated."""
 
 from datetime import datetime, timezone
 from typing import Annotated, Literal
@@ -180,3 +180,52 @@ class PhrasesModel(Strict):
         if nxt != len(self.words):
             raise ValueError("phrases must cover every word")
         return self
+
+
+# --- story.json (shot plan) ---
+# No "static" move on purpose: the camera always creeps.
+
+Pos = tuple[float, float]  # [x, z] on the ground plane
+
+
+class Camera(Strict):
+    angle: Literal["wide", "medium", "close", "low", "high", "over_shoulder"]
+    move: Literal["push_in", "pull_out", "truck_left", "truck_right", "crane_up", "crane_down"]
+    speed: float = Field(ge=0.05, le=1.0)
+    roll_deg: float = 0
+
+
+class Actor(Strict):
+    cast_id: str
+    action: Literal["idle", "walk", "run", "talk", "point", "react"]
+    start_pos: Pos
+    end_pos: Pos | None = None
+    facing: Literal["left", "right", "camera"]
+    expression: Literal["neutral", "happy", "sad", "angry", "surprised", "sleepy"]
+
+
+class Shot(Strict):
+    id: str = Field(pattern=r"^s[0-9]{2,}$")
+    start_frame: int = Field(ge=0)
+    end_frame: int = Field(ge=0, description="exclusive")
+    set: str = Field(description="set preset name, e.g. office, street, room")
+    phrase_range: tuple[int, int] = Field(description="[first, last] phrase indices into phrases.json, inclusive")
+    camera: Camera
+    actors: list[Actor] = []
+    twist: bool = False
+
+
+class Cue(Strict):
+    frame: int
+    kind: Literal["music_stop", "music_start", "low_hit", "whoosh", "pop"]
+
+
+class StoryModel(Strict):
+    schema_version: Literal[1] = 1
+    fps: Literal[30] = 30
+    width: Literal[1080] = 1080
+    height: Literal[1920] = 1920
+    duration_frames: int = Field(ge=1)
+    seed: int
+    shots: list[Shot]
+    cues: list[Cue] = []

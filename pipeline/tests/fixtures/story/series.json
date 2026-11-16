@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "slug": "office-nap",
+  "title": "Office Nap",
+  "created_at": "2026-11-16T10:00:00Z",
+  "status": "active",
+  "parts": ["part-01"],
+  "voice": {"provider": "freetts.ai", "voice_name": "Brian", "notes": ""},
+  "style": {"preset": "default", "locked": false},
+  "cast": [
+    {"id": "bob", "name": "Bob", "outfit_color": "#3a7bd5", "eyes": "dots", "approved_at": null},
+    {"id": "amy", "name": "Amy", "outfit_color": "#e2453c", "eyes": "half_closed", "approved_at": null}
+  ]
+}

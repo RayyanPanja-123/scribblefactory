@@ -100,6 +100,7 @@ library/<series-slug>/
 - Do NOT fork. Borrow selected files only: camera math, 2D character card drawing, outline pass, frame QA (short_qa.py), synth audio.
 - Copied files keep the MIT header plus a note with the pinned commit.
 - Never copy references/ (third-party frames). Never use Remotion or React.
+- three@0.160.0 pinned in engine/package.json.
 - Characters: 2D marker-drawn cards facing the camera, inside a toon-shaded 3D world.
 - Our own: story.json format, render.mjs, timing.py, audio.py, mix.py, finish.sh, sheet.py.
 
@@ -111,6 +112,7 @@ library/<series-slug>/
   - 4a: stage runner, prep, import check. DONE.
   - 4b: timing (Whisper). DONE.
   - 4c: story.json format + rule-based shot planner + validator.
+    - 4c-1: story.json format + validator. DONE.
 - Step 5: Render engine, parallel chunks, resume.
 - Step 5b: audio (synth music + SFX), mix, finish + QA.
 - Step 6: FastAPI + Vue web view.
