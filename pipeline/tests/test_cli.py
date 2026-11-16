@@ -106,3 +106,19 @@ def test_default_is_cwd_library(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     assert main(["new-series", "cat", "--title", "Cat"]) == 0
     assert (tmp_path / "library" / "cat" / "series.json").exists()
+
+
+def test_status_reports_orphans(lib, capsys):
+    main(["new-series", "cat", "--title", "Cat"])
+    (lib / "cat" / "part-03").mkdir()
+    (lib / "cat" / "part-xx").mkdir()  # not a part folder, ignored
+    capsys.readouterr()
+    assert main(["status", "cat"]) == 0  # no parts listed: warning still shown
+    assert capsys.readouterr().out.splitlines()[-1] == "warning: orphan folder part-03 (not in series.json)"
+    main(["new-part", "cat"])  # becomes part-04
+    capsys.readouterr()
+    assert main(["status", "cat"]) == 0
+    out = capsys.readouterr().out
+    assert out.splitlines()[-1] == "warning: orphan folder part-03 (not in series.json)"
+    assert out.index("part-04") < out.index("warning:")
+    assert out.count("warning:") == 1

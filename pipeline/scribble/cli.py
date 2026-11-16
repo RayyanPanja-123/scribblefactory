@@ -50,14 +50,18 @@ def cmd_new_series(args) -> int:
     return 0
 
 
+def part_folders(d: Path) -> list[str]:
+    """Sorted part-NN folder names on disk."""
+    return sorted(f.name for f in d.iterdir() if f.is_dir() and re.fullmatch(r"part-[0-9]{2}", f.name))
+
+
 def cmd_new_part(args) -> int:
     d = series_dir(args)
     if not (d / "series.json").exists():
         raise UserError(f"series {args.slug!r} not found at {d}")
     series = load_series(d / "series.json")
     # Count folders too, so a part folder left by an interrupted run is never reused.
-    on_disk = [int(m[1]) for f in d.iterdir() if f.is_dir() and (m := re.fullmatch(r"part-([0-9]{2})", f.name))]
-    number = max([int(p[5:]) for p in series.parts] + on_disk, default=0) + 1
+    number = max([int(p[5:]) for p in series.parts + part_folders(d)], default=0) + 1
     if number > 99:
         raise UserError("series already has part-99; parts are limited to 99")
     pid = f"part-{number:02d}"
@@ -86,13 +90,20 @@ def cmd_status(args) -> int:
         raise UserError(f"series {args.slug!r} not found at {d}")
     s = load_series(d / "series.json")
     print(f"{s.title} ({s.slug})  status: {s.status}  parts: {len(s.parts)}")
-    if not s.parts:
-        return 0
+    if s.parts:
+        _print_table(d, s.parts)
+    for name in part_folders(d):
+        if name not in s.parts:
+            print(f"warning: orphan folder {name} (not in series.json)")
+    return 0
+
+
+def _print_table(d: Path, parts: list[str]) -> None:
     stages = list(Stages.model_fields)
     header = ["part", "title"] + [Stages.model_fields[n].alias or n for n in stages] \
         + ["stills", "test_render", "final", "youtube", "instagram"]
     rows = [header]
-    for pid in s.parts:
+    for pid in parts:
         f = d / pid / "part.json"
         if not f.exists():
             rows.append([pid, "(part.json missing)"] + [""] * (len(header) - 2))
@@ -105,7 +116,6 @@ def cmd_status(args) -> int:
     widths = [max(len(r[i]) for r in rows) for i in range(len(header))]
     for r in rows:
         print("  ".join(c.ljust(w) for c, w in zip(r, widths)).rstrip())
-    return 0
 
 
 def cmd_render(args) -> int:
