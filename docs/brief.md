@@ -104,7 +104,7 @@ library/<series-slug>/
 ## Build order
 - Step 1: Repo skeleton + setup.sh. DONE.
 - Step 2: series.json and part.json schemas. DONE.
-- Step 3: CLI (new-series, new-part, render).
+- Step 3: CLI (new-series, new-part, render). DONE (render is a stub until Step 5).
 - Step 4: Pipeline stages (prep, timing, shots, audio, finish).
 - Step 5: Render engine, parallel chunks, resume.
 - Step 6: FastAPI + Vue web view.
