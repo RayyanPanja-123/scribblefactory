@@ -14,11 +14,14 @@ REPLACE_RETRIES = 5
 
 
 def atomic_write_json(path, data) -> None:
-    """Write JSON via temp file in the same dir + fsync + os.replace (atomic on Windows and POSIX)."""
+    atomic_write_text(path, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+
+
+def atomic_write_text(path, text: str) -> None:
+    """Write via temp file in the same dir + fsync + os.replace (atomic on Windows and POSIX)."""
     path = Path(path)
     if path.name in PROTECTED:
         raise ValueError(f"refusing to write protected file {path.name}")
-    text = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
     fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
     try:
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:

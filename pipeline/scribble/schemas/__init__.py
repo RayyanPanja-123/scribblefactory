@@ -83,6 +83,7 @@ class Stage(Strict):
     started_at: UtcDateTime | None = None
     finished_at: UtcDateTime | None = None
     error: str | None = None
+    inputs_hash: str | None = None  # sha256 of the stage's input files at the last successful run
 
 
 class Stages(Strict):

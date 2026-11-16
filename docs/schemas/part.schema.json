@@ -122,6 +122,18 @@
           "default": null,
           "title": "Finished At"
         },
+        "inputs_hash": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Inputs Hash"
+        },
         "started_at": {
           "anyOf": [
             {
@@ -158,6 +170,7 @@
           "default": {
             "error": null,
             "finished_at": null,
+            "inputs_hash": null,
             "started_at": null,
             "status": "pending"
           }
@@ -167,6 +180,7 @@
           "default": {
             "error": null,
             "finished_at": null,
+            "inputs_hash": null,
             "started_at": null,
             "status": "pending"
           }
@@ -176,6 +190,7 @@
           "default": {
             "error": null,
             "finished_at": null,
+            "inputs_hash": null,
             "started_at": null,
             "status": "pending"
           }
@@ -185,6 +200,7 @@
           "default": {
             "error": null,
             "finished_at": null,
+            "inputs_hash": null,
             "started_at": null,
             "status": "pending"
           }
@@ -194,6 +210,7 @@
           "default": {
             "error": null,
             "finished_at": null,
+            "inputs_hash": null,
             "started_at": null,
             "status": "pending"
           }
@@ -203,6 +220,7 @@
           "default": {
             "error": null,
             "finished_at": null,
+            "inputs_hash": null,
             "started_at": null,
             "status": "pending"
           }
@@ -212,6 +230,7 @@
           "default": {
             "error": null,
             "finished_at": null,
+            "inputs_hash": null,
             "started_at": null,
             "status": "pending"
           }
@@ -221,6 +240,7 @@
           "default": {
             "error": null,
             "finished_at": null,
+            "inputs_hash": null,
             "started_at": null,
             "status": "pending"
           }
@@ -230,6 +250,7 @@
           "default": {
             "error": null,
             "finished_at": null,
+            "inputs_hash": null,
             "started_at": null,
             "status": "pending"
           }
@@ -285,54 +306,63 @@
         "audio": {
           "error": null,
           "finished_at": null,
+          "inputs_hash": null,
           "started_at": null,
           "status": "pending"
         },
         "finish": {
           "error": null,
           "finished_at": null,
+          "inputs_hash": null,
           "started_at": null,
           "status": "pending"
         },
         "import_check": {
           "error": null,
           "finished_at": null,
+          "inputs_hash": null,
           "started_at": null,
           "status": "pending"
         },
         "prep": {
           "error": null,
           "finished_at": null,
+          "inputs_hash": null,
           "started_at": null,
           "status": "pending"
         },
         "render": {
           "error": null,
           "finished_at": null,
+          "inputs_hash": null,
           "started_at": null,
           "status": "pending"
         },
         "shots": {
           "error": null,
           "finished_at": null,
+          "inputs_hash": null,
           "started_at": null,
           "status": "pending"
         },
         "thumbnails": {
           "error": null,
           "finished_at": null,
+          "inputs_hash": null,
           "started_at": null,
           "status": "pending"
         },
         "timing": {
           "error": null,
           "finished_at": null,
+          "inputs_hash": null,
           "started_at": null,
           "status": "pending"
         },
         "validate": {
           "error": null,
           "finished_at": null,
+          "inputs_hash": null,
           "started_at": null,
           "status": "pending"
         }

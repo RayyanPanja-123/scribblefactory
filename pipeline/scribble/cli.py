@@ -1,6 +1,6 @@
 """scribblefactory CLI. Run: python -m pipeline.scribble.cli <command> [--library DIR]
 
-Exit codes: 0 ok, 1 user error, 2 not implemented.
+Exit codes: 0 ok, 1 user error or stage failed, 2 not implemented.
 """
 
 import argparse
@@ -12,7 +12,9 @@ from pathlib import Path
 from pydantic import TypeAdapter, ValidationError
 
 from .io import load_part, load_series, save_part, save_series
-from .schemas import PartModel, SeriesModel, Slug, Stages, Style, Voice, utcnow
+from .schemas import PartId, PartModel, SeriesModel, Slug, Stages, Style, Voice, utcnow
+from .stages import STAGES
+from .stages.runner import run_stage
 
 
 class UserError(Exception):
@@ -118,6 +120,20 @@ def _print_table(d: Path, parts: list[str]) -> None:
         print("  ".join(c.ljust(w) for c, w in zip(r, widths)).rstrip())
 
 
+def cmd_run(args) -> int:
+    d = series_dir(args)
+    try:
+        TypeAdapter(PartId).validate_python(args.part)
+    except ValidationError:
+        raise UserError(f"invalid part {args.part!r}: expected part-NN")
+    pdir = d / args.part
+    if not (pdir / "part.json").exists():
+        raise UserError(f"part {args.part!r} not found at {pdir}")
+    stage = STAGES[args.stage]
+    result = run_stage(pdir, args.stage, stage.run, force=args.force, inputs=stage.INPUTS, outputs=stage.OUTPUTS)
+    return 1 if result == "failed" else 0
+
+
 def cmd_render(args) -> int:
     print("render not implemented yet (Step 5)")
     return 2
@@ -142,6 +158,13 @@ def build_parser() -> Parser:
     c = sub.add_parser("status", parents=[common], help="show series and part status")
     c.add_argument("slug")
     c.set_defaults(func=cmd_status)
+
+    c = sub.add_parser("run", parents=[common], help="run one pipeline stage for a part")
+    c.add_argument("slug")
+    c.add_argument("part")
+    c.add_argument("--stage", required=True, choices=list(STAGES))
+    c.add_argument("--force", action="store_true", help="re-run even if up to date")
+    c.set_defaults(func=cmd_run)
 
     c = sub.add_parser("render", parents=[common], help="render a part (not implemented yet)")
     c.add_argument("slug")
