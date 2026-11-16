@@ -258,10 +258,14 @@ window.renderCast = ({ castId, pose, expression = "neutral" }) => {
   return png();
 };
 
-/** which WebGL implementation is drawing (SwiftShader vs the real GPU) */
-window.glRenderer = () => {
+/** which WebGL implementation is drawing (SwiftShader vs the real GPU): vendor, renderer, GL version strings */
+window.glInfo = () => {
   const gl = renderer.getContext(), ext = gl.getExtension("WEBGL_debug_renderer_info");
-  return ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+  return {
+    vendor: ext ? gl.getParameter(ext.UNMASKED_VENDOR_WEBGL) : gl.getParameter(gl.VENDOR),
+    renderer: ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER),
+    version: gl.getParameter(gl.VERSION),
+  };
 };
 
 window.engineReady = true;

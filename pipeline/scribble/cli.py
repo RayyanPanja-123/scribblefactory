@@ -4,6 +4,7 @@ Exit codes: 0 ok, 1 user error or stage failed, 2 not implemented.
 """
 
 import argparse
+import functools
 import os
 import re
 import shutil
@@ -17,7 +18,8 @@ from . import sheet
 from .io import load_part, load_series, save_part, save_series
 from .schemas import CastMember, PartId, PartModel, SeriesModel, Slug, Stages, StoryModel, Style, Voice, utcnow
 from .stages import STAGES
-from .stages.runner import run_stage
+from .stages import render as render_stage
+from .stages.runner import StageError, run_stage
 
 RENDER = Path(__file__).resolve().parents[2] / "engine" / "render.mjs"
 CAST_SHEET_COLS = 9    # one row per cast member: idle, walk, talk + 6 expressions (engine/render.mjs POSES)
@@ -184,9 +186,31 @@ def cmd_run(args) -> int:
     return 1 if result == "failed" else 0
 
 
+def gate(pdir: Path, needs: tuple[str, ...]) -> None:
+    """Approval gate before a render, as a user error (the stage status stays untouched)."""
+    try:
+        render_stage.check_gate(pdir, needs)
+    except StageError as e:
+        raise UserError(str(e))
+
+
 def cmd_render(args) -> int:
-    print("render not implemented yet (Step 5)")
-    return 2
+    pdir = part_dir(args)
+    gate(pdir, ("stills", "test_render"))
+    fn = functools.partial(render_stage.run, workers=args.workers, swiftshader=args.swiftshader, force=args.force)
+    result = run_stage(pdir, "render", fn, force=args.force, inputs=render_stage.INPUTS, outputs=render_stage.OUTPUTS)
+    return 1 if result == "failed" else 0
+
+
+def cmd_test_render(args) -> int:
+    pdir = part_dir(args)
+    gate(pdir, ("stills",))
+    try:
+        out = render_stage.test_render(pdir, at=args.at, swiftshader=args.swiftshader)
+    except StageError as e:
+        raise UserError(str(e))
+    print(f"test render: {out}")
+    return 0
 
 
 def run_engine(*args) -> None:
@@ -215,9 +239,7 @@ def cmd_render_stills(args) -> int:
         raise UserError(f"{pdir / 'story.json'} not found: run --stage shots first")
     story = StoryModel.model_validate_json((pdir / "story.json").read_bytes())
     _, series = load_existing_series(args)
-    approved = {c.id for c in series.cast if c.approved_at}
-    on_stage = list(dict.fromkeys(a.cast_id for s in story.shots for a in s.actors))
-    waiting = [c for c in on_stage if c not in approved]
+    waiting = render_stage.unapproved_cast(story, series)
     if waiting:
         raise UserError(f"cast not approved: {', '.join(waiting)}. Check the cast sheet (cast-sheet {args.slug}), "
                         f"then approve-cast {args.slug} <id>.")
@@ -299,10 +321,20 @@ def build_parser() -> Parser:
     c.add_argument("--force", action="store_true", help="re-run even if up to date")
     c.set_defaults(func=cmd_run)
 
-    c = sub.add_parser("render", parents=[common], help="render a part (not implemented yet)")
+    c = sub.add_parser("render", parents=[common], help="full render in parallel chunks (resumable) -> preview.mp4")
     c.add_argument("slug")
     c.add_argument("part")
+    c.add_argument("--workers", type=int, default=render_stage.WORKERS, help="parallel browser processes")
+    c.add_argument("--force", action="store_true", help="delete all frames and render again")
+    c.add_argument("--swiftshader", action="store_true", help="software WebGL instead of the GPU")
     c.set_defaults(func=cmd_render)
+
+    c = sub.add_parser("test-render", parents=[common], help="5 s test clip with voice -> test-render.mp4")
+    c.add_argument("slug")
+    c.add_argument("part")
+    c.add_argument("--at", type=float, default=0.0, help="start time in seconds (clamped to the part)")
+    c.add_argument("--swiftshader", action="store_true", help="software WebGL instead of the GPU")
+    c.set_defaults(func=cmd_test_render)
 
     c = sub.add_parser("cast-sheet", parents=[common], help="render the cast sheet -> <series>/cast-sheet.png")
     c.add_argument("slug")

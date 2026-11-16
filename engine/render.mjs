@@ -1,11 +1,14 @@
 #!/usr/bin/env node
 // Render frames of a part (or the cast sheet of a series) with headless Chromium.
 //   node engine/render.mjs --part <dir> --frame N --out file.png
-//   node engine/render.mjs --part <dir> --frames A-B --out-dir <dir>  -> <dir>/f00042.png (A..B inclusive)
-//   add --gpu to any of these: hardware WebGL (benchmark only; default stays SwiftShader)
+//   node engine/render.mjs --part <dir> --frames A-B --out-dir <dir>   -> <dir>/000042.png (A..B inclusive)
 //   node engine/render.mjs --part <dir> --stills          -> <part>/frames/stills/<shot>.png + manifest.json
 //   node engine/render.mjs --series <dir> --cast-sheet    -> <series>/cast-frames/<id>-<pose>.png + manifest.json
+//   node engine/render.mjs --probe                        -> print the renderer it would use
+// Renderer: the GPU by default; falls back to SwiftShader (with a note) when WebGL reports a software renderer.
+// --swiftshader forces software. --info-out <file> writes the renderer info as JSON (any mode).
 // Serves engine/page and three from node_modules on a localhost port (no extra deps). Exit 0 ok, 1 error.
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
@@ -16,12 +19,14 @@ import { chromium } from "playwright";
 const ENGINE = path.dirname(fileURLToPath(import.meta.url));
 const SERVED = [path.join(ENGINE, "page"), path.join(ENGINE, "node_modules", "three")];
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript", ".json": "application/json" };
+const PLAYWRIGHT = JSON.parse(fs.readFileSync(path.join(ENGINE, "node_modules", "playwright", "package.json"), "utf8")).version;
 export const POSES = [["idle", "idle"], ["walk", "walk"], ["talk", "talk"],
   ...["neutral", "happy", "sad", "angry", "surprised", "sleepy"].map((e) => [e, "idle", e])];
-// Software GL (SwiftShader) so output does not depend on the machine's GPU or driver.
-const CHROME_ARGS = ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"];
-// --gpu: Chromium's default ANGLE backend on the real GPU (D3D11 on Windows).
+// Software GL (SwiftShader): output does not depend on the machine's GPU or driver.
+const SWIFTSHADER_ARGS = ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"];
+// Chromium's default ANGLE backend on the real GPU (D3D11 on Windows).
 const GPU_ARGS = ["--use-angle=default", "--enable-gpu", "--ignore-gpu-blocklist"];
+const SOFTWARE_GL = /swiftshader|llvmpipe|softpipe|software|basic render/i;
 
 function serve() {
   const server = http.createServer((req, res) => {
@@ -42,12 +47,13 @@ const readJson = (f) => {
   return JSON.parse(fs.readFileSync(f, "utf8"));
 };
 
-function writePng(file, dataUrl) {
+function writeFileAtomic(file, data) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const tmp = `${file}.tmp`;
-  fs.writeFileSync(tmp, Buffer.from(dataUrl.slice(dataUrl.indexOf(",") + 1), "base64"));
+  fs.writeFileSync(tmp, data);
   fs.renameSync(tmp, file);
 }
+const writePng = (file, dataUrl) => writeFileAtomic(file, Buffer.from(dataUrl.slice(dataUrl.indexOf(",") + 1), "base64"));
 
 /** empty a generated frames folder so stale images never reach a sheet */
 function freshDir(dir) {
@@ -55,52 +61,25 @@ function freshDir(dir) {
   for (const f of fs.readdirSync(dir)) if (f.endsWith(".png") || f === "manifest.json") fs.rmSync(path.join(dir, f));
 }
 
-async function main() {
-  const { values: a } = parseArgs({
-    options: {
-      part: { type: "string" }, series: { type: "string" }, frame: { type: "string" }, out: { type: "string" },
-      stills: { type: "boolean" }, "cast-sheet": { type: "boolean" },
-      frames: { type: "string" }, "out-dir": { type: "string" }, gpu: { type: "boolean" },
-    },
-  });
-  let data, jobs = [], manifestDir = null;
-  if (a.part) {
-    const part = path.resolve(a.part);
-    data = { story: readJson(path.join(part, "story.json")), phrases: readJson(path.join(part, "phrases.json")),
-      series: readJson(path.join(part, "..", "series.json")) };
-    if (a.stills) {
-      manifestDir = path.join(part, "frames", "stills");
-      jobs = data.story.shots.map((s) => ({ label: s.id, file: path.join(manifestDir, `${s.id}.png`),
-        call: ["renderFrame", Math.floor((s.start_frame + s.end_frame) / 2)] }));
-    } else if (a.frames && a["out-dir"]) {
-      const m = /^(\d+)-(\d+)$/.exec(a.frames);
-      if (!m || Number(m[1]) > Number(m[2])) throw new Error(`--frames wants A-B with A <= B, got ${a.frames}`);
-      for (let n = Number(m[1]); n <= Number(m[2]); n++) {
-        jobs.push({ label: `frame ${n}`, file: path.join(path.resolve(a["out-dir"]), `f${String(n).padStart(5, "0")}.png`),
-          call: ["renderFrame", n] });
-      }
-    } else if (a.frame !== undefined && a.out) {
-      jobs = [{ label: `frame ${a.frame}`, file: path.resolve(a.out), call: ["renderFrame", Number(a.frame)] }];
-    }
-  } else if (a.series && a["cast-sheet"]) {
-    const dir = path.resolve(a.series);
-    data = { series: readJson(path.join(dir, "series.json")), story: { seed: 0 } };
-    if (!data.series.cast.length) throw new Error("series.json has no cast");
-    manifestDir = path.join(dir, "cast-frames");
-    for (const c of data.series.cast) for (const [label, pose, expression] of POSES) {
-      jobs.push({ label: `${c.id} ${label}`, file: path.join(manifestDir, `${c.id}-${label}.png`),
-        call: ["renderCast", { castId: c.id, pose, expression }] });
-    }
-  }
-  if (!jobs.length) {
-    throw new Error("usage: --part <dir> (--frame N --out file.png | --frames A-B --out-dir <dir> | --stills) "
-      + "| --series <dir> --cast-sheet  [--gpu]");
-  }
-  if (manifestDir) freshDir(manifestDir);
-
-  const server = await serve();
-  const browser = await chromium.launch({ args: a.gpu ? GPU_ARGS : CHROME_ARGS });
+/** GPU driver version for the adapter WebGL names. WebGL hides it and headless Chromium blocks chrome://gpu,
+ *  so on Windows ask WMI (~1 s); elsewhere null. */
+function driverFor(gpuName) {
+  if (process.platform !== "win32") return null;
   try {
+    const out = execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command",
+      "Get-CimInstance Win32_VideoController | Select-Object Name, DriverVersion | ConvertTo-Json -Compress"],
+    { encoding: "utf8", timeout: 15000 });
+    const list = [].concat(JSON.parse(out));
+    return list.find((g) => g.Name && gpuName.includes(g.Name))?.DriverVersion ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** launch Chromium, load the engine page. GPU unless forced or unavailable. Returns { browser, page, info }. */
+async function openPage(port, swiftshader) {
+  const launch = async (soft) => {
+    const browser = await chromium.launch({ args: soft ? SWIFTSHADER_ARGS : GPU_ARGS });
     const page = await browser.newPage({ viewport: { width: 1080, height: 1920 } });
     let pageError = null;
     page.on("console", (m) => {
@@ -109,32 +88,111 @@ async function main() {
       }
     });
     page.on("pageerror", (e) => { pageError = e; });
-    await page.goto(`http://127.0.0.1:${server.address().port}/page/index.html`);
+    await page.goto(`http://127.0.0.1:${port}/page/index.html`);
     await page.waitForFunction(() => window.engineReady === true, null, { timeout: 30000 });
     if (pageError) throw pageError;
+    const gl = await page.evaluate(() => window.glInfo());
+    const info = { renderer: soft ? "swiftshader" : "gpu", gpu_name: gl.renderer, gl_vendor: gl.vendor,
+      gl_version: gl.version, driver: null, chromium: browser.version(), playwright: PLAYWRIGHT };
+    return { browser, page, info, getError: () => pageError };
+  };
+  if (swiftshader) return launch(true);
+  const gpu = await launch(false);
+  if (!SOFTWARE_GL.test(gpu.info.gpu_name)) {
+    gpu.info.driver = driverFor(gpu.info.gpu_name);
+    return gpu;
+  }
+  console.log(`note: no hardware WebGL (got "${gpu.info.gpu_name}"), using SwiftShader`);
+  await gpu.browser.close();
+  return launch(true);
+}
+
+function frameJobs(a) {
+  const part = path.resolve(a.part);
+  const data = { story: readJson(path.join(part, "story.json")), phrases: readJson(path.join(part, "phrases.json")),
+    series: readJson(path.join(part, "..", "series.json")) };
+  if (a.stills) {
+    const dir = path.join(part, "frames", "stills");
+    return { data, manifestDir: dir, jobs: data.story.shots.map((s) => ({ label: s.id, file: path.join(dir, `${s.id}.png`),
+      call: ["renderFrame", Math.floor((s.start_frame + s.end_frame) / 2)] })) };
+  }
+  if (a.frames && a["out-dir"]) {
+    const m = /^(\d+)-(\d+)$/.exec(a.frames);
+    if (!m || Number(m[1]) > Number(m[2])) throw new Error(`--frames wants A-B with A <= B, got ${a.frames}`);
+    const jobs = [];
+    for (let n = Number(m[1]); n <= Number(m[2]); n++) {
+      jobs.push({ label: `frame ${n}`, file: path.join(path.resolve(a["out-dir"]), `${String(n).padStart(6, "0")}.png`),
+        call: ["renderFrame", n] });
+    }
+    return { data, jobs };
+  }
+  if (a.frame !== undefined && a.out) {
+    return { data, jobs: [{ label: `frame ${a.frame}`, file: path.resolve(a.out), call: ["renderFrame", Number(a.frame)] }] };
+  }
+  return { data, jobs: [] };
+}
+
+function castJobs(a) {
+  const dir = path.resolve(a.series);
+  const data = { series: readJson(path.join(dir, "series.json")), story: { seed: 0 } };
+  if (!data.series.cast.length) throw new Error("series.json has no cast");
+  const manifestDir = path.join(dir, "cast-frames"), jobs = [];
+  for (const c of data.series.cast) for (const [label, pose, expression] of POSES) {
+    jobs.push({ label: `${c.id} ${label}`, file: path.join(manifestDir, `${c.id}-${label}.png`),
+      call: ["renderCast", { castId: c.id, pose, expression }] });
+  }
+  return { data, jobs, manifestDir };
+}
+
+async function main() {
+  const { values: a } = parseArgs({
+    options: {
+      part: { type: "string" }, series: { type: "string" }, frame: { type: "string" }, out: { type: "string" },
+      stills: { type: "boolean" }, "cast-sheet": { type: "boolean" },
+      frames: { type: "string" }, "out-dir": { type: "string" },
+      swiftshader: { type: "boolean" }, probe: { type: "boolean" }, "info-out": { type: "string" },
+    },
+  });
+  const { data, jobs, manifestDir = null } = a.probe ? { jobs: [] }
+    : a.part ? frameJobs(a) : a.series && a["cast-sheet"] ? castJobs(a) : { jobs: [] };
+  if (!jobs.length && !a.probe) {
+    throw new Error("usage: --part <dir> (--frame N --out file.png | --frames A-B --out-dir <dir> | --stills) "
+      + "| --series <dir> --cast-sheet | --probe   [--swiftshader] [--info-out file.json]");
+  }
+  if (manifestDir) freshDir(manifestDir);
+
+  const server = await serve();
+  let browser = null;
+  try {
+    const opened = await openPage(server.address().port, a.swiftshader);
+    browser = opened.browser;
+    const { page, info } = opened;
+    console.log(`webgl: ${info.renderer} (${info.gpu_name})`);
+    if (a["info-out"]) writeFileAtomic(path.resolve(a["info-out"]), JSON.stringify(info, null, 2) + "\n");
+    if (a.probe) return;
     await page.evaluate((d) => window.setup(d), data);
-    console.log(`webgl: ${await page.evaluate(() => window.glRenderer())}`);
     const times = [];
     for (const j of jobs) {
       const t0 = performance.now();
       const url = await page.evaluate(([fn, arg]) => window[fn](arg), j.call);
       writePng(j.file, url);
       times.push(performance.now() - t0);
-      const info = j.call[0] === "renderFrame" ? await page.evaluate(() => window.lastInfo) : null;
-      const wide = info?.angle === "wide"
-        ? ` [wide: figure ${(info.figure * 100).toFixed(1)}% of frame height, ${info.inFrame ? "all in frame" : "CUT OFF"}]`
-        : info?.hidden ? ` [${info.hidden} prop(s) hidden behind the subject]` : "";
-      console.log(`${j.label}: ${times.at(-1).toFixed(0)} ms -> ${j.file}${wide}`);
+      const fi = j.call[0] === "renderFrame" ? await page.evaluate(() => window.lastInfo) : null;
+      const note = fi?.angle === "wide"
+        ? ` [wide: figure ${(fi.figure * 100).toFixed(1)}% of frame height, ${fi.inFrame ? "all in frame" : "CUT OFF"}]`
+        : fi?.hidden ? ` [${fi.hidden} prop(s) hidden behind the subject]` : "";
+      console.log(`${j.label}: ${times.at(-1).toFixed(0)} ms -> ${j.file}${note}`);
     }
+    if (opened.getError()) throw opened.getError();
     if (manifestDir) {
-      const rel = jobs.map((j) => ({ label: j.label, file: path.basename(j.file) }));
-      fs.writeFileSync(path.join(manifestDir, "manifest.json"), JSON.stringify(rel, null, 2) + "\n");
+      const frames = jobs.map((j) => ({ label: j.label, file: path.basename(j.file) }));
+      writeFileAtomic(path.join(manifestDir, "manifest.json"), JSON.stringify({ renderer: info, frames }, null, 2) + "\n");
     }
     const mean = (xs) => xs.reduce((s, x) => s + x, 0) / xs.length;
     const warm = times.length > 1 ? `, ${mean(times.slice(1)).toFixed(0)} ms without the first (warm)` : "";
     console.log(`rendered ${times.length} image(s), avg ${mean(times).toFixed(0)} ms per frame${warm}`);
   } finally {
-    await browser.close();
+    if (browser) await browser.close();
     server.close();
   }
 }

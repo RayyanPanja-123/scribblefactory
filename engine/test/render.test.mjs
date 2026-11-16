@@ -25,7 +25,8 @@ function makePart(mutate = (s) => s) {
   return part;
 }
 
-const render = (...args) => spawnSync(process.execPath, [path.join(ENGINE, "render.mjs"), ...args], { encoding: "utf8" });
+// tests always force SwiftShader: identical bytes on any machine
+const render = (...args) => spawnSync(process.execPath, [path.join(ENGINE, "render.mjs"), ...args, "--swiftshader"], { encoding: "utf8" });
 const pngSize = (buf) => [buf.readUInt32BE(16), buf.readUInt32BE(20)]; // IHDR width, height
 
 test("same frame twice gives identical PNG bytes, 1080x1920", () => {
@@ -47,8 +48,11 @@ test("stills: one image per shot plus a manifest", () => {
   assert.equal(r.status, 0, r.stderr);
   const dir = path.join(part, "frames", "stills");
   const manifest = JSON.parse(fs.readFileSync(path.join(dir, "manifest.json"), "utf8"));
-  assert.deepEqual(manifest.map((m) => m.file), ["s01.png", "s02.png", "s03.png"]);
-  for (const m of manifest) assert.deepEqual(pngSize(fs.readFileSync(path.join(dir, m.file))), [1080, 1920]);
+  assert.deepEqual(manifest.frames.map((m) => m.file), ["s01.png", "s02.png", "s03.png"]);
+  assert.equal(manifest.renderer.renderer, "swiftshader");
+  assert.match(manifest.renderer.gpu_name, /SwiftShader/);
+  assert.ok(manifest.renderer.playwright && manifest.renderer.chromium);
+  for (const m of manifest.frames) assert.deepEqual(pngSize(fs.readFileSync(path.join(dir, m.file))), [1080, 1920]);
 });
 
 test("unknown set falls back to room with a warning", () => {
@@ -74,4 +78,12 @@ test("every set preset builds without breaking stage clearance", () => {
     const r = render("--part", part, "--frame", "10", "--out", path.join(part, "f.png"));
     assert.equal(r.status, 0, `${set}: ${r.stderr}`);
   }
+});
+
+test("frame range writes 6-digit names and renderer info", () => {
+  const part = makePart(), out = path.join(part, "frames"), info = path.join(part, "info.json");
+  const r = render("--part", part, "--frames", "8-10", "--out-dir", out, "--info-out", info);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(fs.readdirSync(out).sort(), ["000008.png", "000009.png", "000010.png"]);
+  assert.equal(JSON.parse(fs.readFileSync(info, "utf8")).renderer, "swiftshader");
 });

@@ -103,8 +103,9 @@ def test_status_series_header(lib, capsys):
                         "cast: bob (#3a7bd5, dots, approved 2026-11-16), amy (#e2453c, half_closed, -)"]
 
 
-def test_render_not_implemented(lib):
-    assert main(["render", "cat", "part-01"]) == 2
+def test_render_missing_part(lib):
+    main(["new-series", "cat", "--title", "Cat"])
+    assert main(["render", "cat", "part-01"]) == 1
 
 
 def test_usage_error_is_user_error(lib):

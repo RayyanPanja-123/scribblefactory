@@ -1,7 +1,8 @@
 """Contact sheets: a labelled grid of frames from a render manifest.
 
 Run: python -m pipeline.scribble.sheet <frames-dir> <out.png> [--cols N]
-<frames-dir>/manifest.json is written by engine/render.mjs: [{"label": ..., "file": ...}, ...] in order.
+<frames-dir>/manifest.json is written by engine/render.mjs: {"renderer": {...}, "frames": [{"label", "file"}, ...]}
+(a bare list of frames is accepted too).
 """
 
 import argparse
@@ -45,7 +46,8 @@ def build_sheet(items: list[tuple[str, Path]], out: Path, cols: int) -> Path:
 def from_manifest(frames_dir: Path, out: Path, cols: int) -> Path:
     frames_dir = Path(frames_dir)
     manifest = json.loads((frames_dir / "manifest.json").read_text(encoding="utf-8"))
-    return build_sheet([(m["label"], frames_dir / m["file"]) for m in manifest], out, cols)
+    frames = manifest["frames"] if isinstance(manifest, dict) else manifest
+    return build_sheet([(m["label"], frames_dir / m["file"]) for m in frames], out, cols)
 
 
 def main(argv=None) -> None:
