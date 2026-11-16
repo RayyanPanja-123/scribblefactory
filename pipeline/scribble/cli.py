@@ -5,6 +5,7 @@ Exit codes: 0 ok, 1 user error, 2 not implemented.
 
 import argparse
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -38,12 +39,12 @@ def series_dir(args) -> Path:
 
 def cmd_new_series(args) -> int:
     d = series_dir(args)
-    if d.exists():
-        raise UserError(f"{d} already exists, not overwriting")
+    if (d / "series.json").exists():
+        raise UserError(f"{d / 'series.json'} already exists, not overwriting")
     # ponytail: voice_name/style preset are placeholders until a command sets them.
     series = SeriesModel(slug=args.slug, title=args.title, created_at=utcnow(),
                          voice=Voice(voice_name=""), style=Style(preset="default"))
-    d.mkdir(parents=True)
+    d.mkdir(parents=True, exist_ok=True)  # an interrupted earlier run may have left the folder
     save_series(d / "series.json", series)
     print(f"created {d / 'series.json'}")
     return 0
@@ -54,16 +55,16 @@ def cmd_new_part(args) -> int:
     if not (d / "series.json").exists():
         raise UserError(f"series {args.slug!r} not found at {d}")
     series = load_series(d / "series.json")
-    number = max((int(p[5:]) for p in series.parts), default=0) + 1
+    # Count folders too, so a part folder left by an interrupted run is never reused.
+    on_disk = [int(m[1]) for f in d.iterdir() if f.is_dir() and (m := re.fullmatch(r"part-([0-9]{2})", f.name))]
+    number = max([int(p[5:]) for p in series.parts] + on_disk, default=0) + 1
     if number > 99:
         raise UserError("series already has part-99; parts are limited to 99")
     pid = f"part-{number:02d}"
     title = args.title or f"Part {number}"
     pdir = d / pid
-    pdir.mkdir(exist_ok=True)
-    # Resumable: a crash after this but before the series save leaves part.json; keep it.
-    if not (pdir / "part.json").exists():
-        save_part(pdir / "part.json", PartModel(id=pid, number=number, title=title))
+    pdir.mkdir()
+    save_part(pdir / "part.json", PartModel(id=pid, number=number, title=title))
     try:
         with open(pdir / "story.md", "x", encoding="utf-8", newline="\n") as f:
             f.write(f"# {title}\n\n")

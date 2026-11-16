@@ -25,17 +25,32 @@ def test_new_series_bad_slug(lib):
     assert list(lib.iterdir()) == []
 
 
-def test_new_part_numbering_and_story_kept(lib):
+def test_new_series_recovers_interrupted_run(lib):
+    (lib / "cat").mkdir()  # folder left behind, no series.json
+    assert main(["new-series", "cat", "--title", "Cat"]) == 0
+    assert load_series(lib / "cat" / "series.json").title == "Cat"
+
+
+def test_new_part_numbering(lib):
     main(["new-series", "cat", "--title", "Cat"])
-    (lib / "cat" / "part-02").mkdir()
-    (lib / "cat" / "part-02" / "story.md").write_text("my story")
     assert main(["new-part", "cat", "--title", "Pilot"]) == 0
     assert main(["new-part", "cat"]) == 0
     assert load_series(lib / "cat" / "series.json").parts == ["part-01", "part-02"]
     p1 = load_part(lib / "cat" / "part-01" / "part.json")
     assert (p1.id, p1.number, p1.title, p1.stages.render.status) == ("part-01", 1, "Pilot", "pending")
     assert (lib / "cat" / "part-01" / "story.md").read_text() == "# Pilot\n\n"
-    assert (lib / "cat" / "part-02" / "story.md").read_text() == "my story"
+
+
+def test_new_part_skips_existing_folders(lib):
+    main(["new-series", "cat", "--title", "Cat"])
+    leftover = lib / "cat" / "part-02"
+    leftover.mkdir()
+    (leftover / "story.md").write_text("my story")
+    (lib / "cat" / "part-xx").mkdir()  # non-matching folder names are ignored
+    assert main(["new-part", "cat"]) == 0
+    assert load_series(lib / "cat" / "series.json").parts == ["part-03"]
+    assert (leftover / "story.md").read_text() == "my story"
+    assert not (leftover / "part.json").exists()
 
 
 def test_new_part_missing_series(lib, capsys):
