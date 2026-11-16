@@ -15,6 +15,10 @@ const BREATH = 0.03;     // body height change at full breath
 const HIP_OVERLAP = 12;  // body blob reaches this far below the hips
 const NECK_OVERLAP = 24; // head sits this far down into the body
 const LUMP = 0.035, JIT = 0.012, LUMP_SUM = 1 + 0.6 + 0.4; // wobble: shape lumps (3 harmonics) + boil jitter
+// face strokes: canvas px width, and the minimum width they keep ON SCREEN when the character is drawn small
+// (o.px = screen px per canvas px). Thickening is capped so a tiny face doesn't turn into a blot.
+const FACE = { brow: [20, 6], eye: [9, 3.5], eyeRim: [7, 3], mouth: [8, 3.5], pupil: [12, 3] };
+const FACE_MAX = 2.5;
 const ARM = 175;
 const TAU = Math.PI * 2;
 const deg = (d) => (d * Math.PI) / 180;
@@ -59,7 +63,8 @@ const quad = (a, c, b, n = 10) => Array.from({ length: n + 1 }, (_, i) => {
 
 /**
  * o: { seed, boil, color, eyes: "dots"|"half_closed", expression, action, phase (walk cycles), lid (0 | 0.5 | 1),
- *      mouth (0..1 open), breath (-1..1), facing: "left"|"right"|"camera", t (seconds) }
+ *      mouth (0..1 open), breath (-1..1), facing: "left"|"right"|"camera", t (seconds),
+ *      px (screen px per canvas px; face strokes keep a minimum on-screen width, default 1) }
  */
 export function drawStickman(canvas, o) {
   const g = canvas.getContext("2d");
@@ -117,20 +122,21 @@ export function drawStickman(canvas, o) {
 }
 
 function face(p, boil, o, fx, hy, look) {
+  const w = (k) => Math.min(FACE[k][0] * FACE_MAX, Math.max(FACE[k][0], FACE[k][1] / (o.px || 1)));
   const ex = [fx - 50, fx + 50], ey = hy - 8;
   const expr = o.expression || "neutral";
   const big = expr === "surprised" || o.action === "react";
   const half = o.eyes === "half_closed" || expr === "sleepy" || o.lid === 0.5;
   for (const x of ex) {
     if (o.lid >= 1) {
-      p.stroke(jitter(ellPts(x, ey - 6, 26, 10, 20, 160, 0, 12), boil, 1.5), 9);         // blink: closed
+      p.stroke(jitter(ellPts(x, ey - 6, 26, 10, 20, 160, 0, 12), boil, 1.5), w("eye"));  // blink: closed
     } else if (half) {
       p.poly(ellPts(x + 4 * look, ey, 15, 13, 0, 180, 0, 12), "#1c1a1a", 0);           // pupil under the lid
-      p.stroke(jitter([[x - 28, ey], [x + 28, ey]], boil, 1.5), 9);                    // lid line
+      p.stroke(jitter([[x - 28, ey], [x + 28, ey]], boil, 1.5), w("eye"));             // lid line
     } else {
       const r = big ? 36 : 30;
-      p.poly(ellPts(x, ey, r, r, 0, 360, 0, 28), "#ffffff", 7);
-      p.dot(x + 8 * look, ey + 2, big ? 9 : 12);
+      p.poly(ellPts(x, ey, r, r, 0, 360, 0, 28), "#ffffff", w("eyeRim"));
+      p.dot(x + 8 * look, ey + 2, w("pupil") * (big ? 0.75 : 1));
     }
   }
   // bold curved brows
@@ -139,7 +145,7 @@ function face(p, boil, o, fx, hy, look) {
   for (const [x, side] of [[ex[0], -1], [ex[1], 1]]) {
     const o0 = [x + side * 34, by + outer], i0 = [x - side * 30, by + inner];
     const c = [(o0[0] + i0[0]) / 2, Math.min(o0[1], i0[1]) - arch * 2];
-    p.stroke(jitter(quad(o0, c, i0), boil, 1.2), 14);
+    p.stroke(jitter(quad(o0, c, i0), boil, 1.2), w("brow"));
   }
   // small mouth line; talking opens it
   const mx = fx + 4 * look, my = hy + 74;
@@ -154,6 +160,6 @@ function face(p, boil, o, fx, hy, look) {
     angry: [[mx - 20, my + 5], [mx, my - 1], [mx + 20, my + 5]],
     sleepy: [[mx - 12, my], [mx + 12, my]],
   };
-  if (expr === "surprised") p.poly(ellPts(mx, my, 12, 15, 0, 360, 0, 20), null, 7);
-  else p.stroke(jitter(M[expr] || M.neutral, boil, 1.2), 8);
+  if (expr === "surprised") p.poly(ellPts(mx, my, 12, 15, 0, 360, 0, 20), null, w("mouth") * 0.9);
+  else p.stroke(jitter(M[expr] || M.neutral, boil, 1.2), w("mouth"));
 }

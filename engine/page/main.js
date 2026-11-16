@@ -158,8 +158,11 @@ window.renderFrame = (n) => {
     const [x, z] = place(a), key = charSeed(a.cast_id);
     const travelled = a.end_pos ? Math.hypot(a.end_pos[0] - a.start_pos[0], a.end_pos[1] - a.start_pos[1]) * u : 0;
     const phase = STRIDE[a.action] ? travelled / STRIDE[a.action] : 0;
+    camera.updateMatrixWorld();
+    const feet = new THREE.Vector3(x, 0, z).project(camera), head = new THREE.Vector3(x, FIG_H, z).project(camera);
+    const px = (((head.y - feet.y) / 2) * H) / FIGURE_PX; // screen px per card canvas px
     const mesh = drawCard(a.cast_id, {
-      boil: Math.floor(n / BOIL_FRAMES), action: a.action, expression: a.expression, facing: a.facing, t, phase,
+      boil: Math.floor(n / BOIL_FRAMES), action: a.action, expression: a.expression, facing: a.facing, t, phase, px,
       lid: lidAt(n, key),
       breath: Math.sin((2 * Math.PI * t) / 3.4 + 2 * Math.PI * rng(key, "breath")()),
       mouth: a.action === "talk" ? mouthAt(t, shot) : 0,

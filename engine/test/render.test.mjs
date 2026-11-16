@@ -67,3 +67,11 @@ test("bad frame number fails with exit 1", () => {
   assert.equal(r.status, 1);
   assert.match(r.stderr, /outside 0\.\.179/);
 });
+
+test("every set preset builds without breaking stage clearance", () => {
+  for (const set of ["room", "office", "street"]) {
+    const part = makePart((s) => { for (const shot of s.shots) shot.set = set; return s; });
+    const r = render("--part", part, "--frame", "10", "--out", path.join(part, "f.png"));
+    assert.equal(r.status, 0, `${set}: ${r.stderr}`);
+  }
+});
