@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+faster-whisper
+pydantic>=2
+sse-starlette
+pytest
