@@ -13,7 +13,7 @@ from pathlib import Path
 
 from ..io import atomic_write_json
 from ..schemas import Actor, Camera, Cue, PhrasesModel, SeriesModel, Shot, StoryModel
-from ..validate import MAX_SHOT_FRAMES, duration_frames, validate
+from ..validate import MAX_SHOT_FRAMES, RUN_SPEED, WALK_SPEED, duration_frames, validate
 from .prep import MARKER_RE, clean_markdown, mark_directives
 from .runner import StageError
 from .validate import load_model
@@ -29,7 +29,9 @@ MOVES = ["push_in", "pull_out", "truck_left", "truck_right", "crane_up", "crane_
 SPEED = (0.15, 0.35)
 TWIST_ROLL = (6.0, 10.0)   # degrees, sign seeded
 STAGE_X = 1.5              # cast spread across -STAGE_X..STAGE_X, z = 0
+BOUNDS = (-2.0, 2.0)       # x range a walk/run must end inside
 MOVE_SPEED = {"walk": 1.2, "run": 2.5}  # units/s
+MIN_SPEED = {"walk": WALK_SPEED[0], "run": RUN_SPEED[0]}  # shortened moves never go slower than the validator allows
 
 # Lexicons match lowercase words with punctuation and a trailing 's stripped. First match in the phrase wins.
 ACTIONS = {
@@ -89,24 +91,50 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str]):
     return words, tags
 
 
-def _actors(cast, subject, words, seconds):
+def spread(cast) -> dict[str, float]:
     n = len(cast)
-    xs = [0.0] if n == 1 else [round(-STAGE_X + 2 * STAGE_X * i / (n - 1), 3) for i in range(n)]
+    return {cid: 0.0 if n == 1 else round(-STAGE_X + 2 * STAGE_X * i / (n - 1), 3) for i, cid in enumerate(cast)}
+
+
+def fit_move(x: float, d: int, action: str, seconds: float) -> tuple[int, float] | None:
+    """(direction, distance) for a walk/run from x that ends inside the stage bounds, or None (go idle).
+
+    Full distance in direction d; else flipped; else the roomier side shortened, but never slower than
+    the validator's minimum speed (plus a mm of rounding margin).
+    """
+    dist = MOVE_SPEED[action] * seconds
+    for dd in (d, -d):
+        if BOUNDS[0] <= x + dd * dist <= BOUNDS[1]:
+            return dd, dist
+    dd = 1 if BOUNDS[1] - x >= x - BOUNDS[0] else -1
+    room = math.floor(((BOUNDS[1] - x) if dd > 0 else (x - BOUNDS[0])) * 1000) / 1000
+    return (dd, room) if room >= MIN_SPEED[action] * seconds + 0.001 else None
+
+
+def _actors(cast, pos, subject, words, seconds):
+    """Actors for one shot, starting at pos[cid]. Updates pos to where each one ends."""
     action = next((ACTIONS[w] for w in words if w in ACTIONS), "talk")
     expression = next((EXPRESSIONS[w] for w in words if w in EXPRESSIONS), "neutral")
-    sx = xs[cast.index(subject)]
+    sx = pos[subject]
     out = []
-    for cid, x in zip(cast, xs):
+    for cid in cast:
+        x = pos[cid]
         if cid != subject:
             facing = "camera" if x == sx else "left" if sx < x else "right"  # look at the subject
             out.append(Actor(cast_id=cid, action="idle", start_pos=(x, 0.0), facing=facing, expression="neutral"))
-        elif action in MOVE_SPEED:
-            d = next((DIRECTIONS[w] for w in words if w in DIRECTIONS), 1 if sx <= 0 else -1)  # else to centre
-            end = (round(x + d * MOVE_SPEED[action] * seconds, 3), 0.0)
-            out.append(Actor(cast_id=cid, action=action, start_pos=(x, 0.0), end_pos=end,
+            continue
+        move = None
+        if action in MOVE_SPEED:
+            d = next((DIRECTIONS[w] for w in words if w in DIRECTIONS), 1 if x <= 0 else -1)  # else to centre
+            move = fit_move(x, d, action, seconds)
+        if move:
+            d, dist = move
+            pos[cid] = round(x + d * dist, 3)
+            out.append(Actor(cast_id=cid, action=action, start_pos=(x, 0.0), end_pos=(pos[cid], 0.0),
                              facing="left" if d < 0 else "right", expression=expression))
         else:
-            out.append(Actor(cast_id=cid, action=action, start_pos=(x, 0.0), facing="camera", expression=expression))
+            act = "idle" if action in MOVE_SPEED else action  # a walk/run that can't fit on stage
+            out.append(Actor(cast_id=cid, action=act, start_pos=(x, 0.0), facing="camera", expression=expression))
     return out
 
 
@@ -138,8 +166,14 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int) 
 
     shots, cues = [], [Cue(frame=0, kind="music_start")]
     prev_angle = prev_set = subject = None
+    pos: dict[str, float] = {}  # where each actor stands now; reset on a set change
     for i, p in enumerate(phrases.phrases):
         set_, cast, _ = tags[p.word_start]
+        if set_ != prev_set:
+            pos = {}
+        home = spread(cast)
+        for cid in cast:  # newcomers (start, set change, @cast change) take their even-spread spot
+            pos.setdefault(cid, home[cid])
         twist = any(t[2] for t in tags[p.word_start:p.word_end + 1])
         pw = [token(w) for w in heard[p.word_start:p.word_end + 1]]
         mentioned = next((names[w] for w in pw if names.get(w) in cast), None)
@@ -159,7 +193,7 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int) 
                 cues.append(Cue(frame=s0, kind="whoosh"))
             shots.append(Shot(id=f"s{len(shots) + 1:02d}", start_frame=s0, end_frame=s1, set=set_,
                               phrase_range=(i, i), camera=Camera(angle=angle, move=move, speed=speed, roll_deg=roll),
-                              actors=_actors(list(cast), subject, pw, (s1 - s0) / FPS), twist=is_twist))
+                              actors=_actors(cast, pos, subject, pw, (s1 - s0) / FPS), twist=is_twist))
             prev_angle, prev_set = angle, set_
     return StoryModel(duration_frames=total, seed=seed, shots=shots, cues=cues)
 

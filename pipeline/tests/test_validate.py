@@ -65,6 +65,22 @@ def _drop_cue(kind):
     return lambda d: d.__setitem__("cues", [c for c in d["cues"] if c["kind"] != kind])
 
 
+def _s01_on_phrase1(d):
+    shot(d, 0)["phrase_range"] = [1, 1]
+    shot(d, 1)["phrase_range"] = [2, 2]  # keep s01 a group of one (s02 + s03 form the phrase 2 group)
+
+
+def _split_group(d, rng, end=60):
+    """Replace s01 with two talk pieces 0-30 and 30-end on phrase rng, followed by s02 (end-120) on phrase 2."""
+    s1, s2, _ = d["shots"]
+    talk = [dict(s2["actors"][0], start_pos=[0, 0])]
+    a = dict(s1, id="s01", start_frame=0, end_frame=30, phrase_range=rng, actors=talk)
+    b = dict(s1, id="s04", start_frame=30, end_frame=end, phrase_range=rng, actors=talk,
+             camera=dict(s1["camera"], angle="high"))
+    s2.update(start_frame=end, phrase_range=[2, 2])
+    d["shots"][:1] = [a, b]
+
+
 CASES = {
     "contiguous gap": ("contiguous", _move_s02_start),
     "contiguous first not 0": ("contiguous", lambda d: shot(d, 0).__setitem__("start_frame", 1)),
@@ -89,21 +105,28 @@ CASES = {
     "phrase_range first > last": ("phrase_range", _set(lambda d: shot(d, 1), "phrase_range", [2, 1])),
     "phrase_range backwards": ("phrase_range", _set(lambda d: shot(d, 2), "phrase_range", [0, 2])),
     "duplicate_shot_id": ("duplicate_shot_id", _set(lambda d: shot(d, 2), "id", "s01")),
-    # s02 (frames 60-120) pointed at phrase 0 (0.1-1.6 s = frames 3-48, 0-51 with tolerance)
-    "phrase_timing": ("phrase_timing", _set(lambda d: shot(d, 1), "phrase_range", [0, 0])),
+    # s01 alone (frames 0-60) pointed at phrase 1 (2.1-3.5 s = frames 63-105, 60-108 with tolerance)
+    "phrase_timing": ("phrase_timing", _s01_on_phrase1),
+    "phrase_timing split group": ("phrase_timing", lambda d: _split_group(d, [1, 1])),
 }
 
 
-def _phrase0_end(t):
-    return lambda p: p["phrases"][0].__setitem__("end", t)
+def _phrase1_start(t):
+    return lambda p: p["phrases"][1].__setitem__("start", t)
 
 
 def test_phrase_timing_tolerance():
-    s02_on_phrase0 = _set(lambda d: shot(d, 1), "phrase_range", [0, 0])
-    # phrase 0 ends at 1.95 s = frame 58.5, +3 = 61.5 > 60: overlaps s02
-    assert rules(s02_on_phrase0, phrases_mutate=_phrase0_end(1.95)) == set()
-    # ends at 1.9 s = frame 57, +3 = 60: touches s02's start only, no overlap
-    assert rules(s02_on_phrase0, phrases_mutate=_phrase0_end(1.9)) == {"phrase_timing"}
+    # phrase 1 starts at 2.05 s = frame 61.5, -3 = 58.5 < 60: overlaps s01
+    assert rules(_s01_on_phrase1, phrases_mutate=_phrase1_start(2.05)) == set()
+    # starts at 2.1 s = frame 63, -3 = 60: touches s01's end only, no overlap
+    assert rules(_s01_on_phrase1, phrases_mutate=_phrase1_start(2.1)) == {"phrase_timing"}
+
+
+def test_split_piece_in_pause_passes_as_group():
+    # s01 + s02 both on phrase 0: s02 (60-120) sits wholly after phrase 0 (0-51), the group 0-120 overlaps it
+    assert rules(_set(lambda d: shot(d, 1), "phrase_range", [0, 0])) == set()
+    # same with an explicit two-piece group on phrase 1 whose first piece is before it and second inside it
+    assert rules(lambda d: _split_group(d, [1, 1], end=90)) == set()
 
 
 @pytest.mark.parametrize("rule,mutate", CASES.values(), ids=CASES.keys())

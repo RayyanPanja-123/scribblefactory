@@ -6,6 +6,7 @@ and audio levels (the mix stage owns them).
 """
 
 import math
+from itertools import groupby
 from typing import NamedTuple
 
 from .schemas import PhrasesModel, StoryModel
@@ -58,14 +59,8 @@ def validate(story: StoryModel, phrases: PhrasesModel, cast_ids: set[str]) -> li
         first, last = s.phrase_range
         if not 0 <= first <= last < len(phrases.phrases):
             err(s.id, "phrase_range", f"{[first, last]} invalid for {len(phrases.phrases)} phrases")
-        else:
-            if prev and first < prev.phrase_range[1]:
-                err(s.id, "phrase_range", f"{[first, last]} goes back before {prev.id} {list(prev.phrase_range)}")
-            lo = phrases.phrases[first].start * fps - PHRASE_TOLERANCE
-            hi = phrases.phrases[last].end * fps + PHRASE_TOLERANCE
-            if not (s.start_frame < hi and s.end_frame > lo):
-                err(s.id, "phrase_timing", f"frames {s.start_frame}-{s.end_frame} miss phrases {[first, last]} "
-                                           f"at frames {lo:.0f}-{hi:.0f} (with +-{PHRASE_TOLERANCE} tolerance)")
+        elif prev and first < prev.phrase_range[1]:
+            err(s.id, "phrase_range", f"{[first, last]} goes back before {prev.id} {list(prev.phrase_range)}")
 
         for a in s.actors:
             _check_actor(s.id, a, n / fps, cast_ids, err)
@@ -73,6 +68,20 @@ def validate(story: StoryModel, phrases: PhrasesModel, cast_ids: set[str]) -> li
         if s.twist:
             _check_twist(s, story, err)
         prev = s
+
+    # Consecutive shots with the same phrase_range (a split phrase) are one group: together they must overlap
+    # the phrase window, so a split piece that sits wholly in the pause after the phrase is fine.
+    for (first, last), grp in groupby(story.shots, key=lambda s: s.phrase_range):
+        grp = list(grp)
+        if not 0 <= first <= last < len(phrases.phrases):
+            continue  # already reported as phrase_range
+        a, b = grp[0].start_frame, grp[-1].end_frame
+        lo = phrases.phrases[first].start * fps - PHRASE_TOLERANCE
+        hi = phrases.phrases[last].end * fps + PHRASE_TOLERANCE
+        if not (a < hi and b > lo):
+            ids = grp[0].id if len(grp) == 1 else f"{grp[0].id}..{grp[-1].id}"
+            err(grp[0].id, "phrase_timing", f"{ids} frames {a}-{b} miss phrases {[first, last]} "
+                                            f"at frames {lo:.0f}-{hi:.0f} (with +-{PHRASE_TOLERANCE} tolerance)")
 
     if story.shots and expected_start != story.duration_frames:
         err(story.shots[-1].id, "contiguous", f"last shot ends at {expected_start}, expected {story.duration_frames}")

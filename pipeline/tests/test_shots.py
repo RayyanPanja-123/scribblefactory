@@ -119,7 +119,7 @@ def test_long_phrase_splits_with_new_angles():
 
 
 def _subject(md):
-    story, _ = plan("# K\n\n@cast bob, amy\n" + md + "\n")
+    story, _ = plan("# K\n\n@cast bob, amy\n" + md + "\n", word_s=0.2)  # short shot (~1.7 s): a run fits on stage
     s = story.shots[0]
     return next(a for a in s.actors if a.action != "idle"), s
 
@@ -150,9 +150,9 @@ def test_walk_direction_distance_and_facing():
     secs = (s.end_frame - s.start_frame) / 30
     assert a.start_pos == (1.5, 0.0) and a.facing == "left"
     assert a.end_pos[0] == pytest.approx(1.5 - 1.2 * secs, abs=1e-3)
-    a, s = _subject("Amy ran right.")
-    assert a.facing == "right" and a.end_pos[0] == pytest.approx(1.5 + 2.5 * (s.end_frame - s.start_frame) / 30, abs=1e-3)
-    a, _ = _subject("Bob left.")  # "left": walk keyword and direction
+    a, s = _subject("Amy ran right.")  # 4.25 units fits neither way: flipped, shortened to the left edge
+    assert a.facing == "left" and a.end_pos == (shots.BOUNDS[0], 0.0)
+    a, _ = _subject("Amy left.")  # "left": walk keyword and direction (amy at 1.5 has room to the left)
     assert (a.action, a.facing) == ("walk", "left") and a.end_pos[0] < a.start_pos[0]
 
 
@@ -215,8 +215,61 @@ def test_stage_fails_and_writes_nothing(part):
 
 
 def test_stage_invalid_plan_writes_nothing(part, monkeypatch, capsys):
-    monkeypatch.setattr(shots, "MOVE_SPEED", {"walk": 5.0, "run": 2.5})  # walk far too fast: gliding
+    monkeypatch.setattr(shots, "MOVE_SPEED", {"walk": 0.3, "run": 2.5})  # walk too slow for the validator: gliding
     assert run(part) == "failed"
     assert not (part / "story.json").exists()
     assert "gliding" in capsys.readouterr().out
     assert "fails validation" in load_part(part / "part.json").stages.shots.error
+
+
+# --- position carry-over and stage bounds ---
+
+def _amy(story, i):
+    return next(a for a in story.shots[i].actors if a.cast_id == "amy")
+
+
+def test_next_shot_starts_where_walk_ended():
+    story, _ = plan("# C\n\n@cast bob, amy\nAmy walked in. Amy smiled.\n")
+    walk, after = _amy(story, 0), _amy(story, 1)
+    assert walk.action == "walk" and walk.end_pos[0] < 1.5
+    assert after.start_pos == walk.end_pos and after.end_pos is None
+    bob = next(a for a in story.shots[1].actors if a.cast_id == "bob")
+    assert bob.start_pos == (-1.5, 0.0)  # bob never moved
+
+
+def test_set_change_resets_positions():
+    story, _ = plan("# C\n\n@cast bob, amy\nAmy walked in.\n@set street\nAmy smiled.\n")
+    assert _amy(story, 0).end_pos[0] < 1.5
+    assert _amy(story, 1).start_pos == (1.5, 0.0)
+
+
+def test_walk_off_the_edge_flips_direction():
+    story, _ = plan("# C\n\n@cast bob, amy\nAmy walked right.\n")  # amy at 1.5, right would end past 2.0
+    a = _amy(story, 0)
+    assert a.facing == "left" and shots.BOUNDS[0] <= a.end_pos[0] < a.start_pos[0]
+
+
+@pytest.mark.parametrize("x,d,action,secs,want", [
+    (0.0, 1, "walk", 1.0, (1, 1.2)),       # fits as asked
+    (1.5, 1, "walk", 1.0, (-1, 1.2)),      # flipped
+    (0.0, 1, "walk", 3.0, (1, 2.0)),       # 3.6 fits neither way: shortened to the edge, 0.67 units/s
+    (0.5, -1, "walk", 3.0, (-1, 2.5)),     # shortened toward the roomier side
+    (0.0, 1, "run", 3.0, None),            # 2.0 in 3 s is below run's 1.8 units/s: idle
+])
+def test_fit_move(x, d, action, secs, want):
+    got = shots.fit_move(x, d, action, secs)
+    assert got == want if want is None else got == (want[0], pytest.approx(want[1]))
+
+
+def test_repeated_walks_stay_inside_and_validate():
+    md = "# C\n\n@cast bob, amy\n" + " ".join(["Amy walked right."] * 6) + " Bob ran left. Bob ran left.\n"
+    story, ph = plan(md)
+    for s in story.shots:
+        for a in s.actors:
+            for p in (a.start_pos, a.end_pos):
+                assert p is None or shots.BOUNDS[0] <= p[0] <= shots.BOUNDS[1]
+    for prev, cur in zip(story.shots, story.shots[1:]):  # carry-over across every shot
+        ends = {a.cast_id: a.end_pos or a.start_pos for a in prev.actors}
+        assert all(a.start_pos == ends[a.cast_id] for a in cur.actors)
+    assert validate(story, ph, {c.id for c in SERIES.cast}) == []
+    assert plan(md)[0] == story  # deterministic
