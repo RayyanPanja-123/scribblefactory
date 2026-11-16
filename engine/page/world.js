@@ -67,14 +67,21 @@ const windows = (g, s, R) => {
 };
 
 class Builder {
-  constructor(group, seed, strength = 1) { this.group = group; this.seed = seed; this.n = 0; this.strength = strength; }
+  constructor(group, seed, strength = 1) {
+    this.group = group; this.seed = seed; this.n = 0; this.strength = strength;
+    this.pieces = new Map(); this.piece_ = null; // piece id -> { meshes, box }: what the engine may hide per shot
+    group.userData.pieces = this.pieces;
+  }
+  /** everything added inside fn is one prop piece (hidden or shown together) */
+  piece(fn) { this.piece_ = this.pieces.size; fn(); this.piece_ = null; }
   mat(color, pattern = null, repeat = [1, 1]) {
     const map = paint(this.seed, this.n++, color, pattern, this.strength);
     map.repeat.set(...repeat);
     return new THREE.MeshToonMaterial({ map, gradientMap: GRADIENT });
   }
-  /** centred primitive at pos; outline = inverted hull grown by HULL_T on every side; floor = exempt from clearance */
-  add(geo, mat, pos, { outline = true, rot = null, floor = false } = {}) {
+  /** centred primitive at pos; outline = inverted hull grown by HULL_T on every side; floor = exempt from clearance.
+   *  Anything that is not floor or backdrop (walls, windows, posters, buildings) is a prop piece. */
+  add(geo, mat, pos, { outline = true, rot = null, floor = false, backdrop = false } = {}) {
     const m = new THREE.Mesh(geo, mat);
     m.position.set(...pos);
     if (rot) m.rotation.set(...rot);
@@ -95,6 +102,15 @@ class Builder {
       h.position.copy(m.position); h.rotation.copy(m.rotation);
       h.scale.set(...[s.x, s.y, s.z].map((v) => (v > 1e-6 ? (v + 2 * HULL_T) / v : 1)));
       this.group.add(h);
+      m.userData.hull = h;
+    }
+    if (!floor && !backdrop) {
+      const id = this.piece_ ?? this.pieces.size;
+      if (!this.pieces.has(id)) this.pieces.set(id, { meshes: [], box: new THREE.Box3() });
+      const pc = this.pieces.get(id);
+      pc.meshes.push(m, ...(m.userData.hull ? [m.userData.hull] : []));
+      m.updateMatrixWorld();
+      pc.box.union(new THREE.Box3().setFromObject(m));
     }
     return m;
   }
@@ -105,45 +121,52 @@ class Builder {
 
 function room(b) {
   b.box(14, 0.1, 12, "#c8935a", [0, -0.05, 2.5], { outline: false, floor: true, pattern: lines("v", 8, "#8a5a32", 3), repeat: [4, 3] });
-  b.box(14, 6, 0.2, "#f2d6a2", [0, 3, -2.7], { outline: false, pattern: lines("v", 6, "#e6c48a", 8), repeat: [5, 2] });
+  b.box(14, 6, 0.2, "#f2d6a2", [0, 3, -2.7], { outline: false, backdrop: true, pattern: lines("v", 6, "#e6c48a", 8), repeat: [5, 2] });
   b.cyl(1.6, 1.6, 0.02, "#d9534f", [0, 0.01, 0.2], { outline: false, floor: true }); // rug
-  // sofa
-  b.box(2.4, 0.45, 0.9, "#5b8bd9", [-1.4, 0.22, -1.9]);
-  b.box(2.4, 0.7, 0.25, "#4a76c0", [-1.4, 0.8, -2.3]);
-  for (const x of [-2.65, -0.15]) b.box(0.25, 0.65, 0.9, "#4a76c0", [x, 0.33, -1.9]);
-  // window, picture, lamp
-  b.box(1.4, 1.2, 0.08, "#ffffff", [1.6, 2.2, -2.55]);
-  b.box(1.2, 1.0, 0.04, "#9fd3f5", [1.6, 2.2, -2.5], { outline: false });
-  b.box(0.8, 0.6, 0.05, "#e8a33d", [-1.4, 2.3, -2.55]);
-  b.cyl(0.04, 0.04, 1.6, "#333333", [2.7, 0.8, -1.7]);
-  b.cyl(0.18, 0.35, 0.4, "#fff3b0", [2.7, 1.75, -1.7]);
+  b.piece(() => { // sofa
+    b.box(2.4, 0.45, 0.9, "#5b8bd9", [-1.4, 0.22, -1.9]);
+    b.box(2.4, 0.7, 0.25, "#4a76c0", [-1.4, 0.8, -2.3]);
+    for (const x of [-2.65, -0.15]) b.box(0.25, 0.65, 0.9, "#4a76c0", [x, 0.33, -1.9]);
+  });
+  // window, picture (backdrop), lamp
+  b.box(1.4, 1.2, 0.08, "#ffffff", [1.6, 2.2, -2.55], { backdrop: true });
+  b.box(1.2, 1.0, 0.04, "#9fd3f5", [1.6, 2.2, -2.5], { outline: false, backdrop: true });
+  b.box(0.8, 0.6, 0.05, "#e8a33d", [-1.4, 2.3, -2.55], { backdrop: true });
+  b.piece(() => {
+    b.cyl(0.04, 0.04, 1.6, "#333333", [2.7, 0.8, -1.7]);
+    b.cyl(0.18, 0.35, 0.4, "#fff3b0", [2.7, 1.75, -1.7]);
+  });
 }
 
 function office(b) {
   // warm wall, teal carpet, coloured props at street-set saturation; everything across the stage sits behind z -1
   b.box(14, 0.1, 12, "#4fa39b", [0, -0.05, 2.5], { outline: false, floor: true, pattern: lines("h", 8, "#3f8a83", 3), repeat: [5, 4] });
-  b.box(14, 6, 0.2, "#f2bd85", [0, 3, -2.7], { outline: false, pattern: lines("h", 4, "#e3a66a", 10), repeat: [4, 2] });
-  b.box(2.4, 1.0, 0.06, "#9fd3f5", [0, 2.4, -2.58], { pattern: lines("h", 10, "#6fa8d0", 5) }); // window blinds
-  b.box(0.7, 0.95, 0.04, "#e76f51", [-2.0, 2.3, -2.58], { pattern: poster("#e9c46a") });
-  b.box(0.7, 0.95, 0.04, "#2a9d8f", [2.0, 2.3, -2.58], { pattern: poster("#f4a261") });
+  b.box(14, 6, 0.2, "#f2bd85", [0, 3, -2.7], { outline: false, backdrop: true, pattern: lines("h", 4, "#e3a66a", 10), repeat: [4, 2] });
+  b.box(2.4, 1.0, 0.06, "#9fd3f5", [0, 2.4, -2.58], { backdrop: true, pattern: lines("h", 10, "#6fa8d0", 5) }); // blinds
+  b.box(0.7, 0.95, 0.04, "#e76f51", [-2.0, 2.3, -2.58], { backdrop: true, pattern: poster("#e9c46a") });
+  b.box(0.7, 0.95, 0.04, "#2a9d8f", [2.0, 2.3, -2.58], { backdrop: true, pattern: poster("#f4a261") });
   const chairs = ["#e63946", "#457b9d"], mugs = ["#ffb703", "#8338ec"];
   [-1.8, 1.8].forEach((x, i) => {
-    b.box(1.6, 0.08, 0.8, "#d99a4e", [x, 0.75, -2.05]);                                   // desk top
-    for (const dx of [-0.72, 0.72]) b.box(0.08, 0.72, 0.7, "#8a5a32", [x + dx, 0.36, -2.05]);
-    b.box(0.62, 0.42, 0.05, "#2d3440", [x, 1.07, -2.3]);                                 // monitor
-    b.box(0.52, 0.32, 0.02, "#7ec8e3", [x, 1.07, -2.27], { outline: false });            // screen
-    b.box(0.1, 0.12, 0.05, "#2d3440", [x, 0.85, -2.3], { outline: false });
-    b.cyl(0.06, 0.06, 0.12, mugs[i], [x + 0.55, 0.85, -1.85]);                           // mug
-    b.box(0.5, 0.08, 0.5, chairs[i], [x + 0.2, 0.48, -1.4]);                             // chair seat
-    b.box(0.5, 0.6, 0.08, chairs[i], [x + 0.2, 0.8, -1.17]);                             // chair back, facing camera
-    b.cyl(0.04, 0.04, 0.44, "#2d3440", [x + 0.2, 0.22, -1.4]);
+    b.piece(() => { // desk with monitor and mug
+      b.box(1.6, 0.08, 0.8, "#d99a4e", [x, 0.75, -2.05]);
+      for (const dx of [-0.72, 0.72]) b.box(0.08, 0.72, 0.7, "#8a5a32", [x + dx, 0.36, -2.05]);
+      b.box(0.62, 0.42, 0.05, "#2d3440", [x, 1.07, -2.3]);
+      b.box(0.52, 0.32, 0.02, "#7ec8e3", [x, 1.07, -2.27], { outline: false });
+      b.box(0.1, 0.12, 0.05, "#2d3440", [x, 0.85, -2.3], { outline: false });
+      b.cyl(0.06, 0.06, 0.12, mugs[i], [x + 0.55, 0.85, -1.85]);
+    });
+    b.piece(() => { // chair, back facing the camera
+      b.box(0.5, 0.08, 0.5, chairs[i], [x + 0.2, 0.48, -1.4]);
+      b.box(0.5, 0.6, 0.08, chairs[i], [x + 0.2, 0.8, -1.17]);
+      b.cyl(0.04, 0.04, 0.44, "#2d3440", [x + 0.2, 0.22, -1.4]);
+    });
   });
-  b.cyl(0.25, 0.25, 0.9, "#f4f4f4", [3.0, 0.45, -2.1]);                                  // water cooler
-  b.cyl(0.18, 0.2, 0.45, "#7fc4ef", [3.0, 1.12, -2.1]);
-  b.cyl(0.25, 0.2, 0.4, "#c8553d", [-3.0, 0.2, -2.1]);                                   // plant
-  b.ball(0.45, "#43aa8b", [-3.0, 0.75, -2.1]);
-  b.cyl(0.2, 0.16, 0.35, "#e9c46a", [0.0, 0.18, -2.3]);                                  // small plant by the wall
-  b.ball(0.3, "#2a9d8f", [0.0, 0.6, -2.3]);
+  b.piece(() => { // water cooler
+    b.cyl(0.25, 0.25, 0.9, "#f4f4f4", [3.0, 0.45, -2.1]);
+    b.cyl(0.18, 0.2, 0.45, "#7fc4ef", [3.0, 1.12, -2.1]);
+  });
+  b.piece(() => { b.cyl(0.25, 0.2, 0.4, "#c8553d", [-3.0, 0.2, -2.1]); b.ball(0.45, "#43aa8b", [-3.0, 0.75, -2.1]); });
+  b.piece(() => { b.cyl(0.2, 0.16, 0.35, "#e9c46a", [0.0, 0.18, -2.3]); b.ball(0.3, "#2a9d8f", [0.0, 0.6, -2.3]); });
 }
 
 function street(b, R) {
@@ -153,15 +176,16 @@ function street(b, R) {
   let x = -6;
   while (x < 6) {
     const w = 2.2 + R() * 1.2, h = 5 + R() * 3;
-    b.box(w, h, 2, palette[Math.floor(R() * palette.length)], [x + w / 2, h / 2, -4.2], { pattern: windows, repeat: [Math.round(w), Math.round(h / 2)] });
+    b.box(w, h, 2, palette[Math.floor(R() * palette.length)], [x + w / 2, h / 2, -4.2],
+      { backdrop: true, pattern: windows, repeat: [Math.round(w), Math.round(h / 2)] });
     x += w + 0.05;
   }
-  b.cyl(0.05, 0.06, 3.2, "#2f3a40", [2.3, 1.6, -1.6]);
-  b.ball(0.2, "#fff3b0", [2.3, 3.25, -1.6]);
-  b.cyl(0.1, 0.13, 1.4, "#7b5132", [-2.6, 0.7, -2.0]);
-  b.ball(0.8, "#4caf50", [-2.6, 1.9, -2.0]);
-  b.cyl(0.12, 0.14, 0.45, "#d62828", [3.3, 0.22, -1.2]); // off to the side: behind an actor it reads as a backpack
-  b.ball(0.12, "#d62828", [3.3, 0.48, -1.2]);
+  b.piece(() => { b.cyl(0.05, 0.06, 3.2, "#2f3a40", [2.3, 1.6, -1.6]); b.ball(0.2, "#fff3b0", [2.3, 3.25, -1.6]); });
+  b.piece(() => { b.cyl(0.1, 0.13, 1.4, "#7b5132", [-2.6, 0.7, -2.0]); b.ball(0.8, "#4caf50", [-2.6, 1.9, -2.0]); });
+  b.piece(() => { // off to the side: behind an actor it reads as a backpack
+    b.cyl(0.12, 0.14, 0.45, "#d62828", [3.3, 0.22, -1.2]);
+    b.ball(0.12, "#d62828", [3.3, 0.48, -1.2]);
+  });
 }
 
 const BACKGROUND = { room: "#f2d6a2", office: "#f2bd85", street: "#9fd3f5" };

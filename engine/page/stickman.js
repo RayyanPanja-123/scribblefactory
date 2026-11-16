@@ -126,11 +126,18 @@ function face(p, boil, o, fx, hy, look) {
   const ex = [fx - 50, fx + 50], ey = hy - 8;
   const expr = o.expression || "neutral";
   const big = expr === "surprised" || o.action === "react";
-  const half = o.eyes === "half_closed" || expr === "sleepy" || o.lid === 0.5;
+  // expression overrides the base eye style; blinks win over everything
+  const kind = o.lid >= 1 ? "closed" : o.lid === 0.5 ? "half"
+    : expr === "surprised" ? "round"                      // wide open, small pupils, for every character
+    : expr === "sleepy" ? "half"                          // flat lids
+    : expr === "happy" && o.eyes === "half_closed" ? "arc" // soft upward arcs; dot eyes keep their dots
+    : o.eyes === "half_closed" ? "half" : "round";
   for (const x of ex) {
-    if (o.lid >= 1) {
+    if (kind === "closed") {
       p.stroke(jitter(ellPts(x, ey - 6, 26, 10, 20, 160, 0, 12), boil, 1.5), w("eye"));  // blink: closed
-    } else if (half) {
+    } else if (kind === "arc") {
+      p.stroke(jitter(ellPts(x, ey + 10, 26, 18, 200, 340, 0, 12), boil, 1.5), w("eye")); // happy: upward arc
+    } else if (kind === "half") {
       p.poly(ellPts(x + 4 * look, ey, 15, 13, 0, 180, 0, 12), "#1c1a1a", 0);           // pupil under the lid
       p.stroke(jitter([[x - 28, ey], [x + 28, ey]], boil, 1.5), w("eye"));             // lid line
     } else {

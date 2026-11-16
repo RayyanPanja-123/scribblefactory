@@ -122,7 +122,8 @@ async function main() {
       times.push(performance.now() - t0);
       const info = j.call[0] === "renderFrame" ? await page.evaluate(() => window.lastInfo) : null;
       const wide = info?.angle === "wide"
-        ? ` [wide: figure ${(info.figure * 100).toFixed(1)}% of frame height, ${info.inFrame ? "all in frame" : "CUT OFF"}]` : "";
+        ? ` [wide: figure ${(info.figure * 100).toFixed(1)}% of frame height, ${info.inFrame ? "all in frame" : "CUT OFF"}]`
+        : info?.hidden ? ` [${info.hidden} prop(s) hidden behind the subject]` : "";
       console.log(`${j.label}: ${times.at(-1).toFixed(0)} ms -> ${j.file}${wide}`);
     }
     if (manifestDir) {

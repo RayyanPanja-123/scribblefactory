@@ -18,6 +18,7 @@ const lerp = (a, b, u) => a + (b - a) * u;
 // wide shots: fit the cast's x span + margin; never closer than maxFill (it must still read as a wide). Camera sits
 // higher and tilts down so less floor/road fills the bottom and less wall/sky sits above the heads.
 const WIDE = { margin: 0.8, maxFill: 0.30, camY: 2.1, lookY: 0.75 };
+const SUBJECT_MARGIN = 0.05; // props must clear the subject's on-screen card bounds grown by 5% per side
 const SHADOW = { w: 0.75, d: 0.3, opacity: 0.32, bounce: 0.08, y: 0.025 }; // y clears the room rug
 
 // base framing per angle, relative to the subject at (sx, 0, 0): camera offset, look point, fov, how much x follows.
@@ -39,7 +40,7 @@ const camera = new THREE.PerspectiveCamera(45, W / H, 0.05, 100);
 const CARD_GEO = new THREE.PlaneGeometry(CARD_W, CARD_H).translate(0, CARD_H / 2 - CARD_H * (1 - FEET_Y / CH), 0);
 
 let data = null, scene = null;
-const sets = {}, cards = {};
+const sets = {}, cards = {}, hiddenByShot = new Map();
 
 /** soft dark ellipse texture for contact shadows (radial gradient, no randomness) */
 const SHADOW_TEX = (() => {
@@ -139,7 +140,53 @@ function useSet(name) {
 
 const png = () => renderer.domElement.toDataURL("image/png");
 
-window.setup = (d) => { data = d; for (const k of Object.keys(sets)) delete sets[k]; };
+window.setup = (d) => { data = d; hiddenByShot.clear(); for (const k of Object.keys(sets)) delete sets[k]; };
+
+const placeAt = (a, u) => {
+  const e = a.end_pos || a.start_pos;
+  return [lerp(a.start_pos[0], e[0], u), lerp(a.start_pos[1], e[1], u)];
+};
+
+/** screen rect [x0, y0, x1, y1] (NDC) of world points */
+function rect(points) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const p of points) {
+    const q = p.clone().project(camera);
+    x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); x1 = Math.max(x1, q.x); y1 = Math.max(y1, q.y);
+  }
+  return [x0, y0, x1, y1];
+}
+const overlap = (a, b) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
+
+/** prop pieces to hide for a non-wide shot: any whose screen box overlaps the subject's card (+ margin) at the
+ *  shot's start, middle or end. Decided once per shot, so nothing pops in or out mid-shot. */
+function hiddenFor(shot, subject, span) {
+  if (hiddenByShot.has(shot.id)) return hiddenByShot.get(shot.id);
+  const hidden = new Set(), pieces = sets[shot.set].userData.pieces;
+  if (subject && shot.camera.angle !== "wide") {
+    const bottom = -CARD_H * (1 - FEET_Y / CH);
+    for (const u of [0, 0.5, 1]) {
+      const [x, z] = placeAt(subject, u);
+      shotCamera(shot, x, span, u);
+      camera.updateMatrixWorld();
+      const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0).setY(0).normalize();
+      const c = new THREE.Vector3(x, 0, z), pts = [];
+      for (const sx of [-1, 1]) for (const y of [bottom, bottom + CARD_H]) {
+        pts.push(c.clone().addScaledVector(right, (sx * CARD_W) / 2).setY(y));
+      }
+      const r = rect(pts), mx = (r[2] - r[0]) * SUBJECT_MARGIN, my = (r[3] - r[1]) * SUBJECT_MARGIN;
+      const card = [r[0] - mx, r[1] - my, r[2] + mx, r[3] + my];
+      for (const [id, pc] of pieces) {
+        if (hidden.has(id)) continue;
+        const { min, max } = pc.box, corners = [];
+        for (const X of [min.x, max.x]) for (const Y of [min.y, max.y]) for (const Z of [min.z, max.z]) corners.push(new THREE.Vector3(X, Y, Z));
+        if (overlap(card, rect(corners))) hidden.add(id);
+      }
+    }
+  }
+  hiddenByShot.set(shot.id, hidden);
+  return hidden;
+}
 
 window.renderFrame = (n) => {
   const { story } = data;
@@ -147,12 +194,11 @@ window.renderFrame = (n) => {
   const shot = story.shots.find((s) => n >= s.start_frame && n < s.end_frame);
   const u = (n - shot.start_frame) / (shot.end_frame - shot.start_frame), t = n / FPS;
   useSet(shot.set);
-  const place = (a) => {
-    const e = a.end_pos || a.start_pos;
-    return [lerp(a.start_pos[0], e[0], u), lerp(a.start_pos[1], e[1], u)];
-  };
+  const place = (a) => placeAt(a, u);
   const subject = shot.actors.find((a) => a.action !== "idle") || shot.actors[0];
   const span = shot.actors.flatMap((a) => [a.start_pos[0], (a.end_pos || a.start_pos)[0]]);
+  const hidden = hiddenFor(shot, subject, span);
+  for (const [id, pc] of sets[shot.set].userData.pieces) for (const m of pc.meshes) m.visible = !hidden.has(id);
   shotCamera(shot, subject ? place(subject)[0] : 0, span, u);
   for (const a of shot.actors) {
     const [x, z] = place(a), key = charSeed(a.cast_id);
@@ -175,7 +221,7 @@ window.renderFrame = (n) => {
     shadow.scale.set(SHADOW.w * k, 1, SHADOW.d * k);
     scene.add(mesh, shadow);
   }
-  window.lastInfo = { angle: shot.camera.angle, ...measure(shot.actors.map(place)) };
+  window.lastInfo = { angle: shot.camera.angle, hidden: hidden.size, ...measure(shot.actors.map(place)) };
   renderer.render(scene, camera);
   return png();
 };
