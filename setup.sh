@@ -18,10 +18,10 @@ for c in python3 python; do  # `python` fallback for Git Bash on Windows
 done
 if [ -n "$PY" ]; then ok "python >= 3.11 ($($PY --version 2>&1))"; else fail "python3 >= 3.11 not found (install Python 3.11+)"; fi
 
-if command -v node >/dev/null 2>&1 && [ "$(node -p 'process.versions.node.split(".")[0]')" -ge 20 ]; then
-  ok "node >= 20 ($(node --version))"
+if command -v node >/dev/null 2>&1 && node -e 'const [a,b]=process.versions.node.split(".").map(Number); process.exit(a>20||(a===20&&b>=19)?0:1)'; then
+  ok "node >= 20.19 ($(node --version))"
 else
-  fail "node >= 20 not found (see .nvmrc; e.g. nvm install)"
+  fail "node >= 20.19 not found (Vite 8 requirement; e.g. nvm install 20)"
 fi
 
 for t in npm ffmpeg ffprobe; do
