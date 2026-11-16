@@ -3,10 +3,10 @@
 import json
 from pathlib import Path
 
-from . import PartModel, SeriesModel
+from . import PartModel, PhrasesModel, SeriesModel
 
 OUT_DIR = Path(__file__).resolve().parents[3] / "docs" / "schemas"
-MODELS = {"series.schema.json": SeriesModel, "part.schema.json": PartModel}
+MODELS = {"series.schema.json": SeriesModel, "part.schema.json": PartModel, "phrases.schema.json": PhrasesModel}
 
 
 def render() -> dict[str, str]:

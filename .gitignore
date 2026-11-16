@@ -9,3 +9,4 @@ dist/
 frames/
 *.mp4
 .DS_Store
+models/

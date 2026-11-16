@@ -37,6 +37,16 @@ VBIN=.venv/bin; [ -d "$VBIN" ] || VBIN=.venv/Scripts  # Scripts/ on Windows
 "$VBIN/python" -m pip install --quiet -r requirements.txt
 ok "venv + pip install -r requirements.txt"
 
+# Whisper model for the timing stage (offline at run time). Downloaded once.
+WHISPER_DIR=models/faster-whisper-base.en
+if [ -f "$WHISPER_DIR/model.bin" ]; then
+  ok "whisper base.en (already in $WHISPER_DIR)"
+elif "$VBIN/python" -c "from faster_whisper import download_model; download_model('base.en', output_dir='$WHISPER_DIR')"; then
+  ok "whisper base.en -> $WHISPER_DIR"
+else
+  fail "whisper base.en download failed"
+fi
+
 (cd engine && npm install --no-fund --no-audit) && ok "npm install engine/"
 (cd web && npm install --no-fund --no-audit) && ok "npm install web/"
 (cd engine && npx --no-install playwright install chromium) && ok "playwright chromium"
@@ -44,3 +54,4 @@ ok "venv + pip install -r requirements.txt"
 mkdir -p library && ok "library/"
 
 summary
+exit "$FAILED"

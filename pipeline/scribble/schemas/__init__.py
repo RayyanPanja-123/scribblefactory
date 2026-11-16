@@ -135,3 +135,48 @@ class PartModel(Strict):
         if self.id != f"part-{self.number:02d}":
             raise ValueError(f"id {self.id!r} does not match number {self.number}")
         return self
+
+
+# --- phrases.json ---
+
+class Word(Strict):
+    text: str
+    start: float = Field(ge=0)
+    end: float = Field(ge=0)
+
+
+class Phrase(Strict):
+    text: str
+    start: float = Field(ge=0)
+    end: float = Field(ge=0)
+    word_start: int = Field(ge=0, description="index of the first word")
+    word_end: int = Field(ge=0, description="index of the last word (inclusive)")
+
+
+def _check_spans(items, duration: float, what: str) -> None:
+    prev_end = 0.0
+    for i, x in enumerate(items):
+        if not (prev_end <= x.start <= x.end <= duration):
+            raise ValueError(f"{what}[{i}] {x.start}-{x.end}: times must increase, not overlap, "
+                             f"and stay within 0-{duration}")
+        prev_end = x.end
+
+
+class PhrasesModel(Strict):
+    schema_version: Literal[1] = 1
+    duration: float = Field(gt=0)
+    words: list[Word]
+    phrases: list[Phrase]
+
+    @model_validator(mode="after")
+    def _times(self):
+        _check_spans(self.words, self.duration, "words")
+        _check_spans(self.phrases, self.duration, "phrases")
+        nxt = 0
+        for i, p in enumerate(self.phrases):
+            if p.word_start != nxt or p.word_end < p.word_start or p.word_end >= len(self.words):
+                raise ValueError(f"phrases[{i}] word range {p.word_start}-{p.word_end} must continue at {nxt}")
+            nxt = p.word_end + 1
+        if nxt != len(self.words):
+            raise ValueError("phrases must cover every word")
+        return self

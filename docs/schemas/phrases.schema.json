@@ -1,0 +1,105 @@
+{
+  "$defs": {
+    "Phrase": {
+      "additionalProperties": false,
+      "properties": {
+        "end": {
+          "minimum": 0,
+          "title": "End",
+          "type": "number"
+        },
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "number"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "word_end": {
+          "description": "index of the last word (inclusive)",
+          "minimum": 0,
+          "title": "Word End",
+          "type": "integer"
+        },
+        "word_start": {
+          "description": "index of the first word",
+          "minimum": 0,
+          "title": "Word Start",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "text",
+        "start",
+        "end",
+        "word_start",
+        "word_end"
+      ],
+      "title": "Phrase",
+      "type": "object"
+    },
+    "Word": {
+      "additionalProperties": false,
+      "properties": {
+        "end": {
+          "minimum": 0,
+          "title": "End",
+          "type": "number"
+        },
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "number"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text",
+        "start",
+        "end"
+      ],
+      "title": "Word",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "duration": {
+      "exclusiveMinimum": 0,
+      "title": "Duration",
+      "type": "number"
+    },
+    "phrases": {
+      "items": {
+        "$ref": "#/$defs/Phrase"
+      },
+      "title": "Phrases",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "words": {
+      "items": {
+        "$ref": "#/$defs/Word"
+      },
+      "title": "Words",
+      "type": "array"
+    }
+  },
+  "required": [
+    "duration",
+    "words",
+    "phrases"
+  ],
+  "title": "PhrasesModel",
+  "type": "object"
+}

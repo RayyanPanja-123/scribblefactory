@@ -107,6 +107,7 @@ library/<series-slug>/
 - Step 3: CLI (new-series, new-part, render). DONE (render is a stub until Step 5).
 - Step 4: Pipeline stages (prep, timing, shots, audio, finish).
   - Step 4a: stage runner, prep, import_check. DONE.
+  - Step 4b: timing (faster-whisper base.en, aligned to script). DONE.
 - Step 5: Render engine, parallel chunks, resume.
 - Step 6: FastAPI + Vue web view.
 - Step 7: Polish and QA.
