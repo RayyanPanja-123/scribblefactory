@@ -34,8 +34,8 @@ if [ "$FAILED" -ne 0 ]; then summary; exit 1; fi
 [ -d .venv ] || "$PY" -m venv .venv
 VBIN=.venv/bin; [ -d "$VBIN" ] || VBIN=.venv/Scripts  # Scripts/ on Windows
 "$VBIN/python" -m pip install --quiet --upgrade pip
-"$VBIN/python" -m pip install --quiet -r requirements.txt
-ok "venv + pip install -r requirements.txt"
+"$VBIN/python" -m pip install --quiet -r requirements.lock
+ok "venv + pip install -r requirements.lock"
 
 # Whisper model for the timing stage (offline at run time). Downloaded once.
 WHISPER_DIR=models/faster-whisper-base.en

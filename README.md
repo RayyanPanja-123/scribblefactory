@@ -28,6 +28,8 @@ bash setup.sh
 
 The venv lives at repo root: `.venv/bin/` on macOS/Linux, `.venv/Scripts/` on Windows.
 
+After changing requirements.txt, rebuild the venv and regenerate requirements.lock.
+
 ## Known gaps
 
 - `setup.sh` has only been tested on Windows Git Bash so far, not on macOS or Linux.
