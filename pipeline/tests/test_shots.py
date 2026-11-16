@@ -250,15 +250,20 @@ def test_walk_off_the_edge_flips_direction():
 
 
 @pytest.mark.parametrize("x,d,action,secs,want", [
-    (0.0, 1, "walk", 1.0, (1, 1.2)),       # fits as asked
-    (1.5, 1, "walk", 1.0, (-1, 1.2)),      # flipped
-    (0.0, 1, "walk", 3.0, (1, 2.0)),       # 3.6 fits neither way: shortened to the edge, 0.67 units/s
-    (0.5, -1, "walk", 3.0, (-1, 2.5)),     # shortened toward the roomier side
-    (0.0, 1, "run", 3.0, None),            # 2.0 in 3 s is below run's 1.8 units/s: idle
+    (0.0, 1, "walk", 1.0, ("walk", 1, 1.2)),    # fits as asked
+    (1.5, 1, "walk", 1.0, ("walk", -1, 1.2)),   # flipped
+    (0.0, 1, "walk", 3.0, ("walk", 1, 2.0)),    # 3.6 fits neither way: shortened to the edge, 0.67 units/s
+    (0.5, -1, "walk", 3.0, ("walk", -1, 2.5)),  # shortened toward the roomier side
+    (-0.5, 1, "run", 1.0, ("run", 1, 2.5)),     # run fits
+    (1.9, 1, "run", 2.0, ("run", -1, 3.9)),     # run shortened to the far edge: 1.95 units/s, still a run
+    (0.0, 1, "run", 3.0, ("walk", 1, 2.0)),     # run too slow even shortened (0.67 < 1.8): walk, shortened
+    (1.5, 1, "run", 2.0, ("walk", -1, 2.4)),    # run can't fit (1.75 < 1.8): full walk, flipped like a walk
+    (0.0, 1, "walk", 4.0, None),                # 2.0 in 4 s = 0.5 < walk's 0.6 units/s: idle
+    (0.0, 1, "run", 4.0, None),                 # run -> walk -> still too slow: idle
 ])
 def test_fit_move(x, d, action, secs, want):
     got = shots.fit_move(x, d, action, secs)
-    assert got == want if want is None else got == (want[0], pytest.approx(want[1]))
+    assert got == want if want is None else got == (want[0], want[1], pytest.approx(want[2]))
 
 
 def test_repeated_walks_stay_inside_and_validate():
@@ -273,3 +278,26 @@ def test_repeated_walks_stay_inside_and_validate():
         assert all(a.start_pos == ends[a.cast_id] for a in cur.actors)
     assert validate(story, ph, {c.id for c in SERIES.cast}) == []
     assert plan(md)[0] == story  # deterministic
+
+
+def test_long_run_becomes_walk_and_validates():
+    md = "# R\n\n@cast bob, amy\nAmy ran away. Amy ran away. Bob ran away. Amy smiled.\n"
+    story, ph = plan(md)  # ~2.3 s shots: a 2.5 units/s run (5.75) can't fit on the 4-unit stage
+    acts = [next(a for a in s.actors if a.action != "idle") for s in story.shots[:3]]
+    assert acts[0].action == "walk"  # the first, longest shot (from frame 0) can't hold a run
+    assert {a.action for a in acts} <= {"walk", "run"}  # shorter shots may keep a shortened run
+    for a, s in zip(acts, story.shots):
+        lo, hi = {"walk": (0.6, 1.8), "run": (1.8, 4.0)}[a.action]
+        speed = abs(a.end_pos[0] - a.start_pos[0]) / ((s.end_frame - s.start_frame) / 30)
+        assert lo <= speed <= hi and shots.BOUNDS[0] <= a.end_pos[0] <= shots.BOUNDS[1]
+    assert validate(story, ph, {c.id for c in SERIES.cast}) == []
+    assert plan(md)[0] == story  # deterministic
+
+
+def test_move_that_cannot_fit_goes_idle(monkeypatch):
+    # unreachable with real values (<= 3 s shots x 0.6 min walk speed < 2.0 of room); force it
+    monkeypatch.setattr(shots, "MOVE_SPEED", {"walk": 50.0, "run": 50.0})  # full move never fits
+    monkeypatch.setattr(shots, "MIN_SPEED", {"walk": 5.0, "run": 5.0})     # shortened move always too slow
+    story, ph = plan("# R\n\n@cast bob, amy\nAmy ran away. Amy walked in.\n")
+    assert [_amy(story, i).action for i in (0, 1)] == ["idle", "idle"]
+    assert all(_amy(story, i).end_pos is None for i in (0, 1))

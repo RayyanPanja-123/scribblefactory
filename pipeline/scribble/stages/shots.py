@@ -96,19 +96,21 @@ def spread(cast) -> dict[str, float]:
     return {cid: 0.0 if n == 1 else round(-STAGE_X + 2 * STAGE_X * i / (n - 1), 3) for i, cid in enumerate(cast)}
 
 
-def fit_move(x: float, d: int, action: str, seconds: float) -> tuple[int, float] | None:
-    """(direction, distance) for a walk/run from x that ends inside the stage bounds, or None (go idle).
+def fit_move(x: float, d: int, action: str, seconds: float) -> tuple[str, int, float] | None:
+    """(action, direction, distance) for a walk/run from x that ends inside the stage bounds, or None (go idle).
 
     Full distance in direction d; else flipped; else the roomier side shortened, but never slower than
-    the validator's minimum speed (plus a mm of rounding margin).
+    the validator's minimum speed (plus a mm of rounding margin). A run that can't fit is tried as a walk.
     """
     dist = MOVE_SPEED[action] * seconds
     for dd in (d, -d):
         if BOUNDS[0] <= x + dd * dist <= BOUNDS[1]:
-            return dd, dist
+            return action, dd, dist
     dd = 1 if BOUNDS[1] - x >= x - BOUNDS[0] else -1
     room = math.floor(((BOUNDS[1] - x) if dd > 0 else (x - BOUNDS[0])) * 1000) / 1000
-    return (dd, room) if room >= MIN_SPEED[action] * seconds + 0.001 else None
+    if room >= MIN_SPEED[action] * seconds + 0.001:
+        return action, dd, room
+    return fit_move(x, d, "walk", seconds) if action == "run" else None
 
 
 def _actors(cast, pos, subject, words, seconds):
@@ -128,9 +130,9 @@ def _actors(cast, pos, subject, words, seconds):
             d = next((DIRECTIONS[w] for w in words if w in DIRECTIONS), 1 if x <= 0 else -1)  # else to centre
             move = fit_move(x, d, action, seconds)
         if move:
-            d, dist = move
+            act, d, dist = move
             pos[cid] = round(x + d * dist, 3)
-            out.append(Actor(cast_id=cid, action=action, start_pos=(x, 0.0), end_pos=(pos[cid], 0.0),
+            out.append(Actor(cast_id=cid, action=act, start_pos=(x, 0.0), end_pos=(pos[cid], 0.0),
                              facing="left" if d < 0 else "right", expression=expression))
         else:
             act = "idle" if action in MOVE_SPEED else action  # a walk/run that can't fit on stage
