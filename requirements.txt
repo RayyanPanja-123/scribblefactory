@@ -1,6 +1,6 @@
 fastapi
 uvicorn[standard]
 faster-whisper
-pydantic>=2
+pydantic==2.14.3
 sse-starlette
-pytest
+pytest==9.2.0

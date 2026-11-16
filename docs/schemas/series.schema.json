@@ -1,0 +1,161 @@
+{
+  "$defs": {
+    "CastMember": {
+      "additionalProperties": false,
+      "properties": {
+        "approved_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Approved At"
+        },
+        "eyes": {
+          "enum": [
+            "dots",
+            "half_closed"
+          ],
+          "title": "Eyes",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "outfit_color": {
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "title": "Outfit Color",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "outfit_color",
+        "eyes"
+      ],
+      "title": "CastMember",
+      "type": "object"
+    },
+    "Style": {
+      "additionalProperties": false,
+      "properties": {
+        "locked": {
+          "default": false,
+          "title": "Locked",
+          "type": "boolean"
+        },
+        "preset": {
+          "title": "Preset",
+          "type": "string"
+        }
+      },
+      "required": [
+        "preset"
+      ],
+      "title": "Style",
+      "type": "object"
+    },
+    "Voice": {
+      "additionalProperties": false,
+      "properties": {
+        "notes": {
+          "default": "",
+          "title": "Notes",
+          "type": "string"
+        },
+        "provider": {
+          "default": "freetts.ai",
+          "title": "Provider",
+          "type": "string"
+        },
+        "voice_name": {
+          "title": "Voice Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "voice_name"
+      ],
+      "title": "Voice",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "cast": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/CastMember"
+      },
+      "title": "Cast",
+      "type": "array"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "parts": {
+      "default": [],
+      "items": {
+        "pattern": "^part-[0-9]{2}$",
+        "type": "string"
+      },
+      "title": "Parts",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "slug": {
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "title": "Slug",
+      "type": "string"
+    },
+    "status": {
+      "default": "draft",
+      "enum": [
+        "draft",
+        "active",
+        "complete",
+        "archived"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "style": {
+      "$ref": "#/$defs/Style"
+    },
+    "title": {
+      "title": "Title",
+      "type": "string"
+    },
+    "voice": {
+      "$ref": "#/$defs/Voice"
+    }
+  },
+  "required": [
+    "slug",
+    "title",
+    "created_at",
+    "voice",
+    "style"
+  ],
+  "title": "SeriesModel",
+  "type": "object"
+}

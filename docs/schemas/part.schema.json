@@ -1,0 +1,364 @@
+{
+  "$defs": {
+    "Approval": {
+      "additionalProperties": false,
+      "properties": {
+        "approved_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Approved At"
+        }
+      },
+      "title": "Approval",
+      "type": "object"
+    },
+    "Approvals": {
+      "additionalProperties": false,
+      "properties": {
+        "final": {
+          "$ref": "#/$defs/Approval",
+          "default": {
+            "approved_at": null
+          }
+        },
+        "stills": {
+          "$ref": "#/$defs/Approval",
+          "default": {
+            "approved_at": null
+          }
+        },
+        "test_render": {
+          "$ref": "#/$defs/Approval",
+          "default": {
+            "approved_at": null
+          }
+        }
+      },
+      "title": "Approvals",
+      "type": "object"
+    },
+    "Post": {
+      "additionalProperties": false,
+      "properties": {
+        "posted_at": {
+          "format": "date-time",
+          "title": "Posted At",
+          "type": "string"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "url",
+        "posted_at"
+      ],
+      "title": "Post",
+      "type": "object"
+    },
+    "Posted": {
+      "additionalProperties": false,
+      "properties": {
+        "instagram": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Post"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "youtube": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Post"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "Posted",
+      "type": "object"
+    },
+    "Stage": {
+      "additionalProperties": false,
+      "properties": {
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
+        "finished_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Finished At"
+        },
+        "started_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Started At"
+        },
+        "status": {
+          "default": "pending",
+          "enum": [
+            "pending",
+            "running",
+            "done",
+            "failed"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "title": "Stage",
+      "type": "object"
+    },
+    "Stages": {
+      "additionalProperties": false,
+      "properties": {
+        "audio": {
+          "$ref": "#/$defs/Stage",
+          "default": {
+            "error": null,
+            "finished_at": null,
+            "started_at": null,
+            "status": "pending"
+          }
+        },
+        "finish": {
+          "$ref": "#/$defs/Stage",
+          "default": {
+            "error": null,
+            "finished_at": null,
+            "started_at": null,
+            "status": "pending"
+          }
+        },
+        "import_check": {
+          "$ref": "#/$defs/Stage",
+          "default": {
+            "error": null,
+            "finished_at": null,
+            "started_at": null,
+            "status": "pending"
+          }
+        },
+        "prep": {
+          "$ref": "#/$defs/Stage",
+          "default": {
+            "error": null,
+            "finished_at": null,
+            "started_at": null,
+            "status": "pending"
+          }
+        },
+        "render": {
+          "$ref": "#/$defs/Stage",
+          "default": {
+            "error": null,
+            "finished_at": null,
+            "started_at": null,
+            "status": "pending"
+          }
+        },
+        "shots": {
+          "$ref": "#/$defs/Stage",
+          "default": {
+            "error": null,
+            "finished_at": null,
+            "started_at": null,
+            "status": "pending"
+          }
+        },
+        "thumbnails": {
+          "$ref": "#/$defs/Stage",
+          "default": {
+            "error": null,
+            "finished_at": null,
+            "started_at": null,
+            "status": "pending"
+          }
+        },
+        "timing": {
+          "$ref": "#/$defs/Stage",
+          "default": {
+            "error": null,
+            "finished_at": null,
+            "started_at": null,
+            "status": "pending"
+          }
+        },
+        "validate": {
+          "$ref": "#/$defs/Stage",
+          "default": {
+            "error": null,
+            "finished_at": null,
+            "started_at": null,
+            "status": "pending"
+          }
+        }
+      },
+      "title": "Stages",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "approvals": {
+      "$ref": "#/$defs/Approvals",
+      "default": {
+        "final": {
+          "approved_at": null
+        },
+        "stills": {
+          "approved_at": null
+        },
+        "test_render": {
+          "approved_at": null
+        }
+      }
+    },
+    "id": {
+      "pattern": "^part-[0-9]{2}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "number": {
+      "minimum": 1,
+      "title": "Number",
+      "type": "integer"
+    },
+    "posted": {
+      "$ref": "#/$defs/Posted",
+      "default": {
+        "instagram": null,
+        "youtube": null
+      }
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "stages": {
+      "$ref": "#/$defs/Stages",
+      "default": {
+        "audio": {
+          "error": null,
+          "finished_at": null,
+          "started_at": null,
+          "status": "pending"
+        },
+        "finish": {
+          "error": null,
+          "finished_at": null,
+          "started_at": null,
+          "status": "pending"
+        },
+        "import_check": {
+          "error": null,
+          "finished_at": null,
+          "started_at": null,
+          "status": "pending"
+        },
+        "prep": {
+          "error": null,
+          "finished_at": null,
+          "started_at": null,
+          "status": "pending"
+        },
+        "render": {
+          "error": null,
+          "finished_at": null,
+          "started_at": null,
+          "status": "pending"
+        },
+        "shots": {
+          "error": null,
+          "finished_at": null,
+          "started_at": null,
+          "status": "pending"
+        },
+        "thumbnails": {
+          "error": null,
+          "finished_at": null,
+          "started_at": null,
+          "status": "pending"
+        },
+        "timing": {
+          "error": null,
+          "finished_at": null,
+          "started_at": null,
+          "status": "pending"
+        },
+        "validate": {
+          "error": null,
+          "finished_at": null,
+          "started_at": null,
+          "status": "pending"
+        }
+      }
+    },
+    "thumbnail_choice": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Thumbnail Choice"
+    },
+    "title": {
+      "title": "Title",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "number",
+    "title"
+  ],
+  "title": "PartModel",
+  "type": "object"
+}
