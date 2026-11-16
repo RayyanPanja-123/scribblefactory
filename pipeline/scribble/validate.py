@@ -24,13 +24,16 @@ class Error(NamedTuple):
     message: str
 
 
+def duration_frames(seconds: float, fps: int) -> int:
+    return math.ceil(round(seconds * fps, 6))  # round() guards float noise like 2.0000000001 * 30
+
+
 def validate(story: StoryModel, phrases: PhrasesModel, cast_ids: set[str]) -> list[Error]:
     errs: list[Error] = []
     err = lambda sid, rule, msg: errs.append(Error(sid, rule, msg))
     fps = story.fps
 
-    # round() guards float noise like 2.0000000001 * 30
-    want = math.ceil(round(phrases.duration * fps, 6))
+    want = duration_frames(phrases.duration, fps)
     if story.duration_frames != want:
         err(None, "duration", f"duration_frames {story.duration_frames} != ceil({phrases.duration} s x {fps}) = {want}")
 

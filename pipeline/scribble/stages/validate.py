@@ -12,7 +12,7 @@ INPUTS = ["story.json", "phrases.json", "../series.json"]
 OUTPUTS = []
 
 
-def _load(path: Path, model):
+def load_model(path: Path, model):
     if not path.exists():
         raise StageError(f"{path.name} not found")
     try:
@@ -22,9 +22,9 @@ def _load(path: Path, model):
 
 
 def run(part_dir: Path) -> None:
-    story = _load(part_dir / "story.json", StoryModel)
-    phrases = _load(part_dir / "phrases.json", PhrasesModel)
-    series = _load(part_dir.parent / "series.json", SeriesModel)
+    story = load_model(part_dir / "story.json", StoryModel)
+    phrases = load_model(part_dir / "phrases.json", PhrasesModel)
+    series = load_model(part_dir.parent / "series.json", SeriesModel)
     errors = validate(story, phrases, {c.id for c in series.cast})
     for e in errors:
         print(f"  {e.shot_id or '-'}  {e.rule}: {e.message}")

@@ -1,4 +1,10 @@
-"""prep: story.md -> script-for-tts.txt (plain text for pasting into freetts.ai)."""
+"""prep: story.md -> script-for-tts.txt (plain text for pasting into freetts.ai).
+
+story.md directives (one per line) are stripped from the script:
+  @set office        set for the following lines
+  @cast bob, karen   cast on stage for the following lines
+  !! text            this line is the twist (prefix stripped, text kept)
+"""
 
 import re
 from pathlib import Path
@@ -13,6 +19,36 @@ MAX_SECONDS = 60
 
 QUOTES = str.maketrans({"‘": "'", "’": "'", "‚": "'", "‛": "'",
                         "“": '"', "”": '"', "„": '"', "‟": '"'})
+
+
+TWIST_PREFIX = re.compile(r"^([ \t]*)!![ \t]+")
+MARKER = "⟦{}⟧"  # a token for the n-th @ line, or "!" before a twist line
+MARKER_RE = re.compile("^⟦([0-9]+|!)⟧$")
+
+
+def _is_directive(line: str) -> bool:
+    return line.lstrip().startswith("@")
+
+
+def strip_directives(md: str) -> str:
+    lines = md.replace("\r\n", "\n").split("\n")
+    return "\n".join(TWIST_PREFIX.sub(r"\1", line) for line in lines if not _is_directive(line))
+
+
+def mark_directives(md: str) -> tuple[str, list[tuple[int, str]]]:
+    """Like strip_directives, but leaves a marker token where each directive was.
+
+    Returns (text, [(line number, directive without the @)]). Run clean_markdown on the text: it yields the
+    same words as prep's script plus the marker tokens, and markers inside dropped blocks vanish with them.
+    """
+    out, found = [], []
+    for no, line in enumerate(md.replace("\r\n", "\n").split("\n"), 1):
+        if _is_directive(line):
+            out.append(MARKER.format(len(found)))
+            found.append((no, line.strip()[1:]))
+        else:
+            out.append(TWIST_PREFIX.sub(lambda m: m[1] + MARKER.format("!") + " ", line))
+    return "\n".join(out), found
 
 
 def clean_markdown(md: str) -> str:
@@ -44,7 +80,7 @@ def run(part_dir: Path) -> None:
     story = part_dir / "story.md"
     if not story.exists():
         raise StageError("story.md not found")
-    text = clean_markdown(story.read_text(encoding="utf-8"))
+    text = clean_markdown(strip_directives(story.read_text(encoding="utf-8")))
     if not text:
         raise StageError("story.md has no body text (only a title?)")
     atomic_write_text(part_dir / "script-for-tts.txt", text + "\n")

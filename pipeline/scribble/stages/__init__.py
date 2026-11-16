@@ -1,4 +1,5 @@
-from . import import_check, prep, timing, validate
+from . import import_check, prep, shots, timing, validate
 
 # name -> module with run(part_dir), INPUTS, OUTPUTS
-STAGES = {"prep": prep, "import_check": import_check, "timing": timing, "validate": validate}
+STAGES = {"prep": prep, "import_check": import_check, "timing": timing,
+          "shots": shots, "validate": validate}

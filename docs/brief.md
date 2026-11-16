@@ -66,6 +66,12 @@ library/<series-slug>/
 - Step 13: Auto thumbnail candidates + upload text. I pick.
 - Step 14: I upload manually, then mark posted with links in the web view.
 
+## Story directives (in story.md, one per line)
+- "@set office": set for the following lines until changed. Default "room".
+- "@cast bob, karen": cast ids on stage until changed. Must exist in series.json. Default: first 2 cast members.
+- "!! text": this line is the twist (push-in with roll, music stops, low hit).
+- prep strips directives from script-for-tts.txt. The shot planner reads them.
+
 ## Stickman style (locked per series)
 - Head: pure white, slightly wobbly hand-drawn circle, thick dark outline.
 - Eyes: white circles with black dot pupils, or half-closed black marks.
@@ -111,8 +117,9 @@ library/<series-slug>/
 - Step 4: Pipeline stages.
   - 4a: stage runner, prep, import check. DONE.
   - 4b: timing (Whisper). DONE.
-  - 4c: story.json format + rule-based shot planner + validator.
+  - 4c: story.json format + rule-based shot planner + validator. DONE.
     - 4c-1: story.json format + validator. DONE.
+    - 4c-2: rule-based shot planner (shots stage). DONE.
 - Step 5: Render engine, parallel chunks, resume.
 - Step 5b: audio (synth music + SFX), mix, finish + QA.
 - Step 6: FastAPI + Vue web view.
