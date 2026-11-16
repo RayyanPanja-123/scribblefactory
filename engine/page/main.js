@@ -14,7 +14,11 @@ const LID = [0.5, 1, 1, 0.5];          // 4-frame blink: half, shut, shut, half
 const rad = (d) => (d * Math.PI) / 180;
 const lerp = (a, b, u) => a + (b - a) * u;
 
-// base framing per angle, relative to the subject at (sx, 0, 0): camera offset, look point, fov, how much x follows
+const WIDE_MARGIN = 1.4; // world units added to the cast's x span so whole cards (and some air) fit a wide shot
+const SHADOW = { w: 0.75, d: 0.3, opacity: 0.32, bounce: 0.08, y: 0.025 }; // y clears the room rug
+
+// base framing per angle, relative to the subject at (sx, 0, 0): camera offset, look point, fov, how much x follows.
+// wide frames every actor on stage instead (see shotCamera).
 const ANGLES = {
   wide: { pos: [0, 1.5, 6.5], look: [0, 1.35, 0], fov: 50, follow: 0.4 },
   medium: { pos: [0, 1.15, 4.0], look: [0, 0.95, 0], fov: 45, follow: 1 },
@@ -34,6 +38,17 @@ const CARD_GEO = new THREE.PlaneGeometry(CARD_W, CARD_H).translate(0, CARD_H / 2
 let data = null, scene = null;
 const sets = {}, cards = {};
 
+/** soft dark ellipse texture for contact shadows (radial gradient, no randomness) */
+const SHADOW_TEX = (() => {
+  const c = document.createElement("canvas");
+  c.width = c.height = 128;
+  const g = c.getContext("2d"), grad = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  grad.addColorStop(0, "rgba(0,0,0,1)"); grad.addColorStop(0.55, "rgba(0,0,0,0.6)"); grad.addColorStop(1, "rgba(0,0,0,0)");
+  g.fillStyle = grad; g.fillRect(0, 0, 128, 128);
+  return new THREE.CanvasTexture(c);
+})();
+const SHADOW_GEO = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+
 function card(id) {
   if (!cards[id]) {
     const cv = document.createElement("canvas");
@@ -41,7 +56,10 @@ function card(id) {
     const tex = new THREE.CanvasTexture(cv);
     tex.colorSpace = THREE.SRGBColorSpace;
     const mesh = new THREE.Mesh(CARD_GEO, new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.05, depthWrite: false }));
-    cards[id] = { cv, tex, mesh };
+    mesh.renderOrder = 1; // after its shadow
+    const shadow = new THREE.Mesh(SHADOW_GEO, new THREE.MeshBasicMaterial({
+      map: SHADOW_TEX, transparent: true, opacity: SHADOW.opacity, depthWrite: false }));
+    cards[id] = { cv, tex, mesh, shadow };
   }
   return cards[id];
 }
@@ -75,9 +93,19 @@ function drawCard(id, o) {
   return c.mesh;
 }
 
-function shotCamera(shot, sx, u) {
-  const A = ANGLES[shot.camera.angle] || ANGLES.medium, fx = sx * A.follow;
-  let pos = [fx + A.pos[0], A.pos[1], A.pos[2]], look = [fx + A.look[0], A.look[1], A.look[2]];
+/** xs: x of every actor now. Wide centres on all of them and backs off until the whole cast fits the frame. */
+function shotCamera(shot, sx, xs, u) {
+  const A = ANGLES[shot.camera.angle] || ANGLES.medium;
+  let pos, look;
+  if (shot.camera.angle === "wide" && xs.length) {
+    const lo = Math.min(...xs), hi = Math.max(...xs), cx = (lo + hi) / 2;
+    const perUnit = 2 * Math.tan(rad(A.fov / 2)) * (W / H); // visible width per unit of distance
+    const dist = Math.max(A.pos[2], (hi - lo + WIDE_MARGIN) / perUnit);
+    pos = [cx, A.pos[1], dist]; look = [cx, A.look[1], 0];
+  } else {
+    const fx = sx * A.follow;
+    pos = [fx + A.pos[0], A.pos[1], A.pos[2]]; look = [fx + A.look[0], A.look[1], A.look[2]];
+  }
   const k = shot.camera.speed * u; // the camera keeps creeping for the whole shot (speed >= 0.05)
   switch (shot.camera.move) {
     case "push_in": ({ pos, look } = dolly(pos, look, 1 - 0.5 * k)); break;
@@ -117,20 +145,24 @@ window.renderFrame = (n) => {
     return [lerp(a.start_pos[0], e[0], u), lerp(a.start_pos[1], e[1], u)];
   };
   const subject = shot.actors.find((a) => a.action !== "idle") || shot.actors[0];
-  shotCamera(shot, subject ? place(subject)[0] : 0, u);
+  shotCamera(shot, subject ? place(subject)[0] : 0, shot.actors.map((a) => place(a)[0]), u);
   for (const a of shot.actors) {
     const [x, z] = place(a), key = charSeed(a.cast_id);
     const travelled = a.end_pos ? Math.hypot(a.end_pos[0] - a.start_pos[0], a.end_pos[1] - a.start_pos[1]) * u : 0;
+    const phase = STRIDE[a.action] ? travelled / STRIDE[a.action] : 0;
     const mesh = drawCard(a.cast_id, {
-      boil: Math.floor(n / BOIL_FRAMES), action: a.action, expression: a.expression, facing: a.facing, t,
-      phase: STRIDE[a.action] ? travelled / STRIDE[a.action] : 0,
+      boil: Math.floor(n / BOIL_FRAMES), action: a.action, expression: a.expression, facing: a.facing, t, phase,
       lid: lidAt(n, key),
       breath: Math.sin((2 * Math.PI * t) / 3.4 + 2 * Math.PI * rng(key, "breath")()),
       mouth: a.action === "talk" ? mouthAt(t, shot) : 0,
     });
     mesh.position.set(x, 0, z);
     mesh.rotation.set(0, Math.atan2(camera.position.x - x, camera.position.z - z), 0);
-    scene.add(mesh);
+    // contact shadow: follows the feet, a little wider when the stride lowers the body
+    const { shadow } = cards[a.cast_id], k = 1 + SHADOW.bounce * Math.abs(Math.sin(2 * Math.PI * phase));
+    shadow.position.set(x, SHADOW.y, z);
+    shadow.scale.set(SHADOW.w * k, 1, SHADOW.d * k);
+    scene.add(mesh, shadow);
   }
   renderer.render(scene, camera);
   return png();

@@ -301,3 +301,21 @@ def test_move_that_cannot_fit_goes_idle(monkeypatch):
     story, ph = plan("# R\n\n@cast bob, amy\nAmy ran away. Amy walked in.\n")
     assert [_amy(story, i).action for i in (0, 1)] == ["idle", "idle"]
     assert all(_amy(story, i).end_pos is None for i in (0, 1))
+
+
+# --- establishing wide shots ---
+
+def test_first_shot_and_set_changes_are_wide():
+    story, ph = plan(DIRECTED)  # office: s01, s02; street: s03, s04
+    assert [s.set for s in story.shots] == ["office", "office", "street", "street"]
+    assert story.shots[0].camera.angle == "wide" and story.shots[2].camera.angle == "wide"
+    assert story.shots[1].camera.angle != "wide" and story.shots[3].camera.angle != "wide"
+    assert validate(story, ph, {c.id for c in SERIES.cast}) == []
+
+
+def test_set_change_right_after_a_wide_shot_takes_next_angle():
+    md = "# W\n\n@set office\nBob sat.\n@set street\nAmy smiled.\n@set room\nBob left.\n"
+    story, ph = plan(md)
+    assert [(s.set, s.camera.angle) for s in story.shots] == [
+        ("office", "wide"), ("street", "medium"), ("room", "wide")]
+    assert validate(story, ph, {c.id for c in SERIES.cast}) == []

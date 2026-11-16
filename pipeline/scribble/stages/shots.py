@@ -25,6 +25,8 @@ FPS = 30
 DEFAULT_SET = "room"
 DEFAULT_CAST_SIZE = 2      # first N series cast members when story.md has no @cast
 ANGLES = ["wide", "medium", "close", "low", "high", "over_shoulder"]
+ESTABLISHING = "wide"      # first shot of the part and after each set change; if the previous shot was already
+                           # wide, the first other angle in ANGLES (no-repeat wins)
 MOVES = ["push_in", "pull_out", "truck_left", "truck_right", "crane_up", "crane_down"]
 SPEED = (0.15, 0.35)
 TWIST_ROLL = (6.0, 10.0)   # degrees, sign seeded
@@ -185,6 +187,8 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int) 
         for k in range(parts):
             s0, s1 = a + (b - a) * k // parts, a + (b - a) * (k + 1) // parts
             angle = rng.choice([x for x in ANGLES if x != prev_angle])
+            if set_ != prev_set:  # first shot of the part or of a new set: establish it
+                angle = ESTABLISHING if prev_angle != ESTABLISHING else next(x for x in ANGLES if x != prev_angle)
             move, speed, roll = rng.choice(MOVES), round(rng.uniform(*SPEED), 3), 0.0
             is_twist = twist and k == 0
             if is_twist:
