@@ -83,10 +83,13 @@ def test_prep_writes_script_and_estimate(part, capsys):
     assert s.status == "done" and s.started_at and s.finished_at and s.inputs_hash and s.error is None
 
 
-def test_prep_warns_over_60s(part, capsys):
-    (part / "story.md").write_text("word " * 200, encoding="utf-8")
+def test_prep_warns_over_90s(part, capsys):
+    (part / "story.md").write_text("word " * 200, encoding="utf-8")  # 80 s: fine (parts may run ~70 s)
     assert run(part, prep) == "done"
-    assert "warning: estimated 80.0 s is over 60 s" in capsys.readouterr().out
+    assert "warning" not in capsys.readouterr().out
+    (part / "story.md").write_text("word " * 240, encoding="utf-8")  # 96 s
+    assert run(part, prep) == "done"
+    assert "warning: estimated 96.0 s is over 90 s" in capsys.readouterr().out
 
 
 def test_prep_empty_body_fails(part):

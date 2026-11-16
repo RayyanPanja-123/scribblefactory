@@ -15,7 +15,7 @@ from .runner import StageError
 INPUTS = ["story.md"]
 OUTPUTS = ["script-for-tts.txt"]
 WPM = 150
-MAX_SECONDS = 60
+MAX_SECONDS = 90  # parts may run ~70 s
 
 QUOTES = str.maketrans({"‘": "'", "’": "'", "‚": "'", "‛": "'",
                         "“": '"', "”": '"', "„": '"', "‟": '"'})

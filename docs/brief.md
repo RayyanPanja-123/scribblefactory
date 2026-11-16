@@ -80,6 +80,7 @@ library/<series-slug>/
 - Arms and legs: thin black sticks. Black dot hands. NO shoes.
 - Look: marker-drawn, imperfect, not polished.
 - World: colorful toon-shaded 3D, ink outlines, painted textures.
+- Costumes vary per story, but always flat colour, thick outline, marker look. Stick limbs stay visible below shorts/sleeves.
 
 ## Validator rules
 - Max 90 frames per shot.
@@ -123,6 +124,15 @@ library/<series-slug>/
 - Step 5: Render engine, parallel chunks, resume.
   - 5.1: engine core (sets, stickman cards, camera), stills + cast sheets, approvals. DONE.
 - Step 5b: audio (synth music + SFX), mix, finish + QA.
+- Step 5c: Content library (per-story characters, same art style).
+  - Cast v2 schema: top style (plain, suit, tank, shirt) + colour, accents (tie, chest number), headwear (none, flat_cap, postman_cap), legwear over stick legs (none, shorts, ragged_shorts, trousers), held prop, default expression, eyes. Bump schema_version.
+  - New expressions: cheeky, exhausted.
+  - Sets: dirt_road, orchard, countryside, stadium (finish line).
+  - Props: clipboard, stopwatch, bottle, syringe, apple, medal, oak tree.
+  - Vehicles: car (seats for riders, can stop/break down). Animals: dog.
+  - Actions: lie, ride, wave, eat, stagger, carried, chase, give.
+  - Extras: crowd and background runners (non-cast, generic look).
+  - Directives: "@do <cast>: <action> [target]" overrides keyword guessing for that line.
 - Step 6: FastAPI + Vue web view.
 - Step 7: Polish and QA.
 
