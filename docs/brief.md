@@ -96,19 +96,23 @@ library/<series-slug>/
 - Approval buttons: cast, stills, test render, final.
 
 ## Engine base
-- Reference: github.com/mromidev/claude-animated-shorts.
-- Fork it, pin the commit, vendor three@0.160.0.
-- Scripts we must build ourselves:
-  timing.py, render.mjs, audio.py, mix.py, finish.sh, sheet.py.
+- Reference: github.com/mromidev/claude-animated-shorts (MIT), commit e3b817b6afc6cd413466d43f11ba31209e034bbf.
+- Do NOT fork. Borrow selected files only: camera math, 2D character card drawing, outline pass, frame QA (short_qa.py), synth audio.
+- Copied files keep the MIT header plus a note with the pinned commit.
+- Never copy references/ (third-party frames). Never use Remotion or React.
+- Characters: 2D marker-drawn cards facing the camera, inside a toon-shaded 3D world.
+- Our own: story.json format, render.mjs, timing.py, audio.py, mix.py, finish.sh, sheet.py.
 
 ## Build order
 - Step 1: Repo skeleton + setup.sh. DONE.
 - Step 2: series.json and part.json schemas. DONE.
 - Step 3: CLI (new-series, new-part, render). DONE (render is a stub until Step 5).
-- Step 4: Pipeline stages (prep, timing, shots, audio, finish).
-  - Step 4a: stage runner, prep, import_check. DONE.
-  - Step 4b: timing (faster-whisper base.en, aligned to script). DONE.
+- Step 4: Pipeline stages.
+  - 4a: stage runner, prep, import check. DONE.
+  - 4b: timing (Whisper). DONE.
+  - 4c: story.json format + rule-based shot planner + validator.
 - Step 5: Render engine, parallel chunks, resume.
+- Step 5b: audio (synth music + SFX), mix, finish + QA.
 - Step 6: FastAPI + Vue web view.
 - Step 7: Polish and QA.
 
