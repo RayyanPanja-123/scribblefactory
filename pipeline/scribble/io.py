@@ -3,12 +3,14 @@
 import json
 import os
 import tempfile
+import time
 from pathlib import Path
 
 from .schemas import PartModel, SeriesModel
 
 # User-owned files a save must never write to.
 PROTECTED = {"story.md", "voice.mp3"}
+REPLACE_RETRIES = 5
 
 
 def atomic_write_json(path, data) -> None:
@@ -23,7 +25,16 @@ def atomic_write_json(path, data) -> None:
             f.write(text)
             f.flush()
             os.fsync(f.fileno())
-        os.replace(tmp, path)
+        # Windows: replace fails with PermissionError while another process
+        # (editor, antivirus, indexer) has the target open. Retry briefly.
+        for attempt in range(REPLACE_RETRIES + 1):
+            try:
+                os.replace(tmp, path)
+                break
+            except PermissionError:
+                if attempt == REPLACE_RETRIES:
+                    raise
+                time.sleep(0.1)
     except BaseException:
         Path(tmp).unlink(missing_ok=True)
         raise

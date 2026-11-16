@@ -1,10 +1,11 @@
 import json
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from pydantic import ValidationError
 
 from pipeline.scribble import io
-from pipeline.scribble.schemas import PartModel, SeriesModel
+from pipeline.scribble.schemas import PartModel, SeriesModel, utcnow
 from pipeline.scribble.schemas.export import OUT_DIR, render
 
 T = "2026-11-16T10:00:00Z"
@@ -65,6 +66,10 @@ def test_part_round_trip(tmp_path):
     (SeriesModel, series_data(extra=1)),
     (SeriesModel, series_data(voice={"voice_name": "x", "pitch": 2})),
     (PartModel, part_data(id="part-001")),
+    (PartModel, part_data(id="part-03", number=1)),
+    (PartModel, part_data(id="part-100", number=100)),
+    (SeriesModel, series_data(created_at="2026-11-16T10:00:00")),  # naive
+    (PartModel, part_data(posted={"youtube": {"url": "u", "posted_at": "2026-11-16T10:00:00"}})),
     (PartModel, part_data(stages={"bogus": {}})),
     (PartModel, part_data(foo="bar")),
 ])
@@ -114,3 +119,64 @@ def test_cast_approval_not_lost(tmp_path):
 def test_exported_schemas_match_models():
     for name, text in render().items():
         assert (OUT_DIR / name).read_text(encoding="utf-8") == text, f"{name} drifted: run export"
+
+
+def test_part_id_matches_number():
+    assert PartModel.model_validate(part_data(id="part-12", number=12)).number == 12
+
+
+def test_utcnow_is_aware_utc():
+    assert utcnow().tzinfo == timezone.utc
+
+
+def test_datetimes_stored_as_utc_z(tmp_path):
+    plus2 = datetime(2026, 11, 16, 12, 0, tzinfo=timezone(timedelta(hours=2)))
+    m = SeriesModel.model_validate(series_data(created_at=plus2))
+    assert m.created_at == datetime(2026, 11, 16, 10, 0, tzinfo=timezone.utc)
+    p = tmp_path / "series.json"
+    io.save_series(p, m)
+    on_disk = json.loads(p.read_text())
+    assert on_disk["created_at"] == "2026-11-16T10:00:00Z"
+    assert on_disk["cast"][0]["approved_at"] == "2026-11-16T10:00:00Z"
+    assert io.load_series(p) == m
+
+
+def test_naive_datetime_object_rejected():
+    with pytest.raises(ValidationError):
+        SeriesModel.model_validate(series_data(created_at=datetime(2026, 1, 1)))
+
+
+def test_replace_retries_then_raises(tmp_path, monkeypatch):
+    p = tmp_path / "part.json"
+    io.save_part(p, PartModel.model_validate(part_data()))
+    before = p.read_bytes()
+    calls = []
+
+    def locked(src, dst):
+        calls.append(1)
+        raise PermissionError("file in use")
+
+    monkeypatch.setattr(io.os, "replace", locked)
+    monkeypatch.setattr(io.time, "sleep", lambda s: None)
+    with pytest.raises(PermissionError):
+        io.save_part(p, PartModel.model_validate(part_data(title="New")))
+    assert len(calls) == 1 + io.REPLACE_RETRIES
+    assert p.read_bytes() == before
+    assert [f.name for f in tmp_path.iterdir()] == ["part.json"]
+
+
+def test_replace_retry_succeeds(tmp_path, monkeypatch):
+    p = tmp_path / "part.json"
+    io.save_part(p, PartModel.model_validate(part_data()))
+    real, calls = io.os.replace, []
+
+    def flaky(src, dst):
+        calls.append(1)
+        if len(calls) < 3:
+            raise PermissionError("file in use")
+        real(src, dst)
+
+    monkeypatch.setattr(io.os, "replace", flaky)
+    monkeypatch.setattr(io.time, "sleep", lambda s: None)
+    io.save_part(p, PartModel.model_validate(part_data(title="New")))
+    assert io.load_part(p).title == "New"
