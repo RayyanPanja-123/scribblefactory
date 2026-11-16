@@ -117,8 +117,8 @@ function office(b) {
 }
 
 function street(b, R) {
-  b.box(14, 0.1, 4.5, "#c9c3b8", [0, -0.05, -0.5], { outline: false, pattern: lines("v", 6, "#a9a397", 3), repeat: [6, 2] });
-  b.box(14, 0.08, 9, "#5a5a60", [0, -0.08, 6.5], { outline: false, pattern: lines("h", 1, "#f2f2f2", 6), repeat: [3, 2] });
+  b.box(14, 0.1, 5.5, "#c9c3b8", [0, -0.05, -1.0], { outline: false, pattern: lines("v", 6, "#a9a397", 3), repeat: [6, 2] });
+  b.box(14, 0.08, 9.4, "#5a5a60", [0, -0.08, 6.4], { outline: false, pattern: lines("h", 1, "#f2f2f2", 6), repeat: [3, 2] });
   const palette = ["#e07a5f", "#f2cc8f", "#81b29a", "#c97b84", "#7aa6c2", "#e9c46a"];
   let x = -6;
   while (x < 6) {

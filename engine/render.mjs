@@ -120,7 +120,10 @@ async function main() {
       const url = await page.evaluate(([fn, arg]) => window[fn](arg), j.call);
       writePng(j.file, url);
       times.push(performance.now() - t0);
-      console.log(`${j.label}: ${times.at(-1).toFixed(0)} ms -> ${j.file}`);
+      const info = j.call[0] === "renderFrame" ? await page.evaluate(() => window.lastInfo) : null;
+      const wide = info?.angle === "wide"
+        ? ` [wide: figure ${(info.figure * 100).toFixed(1)}% of frame height, ${info.inFrame ? "all in frame" : "CUT OFF"}]` : "";
+      console.log(`${j.label}: ${times.at(-1).toFixed(0)} ms -> ${j.file}${wide}`);
     }
     if (manifestDir) {
       const rel = jobs.map((j) => ({ label: j.label, file: path.basename(j.file) }));

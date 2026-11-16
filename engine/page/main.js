@@ -14,7 +14,10 @@ const LID = [0.5, 1, 1, 0.5];          // 4-frame blink: half, shut, shut, half
 const rad = (d) => (d * Math.PI) / 180;
 const lerp = (a, b, u) => a + (b - a) * u;
 
-const WIDE_MARGIN = 1.4; // world units added to the cast's x span so whole cards (and some air) fit a wide shot
+// wide shots: fit the cast's x span + margin; never closer than maxFill (it must still read as a wide). Camera sits
+// higher and tilts down so less floor/road fills the bottom and less wall/sky sits above the heads.
+const WIDE = { margin: 0.8, maxFill: 0.30, camY: 2.1, lookY: 0.75 };
+const FIG_H = 1.25; // drawn figure, feet to head top, in world units (stickman.js: ~783 of 1024 px on a 1.6 card)
 const SHADOW = { w: 0.75, d: 0.3, opacity: 0.32, bounce: 0.08, y: 0.025 }; // y clears the room rug
 
 // base framing per angle, relative to the subject at (sx, 0, 0): camera offset, look point, fov, how much x follows.
@@ -93,15 +96,19 @@ function drawCard(id, o) {
   return c.mesh;
 }
 
-/** xs: x of every actor now. Wide centres on all of them and backs off until the whole cast fits the frame. */
+/** xs: x of every actor at the start and end of the shot. Wide centres on all of them and backs off until the
+ *  whole cast fits for the entire shot, including where the move ends (push-in reach, truck shift). */
 function shotCamera(shot, sx, xs, u) {
   const A = ANGLES[shot.camera.angle] || ANGLES.medium;
   let pos, look;
   if (shot.camera.angle === "wide" && xs.length) {
     const lo = Math.min(...xs), hi = Math.max(...xs), cx = (lo + hi) / 2;
-    const perUnit = 2 * Math.tan(rad(A.fov / 2)) * (W / H); // visible width per unit of distance
-    const dist = Math.max(A.pos[2], (hi - lo + WIDE_MARGIN) / perUnit);
-    pos = [cx, A.pos[1], dist]; look = [cx, A.look[1], 0];
+    const end = shot.camera.speed, tan = Math.tan(rad(A.fov / 2)); // end = move size at u = 1
+    const width = hi - lo + WIDE.margin + (shot.camera.move.startsWith("truck") ? 2 * 1.4 * end : 0);
+    const reach = shot.camera.move === "push_in" ? 1 - 0.5 * end : 1;
+    const fit = width / (2 * tan * (W / H)) / reach;   // whole cast inside the frame edges all shot long
+    const notCloser = FIG_H / (2 * tan * WIDE.maxFill); // heads and feet win over size: only ever back off
+    pos = [cx, WIDE.camY, Math.max(fit, notCloser)]; look = [cx, WIDE.lookY, 0];
   } else {
     const fx = sx * A.follow;
     pos = [fx + A.pos[0], A.pos[1], A.pos[2]]; look = [fx + A.look[0], A.look[1], A.look[2]];
@@ -145,7 +152,8 @@ window.renderFrame = (n) => {
     return [lerp(a.start_pos[0], e[0], u), lerp(a.start_pos[1], e[1], u)];
   };
   const subject = shot.actors.find((a) => a.action !== "idle") || shot.actors[0];
-  shotCamera(shot, subject ? place(subject)[0] : 0, shot.actors.map((a) => place(a)[0]), u);
+  const span = shot.actors.flatMap((a) => [a.start_pos[0], (a.end_pos || a.start_pos)[0]]);
+  shotCamera(shot, subject ? place(subject)[0] : 0, span, u);
   for (const a of shot.actors) {
     const [x, z] = place(a), key = charSeed(a.cast_id);
     const travelled = a.end_pos ? Math.hypot(a.end_pos[0] - a.start_pos[0], a.end_pos[1] - a.start_pos[1]) * u : 0;
@@ -164,9 +172,23 @@ window.renderFrame = (n) => {
     shadow.scale.set(SHADOW.w * k, 1, SHADOW.d * k);
     scene.add(mesh, shadow);
   }
+  window.lastInfo = { angle: shot.camera.angle, ...measure(shot.actors.map(place)) };
   renderer.render(scene, camera);
   return png();
 };
+
+/** smallest figure height as a fraction of frame height, and whether every head, foot and card edge is in frame */
+function measure(spots) {
+  camera.updateMatrixWorld();
+  let figure = 1, inFrame = true;
+  for (const [x, z] of spots) {
+    const feet = new THREE.Vector3(x, 0, z).project(camera), head = new THREE.Vector3(x, FIG_H, z).project(camera);
+    figure = Math.min(figure, (head.y - feet.y) / 2);
+    const half = (CARD_W / 2) * (head.y - feet.y) / FIG_H; // card half-width in NDC-ish units at that depth
+    inFrame &&= feet.y >= -1 && head.y <= 1 && Math.abs(feet.x) + half * (H / W) <= 1;
+  }
+  return { figure, inFrame };
+}
 
 /** cast sheet image: one character on a plain background. pose: idle | walk | talk; expression for the face */
 window.renderCast = ({ castId, pose, expression = "neutral" }) => {

@@ -30,7 +30,7 @@ ESTABLISHING = "wide"      # first shot of the part and after each set change; i
 MOVES = ["push_in", "pull_out", "truck_left", "truck_right", "crane_up", "crane_down"]
 SPEED = (0.15, 0.35)
 TWIST_ROLL = (6.0, 10.0)   # degrees, sign seeded
-STAGE_X = 1.5              # cast spread across -STAGE_X..STAGE_X, z = 0
+STAGE_X = 1.0              # starting cast spread across -STAGE_X..STAGE_X, z = 0
 BOUNDS = (-2.0, 2.0)       # x range a walk/run must end inside
 MOVE_SPEED = {"walk": 1.2, "run": 2.5}  # units/s
 MIN_SPEED = {"walk": WALK_SPEED[0], "run": RUN_SPEED[0]}  # shortened moves never go slower than the validator allows
