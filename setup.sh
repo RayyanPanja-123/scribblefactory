@@ -12,11 +12,11 @@ summary() { echo; echo "== Summary =="; printf '%s\n' "${RESULTS[@]}"; }
 # --- checks ---
 PY=""
 for c in python3 python; do  # `python` fallback for Git Bash on Windows
-  if command -v "$c" >/dev/null 2>&1 && "$c" -c 'import sys; sys.exit(sys.version_info < (3, 11))' 2>/dev/null; then
+  if command -v "$c" >/dev/null 2>&1 && "$c" -c 'import sys; sys.exit(sys.version_info < (3, 12))' 2>/dev/null; then
     PY="$c"; break
   fi
 done
-if [ -n "$PY" ]; then ok "python >= 3.11 ($($PY --version 2>&1))"; else fail "python3 >= 3.11 not found (install Python 3.11+)"; fi
+if [ -n "$PY" ]; then ok "python >= 3.12 ($($PY --version 2>&1))"; else fail "python3 >= 3.12 not found (install Python 3.12+)"; fi
 
 if command -v node >/dev/null 2>&1 && node -e 'const [a,b]=process.versions.node.split(".").map(Number); process.exit(a>20||(a===20&&b>=19)?0:1)'; then
   ok "node >= 20.19 ($(node --version))"

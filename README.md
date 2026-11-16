@@ -16,7 +16,7 @@ Personal use. No external AI APIs; voice is recorded manually.
 
 ## Quick start
 
-Needs Python 3.11+, Node 20.19+, npm, ffmpeg, ffprobe.
+Needs Python 3.12+, Node 20.19+, npm, ffmpeg, ffprobe.
 
 ```sh
 bash setup.sh
@@ -33,3 +33,4 @@ After changing requirements.txt, rebuild the venv and regenerate requirements.lo
 ## Known gaps
 
 - `setup.sh` has only been tested on Windows Git Bash so far, not on macOS or Linux.
+- requirements.lock is built on Windows / Python 3.12.
