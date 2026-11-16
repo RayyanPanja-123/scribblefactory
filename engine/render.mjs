@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 // Render frames of a part (or the cast sheet of a series) with headless Chromium.
 //   node engine/render.mjs --part <dir> --frame N --out file.png
+//   node engine/render.mjs --part <dir> --frames A-B --out-dir <dir>  -> <dir>/f00042.png (A..B inclusive)
+//   add --gpu to any of these: hardware WebGL (benchmark only; default stays SwiftShader)
 //   node engine/render.mjs --part <dir> --stills          -> <part>/frames/stills/<shot>.png + manifest.json
 //   node engine/render.mjs --series <dir> --cast-sheet    -> <series>/cast-frames/<id>-<pose>.png + manifest.json
 // Serves engine/page and three from node_modules on a localhost port (no extra deps). Exit 0 ok, 1 error.
@@ -18,6 +20,8 @@ export const POSES = [["idle", "idle"], ["walk", "walk"], ["talk", "talk"],
   ...["neutral", "happy", "sad", "angry", "surprised", "sleepy"].map((e) => [e, "idle", e])];
 // Software GL (SwiftShader) so output does not depend on the machine's GPU or driver.
 const CHROME_ARGS = ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"];
+// --gpu: Chromium's default ANGLE backend on the real GPU (D3D11 on Windows).
+const GPU_ARGS = ["--use-angle=default", "--enable-gpu", "--ignore-gpu-blocklist"];
 
 function serve() {
   const server = http.createServer((req, res) => {
@@ -56,6 +60,7 @@ async function main() {
     options: {
       part: { type: "string" }, series: { type: "string" }, frame: { type: "string" }, out: { type: "string" },
       stills: { type: "boolean" }, "cast-sheet": { type: "boolean" },
+      frames: { type: "string" }, "out-dir": { type: "string" }, gpu: { type: "boolean" },
     },
   });
   let data, jobs = [], manifestDir = null;
@@ -67,6 +72,13 @@ async function main() {
       manifestDir = path.join(part, "frames", "stills");
       jobs = data.story.shots.map((s) => ({ label: s.id, file: path.join(manifestDir, `${s.id}.png`),
         call: ["renderFrame", Math.floor((s.start_frame + s.end_frame) / 2)] }));
+    } else if (a.frames && a["out-dir"]) {
+      const m = /^(\d+)-(\d+)$/.exec(a.frames);
+      if (!m || Number(m[1]) > Number(m[2])) throw new Error(`--frames wants A-B with A <= B, got ${a.frames}`);
+      for (let n = Number(m[1]); n <= Number(m[2]); n++) {
+        jobs.push({ label: `frame ${n}`, file: path.join(path.resolve(a["out-dir"]), `f${String(n).padStart(5, "0")}.png`),
+          call: ["renderFrame", n] });
+      }
     } else if (a.frame !== undefined && a.out) {
       jobs = [{ label: `frame ${a.frame}`, file: path.resolve(a.out), call: ["renderFrame", Number(a.frame)] }];
     }
@@ -81,12 +93,13 @@ async function main() {
     }
   }
   if (!jobs.length) {
-    throw new Error("usage: --part <dir> (--frame N --out file.png | --stills) | --series <dir> --cast-sheet");
+    throw new Error("usage: --part <dir> (--frame N --out file.png | --frames A-B --out-dir <dir> | --stills) "
+      + "| --series <dir> --cast-sheet  [--gpu]");
   }
   if (manifestDir) freshDir(manifestDir);
 
   const server = await serve();
-  const browser = await chromium.launch({ args: CHROME_ARGS });
+  const browser = await chromium.launch({ args: a.gpu ? GPU_ARGS : CHROME_ARGS });
   try {
     const page = await browser.newPage({ viewport: { width: 1080, height: 1920 } });
     let pageError = null;
@@ -100,6 +113,7 @@ async function main() {
     await page.waitForFunction(() => window.engineReady === true, null, { timeout: 30000 });
     if (pageError) throw pageError;
     await page.evaluate((d) => window.setup(d), data);
+    console.log(`webgl: ${await page.evaluate(() => window.glRenderer())}`);
     const times = [];
     for (const j of jobs) {
       const t0 = performance.now();
@@ -112,8 +126,9 @@ async function main() {
       const rel = jobs.map((j) => ({ label: j.label, file: path.basename(j.file) }));
       fs.writeFileSync(path.join(manifestDir, "manifest.json"), JSON.stringify(rel, null, 2) + "\n");
     }
-    const avg = times.reduce((s, x) => s + x, 0) / times.length;
-    console.log(`rendered ${times.length} image(s), avg ${avg.toFixed(0)} ms per frame`);
+    const mean = (xs) => xs.reduce((s, x) => s + x, 0) / xs.length;
+    const warm = times.length > 1 ? `, ${mean(times.slice(1)).toFixed(0)} ms without the first (warm)` : "";
+    console.log(`rendered ${times.length} image(s), avg ${mean(times).toFixed(0)} ms per frame${warm}`);
   } finally {
     await browser.close();
     server.close();

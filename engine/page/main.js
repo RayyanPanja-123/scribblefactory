@@ -155,4 +155,10 @@ window.renderCast = ({ castId, pose, expression = "neutral" }) => {
   return png();
 };
 
+/** which WebGL implementation is drawing (SwiftShader vs the real GPU) */
+window.glRenderer = () => {
+  const gl = renderer.getContext(), ext = gl.getExtension("WEBGL_debug_renderer_info");
+  return ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+};
+
 window.engineReady = true;
