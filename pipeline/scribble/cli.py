@@ -127,6 +127,10 @@ def cmd_status(args) -> int:
         raise UserError(f"series {args.slug!r} not found at {d}")
     s = load_series(d / "series.json")
     print(f"{s.title} ({s.slug})  status: {s.status}  parts: {len(s.parts)}")
+    print(f"voice: {s.voice.voice_name or '-'}  style: {s.style.preset} ({'locked' if s.style.locked else 'unlocked'})")
+    cast = [f"{c.id} ({c.outfit_color}, {c.eyes}, "
+            + (f"approved {_date(c.approved_at)})" if c.approved_at else "-)") for c in s.cast]
+    print(f"cast: {', '.join(cast) or '-'}")
     if s.parts:
         _print_table(d, s.parts)
     for name in part_folders(d):

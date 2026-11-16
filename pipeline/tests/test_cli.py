@@ -81,6 +81,28 @@ def test_status(lib, capsys):
         assert name in out
 
 
+def test_status_series_header(lib, capsys):
+    main(["new-series", "cat", "--title", "Cat"])
+    capsys.readouterr()
+    main(["status", "cat"])
+    out = capsys.readouterr().out.splitlines()
+    assert out[1:3] == ["voice: -  style: default (unlocked)", "cast: -"]
+
+    main(["cast-add", "cat", "bob", "--name", "Bob", "--color", "#3a7bd5"])
+    main(["cast-add", "cat", "amy", "--name", "Amy", "--color", "#e2453c", "--eyes", "half_closed"])
+    main(["set-voice", "cat", "--name", "Brian"])
+    f = lib / "cat" / "series.json"
+    s = load_series(f)
+    s.style.locked = True
+    s.cast[0].approved_at = datetime(2026, 11, 16, 23, 0, tzinfo=timezone.utc)
+    save_series(f, s)
+    capsys.readouterr()
+    main(["status", "cat"])
+    out = capsys.readouterr().out.splitlines()
+    assert out[1:3] == ["voice: Brian  style: default (locked)",
+                        "cast: bob (#3a7bd5, dots, approved 2026-11-16), amy (#e2453c, half_closed, -)"]
+
+
 def test_render_not_implemented(lib):
     assert main(["render", "cat", "part-01"]) == 2
 
