@@ -12,7 +12,7 @@ from pathlib import Path
 from pydantic import TypeAdapter, ValidationError
 
 from .io import load_part, load_series, save_part, save_series
-from .schemas import PartId, PartModel, SeriesModel, Slug, Stages, Style, Voice, utcnow
+from .schemas import CastMember, PartId, PartModel, SeriesModel, Slug, Stages, Style, Voice, utcnow
 from .stages import STAGES
 from .stages.runner import run_stage
 
@@ -43,12 +43,47 @@ def cmd_new_series(args) -> int:
     d = series_dir(args)
     if (d / "series.json").exists():
         raise UserError(f"{d / 'series.json'} already exists, not overwriting")
-    # ponytail: voice_name/style preset are placeholders until a command sets them.
+    # voice_name and style preset are placeholders: fill them with set-voice / set-style.
     series = SeriesModel(slug=args.slug, title=args.title, created_at=utcnow(),
                          voice=Voice(voice_name=""), style=Style(preset="default"))
     d.mkdir(parents=True, exist_ok=True)  # an interrupted earlier run may have left the folder
     save_series(d / "series.json", series)
     print(f"created {d / 'series.json'}")
+    return 0
+
+
+def load_existing_series(args) -> tuple[Path, SeriesModel]:
+    f = series_dir(args) / "series.json"
+    if not f.exists():
+        raise UserError(f"series {args.slug!r} not found at {f.parent}")
+    return f, load_series(f)
+
+
+def cmd_cast_add(args) -> int:
+    f, series = load_existing_series(args)
+    if any(c.id == args.id for c in series.cast):
+        raise UserError(f"cast id {args.id!r} already exists in {args.slug}")
+    series.cast.append(CastMember(id=args.id, name=args.name, outfit_color=args.color, eyes=args.eyes))
+    save_series(f, series)
+    print(f"added {args.id} to {args.slug} cast")
+    return 0
+
+
+def cmd_set_voice(args) -> int:
+    f, series = load_existing_series(args)
+    series.voice.voice_name = args.name
+    save_series(f, series)
+    print(f"{args.slug} voice: {args.name}")
+    return 0
+
+
+def cmd_set_style(args) -> int:
+    f, series = load_existing_series(args)
+    if series.style.locked:
+        raise UserError(f"{args.slug} style is locked ({series.style.preset!r}), not changing it")
+    series.style.preset = args.preset
+    save_series(f, series)
+    print(f"{args.slug} style: {args.preset}")
     return 0
 
 
@@ -154,6 +189,24 @@ def build_parser() -> Parser:
     c.add_argument("slug")
     c.add_argument("--title")
     c.set_defaults(func=cmd_new_part)
+
+    c = sub.add_parser("cast-add", parents=[common], help="add a character to a series cast")
+    c.add_argument("slug")
+    c.add_argument("id")
+    c.add_argument("--name", required=True)
+    c.add_argument("--color", required=True, help="outfit colour #rrggbb")
+    c.add_argument("--eyes", choices=["dots", "half_closed"], default="dots")
+    c.set_defaults(func=cmd_cast_add)
+
+    c = sub.add_parser("set-voice", parents=[common], help="set the series voice name")
+    c.add_argument("slug")
+    c.add_argument("--name", required=True)
+    c.set_defaults(func=cmd_set_voice)
+
+    c = sub.add_parser("set-style", parents=[common], help="set the series style preset (refused once locked)")
+    c.add_argument("slug")
+    c.add_argument("--preset", required=True)
+    c.set_defaults(func=cmd_set_style)
 
     c = sub.add_parser("status", parents=[common], help="show series and part status")
     c.add_argument("slug")

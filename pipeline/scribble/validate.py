@@ -14,6 +14,7 @@ MAX_SHOT_FRAMES = 90
 WALK_SPEED = (0.6, 1.8)   # units/s, inclusive
 RUN_SPEED = (1.8, 4.0)
 TWIST_CUE_WINDOW = 3      # frames either side of the twist shot's start
+PHRASE_TOLERANCE = 3      # frames either side of a shot's phrase time span
 MOVING = {"walk", "run"}
 
 
@@ -33,8 +34,11 @@ def validate(story: StoryModel, phrases: PhrasesModel, cast_ids: set[str]) -> li
     if story.duration_frames != want:
         err(None, "duration", f"duration_frames {story.duration_frames} != ceil({phrases.duration} s x {fps}) = {want}")
 
-    expected_start, prev = 0, None
+    expected_start, prev, seen = 0, None, set()
     for s in story.shots:
+        if s.id in seen:
+            err(s.id, "duplicate_shot_id", f"shot id {s.id} is used more than once")
+        seen.add(s.id)
         if s.start_frame != expected_start:
             err(s.id, "contiguous", f"starts at {s.start_frame}, expected {expected_start}")
         expected_start = s.end_frame
@@ -51,8 +55,14 @@ def validate(story: StoryModel, phrases: PhrasesModel, cast_ids: set[str]) -> li
         first, last = s.phrase_range
         if not 0 <= first <= last < len(phrases.phrases):
             err(s.id, "phrase_range", f"{[first, last]} invalid for {len(phrases.phrases)} phrases")
-        elif prev and first < prev.phrase_range[1]:
-            err(s.id, "phrase_range", f"{[first, last]} goes back before {prev.id} {list(prev.phrase_range)}")
+        else:
+            if prev and first < prev.phrase_range[1]:
+                err(s.id, "phrase_range", f"{[first, last]} goes back before {prev.id} {list(prev.phrase_range)}")
+            lo = phrases.phrases[first].start * fps - PHRASE_TOLERANCE
+            hi = phrases.phrases[last].end * fps + PHRASE_TOLERANCE
+            if not (s.start_frame < hi and s.end_frame > lo):
+                err(s.id, "phrase_timing", f"frames {s.start_frame}-{s.end_frame} miss phrases {[first, last]} "
+                                           f"at frames {lo:.0f}-{hi:.0f} (with +-{PHRASE_TOLERANCE} tolerance)")
 
         for a in s.actors:
             _check_actor(s.id, a, n / fps, cast_ids, err)

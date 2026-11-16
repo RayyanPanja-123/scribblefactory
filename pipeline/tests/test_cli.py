@@ -1,7 +1,9 @@
+from datetime import datetime, timezone
+
 import pytest
 
 from pipeline.scribble.cli import main
-from pipeline.scribble.io import load_part, load_series
+from pipeline.scribble.io import load_part, load_series, save_series
 
 
 @pytest.fixture
@@ -122,3 +124,76 @@ def test_status_reports_orphans(lib, capsys):
     assert out.splitlines()[-1] == "warning: orphan folder part-03 (not in series.json)"
     assert out.index("part-04") < out.index("warning:")
     assert out.count("warning:") == 1
+
+
+def test_cast_add(lib):
+    main(["new-series", "cat", "--title", "Cat"])
+    assert main(["cast-add", "cat", "bob", "--name", "Bob", "--color", "#3a7bd5"]) == 0
+    assert main(["cast-add", "cat", "amy", "--name", "Amy", "--color", "#E2453C", "--eyes", "half_closed"]) == 0
+    cast = load_series(lib / "cat" / "series.json").cast
+    assert [(c.id, c.name, c.outfit_color, c.eyes, c.approved_at) for c in cast] == [
+        ("bob", "Bob", "#3a7bd5", "dots", None), ("amy", "Amy", "#E2453C", "half_closed", None)]
+
+
+def test_cast_add_keeps_approvals_and_rejects_duplicates(lib):
+    main(["new-series", "cat", "--title", "Cat"])
+    main(["cast-add", "cat", "bob", "--name", "Bob", "--color", "#3a7bd5"])
+    f = lib / "cat" / "series.json"
+    s = load_series(f)
+    s.cast[0].approved_at = datetime(2026, 11, 16, tzinfo=timezone.utc)
+    save_series(f, s)
+    before = f.read_bytes()
+    assert main(["cast-add", "cat", "bob", "--name", "Other", "--color", "#000000"]) == 1
+    assert f.read_bytes() == before
+    assert main(["cast-add", "cat", "amy", "--name", "Amy", "--color", "#e2453c"]) == 0
+    cast = load_series(f).cast
+    assert [c.id for c in cast] == ["bob", "amy"]
+    assert cast[0].approved_at == datetime(2026, 11, 16, tzinfo=timezone.utc)
+
+
+@pytest.mark.parametrize("color", ["red", "#12345", "#12345g"])
+def test_cast_add_bad_color(lib, color):
+    main(["new-series", "cat", "--title", "Cat"])
+    assert main(["cast-add", "cat", "bob", "--name", "Bob", "--color", color]) == 1
+    assert load_series(lib / "cat" / "series.json").cast == []
+
+
+def test_cast_add_bad_eyes(lib):
+    main(["new-series", "cat", "--title", "Cat"])
+    with pytest.raises(SystemExit) as e:  # argparse choices: usage error, exit 1
+        main(["cast-add", "cat", "bob", "--name", "Bob", "--color", "#123456", "--eyes", "big"])
+    assert e.value.code == 1
+    assert load_series(lib / "cat" / "series.json").cast == []
+
+
+def test_cast_add_bad_id(lib):
+    main(["new-series", "cat", "--title", "Cat"])
+    assert main(["cast-add", "cat", "Bob Smith", "--name", "Bob", "--color", "#123456"]) == 1
+
+
+@pytest.mark.parametrize("cmd", [["cast-add", "nope", "bob", "--name", "B", "--color", "#123456"],
+                                 ["set-voice", "nope", "--name", "Brian"],
+                                 ["set-style", "nope", "--preset", "chalk"]])
+def test_series_commands_need_series(lib, cmd):
+    assert main(cmd) == 1
+    assert list(lib.iterdir()) == []
+
+
+def test_set_voice_and_style(lib):
+    main(["new-series", "cat", "--title", "Cat"])
+    main(["cast-add", "cat", "bob", "--name", "Bob", "--color", "#3a7bd5"])
+    assert main(["set-voice", "cat", "--name", "Brian"]) == 0
+    assert main(["set-style", "cat", "--preset", "marker"]) == 0
+    s = load_series(lib / "cat" / "series.json")
+    assert (s.voice.provider, s.voice.voice_name, s.style.preset, s.style.locked) == ("freetts.ai", "Brian", "marker", False)
+    assert [c.id for c in s.cast] == ["bob"]
+
+
+def test_set_style_refuses_when_locked(lib):
+    main(["new-series", "cat", "--title", "Cat"])
+    f = lib / "cat" / "series.json"
+    s = load_series(f)
+    s.style.locked = True
+    save_series(f, s)
+    assert main(["set-style", "cat", "--preset", "other"]) == 1
+    assert load_series(f).style.preset == "default"

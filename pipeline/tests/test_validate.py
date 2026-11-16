@@ -17,14 +17,16 @@ def load(name):
     return json.loads((FIX / name).read_text(encoding="utf-8"))
 
 
-def rules(mutate=None, story=None):
-    """Rules that fail after mutate(story_dict) is applied to the valid fixture."""
-    d = load("story.json")
+def rules(mutate=None, story=None, phrases_mutate=None):
+    """Rules that fail after mutate(story_dict) / phrases_mutate(phrases_dict) on the valid fixture."""
+    d, p = load("story.json"), load("phrases.json")
     if mutate:
         mutate(d)
+    if phrases_mutate:
+        phrases_mutate(p)
     s = story or StoryModel.model_validate(d)
     cast = {c.id for c in SeriesModel.model_validate(load("series.json")).cast}
-    return {e.rule for e in validate(s, PhrasesModel.model_validate(load("phrases.json")), cast)}
+    return {e.rule for e in validate(s, PhrasesModel.model_validate(p), cast)}
 
 
 def shot(d, i):
@@ -86,7 +88,22 @@ CASES = {
     "phrase_range out of bounds": ("phrase_range", _set(lambda d: shot(d, 2), "phrase_range", [2, 3])),
     "phrase_range first > last": ("phrase_range", _set(lambda d: shot(d, 1), "phrase_range", [2, 1])),
     "phrase_range backwards": ("phrase_range", _set(lambda d: shot(d, 2), "phrase_range", [0, 2])),
+    "duplicate_shot_id": ("duplicate_shot_id", _set(lambda d: shot(d, 2), "id", "s01")),
+    # s02 (frames 60-120) pointed at phrase 0 (0.1-1.6 s = frames 3-48, 0-51 with tolerance)
+    "phrase_timing": ("phrase_timing", _set(lambda d: shot(d, 1), "phrase_range", [0, 0])),
 }
+
+
+def _phrase0_end(t):
+    return lambda p: p["phrases"][0].__setitem__("end", t)
+
+
+def test_phrase_timing_tolerance():
+    s02_on_phrase0 = _set(lambda d: shot(d, 1), "phrase_range", [0, 0])
+    # phrase 0 ends at 1.95 s = frame 58.5, +3 = 61.5 > 60: overlaps s02
+    assert rules(s02_on_phrase0, phrases_mutate=_phrase0_end(1.95)) == set()
+    # ends at 1.9 s = frame 57, +3 = 60: touches s02's start only, no overlap
+    assert rules(s02_on_phrase0, phrases_mutate=_phrase0_end(1.9)) == {"phrase_timing"}
 
 
 @pytest.mark.parametrize("rule,mutate", CASES.values(), ids=CASES.keys())
