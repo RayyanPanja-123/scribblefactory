@@ -72,4 +72,52 @@ library/<series-slug>/
 - Bold curved eyebrows. Small mouth line. NO nose. NO face shading.
 - Body: simple flat colored blob (the outfit), thick outline.
 - Arms and legs: thin black sticks. Black dot hands. NO shoes.
-- Look:
+- Look: marker-drawn, imperfect, not polished.
+- World: colorful toon-shaded 3D, ink outlines, painted textures.
+
+## Validator rules
+- Max 90 frames per shot.
+- No repeated camera angle back to back.
+- Camera always creeping, never static.
+- Characters face their movement direction.
+- Walk phase drives legs. No gliding.
+- Idle breathing and blink on every character.
+- Twist line: music stops, low hit, push-in with roll.
+- Audio: music -6 dB under voice, -14 LUFS, peak -1 dBFS.
+
+## Web view
+- Series list with cover thumbnail.
+- Part list with stage status.
+- Video preview player.
+- Disk usage per series.
+- Clean frames button (keeps final.mp4).
+- Posted tracker (YT/IG, link, date).
+- Edit upload.md in browser.
+- Approval buttons: cast, stills, test render, final.
+
+## Engine base
+- Reference: github.com/mromidev/claude-animated-shorts.
+- Fork it, pin the commit, vendor three@0.160.0.
+- Scripts we must build ourselves:
+  timing.py, render.mjs, audio.py, mix.py, finish.sh, sheet.py.
+
+## Build order
+- Step 1: Repo skeleton + setup.sh. DONE.
+- Step 2: series.json and part.json schemas. DONE.
+- Step 3: CLI (new-series, new-part, render).
+- Step 4: Pipeline stages (prep, timing, shots, audio, finish).
+- Step 5: Render engine, parallel chunks, resume.
+- Step 6: FastAPI + Vue web view.
+- Step 7: Polish and QA.
+
+## Working rules for you
+- Do only the task given. No extra features.
+- Pick the simplest option when ambiguous. Note it in your report.
+- Pin exact dependency versions.
+- Every stage must be resumable and idempotent.
+- Never overwrite files I made (story.md, voice.mp3) or approvals.
+- Writes to JSON files must be atomic (temp file, then replace).
+- Never touch the real library/ in tests. Use a temp dir.
+- Run and show real verification output before reporting.
+- Flag risks. Disagree if something is a bad idea.
+- End every task with a report: files created, decisions, issues.
