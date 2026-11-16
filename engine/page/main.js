@@ -2,12 +2,13 @@
 // render.mjs calls setup(data) once, then renderFrame(n) or renderCast(pose) per image (PNG data URL back).
 import * as THREE from "three";
 import { dolly, glide } from "./borrowed.js";
-import { CH, CW, FEET_Y, drawStickman } from "./stickman.js";
+import { CH, CW, FEET_Y, FIGURE_PX, drawStickman } from "./stickman.js";
 import { rng } from "./rng.js";
 import { buildSet } from "./world.js";
 
 const FPS = 30, W = 1080, H = 1920;
 const CARD_H = 1.6, CARD_W = CARD_H * (CW / CH);
+const FIG_H = (CARD_H * FIGURE_PX) / CH; // tallest standing figure in world units, from stickman.js
 const BOIL_FRAMES = 4;                 // marker jitter changes every 4 frames (7.5 fps "boil")
 const STRIDE = { walk: 1.0, run: 1.8 }; // world units per full walk cycle (two steps)
 const LID = [0.5, 1, 1, 0.5];          // 4-frame blink: half, shut, shut, half
@@ -17,7 +18,6 @@ const lerp = (a, b, u) => a + (b - a) * u;
 // wide shots: fit the cast's x span + margin; never closer than maxFill (it must still read as a wide). Camera sits
 // higher and tilts down so less floor/road fills the bottom and less wall/sky sits above the heads.
 const WIDE = { margin: 0.8, maxFill: 0.30, camY: 2.1, lookY: 0.75 };
-const FIG_H = 1.25; // drawn figure, feet to head top, in world units (stickman.js: ~783 of 1024 px on a 1.6 card)
 const SHADOW = { w: 0.75, d: 0.3, opacity: 0.32, bounce: 0.08, y: 0.025 }; // y clears the room rug
 
 // base framing per angle, relative to the subject at (sx, 0, 0): camera offset, look point, fov, how much x follows.

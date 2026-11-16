@@ -7,10 +7,25 @@ import { rng } from "./rng.js";
 export const CW = 512, CH = 1024, FEET_Y = 1000;
 const INK = "#1c1a1a";
 const HEAD_R = 150;
+const HEAD_SQUASH = 0.97; // head height / width
 const LEG = 220;         // leg length; hip height follows the leg angle, so feet stay planted
+const IDLE_LEG = 6;      // degrees each leg splays when standing
+const BODY_RX = 92, BODY_RY = 150;
+const BREATH = 0.03;     // body height change at full breath
+const HIP_OVERLAP = 12;  // body blob reaches this far below the hips
+const NECK_OVERLAP = 24; // head sits this far down into the body
+const LUMP = 0.035, JIT = 0.012, LUMP_SUM = 1 + 0.6 + 0.4; // wobble: shape lumps (3 harmonics) + boil jitter
 const ARM = 175;
 const TAU = Math.PI * 2;
 const deg = (d) => (d * Math.PI) / 180;
+
+/** Tallest standing figure, feet to the highest point the head outline can reach (full breath, max wobble),
+ *  in canvas px. main.js turns it into world units for framing; derived from the constants the drawing uses. */
+export const FIGURE_PX = (() => {
+  const hip = FEET_Y - LEG * Math.cos(deg(IDLE_LEG)), ry = BODY_RY * (1 + BREATH);
+  const headCy = hip + HIP_OVERLAP - 2 * ry - HEAD_R + NECK_OVERLAP;
+  return FEET_Y - (headCy - HEAD_R * HEAD_SQUASH * (1 + LUMP * LUMP_SUM + JIT));
+})();
 
 // brows per expression: [outer dy, inner dy, arch] (negative = up)
 const BROWS = {
@@ -19,7 +34,7 @@ const BROWS = {
 };
 
 /** closed wobbly loop: stable per-character lumps (shape) + small per-boil jitter (boil) */
-function wobble(cx, cy, rx, ry, shape, boil, lump = 0.035, jit = 0.012, n = 44) {
+function wobble(cx, cy, rx, ry, shape, boil, lump = LUMP, jit = JIT, n = 44) {
   const ph = [shape() * TAU, shape() * TAU, shape() * TAU];
   const pts = [];
   for (let i = 0; i < n; i++) {
@@ -63,15 +78,15 @@ export function drawStickman(canvas, o) {
 
   // legs: walk phase drives the swing; hip height = FEET_Y - LEG cos(angle)
   const s = Math.sin(TAU * (o.phase || 0));
-  const A = moving ? deg(run ? 34 : 24) * s : deg(6);
+  const A = moving ? deg(run ? 34 : 24) * s : deg(IDLE_LEG);
   const hipY = FEET_Y - LEG * Math.cos(A);
   const hipL = [CW / 2 - 18, hipY], hipR = [CW / 2 + 18, hipY];
   p.stroke(jitter([hipL, at(hipL, -A, LEG)], boil), 10);
   p.stroke(jitter([hipR, at(hipR, A, LEG)], boil), 10);
 
   // body: flat outfit-colour blob, breathing scales its height from the hips up
-  const ry = 150 * (1 + 0.03 * (o.breath || 0)), cy = hipY + 12 - ry, top = cy - ry;
-  p.poly(wobble(CW / 2, cy, 92, ry, rng(o.seed, "body"), boil), o.color, 12 + boil());
+  const ry = BODY_RY * (1 + BREATH * (o.breath || 0)), cy = hipY + HIP_OVERLAP - ry, top = cy - ry;
+  p.poly(wobble(CW / 2, cy, BODY_RX, ry, rng(o.seed, "body"), boil), o.color, 12 + boil());
 
   // arms (screen angles from straight down, + toward +x) and dot hands, over the body
   const sh = top + 58, shL = [CW / 2 - 66, sh], shR = [CW / 2 + 66, sh];
@@ -96,8 +111,8 @@ export function drawStickman(canvas, o) {
   }
 
   // head last: wobbly white circle, thick outline, sits on the body (raised arms go behind it)
-  const hx = CW / 2 + (o.action === "react" ? -10 : 0), hy = top - HEAD_R + 24;
-  p.poly(wobble(hx, hy, HEAD_R, HEAD_R * 0.97, rng(o.seed, "head"), boil), "#ffffff", 14 + boil() * 1.5);
+  const hx = CW / 2 + (o.action === "react" ? -10 : 0), hy = top - HEAD_R + NECK_OVERLAP;
+  p.poly(wobble(hx, hy, HEAD_R, HEAD_R * HEAD_SQUASH, rng(o.seed, "head"), boil), "#ffffff", 14 + boil() * 1.5);
   face(p, boil, o, hx + 26 * look, hy, look);
 }
 
