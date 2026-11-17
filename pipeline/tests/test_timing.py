@@ -86,15 +86,73 @@ def test_split_on_sentence_punctuation():
 
 
 def test_split_on_pause():
-    words = [w("a", 0, 0.2), w("b", 0.2, 0.4), w("c", 0.76, 0.9), w("d", 1.2, 1.3)]  # gaps .36 then .30
+    words = [w("a", 0, 0.3), w("b", 0.3, 0.6), w("c", 0.96, 1.2), w("d", 1.5, 1.8)]  # gaps .36 then .30
     ps = split_phrases(words)
     assert [p["text"] for p in ps] == ["a b", "c d"]
-    assert ps[1] == {"text": "c d", "start": 0.76, "end": 1.3, "word_start": 2, "word_end": 3}
+    assert ps[1] == {"text": "c d", "start": 0.96, "end": 1.8, "word_start": 2, "word_end": 3}
+
+
+def said(text: str, word_s: float = 0.3) -> list[dict]:
+    """words of one breath: each word_s long, 0.05 s apart (no pauses)"""
+    return [w(t, round(i * (word_s + 0.05), 3), round(i * (word_s + 0.05) + word_s, 3)) for i, t in enumerate(text.split())]
+
+
+def texts(text: str, word_s: float = 0.3) -> list[str]:
+    return [p["text"] for p in split_phrases(said(text, word_s))]
 
 
 def test_split_max_seven_words():
-    words = [w(str(i), i * 0.1, i * 0.1 + 0.1) for i in range(16)]
+    words = [w(str(i), i * 0.35, i * 0.35 + 0.3) for i in range(16)]
     assert [len(p["text"].split()) for p in split_phrases(words)] == [7, 7, 2]
+
+
+def test_forced_split_never_inside_a_name():
+    # limit falls between "Fred" and "Lorz": break before the name instead
+    assert texts("Up at the front American runner Fred Lorz collapsed from exhaustion at mile nine.") == [
+        "Up at the front American runner", "Fred Lorz collapsed from exhaustion at mile nine."]
+    # limit on "Louis": breaking after it is allowed and keeps the name whole
+    assert texts("one two three four five Saint Louis was hot and dry.") == [
+        "one two three four five Saint Louis", "was hot and dry."]
+
+
+def test_forced_split_never_after_article_or_preposition():
+    # "until his manager pulled up in a car and offered him a lift." used to split as "... in a / car ..."
+    out = texts("until his manager pulled up in a car and offered him a lift.")
+    assert out == ["until his manager pulled up", "in a car and offered him", "a lift."]
+    for phrase in out[:-1]:
+        assert phrase.split()[-1].lower() not in {"a", "an", "the", "in", "on", "at", "of", "to", "by", "from", "with"}
+
+
+def test_forced_split_prefers_comma_then_conjunction():
+    assert texts("Halfway through, a runner from far away was chased off course.") == [
+        "Halfway through, a runner from far away", "was chased off course."]  # limit is fine: no comma late
+    assert texts("one two three four five, six seven eight nine ten.") == ["one two three four five,", "six seven eight nine ten."]
+    assert texts("one two three four five six but seven eight nine.") == ["one two three four five six", "but seven eight nine."]
+
+
+def test_nine_word_cap_when_no_allowed_break():
+    # words 5..9 are all capitalised: no allowed break from word 5 to 9, so the phrase is cut at 9 words
+    out = texts("one two three four Ann Bea Cal Dan Eve Fay Gus Hal.")
+    assert [len(p.split()) for p in out] == [9, 3]
+    # an allowed break past the limit (within 9 words) is used before the hard cap
+    assert [len(p.split()) for p in texts("one two three four five Ann Bea Cal went home.")] == [5, 5]
+
+
+def test_short_phrase_merges_into_previous_of_same_sentence():
+    words = said("Another runner lay down under an oak tree, and took a forty-five-minute") + [w("nap.", 4.6, 4.9)]
+    ps = split_phrases(words)
+    assert ps[-1]["text"].endswith("forty-five-minute nap.") and ps[-1]["end"] == 4.9
+    assert all(p["end"] - p["start"] >= 0.5 for p in ps)
+
+
+def test_short_phrase_opening_a_sentence_merges_into_next():
+    words = [w("Done.", 0.0, 0.6), w("So", 1.0, 1.2), w("then", 1.6, 1.9), w("we", 1.95, 2.2), w("left.", 2.25, 2.6)]
+    assert [p["text"] for p in split_phrases(words)] == ["Done.", "So then we left."]  # "So" (0.2 s, pause after)
+
+
+def test_short_single_phrase_sentence_stays():
+    words = [w("Hi.", 0.0, 0.2), w("Then", 0.6, 0.9), w("we", 0.95, 1.2), w("left.", 1.25, 1.6)]
+    assert [p["text"] for p in split_phrases(words)] == ["Hi.", "Then we left."]
 
 
 # --- schema ---

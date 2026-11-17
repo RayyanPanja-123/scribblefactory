@@ -16,7 +16,12 @@ OUTPUTS = ["phrases.json"]
 MODEL_DIR = Path(__file__).resolve().parents[3] / "models" / "faster-whisper-base.en"
 SAMPLE_RATE = 16000
 PAUSE = 0.35            # seconds of gap that ends a phrase
-MAX_WORDS = 7           # words per phrase
+MAX_WORDS = 7           # words per phrase before the limit forces a split...
+BREAK_WINDOW = 3        # ...at the best break among the last this-many words of the phrase
+HARD_MAX_WORDS = 9      # if no allowed break exists there, a phrase may grow to this many words
+MIN_PHRASE_S = 0.5      # shorter phrases merge into a neighbour in the same sentence
+CONJUNCTIONS = {"and", "but", "so", "while", "until", "which"}     # a forced split prefers to go before these
+NO_BREAK_AFTER = {"a", "an", "the", "in", "on", "at", "of", "to", "by", "from", "with"}
 MIN_MATCH = 0.85        # below this, the voice probably doesn't match the script
 SECONDS_PER_WORD = 60 / WPM
 SENTENCE_END = re.compile(r"[.!?…][\"')\]]*$")
@@ -88,18 +93,69 @@ def align(script_words: list[str], heard: list[tuple[str, float, float]], durati
     return words, matched
 
 
+def _capitalised(word: str) -> bool:
+    letters = re.sub(r"^[^A-Za-z]+", "", word)
+    return bool(letters) and letters[0].isupper()
+
+
+def _can_break_after(words: list[dict], i: int) -> bool:
+    """Never inside a name (two capitalised words) and never right after an article or preposition."""
+    w, nxt = words[i]["text"], words[i + 1]["text"]
+    return not (_capitalised(w) and _capitalised(nxt)) and norm(w) not in NO_BREAK_AFTER
+
+
+def _forced_break(words: list[dict], a: int, b: int) -> int:
+    """Last word of the phrase starting at a when the word limit forces a split inside a..b (b = segment end)."""
+    def best(candidates):
+        ok = [i for i in candidates if i < b and _can_break_after(words, i)]
+        for prefer in (lambda i: words[i]["text"].endswith(","),           # after a comma
+                       lambda i: norm(words[i + 1]["text"]) in CONJUNCTIONS):  # before a conjunction
+            hits = [i for i in ok if prefer(i)]
+            if hits:
+                return max(hits)
+        return max(ok) if ok else None   # else at the limit (or as close to it as allowed)
+
+    limit = a + MAX_WORDS - 1
+    cut = best(range(limit - BREAK_WINDOW + 1, limit + 1))
+    if cut is None:
+        cut = best(range(limit + 1, a + HARD_MAX_WORDS))
+    return cut if cut is not None else min(a + HARD_MAX_WORDS - 1, b - 1)
+
+
+def _ends_sentence(words: list[dict], i: int) -> bool:
+    return bool(SENTENCE_END.search(words[i]["text"]))
+
+
 def split_phrases(words: list[dict]) -> list[dict]:
-    """Break after sentence punctuation, before a pause > PAUSE, or at MAX_WORDS."""
-    phrases, first = [], 0
+    """Break after sentence punctuation and before a pause > PAUSE; split longer runs at natural breaks
+    (MAX_WORDS, up to HARD_MAX_WORDS); then merge phrases shorter than MIN_PHRASE_S into the same sentence."""
+    segments, first = [], 0
     for i, w in enumerate(words):
-        last = i == len(words) - 1
-        if (last or SENTENCE_END.search(w["text"]) or i - first + 1 >= MAX_WORDS
-                or words[i + 1]["start"] - w["end"] > PAUSE):
-            chunk = words[first:i + 1]
-            phrases.append({"text": " ".join(x["text"] for x in chunk), "start": chunk[0]["start"],
-                            "end": chunk[-1]["end"], "word_start": first, "word_end": i})
+        if i == len(words) - 1 or _ends_sentence(words, i) or words[i + 1]["start"] - w["end"] > PAUSE:
+            segments.append((first, i))
             first = i + 1
-    return phrases
+    spans = []
+    for a, b in segments:
+        while b - a + 1 > MAX_WORDS:
+            cut = _forced_break(words, a, b)
+            spans.append((a, cut))
+            a = cut + 1
+        spans.append((a, b))
+
+    merged, carry = [], None  # carry: a short sentence-opening phrase waiting to join the next one
+    for a, b in spans:
+        if carry is not None:
+            a, carry = carry, None
+        short = words[b]["end"] - words[a]["start"] < MIN_PHRASE_S
+        opens_sentence = a == 0 or _ends_sentence(words, a - 1)
+        if short and not opens_sentence and merged:
+            merged[-1] = (merged[-1][0], b)          # into the previous phrase of the same sentence
+        elif short and not _ends_sentence(words, b) and b < len(words) - 1:
+            carry = a                                # first of its sentence: into the next phrase
+        else:
+            merged.append((a, b))
+    return [{"text": " ".join(x["text"] for x in words[a:b + 1]), "start": words[a]["start"], "end": words[b]["end"],
+             "word_start": a, "word_end": b} for a, b in merged]
 
 
 def run(part_dir: Path) -> None:
