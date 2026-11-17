@@ -20,6 +20,18 @@ const LUMP = 0.035, JIT = 0.012, LUMP_SUM = 1 + 0.6 + 0.4; // wobble: shape lump
 const FACE = { brow: [20, 6], eye: [9, 3.5], eyeRim: [7, 3], mouth: [8, 3.5], pupil: [12, 3] };
 const FACE_MAX = 2.5;
 const ARM = 175;
+// arms: angles in degrees from straight down (+ toward +x); bend = forearm turn relative to the upper arm
+const ARM_REST = 16;      // idle and talk arms hang this far out
+const TALK_SWAY = 3;      // degrees of slow arm sway while talking, at TALK_SWAY_HZ
+const TALK_SWAY_HZ = 0.6;
+const BOB_PX = 7;         // body lift on a stressed word (canvas px; legs stretch, feet stay planted)
+const POINT_ANGLE = 96;   // point arm, fully raised
+// gesture targets [left angle, left bend, right angle, right bend, shoulder lift px]
+const GESTURES = {
+  palm: [-ARM_REST, 0, 40, 60, 0],     // right forearm out, open palm toward the listener
+  chin: [-ARM_REST, 0, 70, 70, 0],     // small point at chin height
+  shrug: [-40, -110, 40, 110, 10],      // both forearms up and out, shoulders up
+};
 const TAU = Math.PI * 2;
 const deg = (d) => (d * Math.PI) / 180;
 
@@ -64,7 +76,9 @@ const quad = (a, c, b, n = 10) => Array.from({ length: n + 1 }, (_, i) => {
 /**
  * o: { seed, boil, color, eyes: "dots"|"half_closed", expression, action, phase (walk cycles), lid (0 | 0.5 | 1),
  *      mouth (0..1 open), breath (-1..1), facing: "left"|"right"|"camera", t (seconds),
- *      px (screen px per canvas px; face strokes keep a minimum on-screen width, default 1) }
+ *      px (screen px per canvas px; face strokes keep a minimum on-screen width, default 1),
+ *      bob (0..1 stressed-word lift), gesture ({ kind: palm|chin|shrug, k: 0..1 } while talking),
+ *      pointK (0..1 point arm raised, default 1) }
  */
 export function drawStickman(canvas, o) {
   const g = canvas.getContext("2d");
@@ -81,34 +95,43 @@ export function drawStickman(canvas, o) {
   const lean = run ? deg(9) : o.action === "react" ? deg(-6) : o.action === "walk" ? deg(3) : 0;
   g.translate(CW / 2, FEET_Y); g.rotate(lean); g.translate(-CW / 2, -FEET_Y);
 
-  // legs: walk phase drives the swing; hip height = FEET_Y - LEG cos(angle)
+  // legs: walk phase drives the swing; hip height = FEET_Y - LEG cos(angle). A stressed-word bob lifts the hips;
+  // the legs reach down to the same planted feet.
   const s = Math.sin(TAU * (o.phase || 0));
   const A = moving ? deg(run ? 34 : 24) * s : deg(IDLE_LEG);
-  const hipY = FEET_Y - LEG * Math.cos(A);
-  const hipL = [CW / 2 - 18, hipY], hipR = [CW / 2 + 18, hipY];
-  p.stroke(jitter([hipL, at(hipL, -A, LEG)], boil), 10);
-  p.stroke(jitter([hipR, at(hipR, A, LEG)], boil), 10);
+  const hipBase = FEET_Y - LEG * Math.cos(A), hipY = hipBase - BOB_PX * (o.bob || 0);
+  for (const [dx, a] of [[-18, -A], [18, A]]) {
+    p.stroke(jitter([[CW / 2 + dx, hipY], at([CW / 2 + dx, hipBase], a, LEG)], boil), 10);
+  }
 
   // body: flat outfit-colour blob, breathing scales its height from the hips up
   const ry = BODY_RY * (1 + BREATH * (o.breath || 0)), cy = hipY + HIP_OVERLAP - ry, top = cy - ry;
   p.poly(wobble(CW / 2, cy, BODY_RX, ry, rng(o.seed, "body"), boil), o.color, 12 + boil());
 
   // arms (screen angles from straight down, + toward +x) and dot hands, over the body
-  const sh = top + 58, shL = [CW / 2 - 66, sh], shR = [CW / 2 + 66, sh];
-  let aL = deg(-16), aR = deg(16), bendL = 0, bendR = 0;
+  let lift = 0, aL = deg(-ARM_REST), aR = deg(ARM_REST), bendL = 0, bendR = 0;
   if (moving) {
     const S = deg(run ? 16 : 13) * s; // both arms sway with the stride; small enough never to cross the body
     aL = deg(-18) + S; aR = deg(18) + S;
     if (run) { bendL = deg(70); bendR = deg(70); }
   } else if (o.action === "talk") {
-    aR = deg(34 + 22 * Math.sin(TAU * 1.1 * (o.t || 0))); bendR = deg(-50);
+    // calm by default: arms hang with a slow sway; an optional seeded gesture blends in (o.gesture)
+    const sway = deg(TALK_SWAY) * Math.sin(TAU * TALK_SWAY_HZ * (o.t || 0));
+    aL += sway; aR += sway;
+    const G = o.gesture && GESTURES[o.gesture.kind], k = o.gesture ? o.gesture.k : 0;
+    if (G && k > 0) {
+      aL += (deg(G[0]) - aL) * k; bendL = deg(G[1]) * k;
+      aR += (deg(G[2]) - aR) * k; bendR = deg(G[3]) * k;
+      lift = G[4] * k;
+    }
   } else if (o.action === "point") {
-    aR = deg(96);
+    aR += (deg(POINT_ANGLE) - aR) * (o.pointK ?? 1); // main.js lowers it again after a moment
   } else if (o.action === "react") {
     aL = deg(-128); aR = deg(128); bendL = deg(-25); bendR = deg(25); // hands up beside the head
   } else {
     aL -= deg(2) * (o.breath || 0); aR += deg(2) * (o.breath || 0);
   }
+  const sh = top + 58 - lift, shL = [CW / 2 - 66, sh], shR = [CW / 2 + 66, sh];
   for (const [shp, a, bend] of [[shL, aL, bendL], [shR, aR, bendR]]) {
     const elbow = at(shp, a, ARM * 0.52), hand = at(elbow, a + bend, ARM * 0.48);
     p.stroke(jitter([shp, elbow, hand], boil), 9);

@@ -219,7 +219,8 @@ async function main() {
       const note = fi?.angle === "wide"
         ? ` [wide: figure ${(fi.figure * 100).toFixed(1)}% of frame height, ${fi.inFrame ? "all in frame" : "CUT OFF"}]`
         : fi?.hidden ? ` [${fi.hidden} prop(s) hidden behind the subject]` : "";
-      console.log(`${j.label}: ${times.at(-1).toFixed(0)} ms -> ${j.file}${note}`);
+      const gest = fi?.gestures?.length ? ` [gesture: ${fi.gestures.join(", ")}]` : "";
+      console.log(`${j.label}: ${times.at(-1).toFixed(0)} ms -> ${j.file}${note}${gest}`);
     }
     if (opened.getError()) throw opened.getError();
     if (manifestDir) {

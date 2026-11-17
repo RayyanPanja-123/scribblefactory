@@ -3,6 +3,7 @@
 import * as THREE from "three";
 import { dolly, glide } from "./borrowed.js";
 import { CH, CW, FEET_Y, FIGURE_PX, drawStickman } from "./stickman.js";
+import { gestureAmount, gesturePlan, pointAmount, stressBob } from "./motion.js";
 import { rng } from "./rng.js";
 import { buildSet } from "./world.js";
 
@@ -81,10 +82,13 @@ function lidAt(f, key) {
   return 0;
 }
 
-function mouthAt(t, shot) {
+function shotWords(shot) {
   const ph = data.phrases.phrases, [a, b] = shot.phrase_range;
-  for (let i = ph[a].word_start; i <= ph[b].word_end; i++) {
-    const w = data.phrases.words[i];
+  return data.phrases.words.slice(ph[a].word_start, ph[b].word_end + 1);
+}
+
+function mouthAt(t, shot) {
+  for (const w of shotWords(shot)) {
     if (t >= w.start && t < w.end) return 0.5 - 0.5 * Math.cos(2 * Math.PI * 5 * (t - w.start)); // ~5 flaps/s
   }
   return 0;
@@ -200,10 +204,15 @@ window.renderFrame = (n) => {
   const hidden = hiddenFor(shot, subject, span);
   for (const [id, pc] of sets[shot.set].userData.pieces) for (const m of pc.meshes) m.visible = !hidden.has(id);
   shotCamera(shot, subject ? place(subject)[0] : 0, span, u);
+  const gestures = [];
   for (const a of shot.actors) {
     const [x, z] = place(a), key = charSeed(a.cast_id);
     const travelled = a.end_pos ? Math.hypot(a.end_pos[0] - a.start_pos[0], a.end_pos[1] - a.start_pos[1]) * u : 0;
     const phase = STRIDE[a.action] ? travelled / STRIDE[a.action] : 0;
+    const ts = (n - shot.start_frame) / FPS, shotSecs = (shot.end_frame - shot.start_frame) / FPS;
+    const plan = gesturePlan(data.story.seed, shot.id, a.cast_id, a.action, shotSecs);
+    const gesture = plan ? { kind: plan.kind, k: gestureAmount(plan, ts) } : null;
+    if (gesture?.k > 0) gestures.push(`${a.cast_id} ${gesture.kind}`);
     camera.updateMatrixWorld();
     const feet = new THREE.Vector3(x, 0, z).project(camera), head = new THREE.Vector3(x, FIG_H, z).project(camera);
     const px = (((head.y - feet.y) / 2) * H) / FIGURE_PX; // screen px per card canvas px
@@ -212,6 +221,8 @@ window.renderFrame = (n) => {
       lid: lidAt(n, key),
       breath: Math.sin((2 * Math.PI * t) / 3.4 + 2 * Math.PI * rng(key, "breath")()),
       mouth: a.action === "talk" ? mouthAt(t, shot) : 0,
+      bob: a.action === "talk" ? stressBob(t, shotWords(shot)) : 0,
+      gesture, pointK: a.action === "point" ? pointAmount(ts) : 1,
     });
     mesh.position.set(x, 0, z);
     mesh.rotation.set(0, Math.atan2(camera.position.x - x, camera.position.z - z), 0);
@@ -221,7 +232,7 @@ window.renderFrame = (n) => {
     shadow.scale.set(SHADOW.w * k, 1, SHADOW.d * k);
     scene.add(mesh, shadow);
   }
-  window.lastInfo = { angle: shot.camera.angle, hidden: hidden.size, ...measure(shot.actors.map(place)) };
+  window.lastInfo = { angle: shot.camera.angle, hidden: hidden.size, gestures, ...measure(shot.actors.map(place)) };
   renderer.render(scene, camera);
   return png();
 };
