@@ -1,0 +1,7 @@
+{
+  "name": "scribblefactory",
+  "private": true,
+  "scripts": {
+    "dev": "bash scripts/dev.sh"
+  }
+}

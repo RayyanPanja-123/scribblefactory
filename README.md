@@ -25,7 +25,9 @@ bash scripts/serve.sh    # builds the web app if needed, serves everything on on
 
 Open http://127.0.0.1:8765. Ctrl+C stops it.
 
-Working on the UI: `bash scripts/dev.sh` runs the API (:8765) and the Vite dev server (http://localhost:5173, hot reload) together.
+Local dev: `npm run dev` (repo root) runs only the backend (uvicorn on :8765, reloading on changes in `api/` and
+`pipeline/`) and the Vite dev server (http://localhost:5173, hot reload). Ctrl+C stops both. It refuses to start
+when 8765 or 5173 is already taken, instead of talking to a leftover server; `PORT=8780 npm run dev` moves the backend.
 
 How to make a video: [docs/USAGE.md](docs/USAGE.md). Known gaps and ideas: [docs/backlog.md](docs/backlog.md).
 API endpoints: [api/README.md](api/README.md).
