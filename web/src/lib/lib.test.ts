@@ -207,3 +207,29 @@ describe('seriesNext', () => {
     expect(seriesNext(s({ parts: [parts[0]] })).kind).toBe('done')
   })
 })
+
+import { partNext, type PartState } from './partNext'
+
+describe('partNext', () => {
+  const ALL_OK = { stills: true, test_render: true, final: true }
+  const p = (doneUpto: number, over: Partial<PartState> = {}): PartState => ({
+    ...state(doneUpto), busy: null, failed: null, thumbs: true, thumbnailPicked: false, posted: { youtube: false, instagram: false }, ...over,
+  })
+  it('walks the part from story to posted', () => {
+    expect(partNext(p(0, { busy: 'job 3 is running' })).kind).toBe('wait')
+    expect(partNext(p(0))).toMatchObject({ kind: 'run', steps: ['run --stage prep', 'run --stage import_check', 'run --stage timing', 'run --stage shots', 'run --stage validate', 'render-stills'] })
+    expect(partNext(p(1, { files: { voice: false, stillsSheet: false, testRender: false } })).kind).toBe('voice')
+    expect(partNext(p(5, { castApproved: false })).kind).toBe('cast')
+    expect(partNext(p(5, { files: { voice: true, stillsSheet: true, testRender: false } }))).toMatchObject({ kind: 'approve', approval: 'stills' })
+    expect(partNext(p(5, { approvals: { ...NONE, stills: true }, files: { voice: true, stillsSheet: true, testRender: true } }))).toMatchObject({ approval: 'test_render' })
+    expect(partNext(p(9, { approvals: { ...ALL_OK, final: false } }))).toMatchObject({ approval: 'final' })
+    expect(partNext(p(9, { approvals: ALL_OK })).kind).toBe('thumbnail')
+    expect(partNext(p(9, { approvals: ALL_OK, thumbnailPicked: true })).kind).toBe('post')
+    expect(partNext(p(9, { approvals: ALL_OK, thumbnailPicked: true, posted: { youtube: true, instagram: false } })))
+      .toEqual({ kind: 'done', text: 'Posted. Add the Instagram link if it goes up there too.' })
+  })
+  it('a failed stage says so and offers the re-run', () => {
+    const s = p(2, { failed: { stage: 'timing', error: 'no phrases' } })
+    expect(partNext(s)).toMatchObject({ kind: 'run', text: expect.stringMatching(/^timing failed: no phrases\./) })
+  })
+})

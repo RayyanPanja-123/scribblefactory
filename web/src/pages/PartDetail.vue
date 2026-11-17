@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeft, Check, CircleAlert, CircleCheck, CircleX, Clock, ExternalLink, HardDrive, Instagram, Minus, Play, Plus, Save, Trash2, Upload, Youtube } from 'lucide-vue-next'
+import { ArrowLeft, ArrowRight, Check, CircleAlert, CircleCheck, CircleX, ExternalLink, HardDrive, Instagram, Minus, Play, Plus, Save, Trash2, Upload, Youtube } from 'lucide-vue-next'
 import { animate, motion } from 'motion-v'
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -14,7 +14,7 @@ import { act, confirm, zoom } from '../composables/feedback'
 import { jobFor, refetchOn } from '../composables/live'
 import { useApi } from '../composables/useApi'
 import { bytes, expandFrom, label, reducedMotion, shortDate, SPRING, today } from '../composables/ui'
-import { nextSteps } from '../lib/nextSteps'
+import { partNext } from '../lib/partNext'
 
 const props = defineProps<{ slug: string; part: string }>()
 const route = useRoute()
@@ -44,17 +44,31 @@ const gate = computed<Record<string, string | null>>(() => ({
 }))
 const why = (cmd: string) => busy.value ?? gate.value[cmd]
 
-const plan = computed(() => nextSteps({
+const failedStage = computed(() => {
+  const st = Object.keys(stages.value).find((k) => stages.value[k] === 'failed')
+  return st ? { stage: st, error: errors.value[st] } : null
+})
+const next = computed(() => partNext({
   stages: stages.value as never,
   approvals: { stills: approved('stills'), test_render: approved('test_render'), final: approved('final') },
   files: { voice: has('voice.mp3'), stillsSheet: has('stills-sheet.png'), testRender: has('test-render.mp4') },
   castApproved: !unapprovedCast.value.length,
+  busy: busy.value,
+  failed: failedStage.value,
+  thumbs: !!d.value?.thumbs.length,
+  thumbnailPicked: !!p.value?.thumbnail_choice,
+  posted: { youtube: !!p.value?.posted.youtube, instagram: !!p.value?.posted.instagram },
 }))
-const planOpen = ref(false)
+// the section the next step happens in, outlined so the eye lands on it
+const focus = computed(() => {
+  const n = next.value
+  if (n.kind === 'approve') return n.approval === 'stills' ? 'review' : 'approvals'
+  return ({ voice: 'voice', thumbnail: 'thumbnails', post: 'posting' } as Record<string, string>)[n.kind] ?? null
+})
+const approvalOf = (key: Approval) => APPROVALS.find((a) => a.key === key)!
 const workers = ref(2)
 
 async function run(steps: string[]) {
-  planOpen.value = false
   await act(() => api.submitJob(props.slug, props.part, steps), `Job queued: ${steps.join(' → ')}`)
 }
 async function rerun(stage: string) {
@@ -235,7 +249,8 @@ watch(data, async (v, old) => {
     <RouterLink :to="`/series/${slug}`" class="btn btn-secondary"><ArrowLeft :size="16" aria-hidden="true" /> {{ series.title }}</RouterLink>
 
     <!-- header (the part card expands into this) -->
-    <div ref="header" class="raised origin-top-left p-6">
+    <div ref="header" class="raised grid origin-top-left gap-6 p-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] lg:items-start">
+     <div class="min-w-0">
       <div class="flex flex-wrap items-center gap-3">
         <span class="num text-3xl text-muted">{{ String(p.number).padStart(2, '0') }}</span>
         <h2 class="font-display text-3xl font-semibold">{{ p.title }}</h2>
@@ -243,27 +258,6 @@ watch(data, async (v, old) => {
         <button class="btn btn-secondary ml-auto" :disabled="checking" @click="checkStory">
           <CircleCheck :size="16" aria-hidden="true" /> {{ checking ? 'Checking…' : 'Check story' }}
         </button>
-        <div class="relative">
-          <button class="btn btn-primary" :aria-expanded="planOpen" @click="planOpen = !planOpen">
-            <Play :size="16" aria-hidden="true" /> Run next
-          </button>
-          <div v-if="planOpen" class="raised absolute top-full right-0 z-20 mt-3 w-80 p-4 text-sm" role="dialog" aria-label="Planned steps">
-            <p class="font-semibold">Planned steps</p>
-            <ol v-if="plan.steps.length" class="mt-2 list-decimal space-y-1 pl-5">
-              <li v-for="s in plan.steps" :key="s"><code>{{ s }}</code></li>
-            </ol>
-            <p v-else class="mt-2 text-muted">Nothing to run yet.</p>
-            <p v-if="plan.stop" class="mt-3 flex items-start gap-2 text-amber-ink">
-              <Clock :size="16" class="mt-0.5 shrink-0" aria-hidden="true" /> Stops before: {{ plan.stop }}
-            </p>
-            <p v-else class="mt-3 text-green-ink">All stages done and approved.</p>
-            <div class="mt-4 flex justify-end gap-2">
-              <button class="btn btn-secondary" @click="planOpen = false">Close</button>
-              <button class="btn btn-primary" :disabled="!plan.steps.length || !!busy" :title="busy ?? undefined"
-                @click="run(plan.steps)">Start</button>
-            </div>
-          </div>
-        </div>
       </div>
       <div v-if="story" class="inset mt-4 p-4 text-sm" role="status" aria-label="Story check">
         <div class="flex flex-wrap items-center gap-2">
@@ -292,18 +286,62 @@ watch(data, async (v, old) => {
           <span class="sr-only">: {{ approved(a.key) ? 'approved' : d.files[a.file] ? 'waiting' : 'not ready' }}</span>
         </span>
       </div>
+     </div>
+
+      <!-- the one thing to do next (lib/partNext) -->
+      <div class="inset flex items-start gap-3 p-4" role="status" aria-live="polite">
+        <CircleCheck v-if="next.kind === 'done'" :size="20" class="mt-0.5 shrink-0 text-green-ink" aria-hidden="true" />
+        <CircleX v-else-if="failedStage && next.kind === 'run'" :size="20" class="mt-0.5 shrink-0 text-red-ink" aria-hidden="true" />
+        <span v-else class="mt-1.5 size-2.5 shrink-0 rounded-full" :class="next.kind === 'wait' ? 'pulse bg-blue' : 'bg-amber'" aria-hidden="true" />
+        <div class="min-w-0 flex-1">
+          <p class="text-xs font-semibold text-muted">Next step</p>
+          <p class="mt-0.5 text-sm text-ink">{{ next.text }}</p>
+          <details v-if="next.kind === 'run'" class="mt-2 text-xs text-muted">
+            <summary class="cursor-pointer">Show the {{ next.steps.length }} step{{ next.steps.length === 1 ? '' : 's' }}</summary>
+            <ol class="mt-1 list-decimal space-y-0.5 pl-5"><li v-for="s in next.steps" :key="s"><code>{{ s }}</code></li></ol>
+          </details>
+          <div class="mt-3 flex flex-wrap gap-2 whitespace-nowrap">
+            <button v-if="next.kind === 'run'" class="btn btn-primary" @click="run(next.steps)">
+              <Play :size="16" aria-hidden="true" /> {{ failedStage ? 'Run again' : 'Run' }}
+            </button>
+            <template v-else-if="next.kind === 'voice'">
+              <label class="btn btn-primary" :class="{ 'pointer-events-none opacity-50': uploading }">
+                <Upload :size="16" aria-hidden="true" /> {{ uploading ? 'Uploading…' : 'Upload mp3' }}
+                <input type="file" accept=".mp3,audio/mpeg" class="sr-only" :disabled="uploading" @change="uploadVoice" />
+              </label>
+              <a :href="src('script-for-tts.txt')" target="_blank" rel="noopener" class="btn btn-secondary">
+                Open script <ExternalLink :size="14" aria-hidden="true" />
+              </a>
+            </template>
+            <RouterLink v-else-if="next.kind === 'cast'" :to="`/series/${slug}`" class="btn btn-primary">
+              Go to the cast <ArrowRight :size="16" aria-hidden="true" />
+            </RouterLink>
+            <template v-else-if="next.kind === 'approve'">
+              <button v-if="next.approval === 'stills'" class="btn btn-secondary" @click="zoom(src('stills-sheet.png'), 'Stills sheet')">
+                View stills sheet
+              </button>
+              <a v-else href="#video" class="btn btn-secondary">Watch <ArrowRight :size="16" aria-hidden="true" /></a>
+              <button class="btn btn-primary" @click="approve(approvalOf(next.approval))">
+                <Check :size="16" aria-hidden="true" /> Approve {{ approvalOf(next.approval).label.toLowerCase() }}
+              </button>
+            </template>
+            <a v-else-if="next.kind === 'thumbnail'" href="#thumbnails" class="btn btn-primary">Pick a thumbnail <ArrowRight :size="16" aria-hidden="true" /></a>
+            <a v-else-if="next.kind === 'post'" href="#posting" class="btn btn-primary">Add the links <ArrowRight :size="16" aria-hidden="true" /></a>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="grid items-start gap-6 xl:grid-cols-[360px_1fr]">
       <!-- player -->
-      <section class="raised p-5" aria-label="Video">
+      <section id="video" class="raised p-5" aria-label="Video">
         <VideoPlayer v-if="sources.length" :sources="sources" />
         <EmptyState v-else :icon="Play" title="No video yet" text="A test render, preview or final shows up here." />
       </section>
 
       <div class="space-y-6">
         <!-- voice -->
-        <section id="voice" class="raised p-6">
+        <section id="voice" :class="{ 'next-target': focus === 'voice' }" class="raised p-6">
           <div class="flex items-center gap-2">
             <h3 class="font-display text-lg font-semibold">Voice</h3>
             <span class="text-xs text-muted">{{ has('voice.mp3') ? `voice.mp3 · ${d?.voice_duration?.toFixed(1) ?? '?'} s` : 'no voice.mp3 yet' }}</span>
@@ -344,7 +382,7 @@ watch(data, async (v, old) => {
         </section>
 
         <!-- approvals -->
-        <section id="approvals" class="raised p-6">
+        <section id="approvals" :class="{ 'next-target': focus === 'approvals' }" class="raised p-6">
           <h3 class="font-display text-lg font-semibold">Approvals</h3>
           <div class="mt-4 flex flex-wrap gap-x-8 gap-y-4">
             <div v-for="a in APPROVALS" :key="a.key">
@@ -381,7 +419,7 @@ watch(data, async (v, old) => {
     </div>
 
     <!-- light table: sheets + thumbnail polaroids -->
-    <section id="review" class="raised p-6">
+    <section id="review" :class="{ 'next-target': focus === 'review' }" class="raised p-6">
       <h3 class="font-display text-lg font-semibold">Light table</h3>
       <p class="text-sm text-muted">Click a sheet to zoom. Click a polaroid to pick the thumbnail.</p>
       <div class="lighttable inset mt-4 grid gap-8 p-8 lg:grid-cols-[1fr_auto]">
@@ -396,7 +434,7 @@ watch(data, async (v, old) => {
             <figcaption class="mt-2 text-center text-sm font-semibold">{{ sh.t }}</figcaption>
           </figure>
         </div>
-        <div id="thumbnails">
+        <div id="thumbnails" class="rounded-md" :class="{ 'next-target': focus === 'thumbnails' }">
           <p class="mb-8 text-center text-sm font-semibold">Thumbnail</p>
           <div v-if="d.thumbs.length" class="flex gap-5">
             <motion.button v-for="(t, i) in d.thumbs" :key="t" class="relative w-32 bg-white p-2 pb-8 shadow-[var(--shadow-raised)]"
@@ -432,7 +470,7 @@ watch(data, async (v, old) => {
 
       <div class="space-y-6">
         <!-- posting -->
-        <section id="posting" class="grid gap-6 sm:grid-cols-2">
+        <section id="posting" :class="{ 'next-target': focus === 'posting' }" class="grid gap-6 sm:grid-cols-2">
           <div v-for="pl in PLATFORMS" :key="pl.key" class="raised p-5">
             <p class="flex items-center gap-2 font-display text-lg font-semibold">
               <component :is="pl.icon" :size="20" :class="pl.color" aria-hidden="true" />{{ pl.name }}
@@ -497,4 +535,5 @@ watch(data, async (v, old) => {
   background-position: 0 0, 0 19px;
 }
 button:disabled { cursor: not-allowed; opacity: 0.55; }
+.next-target { outline: 2px solid var(--color-amber); outline-offset: 4px; scroll-margin-top: 1.5rem; }
 </style>
