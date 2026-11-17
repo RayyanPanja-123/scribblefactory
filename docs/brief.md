@@ -140,6 +140,7 @@ library/<series-slug>/
   - Extras: crowd and background runners (non-cast, generic look).
   - Directives: "@do <cast>: <action> [target]" overrides keyword guessing for that line.
 - Step 6: FastAPI + Vue web view.
+  - 6.1: FastAPI backend: reads, media with Range, actions, one-worker jobs, SSE, docs/openapi.json. DONE.
 - Step 7: Polish and QA.
 
 ## Working rules for you

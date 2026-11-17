@@ -1,8 +1,499 @@
-from fastapi import FastAPI
+"""scribblefactory web API. Run from the repo root: uvicorn api.main:app --host 127.0.0.1 --port 8765
+
+Localhost only, no auth. Files on disk are the source of truth: every read goes to the library, every write
+goes through the CLI commands / pipeline io helpers, and long work runs as CLI subprocesses on one worker thread.
+Write docs/openapi.json: python -m api.main
+"""
+
+import argparse
+import asyncio
+import contextlib
+import itertools
+import json
+import os
+import shlex
+import subprocess
+import sys
+import threading
+from collections import deque
+from datetime import datetime
+from pathlib import Path
+from typing import Literal
+
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from pydantic import BaseModel, TypeAdapter, ValidationError
+from sse_starlette import EventSourceResponse
+
+from pipeline.scribble import cli
+from pipeline.scribble.io import atomic_write_text, load_part, load_series
+from pipeline.scribble.schemas import Slug, Stages, utcnow
+from pipeline.scribble.stages import render as render_stage
+from pipeline.scribble.stages.import_check import probe_duration
+from pipeline.scribble.stages.runner import StageError
+
+ROOT = Path(__file__).resolve().parents[1]
+OPENAPI = ROOT / "docs" / "openapi.json"
+MEDIA_TYPES = {".mp4", ".png", ".mp3", ".md", ".json"}
+PART_FILES = ["story.md", "voice.mp3", "preview.mp4", "test-render.mp4", "final.mp4", "stills-sheet.png", "cast-sheet.png"]
+APPROVE_NEEDS = {"stills": "stills-sheet.png", "test_render": "test-render.mp4", "final": "final.mp4"}
+JOB_COMMANDS = {"run", "render-stills", "test-render", "render", "cast-sheet"}
+KEEP_JOBS = 50
+OUTPUT_LINES = 200
+HEARTBEAT_S = 15
 
 app = FastAPI(title="scribblefactory")
+app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173"], allow_methods=["*"], allow_headers=["*"])
 
 
-@app.get("/health")
+# ---------------- library ----------------
+
+def lib() -> Path:
+    return cli.library_root(argparse.Namespace(library=None))
+
+
+def series_path(slug: str) -> Path:
+    try:
+        d = cli.series_dir(argparse.Namespace(library=None, slug=slug))
+    except cli.UserError as e:
+        raise HTTPException(404, str(e))
+    if not (d / "series.json").exists():
+        raise HTTPException(404, f"series {slug!r} not found")
+    return d
+
+
+def part_path(slug: str, part: str) -> Path:
+    series_path(slug)
+    try:
+        return cli.part_dir(argparse.Namespace(library=None, slug=slug, part=part))
+    except cli.UserError as e:
+        raise HTTPException(404, str(e))
+
+
+def all_series() -> list[Path]:
+    root = lib()
+    return sorted(d for d in root.iterdir() if (d / "series.json").is_file()) if root.is_dir() else []
+
+
+def du(path: Path) -> int:
+    return sum(f.stat().st_size for f in path.rglob("*") if f.is_file()) if path.exists() else 0
+
+
+def parts_of(d: Path):
+    """(part id, PartModel or None) for each part listed in series.json"""
+    for pid in load_series(d / "series.json").parts:
+        f = d / pid / "part.json"
+        yield pid, (load_part(f) if f.exists() else None)
+
+
+def media_url(slug: str, rel: str) -> str:
+    return f"/api/media/{slug}/{rel}"
+
+
+def cover(d: Path) -> str | None:
+    parts = load_series(d / "series.json").parts
+    if not parts:
+        return None
+    pdir = d / parts[0]
+    choice = load_part(pdir / "part.json").thumbnail_choice if (pdir / "part.json").exists() else None
+    for rel in filter(None, (choice, "thumbs/thumb-1.png")):
+        if (pdir / rel).is_file():
+            return media_url(d.name, f"{parts[0]}/{rel}")
+    return None
+
+
+def posted_counts(d: Path) -> dict:
+    out = {"youtube": 0, "instagram": 0}
+    for _, p in parts_of(d):
+        for k in out:
+            out[k] += bool(p and getattr(p.posted, k))
+    return out
+
+
+def waiting_approvals(pdir: Path, p) -> list[str]:
+    """approvals with something to look at but no approval yet"""
+    return [n for n, f in APPROVE_NEEDS.items()
+            if not getattr(p.approvals, n).approved_at and (pdir / f).is_file()
+            and (n != "final" or p.stages.finish.status == "done")]
+
+
+def part_summary(pdir: Path, p) -> dict:
+    if p is None:
+        return {"id": pdir.name, "missing": True}
+    return {"id": p.id, "number": p.number, "title": p.title,
+            "stages": {name: getattr(p.stages, name).status for name in Stages.model_fields},
+            "approvals": {n: getattr(p.approvals, n).model_dump(mode="json")["approved_at"] for n in APPROVE_NEEDS},
+            "posted": p.posted.model_dump(mode="json"), "thumbnail_choice": p.thumbnail_choice,
+            "waiting": waiting_approvals(pdir, p)}
+
+
+def part_json(pdir: Path) -> dict:
+    return load_part(pdir / "part.json").model_dump(mode="json")
+
+
+def series_json(d: Path) -> dict:
+    return load_series(d / "series.json").model_dump(mode="json")
+
+
+# ---------------- read endpoints ----------------
+
+@app.get("/api/health")
 def health():
     return {"ok": True}
+
+
+@app.get("/api/overview")
+def overview():
+    now = utcnow()
+    months = [f"{now.year - (now.month - 1 - i < 0)}-{(now.month - 1 - i) % 12 + 1:02d}" for i in range(11, -1, -1)]
+    per_month = {m: {"youtube": 0, "instagram": 0} for m in months}
+    in_progress, waiting, disk = 0, [], {}
+    for d in all_series():
+        s = load_series(d / "series.json")
+        disk[d.name] = du(d)
+        cast = [f"cast:{c.id}" for c in s.cast if not c.approved_at]
+        if cast and (d / "cast-sheet.png").is_file():
+            waiting.append({"slug": d.name, "part": None, "waiting": cast})
+        for pid, p in parts_of(d):
+            if p is None:
+                continue
+            in_progress += p.stages.finish.status != "done"
+            if w := waiting_approvals(d / pid, p):
+                waiting.append({"slug": d.name, "part": pid, "waiting": w})
+            for platform in ("youtube", "instagram"):
+                post = getattr(p.posted, platform)
+                if post and (m := post.posted_at.strftime("%Y-%m")) in per_month:
+                    per_month[m][platform] += 1
+    this = per_month[months[-1]]
+    return {"kpi": {"series": len(disk), "parts_in_progress": in_progress, "waiting_for_approval": len(waiting),
+                    "posted_this_month": this["youtube"] + this["instagram"]},
+            "waiting": waiting,
+            "posts_per_month": [{"month": m, **per_month[m]} for m in months],
+            "disk_usage": disk}
+
+
+@app.get("/api/series")
+def series_list():
+    return [{"slug": s.slug, "title": s.title, "status": s.status, "part_count": len(s.parts), "cover": cover(d),
+             "disk_usage": du(d), "posted": posted_counts(d)}
+            for d in all_series() for s in [load_series(d / "series.json")]]
+
+
+@app.get("/api/series/{slug}")
+def series_detail(slug: str):
+    d = series_path(slug)
+    return {"series": series_json(d), "parts": [part_summary(d / pid, p) for pid, p in parts_of(d)],
+            "cast_sheet": media_url(slug, "cast-sheet.png") if (d / "cast-sheet.png").is_file() else None}
+
+
+@app.get("/api/series/{slug}/parts/{part}")
+def part_detail(slug: str, part: str):
+    pdir = part_path(slug, part)
+    files = {f: (pdir / f).is_file() for f in PART_FILES}
+    files["cast-sheet.png"] = (pdir.parent / "cast-sheet.png").is_file()  # series level
+    try:
+        voice = probe_duration(pdir / "voice.mp3") if files["voice.mp3"] else None
+    except StageError:
+        voice = None
+    qa, upload = pdir / "qa.json", pdir / "upload.md"
+    return {"part": part_json(pdir), "files": files,
+            "thumbs": sorted(f.name for f in (pdir / "thumbs").glob("thumb-*.png")),
+            "qa": json.loads(qa.read_bytes()) if qa.is_file() else None,
+            "upload_md": upload.read_text(encoding="utf-8") if upload.is_file() else None,
+            "voice_duration": voice, "frames_bytes": du(pdir / "frames"),
+            "busy": busy(slug, part)}
+
+
+@app.get("/api/media/{slug}/{path:path}")
+def media(slug: str, path: str):
+    try:
+        TypeAdapter(Slug).validate_python(slug)
+    except ValidationError:
+        raise HTTPException(404, "not found")
+    root = (lib() / slug).resolve()
+    f = (root / path).resolve()
+    if not f.is_relative_to(root) or f.suffix.lower() not in MEDIA_TYPES or not f.is_file():
+        raise HTTPException(404, "not found")
+    return FileResponse(f)  # Starlette answers Range requests with 206
+
+
+# ---------------- actions ----------------
+
+def busy(slug: str, part: str | None = None) -> str | None:
+    """why this part (or, part None, any part of the series) can't be touched now, else None"""
+    for j in list(JOBS):
+        if j["status"] == "running" and j["slug"] == slug and part in (None, j["part"]):
+            return f"job {j['id']} is running on {slug} {j['part']}"
+    if part:
+        pid = render_stage.lock_owner(lib() / slug / part)
+        if pid:
+            return f"a render is running on {slug} {part} (pid {pid})"
+    return None
+
+
+def check_free(slug: str, part: str | None = None) -> None:
+    if why := busy(slug, part):
+        raise HTTPException(409, f"{why}; wait for it or cancel it")
+
+
+def cli_call(*argv: str) -> None:
+    """Run one CLI command in-process: its gates and validation become 409s."""
+    try:
+        args = cli.build_parser().parse_args(argv)
+        args.func(args)
+    except (cli.UserError, ValidationError) as e:
+        raise HTTPException(409, str(e))
+    except SystemExit:  # argparse rejected an argument (already validated by the request model; defensive)
+        raise HTTPException(409, f"invalid arguments: {' '.join(argv)}")
+
+
+def part_action(slug: str, part: str, *argv: str) -> dict:
+    pdir = part_path(slug, part)
+    check_free(slug, part)
+    cli_call(*argv)
+    publish("part-changed", {"slug": slug, "part": part})
+    return part_json(pdir)
+
+
+@app.post("/api/series/{slug}/parts/{part}/approve/{what}")
+def approve(slug: str, part: str, what: Literal["stills", "test_render", "final"]):
+    pdir = part_path(slug, part)
+    if what not in waiting_approvals(pdir, load_part(pdir / "part.json")) \
+            and not getattr(load_part(pdir / "part.json").approvals, what).approved_at:
+        raise HTTPException(409, f"nothing to approve: {APPROVE_NEEDS[what]} not ready yet"
+                                 + (" (finish not done)" if what == "final" else ""))
+    return part_action(slug, part, "approve", slug, part, what)
+
+
+class CastApproval(BaseModel):
+    cast_id: str
+
+
+@app.post("/api/series/{slug}/approve-cast")
+def approve_cast(slug: str, body: CastApproval):
+    d = series_path(slug)
+    check_free(slug)
+    if not (d / "cast-sheet.png").is_file():
+        raise HTTPException(409, f"no cast sheet yet: run cast-sheet {slug} first")
+    cli_call("approve-cast", slug, body.cast_id)
+    publish("series-changed", {"slug": slug})
+    return series_json(d)
+
+
+class Thumbnail(BaseModel):
+    n: Literal[1, 2, 3]
+
+
+@app.post("/api/series/{slug}/parts/{part}/pick-thumbnail")
+def pick_thumbnail(slug: str, part: str, body: Thumbnail):
+    return part_action(slug, part, "pick-thumbnail", slug, part, str(body.n))
+
+
+class Posting(BaseModel):
+    platform: Literal["youtube", "instagram"]
+    url: str
+    date: str | None = None  # YYYY-MM-DD, default today (UTC)
+    force: bool = False
+
+
+@app.post("/api/series/{slug}/parts/{part}/mark-posted")
+def mark_posted(slug: str, part: str, body: Posting):
+    argv = ["mark-posted", slug, part, body.platform, f"--url={body.url}"]
+    argv += [f"--date={body.date}"] * bool(body.date) + ["--force"] * body.force
+    return part_action(slug, part, *argv)
+
+
+class UploadText(BaseModel):
+    text: str
+
+
+@app.put("/api/series/{slug}/parts/{part}/upload.md")
+def put_upload_md(slug: str, part: str, body: UploadText):
+    pdir = part_path(slug, part)
+    check_free(slug, part)
+    atomic_write_text(pdir / "upload.md", body.text)
+    publish("part-changed", {"slug": slug, "part": part})
+    return part_detail(slug, part)
+
+
+@app.post("/api/series/{slug}/parts/{part}/clean-frames")
+def clean_frames(slug: str, part: str):
+    return part_action(slug, part, "clean-frames", slug, part)
+
+
+# ---------------- jobs ----------------
+# ponytail: one in-process worker and an in-memory list; jobs are lost on restart (the files they wrote are not).
+
+JOBS: list[dict] = []
+_procs: dict[int, subprocess.Popen] = {}
+_cv = threading.Condition()
+_ids = itertools.count(1)
+_worker: threading.Thread | None = None
+
+
+class JobRequest(BaseModel):
+    slug: str
+    part: str
+    steps: list[str]  # CLI commands without slug/part, e.g. "run --stage audio", "render-stills", "render --force"
+
+
+def step_argv(slug: str, part: str, step: str) -> list[str]:
+    """CLI subprocess for one step. Raises ValueError for anything but the job commands."""
+    words = shlex.split(step)
+    if not words or words[0] not in JOB_COMMANDS:
+        raise ValueError(f"step {step!r}: must start with one of {', '.join(sorted(JOB_COMMANDS))}")
+    argv = [words[0], slug] + ([part] if words[0] != "cast-sheet" else []) + words[1:]
+    try:
+        cli.build_parser().parse_args(argv)  # validate stage names and flags now, not halfway through the job
+    except SystemExit:
+        raise ValueError(f"step {step!r}: invalid arguments")
+    return [sys.executable, "-m", "pipeline.scribble.cli", *argv, f"--library={lib().resolve()}"]
+
+
+def _iso(dt: datetime | None) -> str | None:
+    return dt.isoformat().replace("+00:00", "Z") if dt else None
+
+
+def public(job: dict) -> dict:
+    return {**{k: v for k, v in job.items() if k != "argv"}, "output": list(job["output"])}
+
+
+@app.post("/api/jobs")
+def submit_job(body: JobRequest):
+    part_path(body.slug, body.part)
+    if not body.steps:
+        raise HTTPException(409, "steps is empty")
+    try:
+        argv = [step_argv(body.slug, body.part, s) for s in body.steps]
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+    job = {"id": next(_ids), "slug": body.slug, "part": body.part, "steps": body.steps, "argv": argv,
+           "current_step": None, "status": "queued", "queued_at": _iso(utcnow()), "started_at": None,
+           "finished_at": None, "returncode": None, "output": deque(maxlen=OUTPUT_LINES)}
+    with _cv:
+        JOBS.append(job)
+        _start_worker()
+        _cv.notify()
+    publish("job-queued", public(job))
+    return public(job)
+
+
+@app.get("/api/jobs")
+def list_jobs():
+    return [public(j) for j in list(JOBS)]
+
+
+@app.delete("/api/jobs/{job_id}")
+def cancel_job(job_id: int):
+    with _cv:
+        job = next((j for j in JOBS if j["id"] == job_id), None)
+        if job is None:
+            raise HTTPException(404, f"job {job_id} not found")
+        if job["status"] not in ("queued", "running"):
+            raise HTTPException(409, f"job {job_id} already {job['status']}")
+        was_queued = job["status"] == "queued"
+        job["status"] = "cancelled"
+        proc = _procs.get(job_id)
+    if proc:
+        render_stage.kill_tree(proc)  # the worker sees the exit and finishes the job as cancelled
+    elif was_queued:
+        job["finished_at"] = _iso(utcnow())
+        publish("job-finished", _brief(job))
+    return public(job)
+
+
+def _brief(job: dict) -> dict:
+    return {k: job[k] for k in ("id", "slug", "part", "status", "current_step", "returncode", "finished_at")}
+
+
+def _start_worker() -> None:
+    global _worker
+    if _worker is None or not _worker.is_alive():
+        _worker = threading.Thread(target=_work, name="jobs", daemon=True)
+        _worker.start()
+
+
+def _work() -> None:
+    while True:
+        with _cv:
+            while not (job := next((j for j in JOBS if j["status"] == "queued"), None)):
+                _cv.wait()
+            job["status"], job["started_at"] = "running", _iso(utcnow())
+        publish("job-started", _brief(job))
+        _run(job)
+        job["finished_at"] = _iso(utcnow())
+        publish("job-finished", _brief(job))
+        with _cv:  # keep the last KEEP_JOBS finished jobs
+            done = [j for j in JOBS if j["status"] not in ("queued", "running")]
+            for j in done[:-KEEP_JOBS]:
+                JOBS.remove(j)
+
+
+def _run(job: dict) -> None:
+    env = {**os.environ, "PYTHONUNBUFFERED": "1", "PYTHONIOENCODING": "utf-8"}
+    for i, argv in enumerate(job["argv"]):
+        job["current_step"] = i
+        publish("job-step", {"id": job["id"], "step": i, "command": job["steps"][i]})
+        with _cv:
+            if job["status"] == "cancelled":
+                return
+            proc = subprocess.Popen(argv, cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                    text=True, encoding="utf-8", errors="replace", **render_stage.GROUP)
+            _procs[job["id"]] = proc
+        for line in proc.stdout:
+            line = line.rstrip("\r\n")
+            job["output"].append(line)
+            publish("job-output", {"id": job["id"], "step": i, "line": line})
+        proc.wait()
+        with _cv:
+            _procs.pop(job["id"], None)
+        job["returncode"] = proc.returncode
+        publish("part-changed", {"slug": job["slug"], "part": job["part"]})
+        publish("series-changed", {"slug": job["slug"]})
+        if job["status"] == "cancelled":
+            return
+        if proc.returncode != 0:
+            job["status"] = "failed"
+            return
+    job["status"] = "done"
+
+
+# ---------------- live events ----------------
+
+_subscribers: set[tuple[asyncio.AbstractEventLoop, asyncio.Queue]] = set()
+
+
+def publish(event: str, data: dict) -> None:
+    """Send to every SSE client. Safe from any thread."""
+    msg = {"event": event, "data": json.dumps(data)}
+    for loop, q in list(_subscribers):
+        with contextlib.suppress(RuntimeError):  # that client's loop is gone
+            loop.call_soon_threadsafe(q.put_nowait, msg)
+
+
+@app.get("/api/events")
+async def events():
+    sub = (asyncio.get_running_loop(), asyncio.Queue())
+
+    async def stream():
+        _subscribers.add(sub)
+        try:
+            yield {"event": "hello", "data": "{}"}
+            while True:
+                yield await sub[1].get()
+        finally:
+            _subscribers.discard(sub)
+
+    return EventSourceResponse(stream(), ping=HEARTBEAT_S)
+
+
+# ---------------- openapi ----------------
+
+def openapi_text() -> str:
+    return json.dumps(app.openapi(), indent=2, sort_keys=True) + "\n"
+
+
+if __name__ == "__main__":
+    OPENAPI.write_text(openapi_text(), encoding="utf-8", newline="\n")
+    print(f"wrote {OPENAPI}")

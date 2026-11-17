@@ -20,9 +20,9 @@ Needs Python 3.12+, Node 20.19+, npm, ffmpeg, ffprobe.
 
 ```sh
 bash setup.sh
-.venv/bin/uvicorn api.main:app        # macOS/Linux
-.venv/Scripts/uvicorn api.main:app    # Windows (Git Bash)
-# -> http://127.0.0.1:8000/health
+.venv/bin/uvicorn api.main:app --host 127.0.0.1 --port 8765       # macOS/Linux
+.venv/Scripts/uvicorn api.main:app --host 127.0.0.1 --port 8765   # Windows (Git Bash)
+# -> http://127.0.0.1:8765/api/health  (endpoints: api/README.md)
 (cd web && npm run dev)
 ```
 
