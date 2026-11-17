@@ -167,7 +167,8 @@
               "flat_cap",
               "postman_cap",
               "bowler",
-              "straw_hat"
+              "straw_hat",
+              "wide_hat"
             ],
             "title": "Kind",
             "type": "string"
@@ -1168,7 +1169,7 @@
                 "type": "null"
               }
             ],
-            "description": "suit: the tie colour (no tie when null)",
+            "description": "suit: the tie colour (no tie when null); dress: the wide hat's ribbon and flower",
             "title": "Accent Color"
           },
           "color": {
@@ -1195,7 +1196,8 @@
               "plain",
               "suit",
               "tank",
-              "shirt"
+              "shirt",
+              "dress"
             ],
             "title": "Style",
             "type": "string"

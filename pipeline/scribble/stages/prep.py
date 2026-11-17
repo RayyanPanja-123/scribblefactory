@@ -6,6 +6,8 @@ story.md directives (one per line) are stripped from the script:
   @dogs 4            dog pack size (0-6) for the following lines
   @fx drop           caption effect for the next line's chunks: drop | shake | pop | none
   @do fred: collapse actions for the next line's shots, overriding keyword guessing (see parse_do)
+  @crowd cheer 10    crowd extras behind the stage: cheer | angry | gasp | neutral [N, default 8, max 12] | off
+  @runners 4         background runner extras (0-6)
   !! text            this line is the twist (prefix stripped, text kept)
 """
 
@@ -33,7 +35,7 @@ MARKER_RE = re.compile("^⟦([0-9]+|!|/)⟧$")
 
 # @do <cast>[, <cast>]: <action> [<target>|<prop>] [, <cast>: <action> ...]
 DO_ACTIONS = {"idle", "talk", "walk", "run", "point", "react", "wave", "stagger", "lie", "collapse", "eat", "give",
-              "carry", "support"}
+              "carry", "support", "cheer", "angry", "gasp"}
 DO_CAR = "car"            # "@do car: broken": the car on stage breaks down
 PROPS = get_args(PropKind)
 HOLDERS = {"carry": (2, 2), "support": (1, 2)}

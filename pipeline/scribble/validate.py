@@ -26,6 +26,9 @@ HOLDING = {"carry", "support"}
 PARTNER = {"give": "receive", "receive": "give", "carry": "carried", "support": "supported"}  # action -> target's
 GROUPS = {"carried": ("carry", 2, 2), "supported": ("support", 1, 2)}  # held actor -> (holder action, min, max)
 NEEDS_PROP = {"eat", "give"}
+MOODS = {"cheer", "angry", "gasp", "neutral"}  # crowd extras' actions
+CROWD_Z = (-2.5, -1.2)     # crowd rows: behind the stage clearance zone (props in |x| < 2.2 sit behind z -1.0)
+RUNNER_MAX_Z = -0.6        # background runners stay behind the actors' line
 RIDING = {"ride", "wave", "talk"}  # what a seated rider may do
 OUTDOOR_SETS = {"street", "dirt_road", "countryside", "orchard", "stadium"}  # sets that can scroll (travel shots)
 
@@ -84,6 +87,7 @@ def validate(story: StoryModel, phrases: PhrasesModel, cast_ids: set[str]) -> li
         for d in s.animals:
             _check_animal(s, d, n / fps, err)
         _check_vehicles(s, n / fps, cast_ids, err)
+        _check_extras(s, n / fps, err)
 
         if s.twist:
             _check_twist(s, story, err)
@@ -264,6 +268,35 @@ def _check_vehicles(s, seconds, cast_ids, err) -> None:
     for a in s.actors:
         if a.action == "ride" and a.cast_id not in riders:
             err(s.id, "riders", f"{a.cast_id} rides but no vehicle lists it")
+
+
+def _check_extras(s, seconds, err) -> None:
+    """crowd extras stand still in a mood behind the stage; runners follow the actors' no-glide / facing / speed
+    rules at RUN_SPEED (travel shots: they run the travel way, legs covering the scroll plus their own move)"""
+    ids = [e.id for e in s.extras]
+    if len(set(ids)) != len(ids):
+        err(s.id, "extra_id", f"extra ids repeat: {ids}")
+    for e in s.extras:
+        if e.kind == "crowd":
+            if e.action not in MOODS:
+                err(s.id, "extras", f"{e.id} crowd {e.action}: a crowd extra takes a mood ({', '.join(sorted(MOODS))})")
+            if e.end_pos is not None:
+                err(s.id, "extras", f"{e.id}: crowd extras never move (end_pos must be null)")
+            if s.travel:
+                err(s.id, "extras", f"{e.id}: no crowd in a travel shot (it would seem to run along with the actors)")
+            if not CROWD_Z[0] <= e.start_pos[1] <= CROWD_Z[1]:
+                err(s.id, "extras_zone", f"{e.id} at z {e.start_pos[1]}: crowd stands at z {CROWD_Z[0]}..{CROWD_Z[1]}, "
+                                         f"behind the stage clearance zone")
+            continue
+        if e.action != "run":
+            err(s.id, "extras", f"{e.id} runner {e.action}: runners run")
+            continue
+        end = e.end_pos if e.end_pos is not None else e.start_pos
+        if max(e.start_pos[1], end[1]) > RUNNER_MAX_Z:
+            err(s.id, "extras_zone", f"{e.id}: runners stay behind the actors (z <= {RUNNER_MAX_Z})")
+        if s.travel and e.facing != travel_way(s):
+            err(s.id, "travel_extras", f"{e.id} faces {e.facing}: runners in a travel shot run {travel_way(s)}")
+        _check_move(s.id, e.id, e, True, RUN_SPEED, seconds, err, s.travel)
 
 
 def _check_twist(s, story, err) -> None:

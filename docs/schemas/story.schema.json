@@ -22,7 +22,10 @@
             "carry",
             "carried",
             "support",
-            "supported"
+            "supported",
+            "cheer",
+            "angry",
+            "gasp"
           ],
           "title": "Action",
           "type": "string"
@@ -298,6 +301,97 @@
       "title": "Cue",
       "type": "object"
     },
+    "Extra": {
+      "additionalProperties": false,
+      "description": "non-cast stickman: crowd (stands behind the stage in a mood) or runner (background runner); seeded look",
+      "properties": {
+        "action": {
+          "enum": [
+            "cheer",
+            "angry",
+            "gasp",
+            "neutral",
+            "run"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "end_pos": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End Pos"
+        },
+        "facing": {
+          "enum": [
+            "left",
+            "right",
+            "camera"
+          ],
+          "title": "Facing",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[a-z0-9_-]+$",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "crowd",
+            "runner"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "start_pos": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Start Pos",
+          "type": "array"
+        },
+        "variant": {
+          "description": "seeds the extra's look (top, hat, colours, runner number)",
+          "minimum": 0,
+          "title": "Variant",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "action",
+        "start_pos",
+        "facing",
+        "variant"
+      ],
+      "title": "Extra",
+      "type": "object"
+    },
     "Shot": {
       "additionalProperties": false,
       "properties": {
@@ -325,6 +419,14 @@
           "minimum": 0,
           "title": "End Frame",
           "type": "integer"
+        },
+        "extras": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Extra"
+          },
+          "title": "Extras",
+          "type": "array"
         },
         "id": {
           "pattern": "^s[0-9]{2,}$",

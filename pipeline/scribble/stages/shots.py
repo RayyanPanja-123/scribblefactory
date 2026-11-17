@@ -13,9 +13,9 @@ import zlib
 from pathlib import Path
 
 from ..io import atomic_write_json
-from ..schemas import Actor, Animal, Camera, Cue, PhrasesModel, SeriesModel, Shot, StoryModel, Travel, Vehicle
-from ..validate import (CAR_SPEED, DOG_RUN_SPEED, MAX_SHOT_FRAMES, OUTDOOR_SETS, SPEEDS, duration_frames,
-                        validate)
+from ..schemas import Actor, Animal, Camera, Cue, Extra, PhrasesModel, SeriesModel, Shot, StoryModel, Travel, Vehicle
+from ..validate import (CAR_SPEED, CROWD_Z, DOG_RUN_SPEED, MAX_SHOT_FRAMES, MOODS, OUTDOOR_SETS, SPEEDS,
+                        duration_frames, validate)
 from .prep import DO_CAR, FX_MODES, MARKER_RE, clean_markdown, mark_directives, parse_do
 from .runner import StageError
 from .validate import load_model
@@ -58,6 +58,13 @@ CAR_BESIDE = 1.9           # arrive: car centre stops this far (x) from the subj
 CAR_Z = -0.6               # arrive / leave: the car stays a little behind the actors' line
 CAR_RUN_D = 5.0            # arrive / leave: distance driven (from / to off-screen), shortened for short shots
 CAR_TRAVEL_SPEED = 4.0     # ride: travel-shot scroll speed (units/s)
+# extras (@crowd <mood> [N], @runners N; both reset on a set change unless repeated)
+CROWD_DEFAULT, CROWD_MAX = 8, 12
+CROWD_W = 2.8              # crowd spread across x -2.8..2.8, two loose rows inside CROWD_Z
+CROWD_CLEAR = 0.55         # no crowd extra stands within this x of the subject's path: never behind / over it
+MAX_RUNNERS = 6
+RUNNER_SPEED = 2.6         # background runners' leg speed, units/s (inside RUN_SPEED)
+RUNNER_Z = {"travel": (-1.6, -0.8), "cross": (-2.2, -1.2)}
 DOG_EDGE_X = 1.8           # non-travel: dogs stand at |x| >= this ...
 DOG_EDGE_GAP = 0.9         # ... and at least this far (x) outside every actor's start/end, so cards never overlap
 
@@ -97,16 +104,18 @@ def seed_for(slug: str, part_number: int) -> int:
 
 
 def tag_words(md: str, cast_ids: list[str], default_cast: list[str]):
-    """Return (words, [(set, cast tuple, twist starts here, dogs, car mode, do)]) from story.md, words as prep's
-    script has them. do: (story.md line, @do clauses) for the words of the line after an @do, else None."""
+    """Return (words, [(set, cast tuple, twist starts here, dogs, car mode, do, crowd, runners)]) from story.md,
+    words as prep's script has them. do: (story.md line, @do clauses) for the words of the line after an @do, else
+    None. crowd: (mood, N) or None. A set change resets crowd and runners."""
     text, directives = mark_directives(md)
     set_, cast, twist_next, dogs, car, do = DEFAULT_SET, tuple(default_cast), False, 0, "off", None
+    crowd, runners = None, 0
     words, tags = [], []
     for tok in clean_markdown(text).split():
         m = MARKER_RE.match(tok)
         if not m:
             words.append(tok)
-            tags.append((set_, cast, twist_next, dogs, car, do))
+            tags.append((set_, cast, twist_next, dogs, car, do, crowd, runners))
             twist_next = False
         elif m[1] == "!":
             twist_next = True
@@ -117,6 +126,8 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str]):
             name, _, arg = d.strip().partition(" ")
             arg = arg.strip()
             if name == "set" and arg:
+                if arg != set_:
+                    crowd, runners = None, 0  # extras belong to a set
                 set_ = arg
             elif name == "cast":
                 ids = [x.strip() for x in arg.split(",") if x.strip()]
@@ -135,11 +146,74 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str]):
                 pass  # caption effect: finish reads it
             elif name == "do":
                 do = (line, tuple(parse_do(arg, line, cast_ids)))
+            elif name == "crowd":
+                crowd = parse_crowd(arg, line)
+            elif name == "runners" and arg.isdigit() and int(arg) <= MAX_RUNNERS:
+                runners = int(arg)
             else:
                 raise StageError(f"story.md line {line}: bad directive @{d.strip()} (use @set <name>, @cast a, b, "
-                                 f"@dogs 0-{MAX_DOGS}, @car {' | '.join(CAR_MODES)}, @fx {' | '.join(FX_MODES)} "
-                                 f"or @do <cast>: <action>)")
+                                 f"@dogs 0-{MAX_DOGS}, @car {' | '.join(CAR_MODES)}, @fx {' | '.join(FX_MODES)}, "
+                                 f"@do <cast>: <action>, @crowd <mood> [N] | off or @runners 0-{MAX_RUNNERS})")
     return words, tags
+
+
+def parse_crowd(arg: str, line: int):
+    """@crowd <cheer|angry|gasp|neutral> [N] | off -> (mood, N) or None"""
+    words = arg.split()
+    if words == ["off"]:
+        return None
+    if not 1 <= len(words) <= 2 or words[0] not in MOODS or (len(words) == 2 and not (
+            words[1].isdigit() and 1 <= int(words[1]) <= CROWD_MAX)):
+        raise StageError(f"story.md line {line}: bad directive @crowd {arg.strip()} (use @crowd "
+                         f"{' | '.join(sorted(MOODS))} [1-{CROWD_MAX}, default {CROWD_DEFAULT}] or @crowd off)")
+    return words[0], int(words[1]) if len(words) == 2 else CROWD_DEFAULT
+
+
+def crowd_extras(mood: str, n: int, seed: int, set_: str, subject: Actor | None) -> list[Extra]:
+    """n crowd extras in two loose rows behind the stage (z in CROWD_Z), facing the camera. Spots and looks are
+    seeded per part, set and crowd size, so the same people stand in the same places across cuts; anyone inside
+    CROWD_CLEAR of the subject's path steps out to the nearer side."""
+    R = random.Random(f"{seed}:crowd:{set_}:{n}")
+    lo_z, hi_z = CROWD_Z
+    rows = ((lo_z + 0.2, (lo_z + hi_z) / 2), ((lo_z + hi_z) / 2, hi_z))  # back row, front row
+    if subject is not None:
+        sx = [subject.start_pos[0], (subject.end_pos or subject.start_pos)[0]]
+        lo, hi = min(sx) - CROWD_CLEAR, max(sx) + CROWD_CLEAR
+    out = []
+    for i in range(n):
+        x = -CROWD_W + 2 * CROWD_W * (i + 0.5) / n + R.uniform(-0.12, 0.12)
+        z = R.uniform(*rows[i % 2])
+        variant = R.randrange(1000)
+        if subject is not None and lo < x < hi:
+            x = lo - R.uniform(0.02, 0.12) if x - lo < hi - x else hi + R.uniform(0.02, 0.12)
+        out.append(Extra(id=f"crowd{i + 1}", kind="crowd", action=mood, start_pos=(round(x, 3), round(z, 2)),
+                         facing="camera", variant=variant))
+    return out
+
+
+def runner_extras(n, seed, sid, seconds, actors, travel_dir=0, travel_speed=0.0) -> list[Extra]:
+    """n background runners. Travel shot: they run the travel way behind the actors (staggered in x behind the
+    rearmost actor and in z), legs at RUNNER_SPEED: the scroll plus their own gain. Otherwise they cross the
+    background from off-screen, each its own way."""
+    R, out = random.Random(f"{seed}:runners:{sid}"), []
+    for i in range(n):
+        variant = R.randrange(1000)
+        if travel_dir:
+            xs = [a.start_pos[0] for a in actors] or [0.0]
+            rear = min(xs) if travel_dir > 0 else max(xs)
+            gain = max(0.0, RUNNER_SPEED - travel_speed) * seconds
+            x0 = rear - travel_dir * (0.4 + 0.75 * i + R.uniform(0, 0.2))
+            z = R.uniform(*RUNNER_Z["travel"])
+            out.append(Extra(id=f"runner{i + 1}", kind="runner", action="run", start_pos=(round(x0, 3), round(z, 2)),
+                             end_pos=(round(x0 + travel_dir * gain, 3), round(z, 2)),
+                             facing="right" if travel_dir > 0 else "left", variant=variant))
+        else:
+            d = R.choice((-1, 1))
+            x0, z = -d * (3.0 + 0.9 * i + R.uniform(0, 0.3)), R.uniform(*RUNNER_Z["cross"])
+            out.append(Extra(id=f"runner{i + 1}", kind="runner", action="run", start_pos=(round(x0, 3), round(z, 2)),
+                             end_pos=(round(x0 + d * RUNNER_SPEED * seconds, 3), round(z, 2)),
+                             facing="right" if d > 0 else "left", variant=variant))
+    return out
 
 
 def spread(cast) -> dict[str, float]:
@@ -418,7 +492,7 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int) 
     pos: dict[str, float] = {}  # where each actor stands now; reset on a set change
     fallen: set = set()  # (@do line, cast id) that already collapsed
     for i, p in enumerate(phrases.phrases):
-        set_, cast, _, dogs, mode, do = tags[p.word_start]
+        set_, cast, _, dogs, mode, do, crowd, runners = tags[p.word_start]
         if set_ != prev_set:
             pos, park = {}, None
         if mode != car_mode:
@@ -503,11 +577,15 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int) 
                 xs += [cx - CAR_HALF, cx + CAR_HALF]
             way = (1 if (vehicles[0].facing if vehicles else actors[0].facing) == "right" else -1) if travel else 0
             animals, bark = _dogs(dogs, xs, way, s0, s1, seed, sid, tspeed if travel else None)
+            subj = next((a for a in actors if a.cast_id == subject), None)
+            # no crowd in a travel shot: the world scrolls past and a standing crowd would seem to keep pace
+            extras = (crowd_extras(*crowd, seed, set_, subj) if crowd and not travel else []) + runner_extras(
+                runners, seed, sid, seconds, [a for a in actors if not ride], way, tspeed if travel else 0.0)
             if bark:
                 cues.append(bark)
             shots.append(Shot(id=sid, start_frame=s0, end_frame=s1, set=set_,
                               phrase_range=(i, i), camera=Camera(angle=angle, move=move, speed=speed, roll_deg=roll),
-                              actors=actors, animals=animals, vehicles=vehicles, twist=is_twist,
+                              actors=actors, animals=animals, vehicles=vehicles, extras=extras, twist=is_twist,
                               travel=Travel(speed=tspeed) if travel else None))
             prev_angle, prev_set = angle, set_
     return StoryModel(duration_frames=total, seed=seed, shots=shots, cues=cues)

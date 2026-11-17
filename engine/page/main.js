@@ -8,6 +8,7 @@ import { gestureAmount, gesturePlan, mouthCurve, mouthCycles, pointAmount, stres
 import { CARRIED_LIFT, HELD_Z, HOLD_GAP, LIE, collapseAt, eatAt, gaitPhase, giveAt, handOf, heldPlace, propsByShot, sideToward, staggerAt,
   withProp, zzzAt } from "./actions.js";
 import { CAR_CARD_W, CAR_GROUND, DRIVER_X, RIDER_X, VH, VW, carEase, carSpeedShare, drawCar, seatOffset } from "./car.js";
+import { MOOD_EXPRESSION, extraLook, moodAt } from "./extras.js";
 import { rng, setVariant } from "./rng.js";
 import { SETS, VARIANTS, buildSet, loopExcess, scrollSet } from "./world.js";
 
@@ -355,7 +356,8 @@ function drawShot(shot, n) {
     // the lying body is centred on the actor's spot (feet half a figure one way, head the other), so it stays in
     // frame and clear of its neighbours as far as it can
     const reach = roll.k * (FIG_H / 2), hx = -roll.sign * reach * Math.cos(yaw), hz = roll.sign * reach * Math.sin(yaw);
-    mesh.position.set(x - hx, a.action === "carried" ? CARRIED_LIFT : LIE.lift * roll.k, z - hz);
+    const hop = o.mood ? MOOD_HOP * o.mood.bounce : 0; // cheering bounces
+    mesh.position.set(x - hx, a.action === "carried" ? CARRIED_LIFT : LIE.lift * roll.k + hop, z - hz);
     mesh.rotation.set(0, yaw, roll.sign * roll.k * Math.PI / 2);
     // contact shadow: follows the feet, a little wider when the stride lowers the body; under a lying body it
     // stretches along it
@@ -365,11 +367,12 @@ function drawShot(shot, n) {
     scene.add(mesh, shadow);
   }
   drawAnimals(shot, animals, n, kf, u);
+  const extras = drawExtras(shot, n, kf, u);
   const cars = drawVehicles(shot, vehicles, riders, n, u);
   renderer.render(scene, camera);
   const travel = shot.travel ? { travel: `${shot.travel.speed} u/s ${dir < 0 ? "left" : "right"}, shift ${shift.toFixed(2)}`
     + `, loop excess ${(({ excess, row }) => `${excess.toFixed(3)} (row z ${row})`)(loopExcess(group, shift))}` } : {};
-  return { angle: shot.camera.angle, hidden: hidden.size, gestures, dogs: animals.length, ...cars, ...travel,
+  return { angle: shot.camera.angle, hidden: hidden.size, gestures, dogs: animals.length, ...extras, ...cars, ...travel,
     ...measure(shot.actors.filter((a) => !seated.has(a.cast_id)).map(place)) };
 }
 
@@ -384,6 +387,7 @@ function actionPose(shot, a, o, x, u, ts, n) {
   const sleepy = o.expression === "sleepy";
   let roll = { k: 0, sign: a.facing === "left" ? 1 : -1 }; // head toward the way it faced
   if (a.action === "stagger" || a.action === "supported") o.stagger = staggerAt(key, o.phase);
+  if (MOOD_EXPRESSION[a.action]) o.mood = moodAt(a.action, n / FPS, charSeed(a.cast_id));
   if (a.action === "carry" || a.action === "support") o.reach = { side: sideToward(x, partnerX(other), a.facing), k: 1 };
   if (a.action === "supported") {
     const h = shot.actors.find((b) => b.action === "support" && b.target === a.cast_id);
@@ -438,6 +442,36 @@ function drawAnimals(shot, animals, n, kf, u) {
     c.shadow.scale.set(DOG_SHADOW.w * k, 1, DOG_SHADOW.d * k);
     scene.add(c.mesh, c.shadow);
   }
+}
+
+const MOOD_HOP = 0.06; // world units a cheering figure bounces
+
+/** extras: crowd rows in a mood (each with its own timing offset) and background runners (gait from distance:
+ *  scroll + own move, like the cast). Looks are seeded per series and extra variant (extras.js). */
+function drawExtras(shot, n, kf, u) {
+  const t = n / FPS, secs = (shot.end_frame - shot.start_frame) / FPS, list = shot.extras || [];
+  for (const e of list) {
+    const [x, z] = placeAt(e, u), key = `${data.series.slug}:extra:${e.kind}:${e.variant}`, look = extraLook(data.series.slug, e);
+    const own = e.end_pos ? Math.hypot(e.end_pos[0] - e.start_pos[0], e.end_pos[1] - e.start_pos[1]) : 0;
+    const phase = e.action === "run" ? gaitPhase("run", ((shot.travel ? shot.travel.speed * secs : 0) + own) * u, 0) : 0;
+    const mood = e.kind === "crowd" ? moodAt(e.action, t, key) : null;
+    camera.updateMatrixWorld();
+    const feet = new THREE.Vector3(x, 0, z).project(camera), head = new THREE.Vector3(x, FIG_H, z).project(camera);
+    const c = card(`extra:${e.id}`);
+    drawStickman(c.cv, { seed: key, ...look, color: look.top.color, boil: Math.floor(n / BOIL_FRAMES), lid: lidAt(n, key),
+      breath: Math.sin((2 * Math.PI * t) / 3.4 + 2 * Math.PI * rng(key, "breath")()), mouth: 0, t, phase, mood,
+      px: (((head.y - feet.y) / 2) * H) / FIGURE_PX, action: e.action === "neutral" ? "idle" : e.action, facing: e.facing,
+      expression: MOOD_EXPRESSION[e.action] || "neutral" });
+    c.tex.needsUpdate = true;
+    c.mesh.position.set(x, mood ? MOOD_HOP * mood.bounce : 0, z);
+    c.mesh.rotation.set(0, Math.atan2(camera.position.x - x, camera.position.z - z), 0);
+    const k = 1 + SHADOW.bounce * Math.abs(Math.sin(2 * Math.PI * phase));
+    c.shadow.position.set(x, SHADOW.y, z);
+    c.shadow.scale.set(SHADOW.w * k, 1, SHADOW.d * k);
+    scene.add(c.mesh, c.shadow);
+  }
+  return list.length ? { extras: `${list.filter((e) => e.kind === "crowd").length} crowd ${list.find((e) => e.kind === "crowd")?.action ?? ""}`.trim()
+    + `, ${list.filter((e) => e.kind === "runner").length} runners` } : {};
 }
 
 /** car position at shot fraction u: arrive eases to a stop, leave eases out from one, idle stays */
@@ -502,6 +536,8 @@ window.renderCast = ({ castId, pose, expression = castOf(castId).default_express
   let cam = [0, 0.82, 2.6], look = [0, 0.8, 0], y = 0, roll = 0;
   if (pose === "walk") Object.assign(o, { action: "walk", facing: "right", phase: 0.25 });
   if (pose === "talk") Object.assign(o, { action: "talk", mouth: 0.8 });
+  if (pose === "cheer") Object.assign(o, { action: "cheer", mood: { k: 1, bounce: 0, shake: 0 } });
+  if (pose === "angry") Object.assign(o, { action: "angry", mood: { k: 1, bounce: 0, shake: 0.5 } });
   if (pose === "stagger") Object.assign(o, { action: "stagger", facing: "right", phase: 0.3, stagger: { sway: 0.7, buckle: 0.6 } });
   if (pose === "lie") { Object.assign(o, { action: "lie" }); roll = -Math.PI / 2; y = LIE.lift; cam = [0, 0.62, 2.9]; look = [0, 0.3, 0]; }
   if (pose === "eat") {

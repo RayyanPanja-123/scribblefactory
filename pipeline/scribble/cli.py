@@ -24,8 +24,8 @@ from .stages import render as render_stage
 from .stages.runner import StageError, run_stage
 
 RENDER = Path(__file__).resolve().parents[2] / "engine" / "render.mjs"
-CAST_SHEET_COLS = 16   # one row per cast member: idle, walk, talk, 8 expressions, stagger, lie, eat, give, carried
-                       # (engine/render.mjs POSES)
+CAST_SHEET_COLS = 18   # one row per cast member: idle, walk, talk, 8 expressions, stagger, lie, eat, give, carried,
+                       # cheer, angry mood (engine/render.mjs POSES)
 STILLS_SHEET_COLS = 6
 
 
@@ -418,11 +418,11 @@ def build_parser() -> Parser:
     c.add_argument("slug")
     c.add_argument("id")
     c.add_argument("--name")
-    c.add_argument("--top", choices=["plain", "suit", "tank", "shirt"])
+    c.add_argument("--top", choices=["plain", "suit", "tank", "shirt", "dress"])
     c.add_argument("--top-color", "--color", dest="top_color", help="top colour #rrggbb")
-    c.add_argument("--accent", help="suit tie colour #rrggbb, or none")
+    c.add_argument("--accent", help="suit tie / dress hat ribbon colour #rrggbb, or none")
     c.add_argument("--number", help="chest number, 1-3 digits, or none")
-    c.add_argument("--headwear", choices=["none", "flat_cap", "postman_cap", "bowler", "straw_hat"])
+    c.add_argument("--headwear", choices=["none", "flat_cap", "postman_cap", "bowler", "straw_hat", "wide_hat"])
     c.add_argument("--headwear-color", help="#rrggbb")
     c.add_argument("--legwear", choices=["none", "shorts", "ragged_shorts", "trousers"])
     c.add_argument("--legwear-color", help="#rrggbb")

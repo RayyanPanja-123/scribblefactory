@@ -46,9 +46,10 @@ Expression = Literal["neutral", "happy", "sad", "angry", "surprised", "sleepy", 
 
 
 class Top(Strict):
-    style: Literal["plain", "suit", "tank", "shirt"] = "plain"
+    style: Literal["plain", "suit", "tank", "shirt", "dress"] = "plain"
     color: HexColor
-    accent_color: HexColor | None = Field(default=None, description="suit: the tie colour (no tie when null)")
+    accent_color: HexColor | None = Field(default=None, description="suit: the tie colour (no tie when null); "
+                                                                     "dress: the wide hat's ribbon and flower")
     number: str | None = Field(default=None, pattern=r"^[0-9]{1,3}$", description="chest number on a white bib")
 
 
@@ -59,7 +60,7 @@ def _needs_color(m):
 
 
 class Headwear(Strict):
-    kind: Literal["none", "flat_cap", "postman_cap", "bowler", "straw_hat"] = "none"
+    kind: Literal["none", "flat_cap", "postman_cap", "bowler", "straw_hat", "wide_hat"] = "none"
     color: HexColor | None = None
     _check = model_validator(mode="after")(_needs_color)
 
@@ -273,7 +274,8 @@ class Actor(Strict):
     cast_id: str
     # partner roles: give <-> receive, carry (2 carriers) <-> carried, support (1-2) <-> supported
     action: Literal["idle", "walk", "run", "talk", "point", "react", "wave", "ride",
-                    "stagger", "lie", "collapse", "eat", "give", "receive", "carry", "carried", "support", "supported"]
+                    "stagger", "lie", "collapse", "eat", "give", "receive", "carry", "carried", "support", "supported",
+                    "cheer", "angry", "gasp"]
     start_pos: Pos
     end_pos: Pos | None = None
     facing: Literal["left", "right", "camera"]
@@ -310,6 +312,17 @@ class Vehicle(Strict):
     variant: Literal["red", "green", "navy", "yellow"]
 
 
+class Extra(Strict):
+    """non-cast stickman: crowd (stands behind the stage in a mood) or runner (background runner); seeded look"""
+    id: str = Field(pattern=r"^[a-z0-9_-]+$")
+    kind: Literal["crowd", "runner"]
+    action: Literal["cheer", "angry", "gasp", "neutral", "run"]  # crowd: a mood; runner: run
+    start_pos: Pos
+    end_pos: Pos | None = None
+    facing: Literal["left", "right", "camera"]
+    variant: int = Field(ge=0, description="seeds the extra's look (top, hat, colours, runner number)")
+
+
 class Shot(Strict):
     id: str = Field(pattern=r"^s[0-9]{2,}$")
     start_frame: int = Field(ge=0)
@@ -320,6 +333,7 @@ class Shot(Strict):
     actors: list[Actor] = []
     animals: list[Animal] = []
     vehicles: list[Vehicle] = []
+    extras: list[Extra] = []
     twist: bool = False
     travel: Travel | None = Field(default=None, description="travel shot: the world scrolls past the actors")
 

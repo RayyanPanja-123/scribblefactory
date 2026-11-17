@@ -38,6 +38,10 @@ const deg = (d) => (d * Math.PI) / 180;
 // 5c-6 poses (degrees): carried arms over the holders' shoulders (upper arm, forearm bend: forearms hang down),
 // a holder's inner arm at the held actor's shoulder, give / receive arm held out, knee buckle splay at full dip
 const OVER_SHOULDER = [122, -77], HOLD_ARM = [68, 35], GIVE_ARM = [80, -10], BUCKLE = 16;
+// crowd moods (cast members can take them too): cheer arms up in a V, angry fists up beside the head, gasp hands
+// to the cheeks; o.mood { k 0..1, shake -1..1 } animates them (extras.js moodAt)
+const CHEER_ARM = 138, FIST = [105, 60], SHAKE = 10; // cheer: hands stay outside the head outline
+const MOODS = new Set(["cheer", "angry", "gasp"]);
 const GAITS = new Set(["walk", "run", "stagger", "carry", "support", "supported", "carried"]);
 const LOOSE = new Set(["stagger", "supported"]); // wobbly gait, loose arms
 const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
@@ -121,6 +125,12 @@ export function skeleton(o) {
     aL = deg(-ARM_REST - 50 * k); aR = deg(ARM_REST + 50 * k); bendL = deg(-30 * k); bendR = deg(30 * k);
   } else if (act === "lie") {
     aL = deg(-8); aR = deg(8);
+  } else if (act === "cheer") {
+    const k = o.mood ? o.mood.k : 1;
+    aL += (-deg(CHEER_ARM) - aL) * k; aR += (deg(CHEER_ARM) - aR) * k;
+  } else if (act === "angry") {
+    const sh = deg(SHAKE) * (o.mood ? o.mood.shake : 0);
+    aL = -deg(FIST[0]); bendL = -deg(FIST[1]) + sh; aR = deg(FIST[0]); bendR = deg(FIST[1]) - sh;
   } else if (moving) {
     const S = deg(run ? 16 : 13) * s; // both arms sway with the stride; small enough never to cross the body
     aL = deg(-18) + S; aR = deg(18) + S;
@@ -143,7 +153,7 @@ export function skeleton(o) {
     bendR = deg(WAVE_ARM[1] + WAVE_ARM[2] * w.swing) * w.k;
   } else if (o.action === "react") {
     aL = deg(-128); aR = deg(128); bendL = deg(-25); bendR = deg(25); // hands up beside the head
-  } else if (!["carried", "collapse", "lie", "stagger", "supported"].includes(act)) {
+  } else if (!["carried", "collapse", "lie", "stagger", "supported", ...MOODS].includes(act)) {
     aL -= deg(2) * (o.breath || 0); aR += deg(2) * (o.breath || 0);
   }
   // one arm toward a partner: o.reach { side, k }. Holders hold the held actor's shoulder; the supported drapes
@@ -165,8 +175,19 @@ export function skeleton(o) {
     return [shp, elbow, at(elbow, a + bend, ARM * 0.48)];
   });
   const head = [CW / 2 + (o.action === "react" ? -10 : 0), top - HEAD_R + NECK_OVERLAP];
-  // eat: the prop hand comes up to the mouth (two-joint reach); that arm is drawn over the head
-  let late = -1;
+  // eat: the prop hand comes up to the mouth (two-joint reach); gasp: both hands to the cheeks. Those arms are drawn
+  // over the head (late).
+  const late = [];
+  if (act === "gasp") {
+    const tremble = 4 * (o.mood ? o.mood.shake : 0);
+    for (const i of [0, 1]) {
+      const side = i ? 1 : -1, [up, bend] = reachFor(arms[i][0], [head[0] + side * 78, head[1] + 52 + tremble], side);
+      const elbow = at(arms[i][0], up, ARM * 0.52);
+      arms[i] = [arms[i][0], elbow, at(elbow, up + bend, ARM * 0.48)];
+      if (i) { aR = up; bendR = bend; } else { aL = up; bendL = bend; }
+      late.push(i);
+    }
+  }
   if (act === "eat" && o.eat && o.eat.k > 0) {
     const side = o.eat.side ?? 1, i = side > 0 ? 1 : 0, look = o.facing === "camera" ? 0 : 1;
     const target = [head[0] + 30 * look + (look ? 18 : 30 * side), head[1] + 104];
@@ -175,7 +196,7 @@ export function skeleton(o) {
     const elbow = at(arms[i][0], ua, ARM * 0.52);
     arms[i] = [arms[i][0], elbow, at(elbow, ua + ub, ARM * 0.48)];
     if (i) { aR = ua; bendR = ub; } else { aL = ua; bendL = ub; }
-    if (o.eat.k > 0.2) late = i;
+    if (o.eat.k > 0.2) late.push(i);
   }
   return { lean, legs, hipY, cy, ry, top, arms, fore: [aL + bendL, aR + bendR], head, late };
 }
@@ -230,6 +251,7 @@ export function drawStickman(canvas, o) {
     g.restore();
     p.poly(body, null, bw); // outline back over the details' edges
   }
+  if (top.style === "dress") skirt(p, cos, top.color || o.color, k, o);
 
   // arms and dot hands over the body; a held prop sits in its hand, under the hand dot
   const drawArm = ([shp, elbow, hand], i) => {
@@ -239,15 +261,15 @@ export function drawStickman(canvas, o) {
     }
     p.dot(hand[0], hand[1], 15);
   };
-  k.arms.forEach((a, i) => { if (i !== k.late) drawArm(a, i); });
+  k.arms.forEach((a, i) => { if (!k.late.includes(i)) drawArm(a, i); });
 
   // head last: wobbly white circle, thick outline, sits on the body (raised arms go behind it)
   const [hx, hy] = k.head;
   const headPts = wobble(hx, hy, HEAD_R, HEAD_R * HEAD_SQUASH, rng(o.seed, "head"), boil);
   p.poly(headPts, "#ffffff", 14 + boil() * 1.5);
   face(p, boil, o, hx + 26 * look, hy, look);
-  if (o.headwear && o.headwear.kind !== "none") headwear(p, cos, o.headwear, headPts, hx, hy, look);
-  if (k.late >= 0) drawArm(k.arms[k.late], k.late); // eating: the hand and its prop come up in front of the face
+  if (o.headwear && o.headwear.kind !== "none") headwear(p, cos, o.headwear, headPts, hx, hy, look, top.accent_color);
+  for (const i of k.late) drawArm(k.arms[i], i); // eating / gasping: the hands come up in front of the face
   if (o.zzz != null) zzz(p, g, boil, o, hx, hy);
 }
 
@@ -313,6 +335,16 @@ function topDetails(p, cos, top, k) {
     for (const f of [0.3, 0.5, 0.7]) p.dot(x + 9, t + 34 + (k.cy + k.ry - 50 - t) * f, 6);
     for (const s of [-1, 1]) p.poly(J([[x + s * 3, t + 24], [x + s * 48, t + 14], [x + s * 30, t + 62]]), top.color, 7);
   }
+}
+
+/** dress: a flared skirt from the waist (over the fitted top's lower half: the seam reads as a waistline) to the
+ *  knee, scalloped hem; stick legs show below it. Walking swings the hem with the stride. */
+export function skirt(p, cos, color, k, o) {
+  const x = CW / 2, waist = k.cy + k.ry * 0.25, hem = k.hipY + LEG * 0.5, wx = BODY_RX * 0.86, hw = BODY_RX * 1.45;
+  const sway = GAITS.has(o.action) && o.action !== "carried" ? 14 * Math.sin(TAU * (o.phase || 0)) : 3 * (o.breath || 0);
+  const pts = [[x - wx, waist], [x + wx, waist]];
+  for (let j = 0; j <= 6; j++) pts.push([x + hw + sway - (j * 2 * hw) / 6, hem + (j % 2 ? 12 : 0)]);
+  p.poly(jitter(pts, cos, 1.5), color, OL + 2);
 }
 
 // bold rounded digits: polylines in a 0..1 box (x right, y down)
@@ -398,7 +430,7 @@ export function hatFit(headPts, hy) {
 
 /** headwear pulled down onto the wobbly head: sized from the head's own boiling outline, so it bobs and boils with
  *  it. Peaks point the way the figure faces (look 1) or show from the front (look 0). */
-function headwear(p, cos, hw, headPts, hx, hy, look) {
+function headwear(p, cos, hw, headPts, hx, hy, look, accent) {
   const J = (pts, a = 1.5) => jitter(pts, cos, a), col = hw.color;
   const { brim, xl: hl, xr: hr } = hatFit(headPts, hy), xl = hl - HAT_GRIP, xr = hr + HAT_GRIP;
   const mid = (xl + xr) / 2, half = (xr - xl) / 2;
@@ -419,6 +451,18 @@ function headwear(p, cos, hw, headPts, hx, hy, look) {
     p.poly(J(ellPts(mid, brim, half + 34, 14, 0, 360, 0, 24)), col, OL);
     p.poly(J(ellPts(mid, brim - 2, half + 2, 90, 180, 360, 0, 20)), col, OL + 2);
     p.stroke(J([[mid - half + 4, brim - 16], [mid + half - 4, brim - 16]]), 6);
+  } else if (hw.kind === "wide_hat") {
+    // wide brim, low crown, a ribbon band and a five-petal flower in the accent colour on the side it faces
+    const acc = accent || "#c2185b";
+    p.poly(J(ellPts(mid, brim + 4, half + 80, 22, 0, 360, 0, 28)), col, OL);
+    p.poly(J([[xl + 4, brim], [xl + 18, hy - 158], [xr - 18, hy - 158], [xr - 4, brim]]), col, OL + 2);
+    p.poly(J([[xl + 6, brim - 4], [xl + 9, brim - 30], [xr - 9, brim - 30], [xr - 6, brim - 4]]), acc, 5);
+    const fx = look ? xr - 10 : xr - 24, fy = brim - 20;
+    for (let a = 0; a < 5; a++) {
+      const t = (a * TAU) / 5;
+      p.poly(J(ellPts(fx + 13 * Math.cos(t), fy + 13 * Math.sin(t), 11, 11, 0, 360, 0, 12), 1), acc, 4);
+    }
+    p.dot(fx, fy, 12, "#ffd54a");
   } else if (hw.kind === "straw_hat") {
     p.poly(J(ellPts(mid, brim, half + 96, 26, 0, 360, 0, 28)), col, OL);
     p.poly(J([[xl, brim - 2], [xl + 8, hy - 168], [xr - 8, hy - 168], [xr, brim - 2]]), col, OL + 2);
