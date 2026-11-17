@@ -720,6 +720,22 @@ async def events():
     return EventSourceResponse(stream(), ping=HEARTBEAT_S)
 
 
+# ---------------- web app (production: scripts/serve.sh builds web/dist and sets SCRIBBLE_SERVE_WEB=1) ----------------
+
+DIST = ROOT / "web" / "dist"
+
+
+@app.get("/{path:path}", include_in_schema=False)
+def web_app(path: str):
+    """web/dist files, and index.html for every other non-API path (the Vue router uses HTML5 history)"""
+    if os.environ.get("SCRIBBLE_SERVE_WEB") != "1" or path.split("/")[0] == "api" or not (DIST / "index.html").is_file():
+        raise HTTPException(404, "not found")
+    f = (DIST / path).resolve()
+    if path and f.is_relative_to(DIST.resolve()) and f.is_file():
+        return FileResponse(f)
+    return FileResponse(DIST / "index.html")
+
+
 # ---------------- openapi ----------------
 
 def openapi_text() -> str:

@@ -355,3 +355,23 @@ def test_sse_job_events(lib, monkeypatch):
 
 def test_openapi_exported():
     assert m.OPENAPI.read_text(encoding="utf-8") == m.openapi_text(), "docs/openapi.json drifted: python -m api.main"
+
+
+# ---------------- web app ----------------
+
+def test_web_app_served_in_production_only(client, tmp_path, monkeypatch):
+    dist = tmp_path / "dist"
+    (dist / "assets").mkdir(parents=True)
+    (dist / "index.html").write_text("<html>app</html>", encoding="utf-8")
+    (dist / "assets" / "a.js").write_text("js", encoding="utf-8")
+    monkeypatch.setattr(m, "DIST", dist)
+    monkeypatch.delenv("SCRIBBLE_SERVE_WEB", raising=False)
+    assert client.get("/").status_code == 404  # dev: Vite serves the app
+    monkeypatch.setenv("SCRIBBLE_SERVE_WEB", "1")
+    assert client.get("/").text == "<html>app</html>"
+    assert client.get("/assets/a.js").text == "js"
+    assert client.get("/series/demo/parts/part-01").text == "<html>app</html>"  # SPA route
+    assert client.get("/api/nope").status_code == 404  # unknown API paths stay 404s
+    assert client.get("/api/health").json() == {"ok": True}
+    assert client.get("/assets/..%2F..%2F..%2Fapi%2Fmain.py").text == "<html>app</html>"  # never outside dist
+
