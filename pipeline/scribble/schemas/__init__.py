@@ -39,6 +39,7 @@ class Voice(Strict):
 class Style(Strict):
     preset: str
     locked: bool = False
+    captions: bool = True  # burned-in captions in final.mp4
 
 
 class CastMember(Strict):

@@ -10,13 +10,14 @@ import re
 import shutil
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 from pydantic import TypeAdapter, ValidationError
 
 from . import sheet
 from .io import atomic_write_json, load_part, load_series, save_part, save_series
-from .schemas import CastMember, PartId, PartModel, SeriesModel, Slug, Stages, StoryModel, Style, Voice, utcnow
+from .schemas import CastMember, PartId, PartModel, Post, SeriesModel, Slug, Stages, StoryModel, Style, Voice, utcnow
 from .stages import STAGES
 from .stages import render as render_stage
 from .stages.runner import StageError, run_stage
@@ -301,6 +302,65 @@ def cmd_approve_cast(args) -> int:
     return 0
 
 
+def cmd_set_captions(args) -> int:
+    f, series = load_existing_series(args)
+    series.style.captions = args.state == "on"
+    save_series(f, series)
+    print(f"{args.slug} captions: {args.state} (re-run finish to apply)")
+    return 0
+
+
+def cmd_pick_thumbnail(args) -> int:
+    pdir = part_dir(args)
+    choice = f"thumbs/thumb-{args.n}.png"
+    if not (pdir / choice).exists():
+        raise UserError(f"{pdir / choice} not found: run {args.slug} {args.part} --stage thumbnails first")
+    part = load_part(pdir / "part.json")
+    part.thumbnail_choice = choice
+    save_part(pdir / "part.json", part)
+    print(f"{args.part} thumbnail: {choice}")
+    return 0
+
+
+def cmd_mark_posted(args) -> int:
+    pdir = part_dir(args)
+    if not re.match(r"^https?://\S+$", args.url):
+        raise UserError(f"invalid url {args.url!r}: expected http(s)://...")
+    if args.date:
+        try:
+            when = datetime.strptime(args.date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        except ValueError:
+            raise UserError(f"invalid date {args.date!r}: expected YYYY-MM-DD")
+    else:
+        when = utcnow()
+    part = load_part(pdir / "part.json")
+    old = getattr(part.posted, args.platform)
+    if old and not args.force:
+        raise UserError(f"{args.part} already marked posted on {args.platform} ({old.url}, {_date(old.posted_at)}); "
+                        f"use --force to replace it")
+    setattr(part.posted, args.platform, Post(url=args.url, posted_at=when))
+    save_part(pdir / "part.json", part)
+    print(f"{args.part} posted on {args.platform}: {args.url} ({_date(when)})")
+    return 0
+
+
+def cmd_clean_frames(args) -> int:
+    pdir = part_dir(args)
+    frames = pdir / "frames"
+    if not (pdir / "final.mp4").exists() or load_part(pdir / "part.json").stages.finish.status != "done":
+        raise UserError(f"{args.part} has no finished final.mp4 yet (run {args.slug} {args.part} --stage finish); "
+                        f"frames kept")
+    if render_stage.lock_owner(pdir):
+        raise UserError("a render is running on this part; frames kept")
+    if not frames.exists():
+        print("no frames/ to clean")
+        return 0
+    size = sum(f.stat().st_size for f in frames.rglob("*") if f.is_file())
+    shutil.rmtree(frames)
+    print(f"deleted {frames} ({size / 1e6:.1f} MB freed)")
+    return 0
+
+
 def build_parser() -> Parser:
     common = Parser(add_help=False)
     common.add_argument("--library", help="library root (default: $SCRIBBLE_LIBRARY or ./library)")
@@ -388,6 +448,31 @@ def build_parser() -> Parser:
     c.add_argument("slug")
     c.add_argument("cast_id")
     c.set_defaults(func=cmd_approve_cast)
+
+    c = sub.add_parser("set-captions", parents=[common], help="burned-in captions on or off for a series")
+    c.add_argument("slug")
+    c.add_argument("state", choices=["on", "off"])
+    c.set_defaults(func=cmd_set_captions)
+
+    c = sub.add_parser("pick-thumbnail", parents=[common], help="choose thumbnail candidate 1, 2 or 3")
+    c.add_argument("slug")
+    c.add_argument("part")
+    c.add_argument("n", type=int, choices=[1, 2, 3])
+    c.set_defaults(func=cmd_pick_thumbnail)
+
+    c = sub.add_parser("mark-posted", parents=[common], help="record a posted link")
+    c.add_argument("slug")
+    c.add_argument("part")
+    c.add_argument("platform", choices=["youtube", "instagram"])
+    c.add_argument("--url", required=True)
+    c.add_argument("--date", help="YYYY-MM-DD (default: today, UTC)")
+    c.add_argument("--force", action="store_true", help="replace an existing entry")
+    c.set_defaults(func=cmd_mark_posted)
+
+    c = sub.add_parser("clean-frames", parents=[common], help="delete frames/ once final.mp4 is finished")
+    c.add_argument("slug")
+    c.add_argument("part")
+    c.set_defaults(func=cmd_clean_frames)
     return p
 
 

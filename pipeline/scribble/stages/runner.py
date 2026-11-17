@@ -17,7 +17,11 @@ def inputs_hash(part_dir: Path, inputs) -> str:
     for name in sorted(inputs):
         f = part_dir / name
         h.update(name.encode() + b"\0")
-        h.update(f.read_bytes() if f.exists() else b"<missing>")
+        if f.is_dir():  # a directory input: the names and bytes of the files directly inside it
+            for x in sorted(x for x in f.iterdir() if x.is_file()):
+                h.update(x.name.encode() + b"\0" + x.read_bytes() + b"\0")
+        else:
+            h.update(f.read_bytes() if f.exists() else b"<missing>")
         h.update(b"\0")
     return h.hexdigest()
 

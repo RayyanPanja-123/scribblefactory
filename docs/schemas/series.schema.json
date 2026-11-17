@@ -51,6 +51,11 @@
     "Style": {
       "additionalProperties": false,
       "properties": {
+        "captions": {
+          "default": true,
+          "title": "Captions",
+          "type": "boolean"
+        },
         "locked": {
           "default": false,
           "title": "Locked",

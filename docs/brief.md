@@ -62,7 +62,7 @@ library/<series-slug>/
 - Step 9: I approve a 5-second test render.
 - Step 10: Auto full render in parallel chunks, resumable.
 - Step 11: Auto sound: synth music + SFX, mixed under voice.
-- Step 12: Auto finish: final.mp4 + QA (frozen frames, black frames, loudness).
+- Step 12: Auto finish: final.mp4 with burned-in captions + QA (frozen frames, black frames, loudness, captions) -> qa.json.
 - Step 13: Auto thumbnail candidates + upload text. I pick.
 - Step 14: I upload manually, then mark posted with links in the web view.
 
@@ -82,6 +82,7 @@ library/<series-slug>/
 - Arms and legs: thin black sticks. Black dot hands. NO shoes.
 - Look: marker-drawn, imperfect, not polished.
 - World: colorful toon-shaded 3D, ink outlines, painted textures.
+- Captions (on by default, series style.captions; set-captions <slug> on|off): burned into final.mp4 only, never into stills, thumbnails or preview.mp4. Fredoka One (OFL, assets/fonts), white with a thick black outline, the spoken word yellow (#ffd54a). Max 5 words, max 2 lines, names never split. Centred, baseline at 68% of the height, clear of the Shorts/Reels UI (bottom 20%, right 15%).
 - Costumes vary per story, but always flat colour, thick outline, marker look. Stick limbs stay visible below shorts/sleeves.
 
 ## Validator rules
@@ -126,8 +127,9 @@ library/<series-slug>/
 - Step 5: Render engine, parallel chunks, resume.
   - 5.1: engine core (sets, stickman cards, camera), stills + cast sheets, approvals. DONE.
   - 5.2: test render + chunked, parallel, resumable full render (GPU default, SwiftShader fallback). DONE.
-- Step 5b: audio (synth music + SFX), mix, finish + QA.
+- Step 5b: audio (synth music + SFX), mix, finish + QA. DONE.
   - 5b-1: audio stage: synth music + SFX from cues, mix under voice to -14 LUFS / -1 dBTP. DONE.
+  - 5b-2: finish (final.mp4 from frames + mix, burned-in captions, QA -> qa.json), thumbnails + upload.md, pick-thumbnail, mark-posted, clean-frames, set-captions. DONE.
 - Step 5c: Content library (per-story characters, same art style).
   - Cast v2 schema: top style (plain, suit, tank, shirt) + colour, accents (tie, chest number), headwear (none, flat_cap, postman_cap), legwear over stick legs (none, shorts, ragged_shorts, trousers), held prop, default expression, eyes. Bump schema_version.
   - New expressions: cheeky, exhausted.

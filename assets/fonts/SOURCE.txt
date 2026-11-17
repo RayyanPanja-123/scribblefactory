@@ -1,0 +1,4 @@
+FredokaOne-Regular.ttf and OFL.txt (SIL Open Font License 1.1)
+from https://github.com/google/fonts/tree/be2838a23fd2918408e22b25c54135da76525ff6/ofl/fredokaone
+pinned commit: be2838a23fd2918408e22b25c54135da76525ff6
+Used by the finish stage for burned-in captions (ffmpeg subtitles filter, fontsdir=assets/fonts).
