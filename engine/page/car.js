@@ -71,7 +71,8 @@ export function drawCar(canvas, o) {
   g.save(); g.beginPath(); g.rect(0, 0, VW, 440); g.clip();
   const seat = (fig, x) => {
     tmp = tmp || Object.assign(canvas.ownerDocument.createElement("canvas"), { width: CW, height: CH });
-    drawStickman(tmp, { ...fig, facing: "right" }); // the whole card mirrors for "left"
+    // the whole card mirrors for "left"; seated raises a held prop above the panel
+    drawStickman(tmp, { ...fig, facing: "right", seated: true, mirrored: o.facing === "left" });
     g.drawImage(tmp, x - (CW / 2) * RIDER_SCALE, SEAT_Y - HIP_PX * RIDER_SCALE, CW * RIDER_SCALE, CH * RIDER_SCALE);
   };
   // driver first, then riders back to front: a rider's raised (waving) arm stays in front of the driver

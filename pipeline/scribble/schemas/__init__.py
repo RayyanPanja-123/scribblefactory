@@ -42,16 +42,65 @@ class Style(Strict):
     captions: bool = True  # burned-in captions in final.mp4
 
 
+Expression = Literal["neutral", "happy", "sad", "angry", "surprised", "sleepy", "cheeky", "exhausted"]
+
+
+class Top(Strict):
+    style: Literal["plain", "suit", "tank", "shirt"] = "plain"
+    color: HexColor
+    accent_color: HexColor | None = Field(default=None, description="suit: the tie colour (no tie when null)")
+    number: str | None = Field(default=None, pattern=r"^[0-9]{1,3}$", description="chest number on a white bib")
+
+
+def _needs_color(m):
+    if m.kind != "none" and m.color is None:
+        raise ValueError(f"{m.kind} needs a color")
+    return m
+
+
+class Headwear(Strict):
+    kind: Literal["none", "flat_cap", "postman_cap", "bowler", "straw_hat"] = "none"
+    color: HexColor | None = None
+    _check = model_validator(mode="after")(_needs_color)
+
+
+class Legwear(Strict):
+    kind: Literal["none", "shorts", "ragged_shorts", "trousers"] = "none"
+    color: HexColor | None = None
+    _check = model_validator(mode="after")(_needs_color)
+
+
+class Prop(Strict):
+    kind: Literal["none", "clipboard", "stopwatch", "bottle", "syringe", "apple", "medal"] = "none"
+    hand: Literal["left", "right"] = "right"
+
+
 class CastMember(Strict):
     id: Slug
     name: str
-    outfit_color: HexColor
+    top: Top
+    headwear: Headwear = Headwear()
+    legwear: Legwear = Legwear()
+    prop: Prop = Prop()
+    default_expression: Expression = "neutral"
     eyes: Literal["dots", "half_closed"]
     approved_at: UtcDateTime | None = None
 
+    def look(self) -> str:
+        """everything the cast sheet shows (hex case ignored): a change here needs a new approval"""
+        return self.model_dump_json(exclude={"id", "name", "approved_at"}).lower()
+
+
+def _cast_v1(c):
+    """v1 cast entry -> v2: outfit_color becomes a plain top, everything else none/neutral (same look)"""
+    if isinstance(c, dict) and "outfit_color" in c:
+        c = dict(c)
+        c["top"] = {"style": "plain", "color": c.pop("outfit_color")}
+    return c
+
 
 class SeriesModel(Strict):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     slug: Slug
     title: str
     created_at: UtcDateTime
@@ -60,6 +109,14 @@ class SeriesModel(Strict):
     voice: Voice
     style: Style
     cast: list[CastMember] = []
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_v1(cls, data):
+        # v1 files are upgraded on load (approvals kept: the look is unchanged); saving writes v2
+        if isinstance(data, dict) and data.get("schema_version", 1) == 1:
+            data = {**data, "schema_version": 2, "cast": [_cast_v1(c) for c in data.get("cast", [])]}
+        return data
 
     @field_validator("parts")
     @classmethod
@@ -202,7 +259,7 @@ class Actor(Strict):
     start_pos: Pos
     end_pos: Pos | None = None
     facing: Literal["left", "right", "camera"]
-    expression: Literal["neutral", "happy", "sad", "angry", "surprised", "sleepy"]
+    expression: Expression = Field(description="neutral: the cast member's default_expression")
 
 
 class Travel(Strict):

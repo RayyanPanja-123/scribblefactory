@@ -10,6 +10,7 @@ import re
 import shutil
 import subprocess
 import sys
+from typing import get_args
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -17,13 +18,13 @@ from pydantic import TypeAdapter, ValidationError
 
 from . import sheet
 from .io import atomic_write_json, load_part, load_series, save_part, save_series
-from .schemas import CastMember, PartId, PartModel, Post, SeriesModel, Slug, Stages, StoryModel, Style, Voice, utcnow
+from .schemas import CastMember, Expression, PartId, PartModel, Post, SeriesModel, Slug, Stages, StoryModel, Style, Voice, utcnow
 from .stages import STAGES
 from .stages import render as render_stage
 from .stages.runner import StageError, run_stage
 
 RENDER = Path(__file__).resolve().parents[2] / "engine" / "render.mjs"
-CAST_SHEET_COLS = 9    # one row per cast member: idle, walk, talk + 6 expressions (engine/render.mjs POSES)
+CAST_SHEET_COLS = 11   # one row per cast member: idle, walk, talk + 8 expressions (engine/render.mjs POSES)
 STILLS_SHEET_COLS = 6
 
 
@@ -73,7 +74,7 @@ def cmd_cast_add(args) -> int:
     f, series = load_existing_series(args)
     if any(c.id == args.id for c in series.cast):
         raise UserError(f"cast id {args.id!r} already exists in {args.slug}")
-    series.cast.append(CastMember(id=args.id, name=args.name, outfit_color=args.color, eyes=args.eyes))
+    series.cast.append(CastMember(id=args.id, name=args.name, top={"color": args.color}, eyes=args.eyes))
     save_series(f, series)
     print(f"added {args.id} to {args.slug} cast")
     return 0
@@ -84,13 +85,22 @@ def cmd_cast_edit(args) -> int:
     i = next((i for i, c in enumerate(series.cast) if c.id == args.id), None)
     if i is None:
         raise UserError(f"cast id {args.id!r} not in {args.slug} (cast: {', '.join(c.id for c in series.cast) or '-'})")
-    changes = {k: v for k, v in (("name", args.name), ("outfit_color", args.color), ("eyes", args.eyes)) if v is not None}
+    # flag -> (section, field) of the cast entry; section None = top level
+    fields = {"name": (None, "name"), "eyes": (None, "eyes"), "default_expression": (None, "default_expression"),
+              "top": ("top", "style"), "top_color": ("top", "color"), "accent": ("top", "accent_color"),
+              "number": ("top", "number"), "headwear": ("headwear", "kind"), "headwear_color": ("headwear", "color"),
+              "legwear": ("legwear", "kind"), "legwear_color": ("legwear", "color"),
+              "prop": ("prop", "kind"), "prop_hand": ("prop", "hand")}
+    changes = {k: getattr(args, k) for k in fields if getattr(args, k) is not None}
     if not changes:
-        raise UserError("nothing to change: give --name, --color and/or --eyes")
+        raise UserError("nothing to change: give at least one of " + ", ".join(f"--{k.replace('_', '-')}" for k in fields))
     old = series.cast[i]
-    new = CastMember.model_validate({**old.model_dump(), **changes})  # validates the colour / eyes
-    look_changed = new.outfit_color.lower() != old.outfit_color.lower() or new.eyes != old.eyes
-    if look_changed and old.approved_at:
+    data = old.model_dump()
+    for k, v in changes.items():
+        section, name = fields[k]
+        (data[section] if section else data)[name] = None if v == "none" and name in ("accent_color", "number") else v
+    new = CastMember.model_validate(data)  # validates colours, kinds, number
+    if new.look() != old.look() and old.approved_at:
         new.approved_at = None
         print(f"note: {args.id}'s look changed, so its approval was cleared: check cast-sheet {args.slug}, "
               f"then approve-cast {args.slug} {args.id}")
@@ -160,7 +170,7 @@ def cmd_status(args) -> int:
     s = load_series(d / "series.json")
     print(f"{s.title} ({s.slug})  status: {s.status}  parts: {len(s.parts)}")
     print(f"voice: {s.voice.voice_name or '-'}  style: {s.style.preset} ({'locked' if s.style.locked else 'unlocked'})")
-    cast = [f"{c.id} ({c.outfit_color}, {c.eyes}, "
+    cast = [f"{c.id} ({c.top.color}, {c.eyes}, "
             + (f"approved {_date(c.approved_at)})" if c.approved_at else "-)") for c in s.cast]
     print(f"cast: {', '.join(cast) or '-'}")
     if s.parts:
@@ -390,7 +400,17 @@ def build_parser() -> Parser:
     c.add_argument("slug")
     c.add_argument("id")
     c.add_argument("--name")
-    c.add_argument("--color", help="outfit colour #rrggbb")
+    c.add_argument("--top", choices=["plain", "suit", "tank", "shirt"])
+    c.add_argument("--top-color", "--color", dest="top_color", help="top colour #rrggbb")
+    c.add_argument("--accent", help="suit tie colour #rrggbb, or none")
+    c.add_argument("--number", help="chest number, 1-3 digits, or none")
+    c.add_argument("--headwear", choices=["none", "flat_cap", "postman_cap", "bowler", "straw_hat"])
+    c.add_argument("--headwear-color", help="#rrggbb")
+    c.add_argument("--legwear", choices=["none", "shorts", "ragged_shorts", "trousers"])
+    c.add_argument("--legwear-color", help="#rrggbb")
+    c.add_argument("--prop", choices=["none", "clipboard", "stopwatch", "bottle", "syringe", "apple", "medal"])
+    c.add_argument("--prop-hand", choices=["left", "right"])
+    c.add_argument("--default-expression", choices=list(get_args(Expression)))
     c.add_argument("--eyes", choices=["dots", "half_closed"])
     c.set_defaults(func=cmd_cast_edit)
 

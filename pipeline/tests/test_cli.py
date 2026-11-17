@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 
 import pytest
@@ -154,7 +155,7 @@ def test_cast_add(lib):
     assert main(["cast-add", "cat", "bob", "--name", "Bob", "--color", "#3a7bd5"]) == 0
     assert main(["cast-add", "cat", "amy", "--name", "Amy", "--color", "#E2453C", "--eyes", "half_closed"]) == 0
     cast = load_series(lib / "cat" / "series.json").cast
-    assert [(c.id, c.name, c.outfit_color, c.eyes, c.approved_at) for c in cast] == [
+    assert [(c.id, c.name, c.top.color, c.eyes, c.approved_at) for c in cast] == [
         ("bob", "Bob", "#3a7bd5", "dots", None), ("amy", "Amy", "#E2453C", "half_closed", None)]
 
 
@@ -236,11 +237,15 @@ def test_cast_edit_name_keeps_approval(lib, capsys):
     approved = load_series(f).cast[0].approved_at
     assert main(["cast-edit", "cat", "bob", "--name", "Robert"]) == 0
     c = load_series(f).cast[0]
-    assert (c.name, c.outfit_color, c.approved_at) == ("Robert", "#3a7bd5", approved)
+    assert (c.name, c.top.color, c.approved_at) == ("Robert", "#3a7bd5", approved)
     assert "approval was cleared" not in capsys.readouterr().out
 
 
-@pytest.mark.parametrize("change", [["--color", "#c9d6e3"], ["--eyes", "half_closed"]])
+@pytest.mark.parametrize("change", [["--color", "#c9d6e3"], ["--eyes", "half_closed"], ["--top", "suit"],
+                                    ["--top-color", "#c9d6e3"], ["--accent", "#b71c1c"], ["--number", "31"],
+                                    ["--headwear", "bowler", "--headwear-color", "#222222"],
+                                    ["--legwear", "shorts", "--legwear-color", "#222222"], ["--prop", "apple"],
+                                    ["--default-expression", "cheeky"]])
 def test_cast_edit_new_look_clears_approval(lib, capsys, change):
     f = _approved_cat(lib)
     assert main(["cast-edit", "cat", "bob", *change]) == 0
@@ -262,4 +267,34 @@ def test_cast_edit_bad_input(lib, capsys):
     assert main(["cast-edit", "cat", "bob"]) == 1
     assert main(["cast-edit", "cat", "bob", "--color", "blue"]) == 1
     assert "nothing to change" in capsys.readouterr().err
+    assert f.read_bytes() == before
+
+
+def test_cast_edit_costume_flags(lib, capsys):
+    f = _approved_cat(lib)
+    assert main(["cast-edit", "cat", "bob", "--top", "tank", "--top-color", "#E53935", "--number", "31",
+                 "--headwear", "postman_cap", "--headwear-color", "#2e3a59", "--legwear", "ragged_shorts",
+                 "--legwear-color", "#3a3a3a", "--prop", "clipboard", "--prop-hand", "left",
+                 "--default-expression", "exhausted"]) == 0
+    c = load_series(f).cast[0]
+    assert c.top.model_dump() == {"style": "tank", "color": "#E53935", "accent_color": None, "number": "31"}
+    assert (c.headwear.kind, c.headwear.color, c.legwear.kind, c.legwear.color) ==         ("postman_cap", "#2e3a59", "ragged_shorts", "#3a3a3a")
+    assert (c.prop.kind, c.prop.hand, c.default_expression, c.approved_at) == ("clipboard", "left", "exhausted", None)
+    assert json.loads(f.read_text())["schema_version"] == 2
+    main(["approve-cast", "cat", "bob"])
+    approved = load_series(f).cast[0].approved_at
+    # same look again (hex case differs): approval kept; clearing the number is a look change
+    assert main(["cast-edit", "cat", "bob", "--top-color", "#e53935", "--prop", "clipboard"]) == 0
+    assert load_series(f).cast[0].approved_at == approved
+    assert main(["cast-edit", "cat", "bob", "--number", "none"]) == 0
+    c = load_series(f).cast[0]
+    assert (c.top.number, c.approved_at) == (None, None)
+
+
+@pytest.mark.parametrize("change", [["--number", "1234"], ["--number", "A1"], ["--accent", "red"],
+                                    ["--headwear", "bowler"], ["--legwear-color", "#zzzzzz"]])
+def test_cast_edit_bad_costume(lib, change):
+    f = _approved_cat(lib)
+    before = f.read_bytes()
+    assert main(["cast-edit", "cat", "bob", *change]) == 1  # bowler without a colour is refused
     assert f.read_bytes() == before

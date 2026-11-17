@@ -82,7 +82,15 @@ function card(id, geo = CARD_GEO, w = CW, h = CH) {
   return cards[id];
 }
 
-const castOf = (id) => data.series.cast.find((c) => c.id === id) || { id, outfit_color: "#888888", eyes: "dots" };
+const NO_COSTUME = { headwear: { kind: "none" }, legwear: { kind: "none" }, prop: { kind: "none", hand: "right" },
+  default_expression: "neutral" };
+/** cast entry with every v2 field; a v1 entry (outfit_color) reads as a plain top in that colour */
+const castOf = (id) => {
+  const c = data.series.cast.find((c) => c.id === id) || { id, outfit_color: "#888888", eyes: "dots" };
+  return { ...NO_COSTUME, top: { style: "plain", color: c.outfit_color }, ...c };
+};
+/** story expression "neutral" means the cast member's default expression */
+const expressionOf = (id, e) => (!e || e === "neutral" ? castOf(id).default_expression : e);
 const charSeed = (id) => `${data.series.slug}:${id}`; // same look in every part and on the cast sheet
 
 function lidAt(f, key) {
@@ -105,7 +113,8 @@ let mouth = new Float32Array(0); // per-frame mouth opening for the whole part (
 /** drawStickman options for cast member id (look from series.json), merged over the per-frame options o */
 function figure(id, o) {
   const cast = castOf(id);
-  return { seed: charSeed(id), color: cast.outfit_color, eyes: cast.eyes, ...o };
+  const { top, headwear, legwear, prop, eyes } = cast;
+  return { seed: charSeed(id), color: top.color, top, headwear, legwear, prop, eyes, ...o };
 }
 
 function drawCard(id, o) {
@@ -319,7 +328,7 @@ function drawShot(shot, n) {
     const feet = new THREE.Vector3(x, 0, z).project(camera), head = new THREE.Vector3(x, FIG_H, z).project(camera);
     const px = (((head.y - feet.y) / 2) * H) / FIGURE_PX; // screen px per card canvas px
     const o = {
-      boil: Math.floor(n / BOIL_FRAMES), action: a.action, expression: a.expression, facing: a.facing, t, phase, px,
+      boil: Math.floor(n / BOIL_FRAMES), action: a.action, expression: expressionOf(a.cast_id, a.expression), facing: a.facing, t, phase, px,
       lid: lidAt(n, key),
       breath: Math.sin((2 * Math.PI * t) / 3.4 + 2 * Math.PI * rng(key, "breath")()),
       mouth: a.action === "talk" && n === kf ? mouth[n] : 0, // shut while drawn outside its shot (wipe)
@@ -421,8 +430,9 @@ function measure(spots) {
   return { figure, inFrame };
 }
 
-/** cast sheet image: one character on a plain background. pose: idle | walk | talk; expression for the face */
-window.renderCast = ({ castId, pose, expression = "neutral" }) => {
+/** cast sheet image: one character on a plain background. pose: idle | walk | talk; expression for the face
+ *  (none given: the cast member's default expression) */
+window.renderCast = ({ castId, pose, expression = castOf(castId).default_expression }) => {
   scene = new THREE.Scene();
   scene.background = new THREE.Color("#f4f1ea");
   const o = { boil: 0, lid: 0, breath: 0, mouth: 0, t: 0.3, phase: 0, action: "idle", facing: "camera", expression };

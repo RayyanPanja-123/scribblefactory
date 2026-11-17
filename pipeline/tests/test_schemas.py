@@ -180,3 +180,37 @@ def test_replace_retry_succeeds(tmp_path, monkeypatch):
     monkeypatch.setattr(io.time, "sleep", lambda s: None)
     io.save_part(p, PartModel.model_validate(part_data(title="New")))
     assert io.load_part(p).title == "New"
+
+
+def test_series_v1_migrates_to_v2_keeping_approvals(tmp_path):
+    from pipeline.scribble.io import load_series, save_series
+    v1 = series_data(cast=[{"id": "bob", "name": "Bob", "outfit_color": "#1a2B3c", "eyes": "dots", "approved_at": T},
+                           {"id": "amy", "name": "Amy", "outfit_color": "#e2453c", "eyes": "half_closed"}])
+    v1["schema_version"] = 1
+    f = tmp_path / "series.json"
+    f.write_text(json.dumps(v1))
+    s = load_series(f)
+    bob, amy = s.cast
+    assert s.schema_version == 2
+    assert bob.top.model_dump() == {"style": "plain", "color": "#1a2B3c", "accent_color": None, "number": None}
+    assert (bob.headwear.kind, bob.legwear.kind, bob.prop.kind, bob.default_expression) == ("none", "none", "none", "neutral")
+    assert bob.approved_at is not None and amy.approved_at is None
+    save_series(f, s)
+    on_disk = json.loads(f.read_text())
+    assert on_disk["schema_version"] == 2 and "outfit_color" not in on_disk["cast"][0]
+    assert on_disk["cast"][0]["approved_at"] == v1["cast"][0]["approved_at"]
+    assert load_series(f) == s  # v2 round trip
+
+
+def test_cast_v2_rules():
+    def member(**kw):
+        return {"id": "bob", "name": "B", "eyes": "dots", "top": {"color": "#123456"}, **kw}
+    SeriesModel.model_validate(series_data(cast=[member(headwear={"kind": "straw_hat", "color": "#e8c76a"},
+                                                         legwear={"kind": "trousers", "color": "#222222"},
+                                                         prop={"kind": "medal", "hand": "left"},
+                                                         default_expression="cheeky")]))
+    for bad in [{"headwear": {"kind": "bowler"}}, {"legwear": {"kind": "shorts"}}, {"prop": {"kind": "sword"}},
+                {"default_expression": "smug"}, {"top": {"color": "#123456", "number": "1234"}},
+                {"top": {"color": "#123456", "style": "cape"}}]:
+        with pytest.raises(ValidationError):
+            SeriesModel.model_validate(series_data(cast=[member(**bad)]))

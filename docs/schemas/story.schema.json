@@ -44,13 +44,16 @@
           "title": "End Pos"
         },
         "expression": {
+          "description": "neutral: the cast member's default_expression",
           "enum": [
             "neutral",
             "happy",
             "sad",
             "angry",
             "surprised",
-            "sleepy"
+            "sleepy",
+            "cheeky",
+            "exhausted"
           ],
           "title": "Expression",
           "type": "string"

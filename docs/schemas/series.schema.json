@@ -16,6 +16,21 @@
           "default": null,
           "title": "Approved At"
         },
+        "default_expression": {
+          "default": "neutral",
+          "enum": [
+            "neutral",
+            "happy",
+            "sad",
+            "angry",
+            "surprised",
+            "sleepy",
+            "cheeky",
+            "exhausted"
+          ],
+          "title": "Default Expression",
+          "type": "string"
+        },
         "eyes": {
           "enum": [
             "dots",
@@ -24,28 +39,140 @@
           "title": "Eyes",
           "type": "string"
         },
+        "headwear": {
+          "$ref": "#/$defs/Headwear",
+          "default": {
+            "color": null,
+            "kind": "none"
+          }
+        },
         "id": {
           "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
           "title": "Id",
           "type": "string"
         },
+        "legwear": {
+          "$ref": "#/$defs/Legwear",
+          "default": {
+            "color": null,
+            "kind": "none"
+          }
+        },
         "name": {
           "title": "Name",
           "type": "string"
         },
-        "outfit_color": {
-          "pattern": "^#[0-9a-fA-F]{6}$",
-          "title": "Outfit Color",
-          "type": "string"
+        "prop": {
+          "$ref": "#/$defs/Prop",
+          "default": {
+            "hand": "right",
+            "kind": "none"
+          }
+        },
+        "top": {
+          "$ref": "#/$defs/Top"
         }
       },
       "required": [
         "id",
         "name",
-        "outfit_color",
+        "top",
         "eyes"
       ],
       "title": "CastMember",
+      "type": "object"
+    },
+    "Headwear": {
+      "additionalProperties": false,
+      "properties": {
+        "color": {
+          "anyOf": [
+            {
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Color"
+        },
+        "kind": {
+          "default": "none",
+          "enum": [
+            "none",
+            "flat_cap",
+            "postman_cap",
+            "bowler",
+            "straw_hat"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "title": "Headwear",
+      "type": "object"
+    },
+    "Legwear": {
+      "additionalProperties": false,
+      "properties": {
+        "color": {
+          "anyOf": [
+            {
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Color"
+        },
+        "kind": {
+          "default": "none",
+          "enum": [
+            "none",
+            "shorts",
+            "ragged_shorts",
+            "trousers"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "title": "Legwear",
+      "type": "object"
+    },
+    "Prop": {
+      "additionalProperties": false,
+      "properties": {
+        "hand": {
+          "default": "right",
+          "enum": [
+            "left",
+            "right"
+          ],
+          "title": "Hand",
+          "type": "string"
+        },
+        "kind": {
+          "default": "none",
+          "enum": [
+            "none",
+            "clipboard",
+            "stopwatch",
+            "bottle",
+            "syringe",
+            "apple",
+            "medal"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "title": "Prop",
       "type": "object"
     },
     "Style": {
@@ -70,6 +197,60 @@
         "preset"
       ],
       "title": "Style",
+      "type": "object"
+    },
+    "Top": {
+      "additionalProperties": false,
+      "properties": {
+        "accent_color": {
+          "anyOf": [
+            {
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "suit: the tie colour (no tie when null)",
+          "title": "Accent Color"
+        },
+        "color": {
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "title": "Color",
+          "type": "string"
+        },
+        "number": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9]{1,3}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "chest number on a white bib",
+          "title": "Number"
+        },
+        "style": {
+          "default": "plain",
+          "enum": [
+            "plain",
+            "suit",
+            "tank",
+            "shirt"
+          ],
+          "title": "Style",
+          "type": "string"
+        }
+      },
+      "required": [
+        "color"
+      ],
+      "title": "Top",
       "type": "object"
     },
     "Voice": {
@@ -122,8 +303,8 @@
       "type": "array"
     },
     "schema_version": {
-      "const": 1,
-      "default": 1,
+      "const": 2,
+      "default": 2,
       "title": "Schema Version",
       "type": "integer"
     },
