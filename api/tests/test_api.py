@@ -466,3 +466,14 @@ def test_cover_is_a_small_cached_jpeg(client, lib):
     assert small.stat().st_mtime_ns == made  # cached
     assert client.get(url).headers["content-type"] == "image/jpeg"
     assert client.get(f"{P}").json()["thumbs"] == ["thumb-1.png", "thumb-2.png", "thumb-3.png"]  # not a candidate
+
+
+def test_approving_final_cleans_up(client, lib):
+    finish_done(lib)
+    d = lib / "demo" / "part-01"
+    (d / "preview.mp4").write_bytes(b"p")
+    r = client.post(f"{P}/approve/final")
+    assert r.status_code == 200 and r.json()["approvals"]["final"]["approved_at"]
+    assert not (d / "frames").exists() and not (d / "preview.mp4").exists()
+    assert (d / "final.mp4").exists() and (d / "thumbs" / "thumb-1.png").exists()
+    assert client.get(P).json()["frames_bytes"] == 0

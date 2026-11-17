@@ -373,7 +373,7 @@ def test_finish_reruns_only_for_what_it_uses(lib, capsys):
     series = load_series(sf)
     series.parts.append("part-03")  # a new part ...
     save_series(sf, series)
-    assert cli(lib, "approve", "demo", "part-01", "final") == 0  # ... and an approval
+    assert cli(lib, "approve", "demo", "part-01", "stills") == 0  # ... and an approval (not final: that cleans up)
     capsys.readouterr()
     assert stage(lib, "finish") == 0
     assert "finish: skipped" in capsys.readouterr().out

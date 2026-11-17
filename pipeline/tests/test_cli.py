@@ -352,3 +352,37 @@ def test_cli_survives_a_cp1252_console(lib):
     r = subprocess.run([sys.executable, "-m", "pipeline.scribble.cli", "status", "cat", "--library", str(lib)],
                        capture_output=True, env={**__import__("os").environ, "PYTHONIOENCODING": "cp1252"})
     assert r.returncode == 0 and b"Cat ? ?" in r.stdout
+
+
+def test_final_approval_cleans_up_disposable_assets(lib, capsys):
+    from pipeline.scribble.io import save_part
+    main(["new-series", "cat", "--title", "Cat"])
+    main(["new-part", "cat"])
+    d = lib / "cat" / "part-01"
+    for f in ("frames/000000.png", "frames/stills/s01.png", "frames/chunks/c000.json", "audio/mix.wav",
+              "preview.mp4", "test-render.mp4", "captions.ass", "final.mp4", "voice.mp3", "qa.json",
+              "thumbs/thumb-1.png", "upload.md", "stills-sheet.png", "phrases.json", "story.json"):
+        (d / f).parent.mkdir(parents=True, exist_ok=True)
+        (d / f).write_bytes(b"x" * 1000)
+    keep = {"final.mp4", "voice.mp3", "qa.json", "thumbs", "upload.md", "stills-sheet.png", "phrases.json",
+            "story.json", "story.md", "part.json"}
+    assert main(["approve", "cat", "part-01", "final"]) == 0  # finish not done: refused, nothing deleted
+    assert "cleanup skipped: no finished final.mp4" in capsys.readouterr().out
+    assert (d / "frames").exists()
+    p = load_part(d / "part.json")
+    p.stages.finish.status = "done"
+    save_part(d / "part.json", p)
+    assert main(["cleanup", "cat", "part-01"]) == 0
+    assert "deleted frames, audio, preview.mp4, test-render.mp4, captions.ass (0.0 MB freed)" in capsys.readouterr().out
+    assert {f.name for f in d.iterdir()} == keep
+    assert main(["cleanup", "cat", "part-01"]) == 0  # again: nothing left to delete
+    assert "nothing (already clean)" in capsys.readouterr().out
+
+
+def test_cleanup_refused_before_final_approval(lib, capsys):
+    main(["new-series", "cat", "--title", "Cat"])
+    main(["new-part", "cat"])
+    (lib / "cat" / "part-01" / "frames").mkdir()
+    assert main(["cleanup", "cat", "part-01"]) == 1
+    assert "final not approved yet" in capsys.readouterr().out
+    assert (lib / "cat" / "part-01" / "frames").exists()

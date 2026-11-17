@@ -113,7 +113,7 @@ function approvalReason(a: (typeof APPROVALS)[number]): string | null {
 }
 async function approve(a: (typeof APPROVALS)[number]) {
   if (a.key === 'final') {
-    const ok = await confirm({ title: 'Approve the final video?', body: 'Approvals are kept for good: only approve after watching final.mp4 to the end.', confirm: 'Approve final' })
+    const ok = await confirm({ title: 'Approve the final video?', body: 'Approvals are kept for good: only approve after watching final.mp4 to the end. Approving also deletes what only made it (frames, audio stems, preview, test render) to free space: changing the video later means rendering it again. final.mp4, voice, story and thumbnails are kept.', confirm: 'Approve final' })
     if (!ok) return
   }
   if (await act(() => api.approve(props.slug, props.part, a.key), `${a.label} approved`)) refresh()

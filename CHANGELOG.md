@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+- Approving a final cleans the part up: frames, audio stems, preview, test render and captions.ass are deleted
+  (final.mp4, voice, story, thumbnails and upload text kept); `cleanup <slug> <part>` does it by hand.
+
 ## v1.0.0 (2026-11-17)
 
 First complete version: a story.md and a voice.mp3 in, a captioned, QA-checked final.mp4 out, run from one dashboard.

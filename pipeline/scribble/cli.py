@@ -327,7 +327,46 @@ def cmd_approve(args) -> int:
     a.approved_at = utcnow()
     save_part(pdir / "part.json", part)
     print(f"{args.part} {args.what} approved")
+    if args.what == "final":
+        cleanup(pdir)
     return 0
+
+
+# Only there to make final.mp4: once it is approved they are dead weight (frames alone are 1-2 GB a part).
+# Kept: story.md, voice.mp3, script-for-tts.txt, phrases.json, story.json, part.json, final.mp4, qa.json, thumbs/,
+# upload.md, stills-sheet.png. Changing an approved video afterwards means rendering it again.
+DISPOSABLE = ["frames", "audio", "preview.mp4", "test-render.mp4", "captions.ass"]
+
+
+def cleanup(pdir: Path) -> int | None:
+    """Delete a part's DISPOSABLE assets once its final is approved and finished. Returns bytes freed, or None when
+    refused (no approval, no finished final.mp4, or a render running; the reason is printed)."""
+    part = load_part(pdir / "part.json")
+    why = ("final not approved yet" if not part.approvals.final.approved_at
+           else "no finished final.mp4" if part.stages.finish.status != "done" or not (pdir / "final.mp4").is_file()
+           else "a render is running on it" if render_stage.lock_owner(pdir) else None)
+    if why:
+        print(f"cleanup skipped: {why}; nothing deleted")
+        return None
+    freed, gone = 0, []
+    for name in DISPOSABLE:
+        f = pdir / name
+        if f.is_dir():
+            freed += sum(x.stat().st_size for x in f.rglob("*") if x.is_file())
+            shutil.rmtree(f)
+        elif f.is_file():
+            freed += f.stat().st_size
+            f.unlink()
+        else:
+            continue
+        gone.append(name)
+    print(f"cleanup: deleted {', '.join(gone) or 'nothing (already clean)'} ({freed / 1e6:.1f} MB freed); "
+          f"final.mp4, voice, story and thumbnails kept")
+    return freed
+
+
+def cmd_cleanup(args) -> int:
+    return 1 if cleanup(part_dir(args)) is None else 0
 
 
 def cmd_approve_cast(args) -> int:
@@ -543,6 +582,13 @@ def build_parser() -> Parser:
     c.add_argument("part")
     c.add_argument("what", choices=["stills", "test_render", "final"])
     c.set_defaults(func=cmd_approve)
+
+    c = sub.add_parser("cleanup", parents=[common],
+                       help="delete what only made final.mp4 (frames, audio stems, preview, test render, captions.ass) "
+                            "of a part whose final is approved; approving the final does this automatically")
+    c.add_argument("slug")
+    c.add_argument("part")
+    c.set_defaults(func=cmd_cleanup)
 
     c = sub.add_parser("approve-cast", parents=[common], help="approve a cast member after checking the cast sheet")
     c.add_argument("slug")

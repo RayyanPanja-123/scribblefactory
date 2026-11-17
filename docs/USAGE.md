@@ -100,11 +100,15 @@ Any stage can be re-run from its chip menu. Captions on or off: `cli set-caption
 3. Upload final.mp4 to YouTube Shorts and Instagram Reels by hand.
 4. **Mark posted** with each link (`cli mark-posted <slug> <part> youtube --url https://...`).
 
-## 7. Cleaning frames
+## 7. Cleaning up
 
 Rendered frames are large (about 1-2 GB a part). final.mp4 does not need them.
 
-- One part: Disk card → **Clean frames** (`cli clean-frames <slug> <part>`), once finish is done.
+- **Automatic**: approving the final deletes everything that only made final.mp4: `frames/`, `audio/` (music,
+  sfx and mix stems), preview.mp4, test-render.mp4 and captions.ass. Kept: final.mp4, qa.json, voice.mp3,
+  story.md, script, phrases.json, story.json, thumbs/, upload.md, the stills sheet. Changing the video afterwards
+  means rendering it again. Approved before this existed, or the cleanup was skipped: `cli cleanup <slug> <part>`.
+- Frames only, before approving: Disk card → **Clean frames** (`cli clean-frames <slug> <part>`), once finish is done.
 - Every posted part: `cli clean-frames --posted [<slug>]` lists what it would delete (approved final, posted on
   both platforms); add `--yes` to delete. It prints the space freed.
 
