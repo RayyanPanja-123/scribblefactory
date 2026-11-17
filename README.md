@@ -23,7 +23,7 @@ bash setup.sh
 .venv/bin/uvicorn api.main:app --host 127.0.0.1 --port 8765       # macOS/Linux
 .venv/Scripts/uvicorn api.main:app --host 127.0.0.1 --port 8765   # Windows (Git Bash)
 # -> http://127.0.0.1:8765/api/health  (endpoints: api/README.md)
-(cd web && npm run dev)
+(cd web && npm run dev)                                            # -> http://localhost:5173
 ```
 
 The venv lives at repo root: `.venv/bin/` on macOS/Linux, `.venv/Scripts/` on Windows.

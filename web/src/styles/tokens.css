@@ -1,0 +1,165 @@
+/* scribblefactory design tokens + base components. Rules and rationale: docs/design.md */
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Fredoka", "Inter", ui-sans-serif, sans-serif;
+
+  --color-page: #111113;
+  --color-bezel: #1c1c1e;
+  --color-surface: #f2efe9;
+  --color-panel: #f8f6f1;
+  --color-well: #ebe7df;
+  --color-ink: #1f1d1a;
+  --color-muted: #6b665d;       /* muted TEXT (5.0:1 on surface) */
+  --color-faint: #8a857c;       /* icons, rules, decoration only: 3.2:1, never body text */
+
+  --color-green: #2fa36b;
+  --color-red: #e35b4f;
+  --color-amber: #f2b84b;
+  --color-blue: #4f7cf7;
+  /* text on tinted chips: all >= 4.9:1 */
+  --color-green-ink: #1b6b45;
+  --color-red-ink: #a8352b;
+  --color-amber-ink: #7f5a10;
+  --color-blue-ink: #2c4fb8;
+  --color-grey-ink: #5c584f;
+
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-frame: 36px;
+}
+
+:root {
+  --shadow-raised: -6px -6px 14px rgb(255 255 255 / 0.85), 8px 10px 22px rgb(120 104 82 / 0.18),
+    inset 0 1px 0 rgb(255 255 255 / 0.9);
+  --shadow-raised-deep: -8px -8px 18px rgb(255 255 255 / 0.9), 14px 20px 34px rgb(120 104 82 / 0.28);
+  --shadow-inset: inset 3px 3px 7px rgb(120 104 82 / 0.2), inset -3px -3px 7px rgb(255 255 255 / 0.8);
+  --shadow-chip: inset 1px 1px 2px rgb(120 104 82 / 0.18), inset -1px -1px 2px rgb(255 255 255 / 0.7);
+  --shadow-dark: 0 6px 14px rgb(31 29 26 / 0.3), inset 0 1px 0 rgb(255 255 255 / 0.12);
+  --grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+html, body, #app { height: 100%; }
+body {
+  margin: 0;
+  background: var(--color-page);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+@layer components {
+  .grain { position: relative; }
+  .grain::before, .raised::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background-image: var(--grain);
+    opacity: 0.03;
+    pointer-events: none;
+  }
+
+  .raised {
+    position: relative;
+    background: var(--color-panel);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-raised);
+  }
+  /* hover shadow lives on its own layer so only its opacity animates */
+  .raised::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: var(--shadow-raised-deep);
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    pointer-events: none;
+  }
+  .raised.lift:hover::after { opacity: 1; }
+
+  .inset {
+    background: var(--color-well);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-inset);
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 20px;
+    white-space: nowrap;
+    box-shadow: var(--shadow-chip);
+    background: #e4e2dc;
+    color: var(--color-grey-ink);
+  }
+  .chip-green { background: #d4e7d9; color: var(--color-green-ink); }
+  .chip-red { background: #f4dad4; color: var(--color-red-ink); }
+  .chip-amber { background: #f7ebd3; color: var(--color-amber-ink); }
+  .chip-blue { background: #dae0f2; color: var(--color-blue-ink); }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 18px;
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: box-shadow 0.15s ease, transform 0.15s ease;
+  }
+  .btn-primary { background: var(--color-ink); color: #fff; box-shadow: var(--shadow-dark); }
+  .btn-primary:active { box-shadow: inset 2px 3px 6px rgb(0 0 0 / 0.5); }
+  .btn-secondary { background: var(--color-panel); color: var(--color-ink); box-shadow: var(--shadow-raised); }
+  .btn-secondary:active { box-shadow: var(--shadow-inset); }
+  .btn:focus-visible, a:focus-visible, button:focus-visible, input:focus-visible {
+    outline: 2px solid var(--color-blue);
+    outline-offset: 3px;
+  }
+
+  .round-btn {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 999px;
+    color: var(--color-muted);
+    background: var(--color-panel);
+    box-shadow: var(--shadow-raised);
+    transition: box-shadow 0.2s ease, color 0.2s ease;
+  }
+  .round-btn[aria-current="page"], .round-btn:active { box-shadow: var(--shadow-inset); background: var(--color-well); color: var(--color-ink); }
+
+  .num { font-family: var(--font-display); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  .skeleton { position: relative; overflow: hidden; background: var(--color-well); border-radius: var(--radius-lg); }
+  .skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.55), transparent);
+    transform: translateX(-100%);
+    animation: shimmer 1.4s ease-in-out infinite;
+  }
+
+  .pulse { animation: pulse 1.6s ease-in-out infinite; }
+}
+
+@keyframes shimmer { to { transform: translateX(100%); } }
+@keyframes pulse { 50% { opacity: 0.45; transform: scale(0.85); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after { animation: none; opacity: 0; }
+  .skeleton { animation: fade 1.4s ease-in-out infinite; }
+  .pulse { animation: fade 1.6s ease-in-out infinite; }
+  .raised::after, .btn, .round-btn { transition-duration: 0s; }
+}
+@keyframes fade { 50% { opacity: 0.55; } }

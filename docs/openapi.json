@@ -1,6 +1,43 @@
 {
   "components": {
     "schemas": {
+      "Approval": {
+        "additionalProperties": false,
+        "properties": {
+          "approved_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved At"
+          }
+        },
+        "title": "Approval",
+        "type": "object"
+      },
+      "Approvals": {
+        "additionalProperties": false,
+        "properties": {
+          "final": {
+            "$ref": "#/components/schemas/Approval",
+            "default": {}
+          },
+          "stills": {
+            "$ref": "#/components/schemas/Approval",
+            "default": {}
+          },
+          "test_render": {
+            "$ref": "#/components/schemas/Approval",
+            "default": {}
+          }
+        },
+        "title": "Approvals",
+        "type": "object"
+      },
       "CastApproval": {
         "properties": {
           "cast_id": {
@@ -14,6 +51,87 @@
         "title": "CastApproval",
         "type": "object"
       },
+      "CastMember": {
+        "additionalProperties": false,
+        "properties": {
+          "approved_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved At"
+          },
+          "default_expression": {
+            "default": "neutral",
+            "enum": [
+              "neutral",
+              "happy",
+              "sad",
+              "angry",
+              "surprised",
+              "sleepy",
+              "cheeky",
+              "exhausted"
+            ],
+            "title": "Default Expression",
+            "type": "string"
+          },
+          "eyes": {
+            "enum": [
+              "dots",
+              "half_closed"
+            ],
+            "title": "Eyes",
+            "type": "string"
+          },
+          "headwear": {
+            "$ref": "#/components/schemas/Headwear",
+            "default": {
+              "kind": "none"
+            }
+          },
+          "id": {
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "title": "Id",
+            "type": "string"
+          },
+          "legwear": {
+            "$ref": "#/components/schemas/Legwear",
+            "default": {
+              "kind": "none"
+            }
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "props": {
+            "default": [],
+            "description": "held props, one per hand",
+            "items": {
+              "$ref": "#/components/schemas/Prop"
+            },
+            "maxItems": 2,
+            "title": "Props",
+            "type": "array"
+          },
+          "top": {
+            "$ref": "#/components/schemas/Top"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "top",
+          "eyes"
+        ],
+        "title": "CastMember",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -25,6 +143,154 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "Headwear": {
+        "additionalProperties": false,
+        "properties": {
+          "color": {
+            "anyOf": [
+              {
+                "pattern": "^#[0-9a-fA-F]{6}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          },
+          "kind": {
+            "default": "none",
+            "enum": [
+              "none",
+              "flat_cap",
+              "postman_cap",
+              "bowler",
+              "straw_hat"
+            ],
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "title": "Headwear",
+        "type": "object"
+      },
+      "Health": {
+        "properties": {
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "title": "Health",
+        "type": "object"
+      },
+      "Job": {
+        "properties": {
+          "current_step": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Step"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "output": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Output",
+            "type": "array"
+          },
+          "part": {
+            "title": "Part",
+            "type": "string"
+          },
+          "queued_at": {
+            "title": "Queued At",
+            "type": "string"
+          },
+          "returncode": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Returncode"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "done",
+              "failed",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "steps": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Steps",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "part",
+          "steps",
+          "current_step",
+          "status",
+          "queued_at",
+          "started_at",
+          "finished_at",
+          "returncode",
+          "output"
+        ],
+        "title": "Job",
         "type": "object"
       },
       "JobRequest": {
@@ -51,6 +317,455 @@
           "steps"
         ],
         "title": "JobRequest",
+        "type": "object"
+      },
+      "Kpi": {
+        "properties": {
+          "parts_in_progress": {
+            "title": "Parts In Progress",
+            "type": "integer"
+          },
+          "posted_this_month": {
+            "title": "Posted This Month",
+            "type": "integer"
+          },
+          "series": {
+            "title": "Series",
+            "type": "integer"
+          },
+          "waiting_for_approval": {
+            "title": "Waiting For Approval",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "series",
+          "parts_in_progress",
+          "waiting_for_approval",
+          "posted_this_month"
+        ],
+        "title": "Kpi",
+        "type": "object"
+      },
+      "Legwear": {
+        "additionalProperties": false,
+        "properties": {
+          "color": {
+            "anyOf": [
+              {
+                "pattern": "^#[0-9a-fA-F]{6}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          },
+          "kind": {
+            "default": "none",
+            "enum": [
+              "none",
+              "shorts",
+              "ragged_shorts",
+              "trousers"
+            ],
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "title": "Legwear",
+        "type": "object"
+      },
+      "MonthPosts": {
+        "properties": {
+          "instagram": {
+            "title": "Instagram",
+            "type": "integer"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "youtube": {
+            "title": "Youtube",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "month",
+          "youtube",
+          "instagram"
+        ],
+        "title": "MonthPosts",
+        "type": "object"
+      },
+      "Overview": {
+        "properties": {
+          "disk_usage": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Disk Usage",
+            "type": "object"
+          },
+          "kpi": {
+            "$ref": "#/components/schemas/Kpi"
+          },
+          "posts_per_month": {
+            "items": {
+              "$ref": "#/components/schemas/MonthPosts"
+            },
+            "title": "Posts Per Month",
+            "type": "array"
+          },
+          "waiting": {
+            "items": {
+              "$ref": "#/components/schemas/Waiting"
+            },
+            "title": "Waiting",
+            "type": "array"
+          }
+        },
+        "required": [
+          "kpi",
+          "waiting",
+          "posts_per_month",
+          "disk_usage"
+        ],
+        "title": "Overview",
+        "type": "object"
+      },
+      "PartDetail": {
+        "properties": {
+          "busy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Busy"
+          },
+          "files": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "title": "Files",
+            "type": "object"
+          },
+          "frames_bytes": {
+            "title": "Frames Bytes",
+            "type": "integer"
+          },
+          "part": {
+            "$ref": "#/components/schemas/PartModel"
+          },
+          "qa": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Qa"
+          },
+          "thumbs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Thumbs",
+            "type": "array"
+          },
+          "upload_md": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Upload Md"
+          },
+          "voice_duration": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voice Duration"
+          }
+        },
+        "required": [
+          "part",
+          "files",
+          "thumbs",
+          "qa",
+          "upload_md",
+          "voice_duration",
+          "frames_bytes",
+          "busy"
+        ],
+        "title": "PartDetail",
+        "type": "object"
+      },
+      "PartModel": {
+        "additionalProperties": false,
+        "properties": {
+          "approvals": {
+            "$ref": "#/components/schemas/Approvals",
+            "default": {
+              "final": {},
+              "stills": {},
+              "test_render": {}
+            }
+          },
+          "id": {
+            "pattern": "^part-[0-9]{2}$",
+            "title": "Id",
+            "type": "string"
+          },
+          "number": {
+            "maximum": 99.0,
+            "minimum": 1.0,
+            "title": "Number",
+            "type": "integer"
+          },
+          "posted": {
+            "$ref": "#/components/schemas/Posted",
+            "default": {}
+          },
+          "schema_version": {
+            "const": 1,
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "stages": {
+            "$ref": "#/components/schemas/Stages",
+            "default": {
+              "audio": {
+                "status": "pending"
+              },
+              "finish": {
+                "status": "pending"
+              },
+              "import_check": {
+                "status": "pending"
+              },
+              "prep": {
+                "status": "pending"
+              },
+              "render": {
+                "status": "pending"
+              },
+              "shots": {
+                "status": "pending"
+              },
+              "thumbnails": {
+                "status": "pending"
+              },
+              "timing": {
+                "status": "pending"
+              },
+              "validate": {
+                "status": "pending"
+              }
+            }
+          },
+          "thumbnail_choice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thumbnail Choice"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "title"
+        ],
+        "title": "PartModel",
+        "type": "object"
+      },
+      "PartSummary": {
+        "properties": {
+          "approvals": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "default": {},
+            "title": "Approvals",
+            "type": "object"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "missing": {
+            "default": false,
+            "title": "Missing",
+            "type": "boolean"
+          },
+          "number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Number"
+          },
+          "posted": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Posted"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stages": {
+            "additionalProperties": {
+              "enum": [
+                "pending",
+                "running",
+                "done",
+                "failed"
+              ],
+              "type": "string"
+            },
+            "default": {},
+            "title": "Stages",
+            "type": "object"
+          },
+          "thumbnail_choice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thumbnail Choice"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "waiting": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Waiting",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "PartSummary",
+        "type": "object"
+      },
+      "Post": {
+        "additionalProperties": false,
+        "properties": {
+          "posted_at": {
+            "title": "Posted At",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "posted_at"
+        ],
+        "title": "Post",
+        "type": "object"
+      },
+      "Posted": {
+        "additionalProperties": false,
+        "properties": {
+          "instagram": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Post"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "youtube": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Post"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Posted",
+        "type": "object"
+      },
+      "PostedCounts": {
+        "properties": {
+          "instagram": {
+            "title": "Instagram",
+            "type": "integer"
+          },
+          "youtube": {
+            "title": "Youtube",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "youtube",
+          "instagram"
+        ],
+        "title": "PostedCounts",
         "type": "object"
       },
       "Posting": {
@@ -91,6 +806,332 @@
         "title": "Posting",
         "type": "object"
       },
+      "Prop": {
+        "additionalProperties": false,
+        "properties": {
+          "hand": {
+            "default": "right",
+            "enum": [
+              "left",
+              "right"
+            ],
+            "title": "Hand",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "clipboard",
+              "stopwatch",
+              "bottle",
+              "syringe",
+              "apple",
+              "medal"
+            ],
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "Prop",
+        "type": "object"
+      },
+      "SeriesCard": {
+        "properties": {
+          "cover": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cover"
+          },
+          "disk_usage": {
+            "title": "Disk Usage",
+            "type": "integer"
+          },
+          "part_count": {
+            "title": "Part Count",
+            "type": "integer"
+          },
+          "posted": {
+            "$ref": "#/components/schemas/PostedCounts"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug",
+          "title",
+          "status",
+          "part_count",
+          "cover",
+          "disk_usage",
+          "posted"
+        ],
+        "title": "SeriesCard",
+        "type": "object"
+      },
+      "SeriesDetail": {
+        "properties": {
+          "cast_sheet": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cast Sheet"
+          },
+          "parts": {
+            "items": {
+              "$ref": "#/components/schemas/PartSummary"
+            },
+            "title": "Parts",
+            "type": "array"
+          },
+          "series": {
+            "$ref": "#/components/schemas/SeriesModel"
+          }
+        },
+        "required": [
+          "series",
+          "parts",
+          "cast_sheet"
+        ],
+        "title": "SeriesDetail",
+        "type": "object"
+      },
+      "SeriesModel": {
+        "additionalProperties": false,
+        "properties": {
+          "cast": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/CastMember"
+            },
+            "title": "Cast",
+            "type": "array"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "parts": {
+            "default": [],
+            "items": {
+              "pattern": "^part-[0-9]{2}$",
+              "type": "string"
+            },
+            "title": "Parts",
+            "type": "array"
+          },
+          "schema_version": {
+            "const": 3,
+            "default": 3,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "slug": {
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "title": "Slug",
+            "type": "string"
+          },
+          "status": {
+            "default": "draft",
+            "enum": [
+              "draft",
+              "active",
+              "complete",
+              "archived"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "style": {
+            "$ref": "#/components/schemas/Style"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "voice": {
+            "$ref": "#/components/schemas/Voice"
+          }
+        },
+        "required": [
+          "slug",
+          "title",
+          "created_at",
+          "voice",
+          "style"
+        ],
+        "title": "SeriesModel",
+        "type": "object"
+      },
+      "Stage": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "inputs_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inputs Hash"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "default": "pending",
+            "enum": [
+              "pending",
+              "running",
+              "done",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "title": "Stage",
+        "type": "object"
+      },
+      "Stages": {
+        "additionalProperties": false,
+        "properties": {
+          "audio": {
+            "$ref": "#/components/schemas/Stage",
+            "default": {
+              "status": "pending"
+            }
+          },
+          "finish": {
+            "$ref": "#/components/schemas/Stage",
+            "default": {
+              "status": "pending"
+            }
+          },
+          "import_check": {
+            "$ref": "#/components/schemas/Stage",
+            "default": {
+              "status": "pending"
+            }
+          },
+          "prep": {
+            "$ref": "#/components/schemas/Stage",
+            "default": {
+              "status": "pending"
+            }
+          },
+          "render": {
+            "$ref": "#/components/schemas/Stage",
+            "default": {
+              "status": "pending"
+            }
+          },
+          "shots": {
+            "$ref": "#/components/schemas/Stage",
+            "default": {
+              "status": "pending"
+            }
+          },
+          "thumbnails": {
+            "$ref": "#/components/schemas/Stage",
+            "default": {
+              "status": "pending"
+            }
+          },
+          "timing": {
+            "$ref": "#/components/schemas/Stage",
+            "default": {
+              "status": "pending"
+            }
+          },
+          "validate": {
+            "$ref": "#/components/schemas/Stage",
+            "default": {
+              "status": "pending"
+            }
+          }
+        },
+        "title": "Stages",
+        "type": "object"
+      },
+      "Style": {
+        "additionalProperties": false,
+        "properties": {
+          "captions": {
+            "default": true,
+            "title": "Captions",
+            "type": "boolean"
+          },
+          "locked": {
+            "default": false,
+            "title": "Locked",
+            "type": "boolean"
+          },
+          "preset": {
+            "title": "Preset",
+            "type": "string"
+          }
+        },
+        "required": [
+          "preset"
+        ],
+        "title": "Style",
+        "type": "object"
+      },
       "Thumbnail": {
         "properties": {
           "n": {
@@ -107,6 +1148,58 @@
           "n"
         ],
         "title": "Thumbnail",
+        "type": "object"
+      },
+      "Top": {
+        "additionalProperties": false,
+        "properties": {
+          "accent_color": {
+            "anyOf": [
+              {
+                "pattern": "^#[0-9a-fA-F]{6}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "suit: the tie colour (no tie when null)",
+            "title": "Accent Color"
+          },
+          "color": {
+            "pattern": "^#[0-9a-fA-F]{6}$",
+            "title": "Color",
+            "type": "string"
+          },
+          "number": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9]{1,3}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "chest number on a white bib",
+            "title": "Number"
+          },
+          "style": {
+            "default": "plain",
+            "enum": [
+              "plain",
+              "suit",
+              "tank",
+              "shirt"
+            ],
+            "title": "Style",
+            "type": "string"
+          }
+        },
+        "required": [
+          "color"
+        ],
+        "title": "Top",
         "type": "object"
       },
       "UploadText": {
@@ -161,6 +1254,63 @@
         ],
         "title": "ValidationError",
         "type": "object"
+      },
+      "Voice": {
+        "additionalProperties": false,
+        "properties": {
+          "notes": {
+            "default": "",
+            "title": "Notes",
+            "type": "string"
+          },
+          "provider": {
+            "default": "freetts.ai",
+            "title": "Provider",
+            "type": "string"
+          },
+          "voice_name": {
+            "title": "Voice Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "voice_name"
+        ],
+        "title": "Voice",
+        "type": "object"
+      },
+      "Waiting": {
+        "properties": {
+          "part": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Part"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "waiting": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Waiting",
+            "type": "array"
+          }
+        },
+        "required": [
+          "slug",
+          "part",
+          "waiting"
+        ],
+        "title": "Waiting",
+        "type": "object"
       }
     }
   },
@@ -193,7 +1343,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
               }
             },
             "description": "Successful Response"
@@ -209,7 +1361,13 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Job"
+                  },
+                  "title": "Response List Jobs Api Jobs Get",
+                  "type": "array"
+                }
               }
             },
             "description": "Successful Response"
@@ -342,7 +1500,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Overview"
+                }
               }
             },
             "description": "Successful Response"
@@ -358,7 +1518,13 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SeriesCard"
+                  },
+                  "title": "Response Series List Api Series Get",
+                  "type": "array"
+                }
               }
             },
             "description": "Successful Response"
@@ -385,7 +1551,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesDetail"
+                }
               }
             },
             "description": "Successful Response"
@@ -478,7 +1646,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/PartDetail"
+                }
               }
             },
             "description": "Successful Response"

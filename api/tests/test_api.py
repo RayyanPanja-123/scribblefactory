@@ -91,7 +91,7 @@ def test_series_detail(client):
     r = client.get("/api/series/demo").json()
     assert r["series"]["cast"][0]["id"] == "bob"
     [p] = r["parts"]
-    assert p["stages"]["prep"] == "pending" and p["approvals"]["stills"] is None and p["waiting"] == ["stills"]
+    assert list(p["stages"])[4] == "validate" and p["stages"]["prep"] == "pending" and p["approvals"]["stills"] is None and p["waiting"] == ["stills"]
     assert client.get("/api/series/nope").status_code == 404
     assert client.get("/api/series/..%2Fx").status_code == 404
 

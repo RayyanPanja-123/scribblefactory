@@ -28,7 +28,7 @@ from sse_starlette import EventSourceResponse
 
 from pipeline.scribble import cli
 from pipeline.scribble.io import atomic_write_text, load_part, load_series
-from pipeline.scribble.schemas import Slug, Stages, utcnow
+from pipeline.scribble.schemas import PartModel, Posted, SeriesModel, Slug, Stage, Stages, utcnow
 from pipeline.scribble.stages import render as render_stage
 from pipeline.scribble.stages.import_check import probe_duration
 from pipeline.scribble.stages.runner import StageError
@@ -122,7 +122,7 @@ def part_summary(pdir: Path, p) -> dict:
     if p is None:
         return {"id": pdir.name, "missing": True}
     return {"id": p.id, "number": p.number, "title": p.title,
-            "stages": {name: getattr(p.stages, name).status for name in Stages.model_fields},
+            "stages": {f.alias or name: getattr(p.stages, name).status for name, f in Stages.model_fields.items()},
             "approvals": {n: getattr(p.approvals, n).model_dump(mode="json")["approved_at"] for n in APPROVE_NEEDS},
             "posted": p.posted.model_dump(mode="json"), "thumbnail_choice": p.thumbnail_choice,
             "waiting": waiting_approvals(pdir, p)}
@@ -136,14 +136,107 @@ def series_json(d: Path) -> dict:
     return load_series(d / "series.json").model_dump(mode="json")
 
 
+# ---------------- response models (docs/openapi.json -> web/src/api/types.ts) ----------------
+
+StageStatus = Stage.model_fields["status"].annotation
+
+
+class Health(BaseModel):
+    ok: bool
+
+
+class Kpi(BaseModel):
+    series: int
+    parts_in_progress: int
+    waiting_for_approval: int
+    posted_this_month: int
+
+
+class Waiting(BaseModel):
+    slug: str
+    part: str | None  # None: series-level (cast)
+    waiting: list[str]  # "stills" | "test_render" | "final" | "cast:<id>"
+
+
+class MonthPosts(BaseModel):
+    month: str  # YYYY-MM
+    youtube: int
+    instagram: int
+
+
+class Overview(BaseModel):
+    kpi: Kpi
+    waiting: list[Waiting]
+    posts_per_month: list[MonthPosts]
+    disk_usage: dict[str, int]  # slug -> bytes
+
+
+class PostedCounts(BaseModel):
+    youtube: int
+    instagram: int
+
+
+class SeriesCard(BaseModel):
+    slug: str
+    title: str
+    status: str
+    part_count: int
+    cover: str | None
+    disk_usage: int
+    posted: PostedCounts
+
+
+class PartSummary(BaseModel):
+    id: str
+    missing: bool = False  # listed in series.json but no part.json: only id is set
+    number: int | None = None
+    title: str | None = None
+    stages: dict[str, StageStatus] = {}
+    approvals: dict[str, str | None] = {}  # stills/test_render/final -> approved_at (ISO) or None
+    posted: Posted | None = None
+    thumbnail_choice: str | None = None
+    waiting: list[str] = []
+
+
+class SeriesDetail(BaseModel):
+    series: SeriesModel
+    parts: list[PartSummary]
+    cast_sheet: str | None
+
+
+class PartDetail(BaseModel):
+    part: PartModel
+    files: dict[str, bool]
+    thumbs: list[str]
+    qa: dict | None
+    upload_md: str | None
+    voice_duration: float | None
+    frames_bytes: int
+    busy: str | None
+
+
+class Job(BaseModel):
+    id: int
+    slug: str
+    part: str
+    steps: list[str]
+    current_step: int | None
+    status: Literal["queued", "running", "done", "failed", "cancelled"]
+    queued_at: str
+    started_at: str | None
+    finished_at: str | None
+    returncode: int | None
+    output: list[str]
+
+
 # ---------------- read endpoints ----------------
 
-@app.get("/api/health")
+@app.get("/api/health", response_model=Health)
 def health():
     return {"ok": True}
 
 
-@app.get("/api/overview")
+@app.get("/api/overview", response_model=Overview)
 def overview():
     now = utcnow()
     months = [f"{now.year - (now.month - 1 - i < 0)}-{(now.month - 1 - i) % 12 + 1:02d}" for i in range(11, -1, -1)]
@@ -173,21 +266,21 @@ def overview():
             "disk_usage": disk}
 
 
-@app.get("/api/series")
+@app.get("/api/series", response_model=list[SeriesCard])
 def series_list():
     return [{"slug": s.slug, "title": s.title, "status": s.status, "part_count": len(s.parts), "cover": cover(d),
              "disk_usage": du(d), "posted": posted_counts(d)}
             for d in all_series() for s in [load_series(d / "series.json")]]
 
 
-@app.get("/api/series/{slug}")
+@app.get("/api/series/{slug}", response_model=SeriesDetail)
 def series_detail(slug: str):
     d = series_path(slug)
     return {"series": series_json(d), "parts": [part_summary(d / pid, p) for pid, p in parts_of(d)],
             "cast_sheet": media_url(slug, "cast-sheet.png") if (d / "cast-sheet.png").is_file() else None}
 
 
-@app.get("/api/series/{slug}/parts/{part}")
+@app.get("/api/series/{slug}/parts/{part}", response_model=PartDetail)
 def part_detail(slug: str, part: str):
     pdir = part_path(slug, part)
     files = {f: (pdir / f).is_file() for f in PART_FILES}
@@ -379,7 +472,7 @@ def submit_job(body: JobRequest):
     return public(job)
 
 
-@app.get("/api/jobs")
+@app.get("/api/jobs", response_model=list[Job])
 def list_jobs():
     return [public(j) for j in list(JOBS)]
 
