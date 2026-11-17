@@ -1,53 +1,88 @@
-// Run: npm test (in engine/). Renders the pipeline's valid story fixture in a temp dir.
+// Run: npm test (in engine/). Renders the pipeline's valid story fixture in temp dirs. Every frame of this file is
+// rendered by one browser (render.mjs --batch, started in `before`), overlapped with the geometry-only loop check and
+// one plain call that covers the non-batch CLI path and determinism across separate processes.
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
-import { after, test } from "node:test";
-import { fileURLToPath } from "node:url";
+import { after, before, test } from "node:test";
 import { setVariant } from "../page/rng.js";
-
-const ENGINE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const FIX = path.join(ENGINE, "..", "pipeline", "tests", "fixtures", "story");
+import { fixturePart, frames, jobOk, png, render, renderNamed } from "./batch.mjs";
 
 const temps = [];
 after(() => { for (const d of temps) fs.rmSync(d, { recursive: true, force: true }); });
-
-function makePart(mutate = (s) => s) {
-  const series = fs.mkdtempSync(path.join(os.tmpdir(), "scribble-engine-"));
-  temps.push(series);
-  const part = path.join(series, "part-01");
-  fs.mkdirSync(part);
-  fs.copyFileSync(path.join(FIX, "series.json"), path.join(series, "series.json"));
-  fs.copyFileSync(path.join(FIX, "phrases.json"), path.join(part, "phrases.json"));
-  const story = mutate(JSON.parse(fs.readFileSync(path.join(FIX, "story.json"), "utf8")));
-  fs.writeFileSync(path.join(part, "story.json"), JSON.stringify(story));
-  return part;
-}
-
-// tests always force SwiftShader: identical bytes on any machine
-const render = (...args) => spawnSync(process.execPath, [path.join(ENGINE, "render.mjs"), ...args, "--swiftshader"], { encoding: "utf8" });
+const makePart = (mutate) => fixturePart(temps, mutate);
 const pngSize = (buf) => [buf.readUInt32BE(16), buf.readUInt32BE(20)]; // IHDR width, height
+const OUTDOOR = ["street", "dirt_road", "countryside", "orchard", "stadium"];
 
-test("same frame twice gives identical PNG bytes, 1080x1920 (a talk frame, mouth open)", () => {
-  const part = makePart();
-  const a = path.join(part, "a.png"), b = path.join(part, "b.png");
-  for (const out of [a, b]) {
-    const r = render("--part", part, "--frame", "66", "--out", out); // s02 bob talks, mouth cycle open
-    assert.equal(r.status, 0, r.stderr);
-  }
-  const A = fs.readFileSync(a), B = fs.readFileSync(b);
+// --- parts (built once) ---
+// fixture: s01 0-60, s02 60-120, s03 120-180, all office. base: s01 in the room (the unknown-set fallback target).
+const base = makePart((s) => { s.shots[0].set = "room"; return s; });
+const moon = makePart((s) => { s.shots[0].set = "moon"; return s; });
+const stills = makePart();
+// s03 -> street puts a wipe on frames 115..124
+const wiped = makePart((s) => { s.shots[2].set = "street"; return s; });
+const street = makePart((s) => { for (const sh of s.shots) sh.set = "street"; return s; });
+// set variant: same story, only the shot ids differ -> a different variant of dirt_road -> a different picture
+const IDS = Array.from({ length: 40 }, (_, i) => `s${String(i + 1).padStart(2, "0")}`);
+const otherId = IDS.find((id) => setVariant("dirt_road", id, 3) !== setVariant("dirt_road", "s01", 3));
+const variants = ["s01", otherId].map((id) => makePart((s) => {
+  for (const sh of s.shots) sh.set = "dirt_road";
+  s.shots[0].id = id; s.shots[1].id = `x${id}`; s.shots[2].id = `y${id}`;
+  return s;
+}));
+// s01 (frames 0-59) becomes a travel shot: bob walks in place facing left, the world scrolls; s02 on another set
+const travel = makePart((s) => {
+  Object.assign(s.shots[0], { set: "dirt_road", travel: { speed: 1.2 } });
+  Object.assign(s.shots[0].actors[0], { start_pos: [0, 0.1], end_pos: [0, 0.1], facing: "left" });
+  s.shots[1].set = "orchard";
+  return s;
+});
+const still = makePart((s) => { s.shots[0].set = "dirt_road"; s.shots[0].actors[0].end_pos = [0, 0.1]; return s; });
+// five 36-frame travel shots, one per outdoor set; --stills renders the middle of each
+const smoke = makePart((s) => {
+  const b = s.shots[0];
+  s.shots = OUTDOOR.map((set, i) => ({ ...structuredClone(b), id: `s0${i + 1}`, set, travel: { speed: 2.5 },
+    start_frame: i * 36, end_frame: (i + 1) * 36, phrase_range: [0, 0], twist: false,
+    actors: [{ ...b.actors[0], action: "run", start_pos: [0, 0.1], end_pos: [0, 0.1], facing: i % 2 ? "left" : "right" }] }));
+  return s;
+});
+
+const JOBS = {
+  talk: ["--part", base, "--frame", "66", "--out", path.join(base, "a.png")], // s02 bob talks, mouth cycle open
+  room: frames(base, "9-10", "range"),                                          // also the 6-digit range check
+  moon: frames(moon, "10-10", "a"),
+  badFrame: ["--part", base, "--frame", "999", "--out", path.join(base, "x.png")],
+  stills: ["--part", stills, "--stills"],
+  wipe114: frames(wiped, "114-114", "a"), wipe117: frames(wiped, "117-117", "a"), wipe117b: frames(wiped, "117-117", "b"),
+  office: frames(base, "114-114", "o"), office117: frames(base, "117-117", "o"), street117: frames(street, "117-117", "a"),
+  variant0: frames(variants[0], "10-10", "a"), variant1: frames(variants[1], "10-10", "a"),
+  travel54: frames(travel, "54-54", "a"), travel57: frames(travel, "57-57", "a"), travel54b: frames(travel, "54-54", "b"),
+  still54: frames(still, "54-54", "a"),
+  smoke: ["--part", smoke, "--stills"],
+};
+let R, plain, loop;
+before(async () => {
+  [R, plain, loop] = await Promise.all([
+    renderNamed(JOBS),
+    render("--part", base, "--frame", "66", "--out", path.join(base, "c.png"), "--info-out", path.join(base, "info.json")),
+    render("--loop-check"),
+  ]);
+});
+const ok = (name) => jobOk(R, name);
+
+test("same frame gives identical PNG bytes, 1080x1920 (a talk frame, mouth open), across processes", () => {
+  ok("talk");
+  assert.equal(plain.status, 0, plain.stderr);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(base, "info.json"), "utf8")).renderer, "swiftshader");
+  const [A, C] = ["a.png", "c.png"].map((f) => fs.readFileSync(path.join(base, f)));
   assert.equal(A.subarray(1, 4).toString(), "PNG");
   assert.deepEqual(pngSize(A), [1080, 1920]);
-  assert.ok(A.equals(B), "frame 66 rendered twice differs");
+  assert.ok(A.equals(C), "frame 66 differs between the batch and a separate process");
 });
 
 test("stills: one image per shot plus a manifest", () => {
-  const part = makePart();
-  const r = render("--part", part, "--stills");
-  assert.equal(r.status, 0, r.stderr);
-  const dir = path.join(part, "frames", "stills");
+  ok("stills");
+  const dir = path.join(stills, "frames", "stills");
   const manifest = JSON.parse(fs.readFileSync(path.join(dir, "manifest.json"), "utf8"));
   assert.deepEqual(manifest.frames.map((m) => m.file), ["s01.png", "s02.png", "s03.png"]);
   assert.equal(manifest.renderer.renderer, "swiftshader");
@@ -57,112 +92,67 @@ test("stills: one image per shot plus a manifest", () => {
 });
 
 test("unknown set falls back to room with a warning", () => {
-  const moon = makePart((s) => { s.shots[0].set = "moon"; return s; });
-  const room = makePart((s) => { s.shots[0].set = "room"; return s; });
-  const r = render("--part", moon, "--frame", "10", "--out", path.join(moon, "f.png"));
-  assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stderr, /unknown set "moon", using "room"/);
-  assert.equal(render("--part", room, "--frame", "10", "--out", path.join(room, "f.png")).status, 0);
-  assert.ok(fs.readFileSync(path.join(moon, "f.png")).equals(fs.readFileSync(path.join(room, "f.png"))));
+  ok("moon"); ok("room");
+  assert.match(R.stderr, /unknown set "moon", using "room"/);
+  assert.ok(png(path.join(moon, "a"), 10).equals(png(path.join(base, "range"), 10)));
 });
 
-test("bad frame number fails with exit 1", () => {
-  const part = makePart();
-  const r = render("--part", part, "--frame", "999", "--out", path.join(part, "x.png"));
-  assert.equal(r.status, 1);
-  assert.match(r.stderr, /outside 0\.\.179/);
+test("bad frame number fails that job with the range in the message", () => {
+  assert.equal(R.badFrame.ok, false);
+  assert.match(R.badFrame.error, /outside 0\.\.179/);
 });
-
-const OUTDOOR = ["street", "dirt_road", "countryside", "orchard", "stadium"];
 
 test("every set and variant builds inside stage clearance; outdoor props loop around the band without gaps", () => {
   // geometry only (no frames): --loop-check builds every set/variant for two seeds (buildSet throws on a clearance
   // break) and sweeps the travel shift across the whole band, comparing each row's widest gap around the band with
   // the widest gap inside the static layout
-  const r = spawnSync(process.execPath, [path.join(ENGINE, "render.mjs"), "--loop-check", "--swiftshader"], { encoding: "utf8" });
-  assert.equal(r.status, 0, r.stderr);
-  const res = JSON.parse(r.stdout.trim().split(/\r?\n/).at(-1));
+  assert.equal(loop.status, 0, loop.stderr);
+  const res = JSON.parse(loop.stdout.trim().split(/\r?\n/).at(-1));
   assert.equal(res.length, 2 * (3 + 4 * 3)); // 2 seeds x (room, office, street + 4 sets x 3 variants)
   for (const x of res.filter((x) => OUTDOOR.includes(x.set))) {
     assert.ok(x.excess <= 1e-6, `${x.set}#${x.variant} seed ${x.seed}: row z ${x.row} opens a gap ${x.excess} at the seam`);
   }
 });
 
-test("frame range writes 6-digit names and renderer info", () => {
-  const part = makePart(), out = path.join(part, "frames"), info = path.join(part, "info.json");
-  const r = render("--part", part, "--frames", "8-10", "--out-dir", out, "--info-out", info);
-  assert.equal(r.status, 0, r.stderr);
-  assert.deepEqual(fs.readdirSync(out).sort(), ["000008.png", "000009.png", "000010.png"]);
-  assert.equal(JSON.parse(fs.readFileSync(info, "utf8")).renderer, "swiftshader");
+test("frame range writes 6-digit names", () => {
+  ok("room");
+  assert.deepEqual(fs.readdirSync(path.join(base, "range")).sort(), ["000009.png", "000010.png"]);
 });
 
-// fixture: s01 0-60, s02 60-120, s03 120-180, all office. s03 -> street puts a wipe on frames 115..124.
-const png = (dir, n) => fs.readFileSync(path.join(dir, `${String(n).padStart(6, "0")}.png`));
-
 test("set change: marker wipe composites both sets, deterministic; one scene outside the wipe", () => {
-  const wiped = makePart((s) => { s.shots[2].set = "street"; return s; });
-  const office = makePart(), street = makePart((s) => { for (const sh of s.shots) sh.set = "street"; return s; });
-  const out = (p, tag) => path.join(p, tag);
-  const r = render("--part", wiped, "--frames", "114-117", "--out-dir", out(wiped, "a"));
-  assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /frame 117: .*\[wipe office->street 30%\]/);
-  assert.doesNotMatch(r.stdout, /frame 114: .*wipe/);
-  assert.equal(render("--part", wiped, "--frames", "117-117", "--out-dir", out(wiped, "b")).status, 0);
-  for (const p of [office, street]) assert.equal(render("--part", p, "--frames", "114-117", "--out-dir", out(p, "a")).status, 0);
-  assert.ok(png(out(wiped, "a"), 117).equals(png(out(wiped, "b"), 117)), "transition frame not deterministic");
-  assert.ok(png(out(wiped, "a"), 114).equals(png(out(office, "a"), 114)), "frame outside the wipe changed");
-  assert.ok(!png(out(wiped, "a"), 117).equals(png(out(office, "a"), 117)), "new set missing from the wipe frame");
-  assert.ok(!png(out(wiped, "a"), 117).equals(png(out(street, "a"), 117)), "old set missing from the wipe frame");
+  for (const n of ["wipe114", "wipe117", "wipe117b", "office", "office117", "street117"]) ok(n);
+  assert.match(R.wipe117.out, /frame 117: .*\[wipe office->street 30%\]/);
+  assert.doesNotMatch(R.wipe114.out, /wipe/);
+  const W = path.join(wiped, "a");
+  assert.ok(png(W, 117).equals(png(path.join(wiped, "b"), 117)), "transition frame not deterministic");
+  assert.ok(png(W, 114).equals(png(path.join(base, "o"), 114)), "frame outside the wipe changed");
+  assert.ok(!png(W, 117).equals(png(path.join(base, "o"), 117)), "new set missing from the wipe frame");
+  assert.ok(!png(W, 117).equals(png(path.join(street, "a"), 117)), "old set missing from the wipe frame");
 });
 
 test("set variant: stable per shot id, all variants reachable, and it changes the props", () => {
-  const ids = Array.from({ length: 40 }, (_, i) => `s${String(i + 1).padStart(2, "0")}`);
-  for (const id of ids) assert.equal(setVariant("orchard", id, 3), setVariant("orchard", id, 3));
-  assert.deepEqual([...new Set(ids.map((id) => setVariant("orchard", id, 3)))].sort(), [0, 1, 2]);
+  for (const id of IDS) assert.equal(setVariant("orchard", id, 3), setVariant("orchard", id, 3));
+  assert.deepEqual([...new Set(IDS.map((id) => setVariant("orchard", id, 3)))].sort(), [0, 1, 2]);
   assert.equal(setVariant("room", "s07", 1), 0);
-  // same story, only the shot ids differ -> a different variant of dirt_road -> a different picture
-  const other = ids.find((id) => setVariant("dirt_road", id, 3) !== setVariant("dirt_road", "s01", 3));
-  const parts = ["s01", other].map((id) => makePart((s) => {
-    for (const sh of s.shots) sh.set = "dirt_road";
-    s.shots[0].id = id; s.shots[1].id = `x${id}`; s.shots[2].id = `y${id}`;
-    return s;
-  }));
-  for (const p of parts) assert.equal(render("--part", p, "--frame", "10", "--out", path.join(p, "f.png")).status, 0);
-  assert.ok(!fs.readFileSync(path.join(parts[0], "f.png")).equals(fs.readFileSync(path.join(parts[1], "f.png"))));
-});
-
-// --- travel shots ---
-/** s01 (frames 0-59) becomes a travel shot on `set`: bob walks in place facing `facing`, the world scrolls */
-const travelPart = (set, speed = 1.2, facing = "right", id = "s01", extra = (s) => s) => makePart((s) => {
-  const a = s.shots[0].actors[0];
-  Object.assign(s.shots[0], { set, travel: { speed }, id });
-  Object.assign(a, { start_pos: [0, 0.1], end_pos: [0, 0.1], facing });
-  return extra(s);
+  ok("variant0"); ok("variant1");
+  assert.ok(!png(path.join(variants[0], "a"), 10).equals(png(path.join(variants[1], "a"), 10)));
 });
 
 test("travel shot: deterministic, the world scrolls, a wipe out of it still composites", () => {
-  const part = travelPart("dirt_road", 1.2, "left", "s01", (s) => { s.shots[1].set = "orchard"; return s; });
-  const still = makePart((s) => { s.shots[0].set = "dirt_road"; s.shots[0].actors[0].end_pos = [0, 0.1]; return s; });
-  const r = render("--part", part, "--frames", "54-57", "--out-dir", path.join(part, "a"));
-  assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /frame 54: .*\[travel 1\.2 u\/s left, shift 2\.16, loop excess -?[\d.]+ \(row z -?\d+\)\]/);
-  assert.match(r.stdout, /frame 57: .*\[wipe dirt_road->orchard 30%\]/);
-  assert.equal(render("--part", part, "--frames", "54-54", "--out-dir", path.join(part, "b")).status, 0);
-  assert.equal(render("--part", still, "--frames", "54-54", "--out-dir", path.join(still, "a")).status, 0);
-  assert.ok(png(path.join(part, "a"), 54).equals(png(path.join(part, "b"), 54)), "travel frame not deterministic");
-  assert.ok(!png(path.join(part, "a"), 54).equals(png(path.join(still, "a"), 54)), "world did not scroll");
+  for (const n of ["travel54", "travel57", "travel54b", "still54"]) ok(n);
+  assert.match(R.travel54.out, /frame 54: .*\[travel 1\.2 u\/s left, shift 2\.16, loop excess -?[\d.]+ \(row z -?\d+\)\]/);
+  assert.match(R.travel57.out, /frame 57: .*\[wipe dirt_road->orchard 30%\]/);
+  assert.ok(png(path.join(travel, "a"), 54).equals(png(path.join(travel, "b"), 54)), "travel frame not deterministic");
+  assert.ok(!png(path.join(travel, "a"), 54).equals(png(path.join(still, "a"), 54)), "world did not scroll");
 });
 
 test("travel smoke: one rendered travel frame per outdoor set", () => {
-  // five 36-frame travel shots, one per outdoor set; --stills renders the middle of each in one browser
-  const part = makePart((s) => {
-    const base = s.shots[0];
-    s.shots = OUTDOOR.map((set, i) => ({ ...structuredClone(base), id: `s0${i + 1}`, set, travel: { speed: 2.5 },
-      start_frame: i * 36, end_frame: (i + 1) * 36, phrase_range: [0, 0], twist: false,
-      actors: [{ ...base.actors[0], action: "run", start_pos: [0, 0.1], end_pos: [0, 0.1], facing: i % 2 ? "left" : "right" }] }));
-    return s;
-  });
-  const r = render("--part", part, "--stills");
-  assert.equal(r.status, 0, r.stderr);
-  assert.equal([...r.stdout.matchAll(/\[travel 2\.5 u\/s (left|right)/g)].length, OUTDOOR.length, r.stdout);
+  ok("smoke");
+  assert.equal([...R.smoke.out.matchAll(/\[travel 2\.5 u\/s (left|right)/g)].length, OUTDOOR.length, R.smoke.out);
+});
+
+test("render.mjs without a job prints usage and exits 1", async () => {
+  const r = await render();
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /usage:/);
 });

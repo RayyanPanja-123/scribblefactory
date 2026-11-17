@@ -71,7 +71,7 @@ class Legwear(Strict):
 
 
 class Prop(Strict):
-    kind: Literal["none", "clipboard", "stopwatch", "bottle", "syringe", "apple", "medal"] = "none"
+    kind: Literal["clipboard", "stopwatch", "bottle", "syringe", "apple", "medal"]
     hand: Literal["left", "right"] = "right"
 
 
@@ -81,26 +81,39 @@ class CastMember(Strict):
     top: Top
     headwear: Headwear = Headwear()
     legwear: Legwear = Legwear()
-    prop: Prop = Prop()
+    props: list[Prop] = Field(default=[], max_length=2, description="held props, one per hand")
     default_expression: Expression = "neutral"
     eyes: Literal["dots", "half_closed"]
     approved_at: UtcDateTime | None = None
+
+    @field_validator("props")
+    @classmethod
+    def _one_per_hand(cls, v):
+        if len({p.hand for p in v}) != len(v):
+            raise ValueError("props: one per hand")
+        return v
 
     def look(self) -> str:
         """everything the cast sheet shows (hex case ignored): a change here needs a new approval"""
         return self.model_dump_json(exclude={"id", "name", "approved_at"}).lower()
 
 
-def _cast_v1(c):
-    """v1 cast entry -> v2: outfit_color becomes a plain top, everything else none/neutral (same look)"""
-    if isinstance(c, dict) and "outfit_color" in c:
-        c = dict(c)
+def _cast_upgrade(c):
+    """older cast entry -> v3, same look. v1: outfit_color becomes a plain top, everything else none/neutral.
+    v2: the single prop becomes the props list (empty for kind none)."""
+    if not isinstance(c, dict):
+        return c
+    c = dict(c)
+    if "outfit_color" in c:
         c["top"] = {"style": "plain", "color": c.pop("outfit_color")}
+    if "prop" in c:
+        prop = c.pop("prop") or {}
+        c["props"] = [prop] if prop.get("kind", "none") != "none" else []
     return c
 
 
 class SeriesModel(Strict):
-    schema_version: Literal[2] = 2
+    schema_version: Literal[3] = 3
     slug: Slug
     title: str
     created_at: UtcDateTime
@@ -113,9 +126,9 @@ class SeriesModel(Strict):
     @model_validator(mode="before")
     @classmethod
     def _migrate_v1(cls, data):
-        # v1 files are upgraded on load (approvals kept: the look is unchanged); saving writes v2
-        if isinstance(data, dict) and data.get("schema_version", 1) == 1:
-            data = {**data, "schema_version": 2, "cast": [_cast_v1(c) for c in data.get("cast", [])]}
+        # v1 / v2 files are upgraded on load (approvals kept: the look is unchanged); saving writes v3
+        if isinstance(data, dict) and data.get("schema_version", 1) in (1, 2):
+            data = {**data, "schema_version": 3, "cast": [_cast_upgrade(c) for c in data.get("cast", [])]}
         return data
 
     @field_validator("parts")

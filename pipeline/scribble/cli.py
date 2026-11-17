@@ -90,7 +90,7 @@ def cmd_cast_edit(args) -> int:
               "top": ("top", "style"), "top_color": ("top", "color"), "accent": ("top", "accent_color"),
               "number": ("top", "number"), "headwear": ("headwear", "kind"), "headwear_color": ("headwear", "color"),
               "legwear": ("legwear", "kind"), "legwear_color": ("legwear", "color"),
-              "prop": ("prop", "kind"), "prop_hand": ("prop", "hand")}
+              "props": (None, "props")}
     changes = {k: getattr(args, k) for k in fields if getattr(args, k) is not None}
     if not changes:
         raise UserError("nothing to change: give at least one of " + ", ".join(f"--{k.replace('_', '-')}" for k in fields))
@@ -99,6 +99,8 @@ def cmd_cast_edit(args) -> int:
     for k, v in changes.items():
         section, name = fields[k]
         (data[section] if section else data)[name] = None if v == "none" and name in ("accent_color", "number") else v
+    if args.props is not None:
+        data["props"] = parse_props(args.props)
     new = CastMember.model_validate(data)  # validates colours, kinds, number
     if new.look() != old.look() and old.approved_at:
         new.approved_at = None
@@ -109,6 +111,21 @@ def cmd_cast_edit(args) -> int:
     atomic_write_json(f, series.model_dump(mode="json"))
     print(f"updated {args.id}: {', '.join(f'{k}={v}' for k, v in changes.items())}")
     return 0
+
+
+def parse_props(text: str) -> list[dict]:
+    """--props "clipboard:right,stopwatch:left" | "none" -> [{"kind", "hand"}] (the schema checks kinds and hands)"""
+    if text.strip() == "none":
+        return []
+    out = []
+    for item in filter(None, (x.strip() for x in text.split(","))):
+        kind, _, hand = item.partition(":")
+        if not hand:
+            raise UserError(f"--props: {item!r} needs a hand, e.g. {kind}:right")
+        out.append({"kind": kind.strip(), "hand": hand.strip()})
+    if not out:
+        raise UserError('--props: give "kind:hand,..." or none')
+    return out
 
 
 def cmd_set_voice(args) -> int:
@@ -408,8 +425,8 @@ def build_parser() -> Parser:
     c.add_argument("--headwear-color", help="#rrggbb")
     c.add_argument("--legwear", choices=["none", "shorts", "ragged_shorts", "trousers"])
     c.add_argument("--legwear-color", help="#rrggbb")
-    c.add_argument("--prop", choices=["none", "clipboard", "stopwatch", "bottle", "syringe", "apple", "medal"])
-    c.add_argument("--prop-hand", choices=["left", "right"])
+    c.add_argument("--props", help='held props "kind:hand,kind:hand" (max 2, one per hand), e.g. '
+                                    '"clipboard:right,stopwatch:left", or none')
     c.add_argument("--default-expression", choices=list(get_args(Expression)))
     c.add_argument("--eyes", choices=["dots", "half_closed"])
     c.set_defaults(func=cmd_cast_edit)

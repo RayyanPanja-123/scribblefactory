@@ -1,15 +1,11 @@
-// Cast v2 costumes: pure drawing checks against a recording 2D context, plus rendered cast-sheet / car frames.
+// Cast costumes: pure drawing checks against a recording 2D context, plus rendered cast-sheet / car frames (one batch).
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { after, test } from "node:test";
-import { fileURLToPath } from "node:url";
-import { drawStickman, skeleton } from "../page/stickman.js";
-
-const ENGINE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const FIX = path.join(ENGINE, "..", "pipeline", "tests", "fixtures", "story");
+import { after, before, test } from "node:test";
+import { FEET_Y, FIGURE_PX, HAT_BRIM, drawStickman, hatFit, skeleton } from "../page/stickman.js";
+import { FIX, fixturePart, jobOk, renderNamed } from "./batch.mjs";
 
 /** fake canvas: records every fill / stroke with its style and the path points (pre-transform canvas px) */
 function record(o) {
@@ -28,6 +24,7 @@ function record(o) {
 const fills = (ops, colour) => ops.filter((x) => x.op === "fill" && x.style === colour);
 const mean = (pts) => pts.reduce(([a, b], [x, y]) => [a + x / pts.length, b + y / pts.length], [0, 0]);
 const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+const ys = (pts) => pts.map(([, y]) => y), xsNear = (pts, y, d) => pts.filter(([, py]) => Math.abs(py - y) < d).map(([x]) => x);
 
 const BASE = { seed: "t:bob", boil: 0, color: "#3a7bd5", eyes: "dots", expression: "neutral", action: "idle",
   phase: 0, lid: 0, mouth: 0, breath: 0, facing: "camera", t: 0 };
@@ -35,6 +32,9 @@ const TOPS = ["plain", "suit", "tank", "shirt"], HATS = ["flat_cap", "postman_ca
 const LEGS = ["shorts", "ragged_shorts", "trousers"];
 const PROPS = { clipboard: "#a8743a", stopwatch: "#cfd3d6", bottle: "#7fb8d6", syringe: "#eef6f8", apple: "#d93a2b",
   medal: "#e8b923" };
+const POSES = [{ action: "idle" }, { action: "point" }, { action: "wave", wave: { k: 1, swing: 0.5 } },
+  { action: "run", phase: 0.25, facing: "right" }, { action: "walk", phase: 0.6, facing: "left" },
+  { action: "talk", gesture: { kind: "shrug", k: 1 } }, { action: "react" }, { action: "ride", seated: true }];
 
 test("every top, headwear, legwear, prop and expression builds and draws in its colour", () => {
   for (const style of TOPS) {
@@ -45,45 +45,69 @@ test("every top, headwear, legwear, prop and expression builds and draws in its 
   for (const kind of HATS) assert.ok(fills(record({ ...BASE, headwear: { kind, color: "#222222" } }), "#222222").length, kind);
   for (const kind of LEGS) assert.equal(fills(record({ ...BASE, legwear: { kind, color: "#333333" } }), "#333333").length, 2, kind);
   for (const [kind, colour] of Object.entries(PROPS)) {
-    assert.ok(fills(record({ ...BASE, prop: { kind, hand: "right" } }), colour).length, kind);
+    assert.ok(fills(record({ ...BASE, props: [{ kind, hand: "right" }] }), colour).length, kind);
   }
   for (const expression of ["cheeky", "exhausted"]) {
     for (const facing of ["camera", "right", "left"]) record({ ...BASE, expression, facing });
   }
-  // nothing costume-related is drawn for a plain v1-style figure: same ops with or without "none" costume parts
-  const none = { top: { style: "plain", color: BASE.color }, headwear: { kind: "none" }, legwear: { kind: "none" },
-    prop: { kind: "none", hand: "right" } };
+  // nothing costume-related is drawn for a plain figure: same ops with or without "none" costume parts
+  const none = { top: { style: "plain", color: BASE.color }, headwear: { kind: "none" }, legwear: { kind: "none" }, props: [] };
   assert.deepEqual(record({ ...BASE, ...none }), record(BASE));
 });
 
 test("same options, same drawing (determinism); boil changes the jitter", () => {
   const o = { ...BASE, top: { style: "tank", color: "#e53935", number: "31" }, legwear: { kind: "shorts", color: "#2b2b2b" },
-    headwear: { kind: "postman_cap", color: "#2e3a59" }, prop: { kind: "clipboard", hand: "right" }, expression: "cheeky" };
+    headwear: { kind: "postman_cap", color: "#2e3a59" }, expression: "cheeky",
+    props: [{ kind: "clipboard", hand: "right" }, { kind: "stopwatch", hand: "left" }] };
   assert.deepEqual(record(o), record(o));
   assert.notDeepEqual(record(o), record({ ...o, boil: 1 }));
 });
 
-test("held prop follows its hand through idle, point, wave, run and talk gestures; left hand works too", () => {
-  const poses = [{ action: "idle" }, { action: "point" }, { action: "wave", wave: { k: 1, swing: 0.5 } },
-    { action: "run", phase: 0.25, facing: "right" }, { action: "talk", gesture: { kind: "shrug", k: 1 } }];
-  let prev = null;
-  for (const hand of ["right", "left"]) for (const pose of poses) {
-    const o = { ...BASE, ...pose, prop: { kind: "clipboard", hand } };
-    const k = skeleton(o), h = k.arms[hand === "left" ? 0 : 1][2];
-    const [board] = fills(record(o), PROPS.clipboard);
-    assert.ok(dist(mean(board.pts), h) < 90, `${hand} ${pose.action}: board ${mean(board.pts)} far from hand ${h}`);
-    if (prev && dist(h, prev.h) > 5) assert.ok(dist(mean(board.pts), prev.c) > 5, `${hand} ${pose.action}: prop did not move`);
-    prev = { h, c: mean(board.pts) };
+test("every hat sits down on the head: band past the outline at forehead level, top covered, inside the framing height", () => {
+  for (const kind of HATS) for (const seed of ["a:x", "b:y", "marathon-1904:carvajal", "s:fred"])
+    for (let boil = 0; boil < 8; boil++) for (const breath of [-1, 1]) for (const [action, facing, bob] of
+      [["idle", "camera", 0], ["talk", "right", 1], ["react", "camera", 0], ["idle", "left", 0]]) {
+      const o = { ...BASE, seed, boil, breath, bob, action, facing, headwear: { kind, color: "#222222" } };
+      const ops = record(o), [, hy] = skeleton(o).head, at = `${kind} ${seed} boil ${boil} breath ${breath} ${action}`;
+      const head = ops.find((x) => x.op === "fill" && x.style === "#ffffff" && x.pts.length === 44).pts;
+      const hat = fills(ops, "#222222").flatMap((x) => x.pts), fit = hatFit(head, hy);
+      assert.equal(fit.brim, hy - HAT_BRIM);
+      assert.ok(fit.brim < hy - 80 && fit.brim > Math.min(...ys(head)) + 40, `${at}: brim not at the forehead`);
+      assert.ok(Math.max(...ys(hat)) >= fit.brim - 2, `${at}: hat floats above the brim line`);
+      const band = xsNear(hat, fit.brim, 14);
+      assert.ok(Math.min(...band) <= fit.xl - 4 && Math.max(...band) >= fit.xr + 4,
+        `${at}: band ${Math.min(...band).toFixed(0)}..${Math.max(...band).toFixed(0)} inside the head outline `
+        + `${fit.xl.toFixed(0)}..${fit.xr.toFixed(0)}`);
+      assert.ok(Math.min(...ys(hat)) < Math.min(...ys(head)), `${at}: head top pokes out of the hat`);
+      assert.ok(Math.min(...ys(hat)) - 8 >= FEET_Y - FIGURE_PX, `${at}: hat above the framing height`);
+    }
+});
+
+test("two props: each follows its own arm through every pose, seated in the car included", () => {
+  const props = [{ kind: "clipboard", hand: "right" }, { kind: "stopwatch", hand: "left" }];
+  const prev = {};
+  for (const pose of POSES) {
+    const o = { ...BASE, ...pose, props }, k = skeleton(o), ops = record(o);
+    for (const [i, { kind }] of [[1, props[0]], [0, props[1]]]) {
+      const hand = k.arms[i][2], [shape] = fills(ops, PROPS[kind]);
+      const c = mean(shape.pts);
+      assert.ok(dist(c, hand) < 90, `${kind} in ${pose.action}: ${c} far from hand ${hand}`);
+      if (prev[kind] && dist(hand, prev[kind].hand) > 5) assert.ok(dist(c, prev[kind].c) > 5, `${kind} did not move in ${pose.action}`);
+      prev[kind] = { hand, c };
+    }
   }
 });
 
-test("seated: the prop hand comes up to the chest (above the car panel), except a waving prop arm", () => {
-  const o = { ...BASE, action: "ride", prop: { kind: "bottle", hand: "right" } };
-  const standing = skeleton(o).arms[1][2], seated = skeleton({ ...o, seated: true });
-  assert.ok(seated.arms[1][2][1] < standing[1] - 100, "prop hand not raised");
-  assert.ok(seated.arms[1][2][1] < seated.hipY - 150);
+test("seated: prop hands come up to the chest (above the car panel); a waving right arm keeps waving", () => {
+  const props = [{ kind: "bottle", hand: "right" }, { kind: "apple", hand: "left" }];
+  const o = { ...BASE, action: "ride", props }, standing = skeleton(o), seated = skeleton({ ...o, seated: true });
+  for (const i of [0, 1]) {
+    assert.ok(seated.arms[i][2][1] < standing.arms[i][2][1] - 100, `prop hand ${i} not raised`);
+    assert.ok(seated.arms[i][2][1] < seated.hipY - 150);
+  }
   const wave = { ...o, action: "wave", wave: { k: 1, swing: 0 } };
-  assert.deepEqual(skeleton({ ...wave, seated: true }).arms, skeleton(wave).arms);
+  assert.deepEqual(skeleton({ ...wave, seated: true }).arms[1], skeleton(wave).arms[1]);
+  assert.ok(skeleton({ ...wave, seated: true }).arms[0][2][1] < skeleton(wave).arms[0][2][1] - 100);
 });
 
 test("legwear follows the leg animation: each tube lies along its leg at every walk phase", () => {
@@ -102,59 +126,57 @@ test("legwear follows the leg animation: each tube lies along its leg at every w
   }
 });
 
-// --- rendered ---
+// --- rendered (one batch) ---
 const temps = [];
 after(() => { for (const d of temps) fs.rmSync(d, { recursive: true, force: true }); });
-const render = (...args) => spawnSync(process.execPath, [path.join(ENGINE, "render.mjs"), ...args, "--swiftshader"], { encoding: "utf8" });
 
-/** fixture series as v2 with a costumed bob; amy stays a v1 entry (outfit_color): the engine reads both */
-function v2Series(dir, bobProp = "clipboard") {
+/** fixture series as v3 with a costumed bob; amy stays a v1 entry (outfit_color): the engine reads both.
+ *  bobProps: v3 props list, or { prop } for a v2-style single prop */
+function series(bobProps) {
   const s = JSON.parse(fs.readFileSync(path.join(FIX, "series.json"), "utf8"));
-  s.schema_version = 2;
+  s.schema_version = 3;
   const { outfit_color, ...bob } = s.cast[0];
   s.cast[0] = { ...bob, top: { style: "tank", color: outfit_color, accent_color: null, number: "7" },
     headwear: { kind: "flat_cap", color: "#6d5843" }, legwear: { kind: "shorts", color: "#2b2b2b" },
-    prop: { kind: bobProp, hand: "right" }, default_expression: "cheeky" };
-  fs.writeFileSync(path.join(dir, "series.json"), JSON.stringify(s));
+    default_expression: "cheeky", ...(Array.isArray(bobProps) ? { props: bobProps } : bobProps) };
+  return s;
 }
+const TWO = [{ kind: "bottle", hand: "right" }, { kind: "medal", hand: "left" }];
+const sheetDir = fs.mkdtempSync(path.join(os.tmpdir(), "scribble-costume-"));
+temps.push(sheetDir);
+fs.writeFileSync(path.join(sheetDir, "series.json"), JSON.stringify(series(TWO)));
+/** s01: bob rides a left-facing car on a dirt road */
+const ride = (bobProps) => fixturePart(temps, (s) => {
+  Object.assign(s.shots[0], { set: "dirt_road", travel: { speed: 4.0 } });
+  s.shots[0].actors = [{ cast_id: "bob", action: "ride", start_pos: [0, 0], facing: "left", expression: "neutral" }];
+  s.shots[0].vehicles = [{ id: "car1", kind: "car", action: "drive", start_pos: [0, 0], end_pos: [0, 0],
+    facing: "left", riders: ["bob"], variant: "red" }];
+  return s;
+}, series(bobProps));
+const rides = { two: ride(TWO), none: ride([]), v2: ride({ prop: { kind: "bottle", hand: "right" } }),
+  one: ride([TWO[0]]) };
+const rideJob = (k, tag = "f") => ["--part", rides[k], "--frame", "20", "--out", path.join(rides[k], `${tag}.png`)];
+let R;
+before(async () => {
+  R = await renderNamed({ sheet: ["--series", sheetDir, "--cast-sheet"], two: rideJob("two"), again: rideJob("two", "g"),
+    none: rideJob("none"), v2: rideJob("v2"), one: rideJob("one") });
+});
+const img = (k, tag = "f") => fs.readFileSync(path.join(rides[k], `${tag}.png`));
 
-test("cast sheet with costumes (v2 + v1 entries): 22 images, byte-identical on a second run", () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "scribble-costume-"));
-  temps.push(dir);
-  v2Series(dir);
-  const shots = [];
-  for (let i = 0; i < 2; i++) {
-    const r = render("--series", dir, "--cast-sheet");
-    assert.equal(r.status, 0, r.stderr);
-    const m = JSON.parse(fs.readFileSync(path.join(dir, "cast-frames", "manifest.json"), "utf8"));
-    assert.equal(m.frames.length, 2 * 11);
-    shots.push(m.frames.map((f) => fs.readFileSync(path.join(dir, "cast-frames", f.file))));
-  }
-  shots[0].forEach((b, i) => assert.ok(b.equals(shots[1][i]), `cast frame ${i} differs between runs`));
-  // idle uses the cast default (cheeky), the explicit neutral column does not
-  const label = (l) => JSON.parse(fs.readFileSync(path.join(dir, "cast-frames", "manifest.json"), "utf8")).frames.findIndex((f) => f.label === l);
-  assert.ok(shots[0][label("bob idle")].equals(shots[0][label("bob cheeky")]));
-  assert.ok(!shots[0][label("bob idle")].equals(shots[0][label("bob neutral")]));
+test("cast sheet with costumes (v3 + v1 entries): 22 images; idle uses the cast default expression", () => {
+  jobOk(R, "sheet");
+  const m = JSON.parse(fs.readFileSync(path.join(sheetDir, "cast-frames", "manifest.json"), "utf8"));
+  assert.equal(m.frames.length, 2 * 11);
+  const f = (l) => fs.readFileSync(path.join(sheetDir, "cast-frames", m.frames.find((x) => x.label === l).file));
+  assert.ok(f("bob idle").equals(f("bob cheeky")));
+  assert.ok(!f("bob idle").equals(f("bob neutral")));
 });
 
-test("a rider's prop is visible in the car", () => {
-  const frames = ["bottle", "none"].map((prop) => {
-    const series = fs.mkdtempSync(path.join(os.tmpdir(), "scribble-costume-"));
-    temps.push(series);
-    const part = path.join(series, "part-01");
-    fs.mkdirSync(part);
-    v2Series(series, prop);
-    fs.copyFileSync(path.join(FIX, "phrases.json"), path.join(part, "phrases.json"));
-    const s = JSON.parse(fs.readFileSync(path.join(FIX, "story.json"), "utf8"));
-    Object.assign(s.shots[0], { set: "dirt_road", travel: { speed: 4.0 } });
-    s.shots[0].actors = [{ cast_id: "bob", action: "ride", start_pos: [0, 0], facing: "left", expression: "neutral" }];
-    s.shots[0].vehicles = [{ id: "car1", kind: "car", action: "drive", start_pos: [0, 0], end_pos: [0, 0],
-      facing: "left", riders: ["bob"], variant: "red" }];
-    fs.writeFileSync(path.join(part, "story.json"), JSON.stringify(s));
-    const out = path.join(part, "f.png"), r = render("--part", part, "--frame", "20", "--out", out);
-    assert.equal(r.status, 0, r.stderr);
-    assert.match(r.stdout, /\[car car1 drive \(bob\)/);
-    return fs.readFileSync(out);
-  });
-  assert.ok(!frames[0].equals(frames[1]), "the held bottle does not show in the car");
+test("riders' props show in the car (both hands), deterministic; a v2 single prop reads like a one-item list", () => {
+  for (const k of ["two", "again", "none", "v2", "one"]) jobOk(R, k);
+  assert.match(R.two.out, /\[car car1 drive \(bob\)/);
+  assert.ok(img("two").equals(img("two", "g")), "costumed car frame not deterministic");
+  assert.ok(!img("two").equals(img("none")), "held props do not show in the car");
+  assert.ok(!img("two").equals(img("one")), "the second prop does not show in the car");
+  assert.ok(img("v2").equals(img("one")), "v2 prop differs from the same prop as a list");
 });

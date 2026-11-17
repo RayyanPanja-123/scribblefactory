@@ -1,17 +1,12 @@
 // Talk gestures, point arm and stressed-word bob: the timing rules (page/motion.js is pure, imported directly),
 // plus a render check that a short talk shot shows no gesture and a seeded long one does.
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
 import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { after, test } from "node:test";
-import { fileURLToPath } from "node:url";
+import { after, before, test } from "node:test";
 import { GESTURE, MOUTH_MAX_HZ, MOUTH_MIN_CLOSED_F, MOUTH_MIN_OPEN_F, gestureAmount, gesturePlan, mouthCurve, mouthCycles,
   pointAmount, stressBob } from "../page/motion.js";
 
-const ENGINE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const FIX = path.join(ENGINE, "..", "pipeline", "tests", "fixtures", "story");
+import { fixturePart, frames, jobOk, renderNamed } from "./batch.mjs";
 const temps = [];
 after(() => { for (const d of temps) fs.rmSync(d, { recursive: true, force: true }); });
 
@@ -58,35 +53,24 @@ test("gesture eases in and out; point arm lowers after 0.8 s; stressed words bob
   assert.equal(stressBob(0.6, words), 0);           // over after 0.25 s
 });
 
-function makePart(mutate) {
-  const series = fs.mkdtempSync(path.join(os.tmpdir(), "scribble-motion-"));
-  temps.push(series);
-  const part = path.join(series, "part-01");
-  fs.mkdirSync(part);
-  fs.copyFileSync(path.join(FIX, "series.json"), path.join(series, "series.json"));
-  fs.copyFileSync(path.join(FIX, "phrases.json"), path.join(part, "phrases.json"));
-  const story = mutate(JSON.parse(fs.readFileSync(path.join(FIX, "story.json"), "utf8")));
-  fs.writeFileSync(path.join(part, "story.json"), JSON.stringify(story));
-  return part;
-}
-const render = (part, frames) => spawnSync(process.execPath, [path.join(ENGINE, "render.mjs"), "--part", part,
-  "--frames", frames, "--out-dir", path.join(part, "f"), "--swiftshader"], { encoding: "utf8" });
+// fixture s02 (bob talks) is frames 60-119 = 2 s. short: cut to 40 frames (1.33 s), so it never plans a gesture
+// (the pure test above covers every frame); a few rendered frames across it must report none.
+const short = fixturePart(temps, (s) => { s.shots[1].end_frame = 100; s.shots[2].start_frame = 100; s.seed = 1; return s; });
+let seed = 0;
+while (!gesturePlan(seed, "s02", "bob", "talk", 2.0)) seed++;
+const plan = gesturePlan(seed, "s02", "bob", "talk", 2.0);
+const mid = 60 + Math.round((plan.start + plan.dur / 2) * 30);
+const long = fixturePart(temps, (s) => { s.seed = seed; return s; });
+let R;
+before(async () => {
+  R = await renderNamed({ s61: frames(short, "61-61", "f"), s80: frames(short, "80-80", "f"), s99: frames(short, "99-99", "f"),
+    long: frames(long, `${mid}-${mid}`, "f") });
+});
 
 test("render: a talk shot under 1.5 s shows no gesture; a seeded 2 s one does", () => {
-  // fixture s02 (bob talks) is frames 60-119 = 2 s. Shorten it to 40 frames (1.33 s) for the first case.
-  const short = makePart((s) => { s.shots[1].end_frame = 100; s.shots[2].start_frame = 100; s.seed = 1; return s; });
-  const r1 = render(short, "60-99");
-  assert.equal(r1.status, 0, r1.stderr);
-  assert.doesNotMatch(r1.stdout, /gesture:/);
-
-  let seed = 0;
-  while (!gesturePlan(seed, "s02", "bob", "talk", 2.0)) seed++;
-  const plan = gesturePlan(seed, "s02", "bob", "talk", 2.0);
-  const mid = 60 + Math.round((plan.start + plan.dur / 2) * 30);
-  const long = makePart((s) => { s.seed = seed; return s; });
-  const r2 = render(long, `${mid}-${mid}`);
-  assert.equal(r2.status, 0, r2.stderr);
-  assert.match(r2.stdout, new RegExp(`gesture: bob ${plan.kind}`));
+  for (const n of ["s61", "s80", "s99", "long"]) jobOk(R, n);
+  for (const n of ["s61", "s80", "s99"]) assert.doesNotMatch(R[n].out, /gesture:/);
+  assert.match(R.long.out, new RegExp(`gesture: bob ${plan.kind}`));
 });
 
 // --- talk mouth ---

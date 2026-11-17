@@ -6,6 +6,7 @@
 //   node engine/render.mjs --series <dir> --cast-sheet    -> <series>/cast-frames/<id>-<pose>.png + manifest.json
 //   node engine/render.mjs --probe                        -> print the renderer it would use
 //   node engine/render.mjs --loop-check                   -> JSON: every set/variant built, travel loop excess
+//   node engine/render.mjs --batch jobs.json              -> [[args of one --part/--series job], ...] in one browser
 //   node engine/render.mjs --part <dir> --worker --out-dir <dir>
 //       long-lived worker: one browser, page built once. Prints "READY <renderer info json>", then reads
 //       "A B" lines on stdin and answers "DONE A B" once frames A..B are written. Exits when stdin closes.
@@ -100,7 +101,7 @@ async function openPage(port, swiftshader) {
     const gl = await page.evaluate(() => window.glInfo());
     const info = { renderer: soft ? "swiftshader" : "gpu", gpu_name: gl.renderer, gl_vendor: gl.vendor,
       gl_version: gl.version, driver: null, chromium: browser.version(), playwright: PLAYWRIGHT };
-    return { browser, page, info, getError: () => pageError };
+    return { browser, page, info, getError: () => pageError, clearError: () => { pageError = null; } };
   };
   if (swiftshader) return launch(true);
   const gpu = await launch(false);
@@ -181,25 +182,57 @@ async function runWorker(a) {
   }
 }
 
-async function main() {
-  const { values: a } = parseArgs({
-    options: {
-      part: { type: "string" }, series: { type: "string" }, frame: { type: "string" }, out: { type: "string" },
-      stills: { type: "boolean" }, "cast-sheet": { type: "boolean" },
-      frames: { type: "string" }, "out-dir": { type: "string" },
-      swiftshader: { type: "boolean" }, probe: { type: "boolean" }, "info-out": { type: "string" },
-      worker: { type: "boolean" }, "loop-check": { type: "boolean" },
-    },
-  });
-  if (a.worker) return runWorker(a);
-  const check = a.probe || a["loop-check"];
-  const { data, jobs, manifestDir = null } = check ? { jobs: [] }
-    : a.part ? frameJobs(a) : a.series && a["cast-sheet"] ? castJobs(a) : { jobs: [] };
-  if (!jobs.length && !check) {
-    throw new Error("usage: --part <dir> (--frame N --out file.png | --frames A-B --out-dir <dir> | --stills) "
-      + "| --series <dir> --cast-sheet | --probe | --loop-check   [--swiftshader] [--info-out file.json]");
-  }
+const OPTIONS = {
+  part: { type: "string" }, series: { type: "string" }, frame: { type: "string" }, out: { type: "string" },
+  stills: { type: "boolean" }, "cast-sheet": { type: "boolean" },
+  frames: { type: "string" }, "out-dir": { type: "string" },
+  swiftshader: { type: "boolean" }, probe: { type: "boolean" }, "info-out": { type: "string" },
+  worker: { type: "boolean" }, "loop-check": { type: "boolean" }, batch: { type: "string" },
+};
+const USAGE = "usage: --part <dir> (--frame N --out file.png | --frames A-B --out-dir <dir> | --stills) "
+  + "| --series <dir> --cast-sheet | --probe | --loop-check | --batch jobs.json   [--swiftshader] [--info-out file.json]";
+
+/** one render job (--part ... or --series ... --cast-sheet) on an open page: setup, frames, manifest */
+async function renderJobs(opened, a) {
+  const { data, jobs, manifestDir = null } = a.part ? frameJobs(a) : a.series && a["cast-sheet"] ? castJobs(a) : { jobs: [] };
+  if (!jobs.length) throw new Error(USAGE);
   if (manifestDir) freshDir(manifestDir);
+  const { page, info } = opened;
+  await page.evaluate((d) => window.setup(d), data);
+  const times = [];
+  for (const j of jobs) {
+    const t0 = performance.now();
+    const url = await page.evaluate(([fn, arg]) => window[fn](arg), j.call);
+    writePng(j.file, url);
+    times.push(performance.now() - t0);
+    const fi = j.call[0] === "renderFrame" ? await page.evaluate(() => window.lastInfo) : null;
+    const note = fi?.angle === "wide"
+      ? ` [wide: figure ${(fi.figure * 100).toFixed(1)}% of frame height, ${fi.inFrame ? "all in frame" : "CUT OFF"}]`
+      : fi?.hidden ? ` [${fi.hidden} prop(s) hidden behind the subject]` : "";
+    const gest = fi?.gestures?.length ? ` [gesture: ${fi.gestures.join(", ")}]` : "";
+    const wipe = (fi?.wipe ? ` [wipe ${fi.wipe}]` : "") + (fi?.travel ? ` [travel ${fi.travel}]` : "")
+      + (fi?.dogs ? ` [dogs ${fi.dogs}]` : "") + (fi?.cars ? ` [car ${fi.cars}]` : "");
+    console.log(`${j.label}: ${times.at(-1).toFixed(0)} ms -> ${j.file}${note}${gest}${wipe}`);
+  }
+  if (opened.getError()) throw opened.getError();
+  if (manifestDir) {
+    const frames = jobs.map((j) => ({ label: j.label, file: path.basename(j.file) }));
+    writeFileAtomic(path.join(manifestDir, "manifest.json"), JSON.stringify({ renderer: info, frames }, null, 2) + "\n");
+  }
+  const mean = (xs) => xs.reduce((s, x) => s + x, 0) / xs.length;
+  const warm = times.length > 1 ? `, ${mean(times.slice(1)).toFixed(0)} ms without the first (warm)` : "";
+  console.log(`rendered ${times.length} image(s), avg ${mean(times).toFixed(0)} ms per frame${warm}`);
+}
+
+async function main() {
+  const { values: a } = parseArgs({ options: OPTIONS });
+  if (a.worker) return runWorker(a);
+  // --batch jobs.json: [[...args], ...] -- every job in one browser. Each job's output starts with "== job N" and
+  // ends with "== job N ok" or "== job N error: <message>"; exit 1 if any job failed.
+  const batch = a.batch ? readJson(path.resolve(a.batch)) : null;
+  const check = a.probe || a["loop-check"];
+  if (!batch && !check && !a.part && !(a.series && a["cast-sheet"])) throw new Error(USAGE);
+  if (a.part && !batch) frameJobs(a); // bad paths fail before a browser starts
 
   const server = await serve();
   let browser = null;
@@ -216,30 +249,20 @@ async function main() {
       console.log(JSON.stringify(res));
       return;
     }
-    await page.evaluate((d) => window.setup(d), data);
-    const times = [];
-    for (const j of jobs) {
-      const t0 = performance.now();
-      const url = await page.evaluate(([fn, arg]) => window[fn](arg), j.call);
-      writePng(j.file, url);
-      times.push(performance.now() - t0);
-      const fi = j.call[0] === "renderFrame" ? await page.evaluate(() => window.lastInfo) : null;
-      const note = fi?.angle === "wide"
-        ? ` [wide: figure ${(fi.figure * 100).toFixed(1)}% of frame height, ${fi.inFrame ? "all in frame" : "CUT OFF"}]`
-        : fi?.hidden ? ` [${fi.hidden} prop(s) hidden behind the subject]` : "";
-      const gest = fi?.gestures?.length ? ` [gesture: ${fi.gestures.join(", ")}]` : "";
-      const wipe = (fi?.wipe ? ` [wipe ${fi.wipe}]` : "") + (fi?.travel ? ` [travel ${fi.travel}]` : "")
-        + (fi?.dogs ? ` [dogs ${fi.dogs}]` : "") + (fi?.cars ? ` [car ${fi.cars}]` : "");
-      console.log(`${j.label}: ${times.at(-1).toFixed(0)} ms -> ${j.file}${note}${gest}${wipe}`);
+    if (!batch) return await renderJobs(opened, a);
+    let failed = 0;
+    for (const [i, args] of batch.entries()) {
+      console.log(`== job ${i}`);
+      try {
+        await renderJobs(opened, parseArgs({ args, options: OPTIONS }).values);
+        console.log(`== job ${i} ok`);
+      } catch (e) {
+        failed++;
+        opened.clearError();
+        console.log(`== job ${i} error: ${e.message}`);
+      }
     }
-    if (opened.getError()) throw opened.getError();
-    if (manifestDir) {
-      const frames = jobs.map((j) => ({ label: j.label, file: path.basename(j.file) }));
-      writeFileAtomic(path.join(manifestDir, "manifest.json"), JSON.stringify({ renderer: info, frames }, null, 2) + "\n");
-    }
-    const mean = (xs) => xs.reduce((s, x) => s + x, 0) / xs.length;
-    const warm = times.length > 1 ? `, ${mean(times.slice(1)).toFixed(0)} ms without the first (warm)` : "";
-    console.log(`rendered ${times.length} image(s), avg ${mean(times).toFixed(0)} ms per frame${warm}`);
+    if (failed) process.exitCode = 1;
   } finally {
     if (browser) await browser.close();
     server.close();

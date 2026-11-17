@@ -182,7 +182,7 @@ def test_replace_retry_succeeds(tmp_path, monkeypatch):
     assert io.load_part(p).title == "New"
 
 
-def test_series_v1_migrates_to_v2_keeping_approvals(tmp_path):
+def test_series_v1_migrates_to_v3_keeping_approvals(tmp_path):
     from pipeline.scribble.io import load_series, save_series
     v1 = series_data(cast=[{"id": "bob", "name": "Bob", "outfit_color": "#1a2B3c", "eyes": "dots", "approved_at": T},
                            {"id": "amy", "name": "Amy", "outfit_color": "#e2453c", "eyes": "half_closed"}])
@@ -191,13 +191,13 @@ def test_series_v1_migrates_to_v2_keeping_approvals(tmp_path):
     f.write_text(json.dumps(v1))
     s = load_series(f)
     bob, amy = s.cast
-    assert s.schema_version == 2
+    assert s.schema_version == 3
     assert bob.top.model_dump() == {"style": "plain", "color": "#1a2B3c", "accent_color": None, "number": None}
-    assert (bob.headwear.kind, bob.legwear.kind, bob.prop.kind, bob.default_expression) == ("none", "none", "none", "neutral")
+    assert (bob.headwear.kind, bob.legwear.kind, bob.props, bob.default_expression) == ("none", "none", [], "neutral")
     assert bob.approved_at is not None and amy.approved_at is None
     save_series(f, s)
     on_disk = json.loads(f.read_text())
-    assert on_disk["schema_version"] == 2 and "outfit_color" not in on_disk["cast"][0]
+    assert on_disk["schema_version"] == 3 and "outfit_color" not in on_disk["cast"][0]
     assert on_disk["cast"][0]["approved_at"] == v1["cast"][0]["approved_at"]
     assert load_series(f) == s  # v2 round trip
 
@@ -207,10 +207,31 @@ def test_cast_v2_rules():
         return {"id": "bob", "name": "B", "eyes": "dots", "top": {"color": "#123456"}, **kw}
     SeriesModel.model_validate(series_data(cast=[member(headwear={"kind": "straw_hat", "color": "#e8c76a"},
                                                          legwear={"kind": "trousers", "color": "#222222"},
-                                                         prop={"kind": "medal", "hand": "left"},
+                                                         props=[{"kind": "medal", "hand": "left"}, {"kind": "apple", "hand": "right"}],
                                                          default_expression="cheeky")]))
-    for bad in [{"headwear": {"kind": "bowler"}}, {"legwear": {"kind": "shorts"}}, {"prop": {"kind": "sword"}},
+    for bad in [{"headwear": {"kind": "bowler"}}, {"legwear": {"kind": "shorts"}}, {"props": [{"kind": "sword"}]}, {"props": [{"kind": "apple", "hand": "left"}] * 2},
+                {"props": [{"kind": "none", "hand": "left"}]},
                 {"default_expression": "smug"}, {"top": {"color": "#123456", "number": "1234"}},
                 {"top": {"color": "#123456", "style": "cape"}}]:
         with pytest.raises(ValidationError):
             SeriesModel.model_validate(series_data(cast=[member(**bad)]))
+
+
+def test_series_v2_single_prop_migrates_to_props_keeping_approvals(tmp_path):
+    from pipeline.scribble.io import load_series, save_series
+    def member(cid, prop):
+        return {"id": cid, "name": cid, "eyes": "dots", "top": {"style": "suit", "color": "#1f3a68"},
+                "headwear": {"kind": "none", "color": None}, "legwear": {"kind": "none", "color": None},
+                "prop": prop, "default_expression": "neutral", "approved_at": T}
+    v2 = series_data(cast=[member("sul", {"kind": "clipboard", "hand": "right"}), member("fred", {"kind": "none", "hand": "right"})])
+    v2["schema_version"] = 2
+    f = tmp_path / "series.json"
+    f.write_text(json.dumps(v2))
+    sul, fred = load_series(f).cast
+    assert [p.model_dump() for p in sul.props] == [{"kind": "clipboard", "hand": "right"}]
+    assert fred.props == []
+    assert sul.approved_at is not None and fred.approved_at is not None
+    save_series(f, load_series(f))
+    on_disk = json.loads(f.read_text())
+    assert on_disk["schema_version"] == 3 and "prop" not in on_disk["cast"][0]
+    assert [c["approved_at"] for c in on_disk["cast"]] == [T, T]

@@ -62,12 +62,15 @@
           "title": "Name",
           "type": "string"
         },
-        "prop": {
-          "$ref": "#/$defs/Prop",
-          "default": {
-            "hand": "right",
-            "kind": "none"
-          }
+        "props": {
+          "default": [],
+          "description": "held props, one per hand",
+          "items": {
+            "$ref": "#/$defs/Prop"
+          },
+          "maxItems": 2,
+          "title": "Props",
+          "type": "array"
         },
         "top": {
           "$ref": "#/$defs/Top"
@@ -158,9 +161,7 @@
           "type": "string"
         },
         "kind": {
-          "default": "none",
           "enum": [
-            "none",
             "clipboard",
             "stopwatch",
             "bottle",
@@ -172,6 +173,9 @@
           "type": "string"
         }
       },
+      "required": [
+        "kind"
+      ],
       "title": "Prop",
       "type": "object"
     },
@@ -303,8 +307,8 @@
       "type": "array"
     },
     "schema_version": {
-      "const": 2,
-      "default": 2,
+      "const": 3,
+      "default": 3,
       "title": "Schema Version",
       "type": "integer"
     },

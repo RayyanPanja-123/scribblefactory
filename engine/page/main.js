@@ -82,12 +82,13 @@ function card(id, geo = CARD_GEO, w = CW, h = CH) {
   return cards[id];
 }
 
-const NO_COSTUME = { headwear: { kind: "none" }, legwear: { kind: "none" }, prop: { kind: "none", hand: "right" },
-  default_expression: "neutral" };
-/** cast entry with every v2 field; a v1 entry (outfit_color) reads as a plain top in that colour */
+const NO_COSTUME = { headwear: { kind: "none" }, legwear: { kind: "none" }, props: [], default_expression: "neutral" };
+/** cast entry with every v3 field; older files read the same as the pipeline migrates them: a v1 entry
+ *  (outfit_color) is a plain top in that colour, a v2 single prop becomes the props list */
 const castOf = (id) => {
   const c = data.series.cast.find((c) => c.id === id) || { id, outfit_color: "#888888", eyes: "dots" };
-  return { ...NO_COSTUME, top: { style: "plain", color: c.outfit_color }, ...c };
+  const props = c.props || (c.prop && c.prop.kind !== "none" ? [c.prop] : []);
+  return { ...NO_COSTUME, top: { style: "plain", color: c.outfit_color }, ...c, props };
 };
 /** story expression "neutral" means the cast member's default expression */
 const expressionOf = (id, e) => (!e || e === "neutral" ? castOf(id).default_expression : e);
@@ -113,8 +114,8 @@ let mouth = new Float32Array(0); // per-frame mouth opening for the whole part (
 /** drawStickman options for cast member id (look from series.json), merged over the per-frame options o */
 function figure(id, o) {
   const cast = castOf(id);
-  const { top, headwear, legwear, prop, eyes } = cast;
-  return { seed: charSeed(id), color: top.color, top, headwear, legwear, prop, eyes, ...o };
+  const { top, headwear, legwear, props, eyes } = cast;
+  return { seed: charSeed(id), color: top.color, top, headwear, legwear, props, eyes, ...o };
 }
 
 function drawCard(id, o) {

@@ -36,12 +36,16 @@ const GESTURES = {
 const TAU = Math.PI * 2;
 const deg = (d) => (d * Math.PI) / 180;
 
-/** Tallest standing figure, feet to the highest point the head outline can reach (full breath, max wobble),
- *  in canvas px. main.js turns it into world units for framing; derived from the constants the drawing uses. */
+// headwear: the band's lower edge sits HAT_BRIM above the head centre (forehead, just over the neutral brows) and
+// reaches past the head outline on both sides; nothing rises more than HAT_TOP above the head centre
+export const HAT_BRIM = 88, HAT_TOP = 192;
+
+/** Tallest standing figure, feet to the highest point the head outline or any headwear can reach (full breath,
+ *  word bob, max wobble), in canvas px. main.js turns it into world units for framing; derived from the drawing's constants. */
 export const FIGURE_PX = (() => {
   const hip = FEET_Y - LEG * Math.cos(deg(IDLE_LEG)), ry = BODY_RY * (1 + BREATH);
-  const headCy = hip + HIP_OVERLAP - 2 * ry - HEAD_R + NECK_OVERLAP;
-  return FEET_Y - (headCy - HEAD_R * HEAD_SQUASH * (1 + LUMP * LUMP_SUM + JIT));
+  const headCy = hip - BOB_PX + HIP_OVERLAP - 2 * ry - HEAD_R + NECK_OVERLAP; // stressed-word bob lifts it too
+  return FEET_Y - (headCy - Math.max(HEAD_R * HEAD_SQUASH * (1 + LUMP * LUMP_SUM + JIT), HAT_TOP));
 })();
 
 // brows per expression: [outer dy, inner dy, arch] (negative = up)
@@ -118,11 +122,10 @@ export function skeleton(o) {
   } else {
     aL -= deg(2) * (o.breath || 0); aR += deg(2) * (o.breath || 0);
   }
-  // seated in the car (legs and low hands hidden by the side panel): the prop hand comes up to the chest,
+  // seated in the car (legs and low hands hidden by the side panel): each prop hand comes up to the chest,
   // unless that arm is waving
-  const prop = o.prop && o.prop.kind !== "none" ? o.prop : null;
-  if (o.seated && prop && !(o.action === "wave" && prop.hand !== "left")) {
-    if (prop.hand === "left") { aL = -HOLD[0]; bendL = -HOLD[1]; } else { aR = HOLD[0]; bendR = HOLD[1]; }
+  if (o.seated) for (const pr of o.props || []) {
+    if (pr.hand === "left") { aL = -HOLD[0]; bendL = -HOLD[1]; } else if (o.action !== "wave") { aR = HOLD[0]; bendR = HOLD[1]; }
   }
   const sh = top + 58 - lift;
   const arms = [[[CW / 2 - 66, sh], aL, bendL], [[CW / 2 + 66, sh], aR, bendR]].map(([shp, a, bend]) => {
@@ -140,7 +143,7 @@ export function skeleton(o) {
  *      bob (0..1 stressed-word lift), gesture ({ kind: palm|chin|shrug, k: 0..1 } while talking),
  *      pointK (0..1 point arm raised, default 1), wave ({ k: 0..1 raised, swing: -1..1 } for action wave),
  *      costume (series.json cast v2, all optional): top { style, color, accent_color, number }, headwear { kind, color },
- *      legwear { kind, color }, prop { kind, hand },
+ *      legwear { kind, color }, props [{ kind, hand }] (max one per hand),
  *      seated (in a car: the prop hand is raised into view), mirrored (the card is shown mirrored: keeps the chest
  *      number readable) }
  * action "ride" draws like idle (the car hides the legs). color is the body colour (top.color when a top is given).
@@ -175,10 +178,11 @@ export function drawStickman(canvas, o) {
   }
 
   // arms and dot hands over the body; a held prop sits in its hand, under the hand dot
-  const prop = o.prop && o.prop.kind !== "none" ? o.prop : null;
   k.arms.forEach(([shp, elbow, hand], i) => {
     p.stroke(jitter([shp, elbow, hand], boil), 9);
-    if (prop && i === (prop.hand === "left" ? 0 : 1)) drawProp(p, cos, prop.kind, hand, k.fore[i], i ? 1 : -1);
+    for (const pr of o.props || []) {
+      if ((pr.hand === "left" ? 0 : 1) === i) drawProp(p, cos, pr.kind, hand, k.fore[i], i ? 1 : -1);
+    }
     p.dot(hand[0], hand[1], 15);
   });
 
@@ -307,33 +311,45 @@ function drawProp(p, cos, kind, hand, fore, side) {
   }
 }
 
-/** headwear over the wobbly head: built from (or sized to) the head's own boiling outline, so it bobs and boils with
+const HAT_GRIP = 8; // px the band reaches past the head outline per side
+
+/** where a hat sits on this (wobbly, boiling) head outline: brim y and the outline's x extent at that height */
+export function hatFit(headPts, hy) {
+  const brim = hy - HAT_BRIM, xs = [];
+  headPts.forEach(([x0, y0], i) => {
+    const [x1, y1] = headPts[(i + 1) % headPts.length];
+    if ((y0 - brim) * (y1 - brim) <= 0 && y0 !== y1) xs.push(x0 + ((brim - y0) / (y1 - y0)) * (x1 - x0));
+  });
+  return { brim, xl: Math.min(...xs), xr: Math.max(...xs) };
+}
+
+/** headwear pulled down onto the wobbly head: sized from the head's own boiling outline, so it bobs and boils with
  *  it. Peaks point the way the figure faces (look 1) or show from the front (look 0). */
 function headwear(p, cos, hw, headPts, hx, hy, look) {
-  const J = (pts, a = 1.5) => jitter(pts, cos, a), brim = hy - 104, col = hw.color;
+  const J = (pts, a = 1.5) => jitter(pts, cos, a), col = hw.color;
+  const { brim, xl: hl, xr: hr } = hatFit(headPts, hy), xl = hl - HAT_GRIP, xr = hr + HAT_GRIP;
+  const mid = (xl + xr) / 2, half = (xr - xl) / 2;
   if (hw.kind === "flat_cap") {
-    // crown hugs the head's top outline, pushed out a little and forward
-    const crown = headPts.map(([x, y]) => [hx + (x - hx) * 1.07 + 10 * look, hy + (y - hy) * 1.07])
-      .filter(([, y]) => y < brim);
-    p.poly(crown, col, OL + 2);
-    if (look) p.poly(J([[hx + 92, brim - 4], [hx + 178, brim + 10], [hx + 170, brim + 24], [hx + 80, brim + 14]]), col, OL);
-    else p.poly(J(ellPts(hx, brim, 112, 20, 0, 180, 0, 14)), col, OL);
+    // crown hugs the head's top outline, pushed out a little; the band edge closes it below the outline
+    const crown = headPts.map(([x, y]) => [hx + (x - hx) * 1.07, hy + (y - hy) * 1.07]).filter(([, y]) => y < brim - 4);
+    p.poly([[xl, brim + 2], ...crown, [xr, brim + 2]], col, OL + 2);
+    if (look) p.poly(J([[xr - 24, brim - 8], [xr + 70, brim + 2], [xr + 62, brim + 12], [xr - 30, brim + 4]]), col, OL);
+    else p.poly(J(ellPts(mid, brim - 2, half + 4, 10, 0, 180, 0, 14)), col, OL);
   } else if (hw.kind === "postman_cap") {
-    const f = 8 * look;
-    p.poly(J([[hx - 116 + f, brim + 4], [hx + 116 + f, brim + 4], [hx + 126 + f, hy - 188], [hx - 124 + f, hy - 184]]),
-      col, OL + 2);
-    p.stroke(J([[hx - 116 + f, brim - 30], [hx + 118 + f, brim - 30]]), 6);                // band
-    p.dot(hx + 70 * look, brim - 52, 11, "#c9a227");                                       // badge
-    if (look) p.poly(J([[hx + 96, brim - 2], [hx + 176, brim + 18], [hx + 166, brim + 30], [hx + 84, brim + 16]]), INK, 6);
-    else p.poly(J(ellPts(hx, brim + 2, 104, 24, 0, 180, 0, 14)), INK, 6);                  // visor
+    const f = 6 * look;
+    p.poly(J([[xl, brim + 2], [xr, brim + 2], [xr + 10 + f, hy - 178], [xl - 10 + f, hy - 176]]), col, OL + 2);
+    p.stroke(J([[xl + 2, brim - 26], [xr - 2, brim - 26]]), 6);                            // band
+    p.dot(mid + 60 * look, brim - 50, 11, "#c9a227");                                      // badge
+    if (look) p.poly(J([[xr - 24, brim - 6], [xr + 66, brim + 4], [xr + 58, brim + 14], [xr - 30, brim + 6]]), INK, 6);
+    else p.poly(J(ellPts(mid, brim - 2, half, 10, 0, 180, 0, 14)), INK, 6);                // visor
   } else if (hw.kind === "bowler") {
-    p.poly(J(ellPts(hx + 6 * look, brim, 152, 20, 0, 360, 0, 24)), col, OL);
-    p.poly(J(ellPts(hx + 6 * look, brim - 4, 112, 102, 180, 360, 0, 20)), col, OL + 2);
-    p.stroke(J([[hx - 106 + 6 * look, brim - 18], [hx + 118 + 6 * look, brim - 18]]), 6);
+    p.poly(J(ellPts(mid, brim, half + 34, 14, 0, 360, 0, 24)), col, OL);
+    p.poly(J(ellPts(mid, brim - 2, half + 2, 90, 180, 360, 0, 20)), col, OL + 2);
+    p.stroke(J([[mid - half + 4, brim - 16], [mid + half - 4, brim - 16]]), 6);
   } else if (hw.kind === "straw_hat") {
-    p.poly(J(ellPts(hx, brim + 4, 214, 34, 0, 360, 0, 28)), col, OL);
-    p.poly(J([[hx - 106, brim], [hx - 98, hy - 178], [hx + 98, hy - 178], [hx + 106, brim]]), col, OL + 2);
-    p.poly(J([[hx - 105, brim - 2], [hx - 103, brim - 30], [hx + 103, brim - 30], [hx + 105, brim - 2]]), "#3b2a1a", 5);
+    p.poly(J(ellPts(mid, brim, half + 96, 26, 0, 360, 0, 28)), col, OL);
+    p.poly(J([[xl, brim - 2], [xl + 8, hy - 168], [xr - 8, hy - 168], [xr, brim - 2]]), col, OL + 2);
+    p.poly(J([[xl + 1, brim - 4], [xl + 3, brim - 30], [xr - 3, brim - 30], [xr - 1, brim - 4]]), "#3b2a1a", 5);
   }
 }
 
