@@ -217,7 +217,7 @@ const num = 'inset mt-1 block h-11 w-full rounded-full px-3 text-sm text-ink out
               </label>
               <div class="grid grid-cols-3 gap-2">
                 <label v-for="(axis, a) in ['x', 'y', 'z']" :key="axis" class="block text-xs font-semibold text-muted">{{ axis }}
-                  <input v-model.number="p.at[a]" type="number" step="0.1" :class="num" />
+                  <input v-model.number="p.at[a]" type="number" step="any" :class="num" />
                 </label>
               </div>
               <div class="flex gap-1">
@@ -228,7 +228,7 @@ const num = 'inset mt-1 block h-11 w-full rounded-full px-3 text-sm text-ink out
             </div>
             <div class="flex flex-wrap items-end gap-3">
               <label v-for="(what, k) in SHAPES[p.shape].size" :key="what" class="block w-28 text-xs font-semibold text-muted">{{ what }}
-                <input v-model.number="p.size[k]" type="number" step="0.1" min="0" max="80" :class="num" />
+                <input v-model.number="p.size[k]" type="number" step="any" min="0" max="80" :class="num" />
               </label>
               <input v-model="p.color" type="color" :aria-label="`Colour of piece ${i + 1}`" class="h-11 w-14 cursor-pointer rounded-md" />
               <label class="flex h-11 items-center gap-2 text-sm"><input :checked="!!p.backdrop" type="checkbox" class="size-4"
