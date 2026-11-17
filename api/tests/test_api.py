@@ -450,3 +450,19 @@ def test_check_story(client, lib):
     assert [(p["line"], p["message"].split(" (")[0]) for p in r["problems"]] == [
         (3, "unknown set 'moon'"), (4, "cast bob is not approved yet")]
     assert client.get("/api/series/demo/parts/part-09/check-story").status_code == 404
+
+
+def test_cover_is_a_small_cached_jpeg(client, lib):
+    from PIL import Image
+    thumb = lib / "demo" / "part-01" / "thumbs" / "thumb-1.png"
+    Image.new("RGB", (1080, 1920), "red").save(thumb)
+    url = client.get("/api/series").json()[0]["cover"]
+    assert url == "/api/media/demo/part-01/thumbs/thumb-1-360.jpg"
+    small = thumb.with_name("thumb-1-360.jpg")
+    with Image.open(small) as im:
+        assert (im.format, im.size) == ("JPEG", (360, 640))
+    made = small.stat().st_mtime_ns
+    client.get("/api/series")
+    assert small.stat().st_mtime_ns == made  # cached
+    assert client.get(url).headers["content-type"] == "image/jpeg"
+    assert client.get(f"{P}").json()["thumbs"] == ["thumb-1.png", "thumb-2.png", "thumb-3.png"]  # not a candidate

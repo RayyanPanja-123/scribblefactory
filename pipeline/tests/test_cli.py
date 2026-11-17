@@ -316,3 +316,31 @@ def test_cast_edit_props(lib, capsys):
     assert main(["cast-edit", "cat", "bob", "--props", "none"]) == 0
     c = load_series(f).cast[0]
     assert (c.props, c.approved_at) == ([], None)
+
+
+def test_clean_frames_posted(lib, capsys):
+    main(["new-series", "cat", "--title", "Cat"])
+    for _ in range(3):
+        main(["new-part", "cat"])
+    for pid in ("part-01", "part-02", "part-03"):
+        d = lib / "cat" / pid
+        (d / "frames").mkdir()
+        (d / "frames" / "000000.png").write_bytes(b"x" * 2_000_000)
+        (d / "final.mp4").write_bytes(b"mp4")
+        main(["approve", "cat", pid, "final"])
+        main(["mark-posted", "cat", pid, "youtube", "--url", "https://yt/x"])
+    main(["mark-posted", "cat", "part-01", "instagram", "--url", "https://ig/x"])
+    main(["mark-posted", "cat", "part-03", "instagram", "--url", "https://ig/y"])
+    (lib / "cat" / "part-03" / "final.mp4").unlink()  # no final.mp4 on disk: frames kept
+    capsys.readouterr()
+    assert main(["clean-frames", "--posted"]) == 0  # dry run
+    out = capsys.readouterr().out
+    assert "would delete" in out and "dry run: 2.0 MB would be freed (1 part(s)); add --yes" in out
+    assert (lib / "cat" / "part-01" / "frames").exists()
+    assert main(["clean-frames", "--posted", "cat", "--yes"]) == 0
+    assert "2.0 MB freed (1 part(s))" in capsys.readouterr().out
+    assert not (lib / "cat" / "part-01" / "frames").exists()
+    assert (lib / "cat" / "part-02" / "frames").exists()  # instagram missing
+    assert (lib / "cat" / "part-03" / "frames").exists()
+    assert main(["clean-frames", "--posted", "cat", "part-02"]) == 1
+    assert main(["clean-frames", "cat"]) == 1

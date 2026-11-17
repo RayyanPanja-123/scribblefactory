@@ -8,6 +8,7 @@ Write docs/openapi.json: python -m api.main
 import argparse
 import asyncio
 import contextlib
+import io
 import itertools
 import json
 import os
@@ -23,11 +24,12 @@ from typing import Literal, get_args
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from PIL import Image
 from pydantic import BaseModel, TypeAdapter, ValidationError
 from sse_starlette import EventSourceResponse
 
 from pipeline.scribble import cli, storycheck
-from pipeline.scribble.io import (atomic_write_json, atomic_write_text, delete_prop, load_part, load_props, load_series, prop_kinds,
+from pipeline.scribble.io import (atomic_write_bytes, atomic_write_json, atomic_write_text, delete_prop, load_part, load_props, load_series, prop_kinds,
                                   save_prop, save_series, unknown_cast_props)
 from pipeline.scribble.schemas import (BuiltinProp, CastMember, CustomProp, PartModel, Posted, SeriesModel, Slug, Stage, Stages,
                                        utcnow)
@@ -37,7 +39,8 @@ from pipeline.scribble.stages.runner import StageError, recover_stuck
 
 ROOT = Path(__file__).resolve().parents[1]
 OPENAPI = ROOT / "docs" / "openapi.json"
-MEDIA_TYPES = {".mp4", ".png", ".mp3", ".md", ".json"}
+MEDIA_TYPES = {".mp4", ".png", ".jpg", ".mp3", ".md", ".json"}
+COVER_W = 360  # dashboard cover width (px): a small cached JPEG instead of the 1080x1920 thumbnail PNG
 PART_FILES = ["story.md", "voice.mp3", "preview.mp4", "test-render.mp4", "final.mp4", "stills-sheet.png", "cast-sheet.png"]
 APPROVE_NEEDS = {"stills": "stills-sheet.png", "test_render": "test-render.mp4", "final": "final.mp4"}
 JOB_COMMANDS = {"run", "render-stills", "test-render", "render", "cast-sheet"}
@@ -107,8 +110,26 @@ def cover(d: Path) -> str | None:
     choice = load_part(pdir / "part.json").thumbnail_choice if (pdir / "part.json").exists() else None
     for rel in filter(None, (choice, "thumbs/thumb-1.png")):
         if (pdir / rel).is_file():
-            return media_url(d.name, f"{parts[0]}/{rel}")
+            small = small_cover(pdir / rel)
+            return media_url(d.name, f"{parts[0]}/{small.relative_to(pdir).as_posix() if small else rel}")
     return None
+
+
+def small_cover(src: Path) -> Path | None:
+    """<thumb>-360.jpg beside the thumbnail, made once and again only when the thumbnail is newer; None if the
+    thumbnail can't be read (then the PNG is served as it is)"""
+    out = src.with_name(f"{src.stem}-{COVER_W}.jpg")
+    if out.is_file() and out.stat().st_mtime >= src.stat().st_mtime:
+        return out
+    try:
+        with Image.open(src) as im:
+            im = im.convert("RGB")
+            buf = io.BytesIO()
+            im.resize((COVER_W, round(im.height * COVER_W / im.width)), Image.LANCZOS).save(buf, "JPEG", quality=82)
+    except (OSError, ValueError):
+        return None
+    atomic_write_bytes(out, buf.getvalue())
+    return out
 
 
 def posted_counts(d: Path) -> dict:

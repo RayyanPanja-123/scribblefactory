@@ -387,6 +387,12 @@ def cmd_mark_posted(args) -> int:
 
 
 def cmd_clean_frames(args) -> int:
+    if args.posted:
+        return clean_posted(args)
+    if not (args.slug and args.part):
+        raise UserError("clean-frames needs <slug> <part>, or --posted [<slug>]")
+    if args.yes:
+        raise UserError("--yes goes with --posted (one part is cleaned without asking)")
     pdir = part_dir(args)
     frames = pdir / "frames"
     if not (pdir / "final.mp4").exists() or load_part(pdir / "part.json").stages.finish.status != "done":
@@ -400,6 +406,41 @@ def cmd_clean_frames(args) -> int:
     size = sum(f.stat().st_size for f in frames.rglob("*") if f.is_file())
     shutil.rmtree(frames)
     print(f"deleted {frames} ({size / 1e6:.1f} MB freed)")
+    return 0
+
+
+def clean_posted(args) -> int:
+    """frames/ of every part approved final AND posted on both platforms (one series, or the whole library).
+    Dry run unless --yes."""
+    if args.part:
+        raise UserError("--posted cleans every posted part: give at most a <slug>")
+    root = library_root(args)
+    if args.slug:
+        dirs = [load_existing_series(args)[0].parent]
+    else:
+        dirs = sorted(d for d in root.iterdir() if (d / "series.json").is_file()) if root.is_dir() else []
+    total = count = 0
+    for d in dirs:
+        for pid in load_series(d / "series.json").parts:
+            pdir, frames = d / pid, d / pid / "frames"
+            if not (pdir / "part.json").exists() or not frames.exists():
+                continue
+            p = load_part(pdir / "part.json")
+            if not (p.approvals.final.approved_at and p.posted.youtube and p.posted.instagram
+                    and (pdir / "final.mp4").exists()):
+                continue
+            if render_stage.lock_owner(pdir):
+                print(f"skipped {d.name} {pid}: a render is running")
+                continue
+            size = sum(f.stat().st_size for f in frames.rglob("*") if f.is_file())
+            print(f"{'deleted' if args.yes else 'would delete'} {frames} ({size / 1e6:.1f} MB)")
+            if args.yes:
+                shutil.rmtree(frames)
+            total, count = total + size, count + 1
+    if args.yes:
+        print(f"{total / 1e6:.1f} MB freed ({count} part(s))")
+    else:
+        print(f"dry run: {total / 1e6:.1f} MB would be freed ({count} part(s))" + "; add --yes to delete" * bool(count))
     return 0
 
 
@@ -528,9 +569,13 @@ def build_parser() -> Parser:
     c.add_argument("--force", action="store_true", help="replace an existing entry")
     c.set_defaults(func=cmd_mark_posted)
 
-    c = sub.add_parser("clean-frames", parents=[common], help="delete frames/ once final.mp4 is finished")
-    c.add_argument("slug")
-    c.add_argument("part")
+    c = sub.add_parser("clean-frames", parents=[common],
+                       help="delete frames/ once final.mp4 is finished; --posted: of every posted part")
+    c.add_argument("slug", nargs="?")
+    c.add_argument("part", nargs="?")
+    c.add_argument("--posted", action="store_true", help="every part approved final and posted on YouTube and "
+                                                         "Instagram (of <slug>, else the whole library); dry run")
+    c.add_argument("--yes", action="store_true", help="with --posted: really delete")
     c.set_defaults(func=cmd_clean_frames)
     return p
 
