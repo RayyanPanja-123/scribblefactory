@@ -336,7 +336,7 @@ export interface components {
              * @default none
              * @enum {string}
              */
-            kind: "none" | "flat_cap" | "postman_cap" | "bowler" | "straw_hat";
+            kind: "none" | "flat_cap" | "postman_cap" | "bowler" | "straw_hat" | "wide_hat";
         };
         /** Health */
         Health: {
@@ -750,7 +750,7 @@ export interface components {
         Top: {
             /**
              * Accent Color
-             * @description suit: the tie colour (no tie when null)
+             * @description suit: the tie colour (no tie when null); dress: the wide hat's ribbon and flower
              */
             accent_color?: string | null;
             /** Color */
@@ -765,7 +765,7 @@ export interface components {
              * @default plain
              * @enum {string}
              */
-            style: "plain" | "suit" | "tank" | "shirt";
+            style: "plain" | "suit" | "tank" | "shirt" | "dress";
         };
         /** UploadText */
         UploadText: {
