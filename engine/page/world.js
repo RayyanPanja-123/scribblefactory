@@ -5,7 +5,9 @@
 import * as THREE from "three";
 import { rng } from "./rng.js";
 
-export const SETS = ["room", "office", "street"];
+export const SETS = ["room", "office", "street", "dirt_road", "countryside", "orchard", "stadium"];
+/** prop-placement variants per set (main.js picks one per run of shots); sets not listed have one */
+export const VARIANTS = { dirt_road: 3, countryside: 3, orchard: 3, stadium: 3 };
 const INK = 0x1c1a1a;
 const HULL_T = 0.025; // outline thickness in world units
 const HULL = new THREE.MeshBasicMaterial({ color: INK, side: THREE.BackSide });
@@ -66,6 +68,37 @@ const windows = (g, s, R) => {
   }
 };
 
+/** dry-grass / leaf ticks scattered over the base */
+const grass = (col, n = 160, len = 14) => (g, s, R) => {
+  g.strokeStyle = col; g.lineWidth = 3; g.lineCap = "round";
+  for (let i = 0; i < n; i++) {
+    const x = R() * s, y = R() * s, a = -Math.PI / 2 + (R() - 0.5) * 0.9;
+    g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len); g.stroke();
+  }
+};
+/** stand crowd: two rows of outfit blobs with white heads. One tile is `aspect` times wider than tall in world
+ *  units, so shapes are drawn stretched in y here and come out round once mapped. */
+const crowd = (aspect) => (g, s, R) => {
+  const cols = ["#e63946", "#457b9d", "#f4a261", "#2a9d8f", "#e9c46a", "#8338ec", "#ffffff", "#264653"];
+  const per = 6, w = s / per, k = Math.min(aspect, 1 / (0.9 * 0.45 * per / 6)); // keep two rows inside the tile
+  g.strokeStyle = "#1c1a1a"; g.lineWidth = 3;
+  for (const [row, y0] of [[0, 0.55], [1, 0.97]]) {
+    for (let i = 0; i < per; i++) {
+      const cx = (i + 0.5 + (row ? 0.5 : 0) + (R() - 0.5) * 0.3) * w, y = s * (y0 - R() * 0.06), r = w * 0.36;
+      g.fillStyle = cols[Math.floor(R() * cols.length)];
+      g.beginPath(); g.ellipse(cx, y, r, r * k, 0, Math.PI, 0); g.fill(); g.stroke();
+      g.fillStyle = "#ffffff";
+      g.beginPath(); g.ellipse(cx, y - r * k * 1.2, r * 0.5, r * 0.5 * k, 0, 0, Math.PI * 2); g.fill(); g.stroke();
+    }
+  }
+};
+/** distant sky band: haze colour near the horizon fading up into the sky colour */
+const haze = (sky, low) => (g, s) => {
+  const gr = g.createLinearGradient(0, 0, 0, s);
+  gr.addColorStop(0, sky); gr.addColorStop(0.55, sky); gr.addColorStop(1, low);
+  g.globalAlpha = 0.85; g.fillStyle = gr; g.fillRect(0, 0, s, s); g.globalAlpha = 1;
+};
+
 class Builder {
   constructor(group, seed, strength = 1) {
     this.group = group; this.seed = seed; this.n = 0; this.strength = strength;
@@ -117,6 +150,143 @@ class Builder {
   box(w, h, d, color, pos, opts = {}) { return this.add(new THREE.BoxGeometry(w, h, d), opts.mat || this.mat(color, opts.pattern, opts.repeat), pos, opts); }
   cyl(r0, r1, h, color, pos, opts = {}) { return this.add(new THREE.CylinderGeometry(r0, r1, h, 20), opts.mat || this.mat(color, opts.pattern), pos, opts); }
   ball(r, color, pos, opts = {}) { return this.add(new THREE.SphereGeometry(r, 20, 14), opts.mat || this.mat(color), pos, opts); }
+  /** squashed sphere (hills, bushes): sy scales the height */
+  mound(r, sy, color, pos, opts = {}) {
+    return this.add(new THREE.SphereGeometry(r, 28, 12).scale(1, sy, 1), opts.mat || this.mat(color, opts.pattern, opts.repeat), pos, opts);
+  }
+}
+
+// --- outdoor sets. Floors reach z +12 so wides never see an edge; far scenery is backdrop (never hidden); fog
+// hazes everything past ~16 units, far behind any actor. Repeated props share one material (one texture).
+function sky(b, color, low) {
+  b.box(220, 70, 0.1, color, [0, 30, -75], { outline: false, backdrop: true, pattern: haze(color, low) });
+}
+
+/** posts + two rails from a to b along x (at depth `at`) or along z (at x `at`), in ~5-unit prop pieces so a
+ *  close-up only hides the stretch behind the subject */
+function fence(b, a, c, at, { h = 0.9, step = 1.6, along = "x", mat }) {
+  const n = Math.max(1, Math.round(Math.abs(c - a) / 5)), seg = (c - a) / n;
+  const P = (v, y) => (along === "x" ? [v, y, at] : [at, y, v]);
+  for (let i = 0; i < n; i++) b.piece(() => {
+    const lo = Math.min(a + seg * i, a + seg * (i + 1)), hi = lo + Math.abs(seg);
+    for (let v = lo; v <= hi + 1e-6; v += step) b.box(0.1, h, 0.1, null, P(v, h / 2), { mat });
+    for (const y of [h * 0.45, h * 0.85]) {
+      b.box(along === "x" ? hi - lo : 0.06, 0.08, along === "x" ? 0.06 : hi - lo, null, P((lo + hi) / 2, y), { mat });
+    }
+  });
+}
+
+function dirt_road(b, R, v) {
+  const fenceSide = [-1, 1, -1][v], poleSide = -fenceSide;
+  b.box(140, 0.1, 100, "#dcbc72", [0, -0.07, -38], { outline: false, floor: true, pattern: lines("h", 10, "#c49c50", 5), repeat: [30, 20] });
+  b.box(4.4, 0.1, 100, "#c69a68", [0, -0.05, -38], { outline: false, floor: true, pattern: lines("v", 3, "#a87b4e", 7), repeat: [1, 30] });
+  sky(b, "#bfe0ee", "#f7e7bf");
+  for (let i = 0; i < 6; i++) { // distant hills
+    b.mound(14 + R() * 10, 0.28, ["#a9b779", "#b9b07a", "#98a86e"][i % 3], [-60 + i * 24 + R() * 8, -1, -48 - R() * 10], { backdrop: true });
+  }
+  const wood = b.mat("#8a5a32"), pole = b.mat("#6b4a2e");
+  fence(b, 0.5, -30, fenceSide * 3.1, { along: "z", mat: wood });
+  if (v === 2) fence(b, -4, -30, -fenceSide * 3.1, { along: "z", mat: wood }); // both sides, near gap left open
+  const wire = b.mat("#2b2b2b"), px = poleSide * 4.0;
+  for (let z = -1.5 - R() * 2; z > -50; z -= 7) b.piece(() => { // telegraph pole, crossbar, wires to the next pole
+    b.cyl(0.07, 0.1, 4.4, null, [px, 2.2, z], { mat: pole });
+    b.box(1.1, 0.09, 0.09, null, [px, 4.0, z], { mat: pole });
+    for (const dx of [-0.45, 0.45]) b.box(0.03, 0.03, 7, null, [px + dx, 3.92, z - 3.5], { mat: wire, outline: false });
+  });
+  const bush = b.mat("#a3a04f");
+  const bushes = [[[-4.5, -3], [5, -7]], [[4.6, -2.5], [-5.2, -9]], [[-5, -5], [4.8, -4]]][v];
+  for (const [x, z] of bushes) b.piece(() => b.mound(0.6 + R() * 0.3, 0.6, null, [x, 0.15, z], { mat: bush }));
+}
+
+function oak(b, x, z) {
+  b.piece(() => {
+    b.cyl(0.3, 0.45, 2.6, "#6b4429", [x, 1.3, z]);
+    const leaf = b.mat("#3d8b3d", grass("#2f6f2f", 60));
+    for (const [dx, dy, r] of [[0, 3.4, 1.5], [-1.1, 2.9, 1.1], [1.1, 3.0, 1.15], [-0.5, 4.2, 1.1], [0.6, 4.1, 1.0]]) {
+      b.ball(r, null, [x + dx, dy, z - 0.2], { mat: leaf });
+    }
+  });
+}
+
+function farmhouse(b, x, z) {
+  b.box(3.2, 2.2, 2.4, "#f4efe4", [x, 1.1, z], { backdrop: true });
+  for (const sg of [-1, 1]) b.box(3.6, 0.14, 1.75, "#c0392b", [x, 2.55, z + sg * 0.62], { backdrop: true, rot: [sg * 0.62, 0, 0] });
+  b.box(0.5, 0.9, 0.05, "#7a4b2a", [x - 0.6, 0.45, z + 1.22], { backdrop: true });
+  b.box(0.6, 0.5, 0.05, "#9fd3f5", [x + 0.7, 1.3, z + 1.22], { backdrop: true });
+}
+
+function countryside(b, R, v) {
+  const side = [1, -1, 1][v];
+  b.box(140, 0.1, 100, "#8cc152", [0, -0.07, -38], { outline: false, floor: true, pattern: grass("#6fa53c"), repeat: [40, 30] });
+  sky(b, "#9fd3f5", "#e8f4f0");
+  const greens = ["#7db648", "#9cc95a", "#6aa83f", "#b5c96a"];
+  for (let i = 0; i < 7; i++) { // rolling fields, some striped like crops
+    const crop = R() < 0.4;
+    b.mound(8 + R() * 8, 0.3, crop ? "#d9c46a" : greens[i % 4], [-40 + i * 13 + R() * 5, -1.2, -18 - R() * 18],
+      { backdrop: true, pattern: crop ? lines("h", 8, "#c2a94c", 6) : grass("#5f9a36", 80), repeat: [3, 3] });
+  }
+  const [hx, hz] = [[-6, -24], [7, -22], [-3, -28]][v];
+  farmhouse(b, hx, hz);
+  b.box(2.6, 2.6, 2.6, "#b5442f", [hx + (hx < 0 ? 4.2 : -4.2), 1.3, hz - 1], { backdrop: true }); // barn
+  oak(b, side * [4.4, 4.1, 3.7][v], [-2.8, -3.4, -5][v]); // big oak, off-stage to one side
+  const bale = b.mat("#e2c15c", lines("v", 6, "#c9a43f", 4));
+  const bales = [[[-3.2, -1.6], [-4.2, -3.5], [2.9, -7]], [[3.0, -1.8], [-3.0, -6], [4.5, -5]], [[-3.4, -2.2], [-2.6, -4.6], [3.6, -9]]][v];
+  for (const [x, z] of bales) {
+    b.piece(() => b.cyl(0.55, 0.55, 1.0, null, [x, 0.55, z], { mat: bale, rot: [0, R() * 0.6, Math.PI / 2] }));
+  }
+}
+
+function orchard(b, R, v) {
+  b.box(140, 0.1, 100, "#7fbf4d", [0, -0.07, -38], { outline: false, floor: true, pattern: grass("#5f9e38"), repeat: [40, 30] });
+  sky(b, "#9fd3f5", "#e3f2e6");
+  for (let i = 0; i < 5; i++) b.mound(12 + R() * 8, 0.3, "#6aa83f", [-50 + i * 25, -1.5, -45 - R() * 8], { backdrop: true });
+  const trunk = b.mat("#7b5132"), leaf = b.mat("#3f9a3a", grass("#2f7d2c", 60)), apple = b.mat("#a6d63c");
+  const off = [0, 1.3, 0.65][v];
+  for (let row = 0; row < 6; row++) { // rows of apple trees; green apples on the near rows
+    const z = -3.2 - row * 3.3;
+    for (let x = -13 + off + (row % 2) * 1.3; x < 13; x += 2.6) b.piece(() => {
+      b.cyl(0.12, 0.17, 1.3, null, [x, 0.65, z], { mat: trunk });
+      b.ball(0.95, null, [x, 1.95, z], { mat: leaf });
+      for (let i = 0; row < 3 && i < 6; i++) { // on the front half of the crown
+        const a = (R() - 0.5) * 2.2, e = (R() - 0.4) * 1.1;
+        b.ball(0.1, null, [x + Math.sin(a) * Math.cos(e) * 0.95, 1.95 + Math.sin(e) * 0.95, z + Math.cos(a) * Math.cos(e) * 0.95],
+          { mat: apple, outline: false });
+      }
+    });
+  }
+  const wood = b.mat("#a0703f");
+  if (v === 2) fence(b, -1.6, -12, -3.2, { h: 0.6, step: 1.2, along: "z", mat: wood });
+  else fence(b, -12, 12, -1.6, { h: 0.6, step: 1.2, mat: wood }); // low fence behind the actors
+  const cx = [3.2, -3.3, 3.4][v];
+  b.piece(() => { // crate of picked apples off to one side
+    b.box(0.7, 0.4, 0.5, "#c8935a", [cx, 0.2, -1.3]);
+    for (let i = 0; i < 4; i++) b.ball(0.1, null, [cx - 0.17 + (i % 2) * 0.34, 0.45, -1.4 + Math.floor(i / 2) * 0.2], { mat: apple });
+  });
+}
+
+function stadium(b, R, v) {
+  b.box(140, 0.1, 100, "#6cbf4a", [0, -0.07, -38], { outline: false, floor: true, pattern: lines("h", 2, "#5aa83c", 30), repeat: [1, 40] });
+  b.box(140, 0.1, 6, "#c4553b", [0, -0.05, -0.4], { outline: false, floor: true, pattern: lines("h", 6, "#f4efe4", 3), repeat: [40, 1] });
+  sky(b, "#9fd3f5", "#e8f4f0");
+  const fx = [2.7, -2.7, 3.6][v];
+  b.box(0.3, 0.1, 6, "#ffffff", [fx, -0.03, -0.4], { outline: false, floor: true }); // finish line on the track
+  b.piece(() => { // finish tape on two posts, across the track
+    const post = b.mat("#f4f4f4");
+    for (const z of [-2.4, 0.45]) b.cyl(0.05, 0.05, 1.3, null, [fx, 0.65, z], { mat: post });
+    b.box(0.03, 0.07, 2.85, "#e63946", [fx, 1.15, -0.975]);
+  });
+  b.box(140, 1.0, 0.2, "#2d6fb3", [0, 0.5, -4.2], { backdrop: true, pattern: lines("v", 4, "#f4efe4", 6), repeat: [12, 1] });
+  for (let i = 0; i < 5; i++) { // stepped stands, a crowd strip on top of each step
+    const z = -5 - i * 1.4, h = 1.1 + i * 0.8;
+    b.box(140, h, 1.4, "#9aa0a6", [0, h / 2, z], { backdrop: true });
+    b.box(140, 0.8, 0.05, "#9aa0a6", [0, h + 0.4, z + 0.62],{ outline: false, backdrop: true, pattern: crowd(2 / 0.8), repeat: [70, 1] });
+  }
+  const cols = ["#e63946", "#f4a261", "#2a9d8f", "#e9c46a", "#457b9d"], top = 1.1 + 4 * 0.8 + 0.8;
+  for (let i = 0; i < 9; i++) { // flags on the top rim
+    const x = -16 + i * 4 + [0, 2, 1][v] + (R() - 0.5), z = -10.8;
+    b.cyl(0.04, 0.04, 2.0, "#f4f4f4", [x, top + 1.0, z], { backdrop: true });
+    b.box(0.9, 0.55, 0.03, cols[(i + v) % cols.length], [x + 0.47, top + 1.7, z], { backdrop: true });
+  }
 }
 
 function room(b) {
@@ -188,20 +358,26 @@ function street(b, R) {
   });
 }
 
-const BACKGROUND = { room: "#f2d6a2", office: "#f2bd85", street: "#9fd3f5" };
+const BACKGROUND = { room: "#f2d6a2", office: "#f2bd85", street: "#9fd3f5",
+  dirt_road: "#f3e2b8", countryside: "#cfe8ee", orchard: "#cfe8ee", stadium: "#cfe8ee" };
+const STRENGTH = { office: 2.2, dirt_road: 1.6, countryside: 1.6, orchard: 1.6, stadium: 1.4 }; // paint visibility
+const FOG = { dirt_road: [16, 80], countryside: [20, 90], orchard: [18, 80], stadium: [25, 100] }; // near, far
 
-/** build one set into a new group; unknown names fall back to "room" with a warning */
-export function buildSet(name, seed) {
+/** build one set (one of its prop variants) into a new group; unknown names fall back to "room" with a warning */
+export function buildSet(name, seed, variant = 0) {
   if (!SETS.includes(name)) {
     console.warn(`unknown set "${name}", using "room"`);
     name = "room";
   }
   const group = new THREE.Group();
-  const b = new Builder(group, `${seed}:${name}`, name === "office" ? 2.2 : 1); // office: visible paint
-  ({ room, office, street })[name](b, rng(seed, "set", name));
+  const b = new Builder(group, `${seed}:${name}`, STRENGTH[name] ?? 1);
+  const v = VARIANTS[name] ? variant % VARIANTS[name] : 0;
+  const R = VARIANTS[name] ? rng(seed, "set", name, v) : rng(seed, "set", name); // old sets: unchanged output
+  ({ room, office, street, dirt_road, countryside, orchard, stadium })[name](b, R, v);
   const sun = new THREE.DirectionalLight(0xffffff, 2.2);
   sun.position.set(3, 6, 5);
   group.add(sun, new THREE.AmbientLight(0xffffff, 1.1));
   group.userData.background = new THREE.Color(BACKGROUND[name]);
+  if (FOG[name]) group.userData.fog = new THREE.Fog(BACKGROUND[name], ...FOG[name]);
   return group;
 }

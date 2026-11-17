@@ -22,3 +22,6 @@ export function mulberry32(a) {
 }
 
 export const rng = (...keys) => mulberry32(hash(...keys));
+
+/** prop variant of a set for a run of shots: hash(set, id of the run's first shot) mod count */
+export const setVariant = (set, shotId, count) => (count > 1 ? hash(set, shotId) % count : 0);

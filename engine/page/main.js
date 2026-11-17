@@ -4,8 +4,8 @@ import * as THREE from "three";
 import { dolly, glide } from "./borrowed.js";
 import { CH, CW, FEET_Y, FIGURE_PX, drawStickman } from "./stickman.js";
 import { gestureAmount, gesturePlan, pointAmount, stressBob } from "./motion.js";
-import { rng } from "./rng.js";
-import { buildSet } from "./world.js";
+import { rng, setVariant } from "./rng.js";
+import { VARIANTS, buildSet } from "./world.js";
 
 const FPS = 30, W = 1080, H = 1920;
 const CARD_H = 1.6, CARD_W = CARD_H * (CW / CH);
@@ -21,6 +21,9 @@ const lerp = (a, b, u) => a + (b - a) * u;
 const WIDE = { margin: 0.8, maxFill: 0.30, camY: 2.1, lookY: 0.75 };
 const SUBJECT_MARGIN = 0.05; // props must clear the subject's on-screen card bounds grown by 5% per side
 const SHADOW = { w: 0.75, d: 0.3, opacity: 0.32, bounce: 0.08, y: 0.025 }; // y clears the room rug
+// set change: a marker stroke sweeps left to right over the last HALF frames of the old shot and the first HALF of
+// the new one, revealing the new set. band = stroke width px, tilt = how far the bottom trails the top px.
+const WIPE = { half: 5, band: 110, tilt: 260, color: "#f2c14e", streak: "#d99a2b", ink: "#1c1a1a" };
 
 // base framing per angle, relative to the subject at (sx, 0, 0): camera offset, look point, fov, how much x follows.
 // wide frames every actor on stage instead (see shotCamera).
@@ -41,7 +44,9 @@ const camera = new THREE.PerspectiveCamera(45, W / H, 0.05, 100);
 const CARD_GEO = new THREE.PlaneGeometry(CARD_W, CARD_H).translate(0, CARD_H / 2 - CARD_H * (1 - FEET_Y / CH), 0);
 
 let data = null, scene = null;
-const sets = {}, cards = {}, hiddenByShot = new Map();
+const sets = {}, cards = {}, hiddenByShot = new Map(), variantByShot = new Map();
+const comp = Object.assign(document.createElement("canvas"), { width: W, height: H }); // wipe composite
+const cg = comp.getContext("2d");
 
 /** soft dark ellipse texture for contact shadows (radial gradient, no randomness) */
 const SHADOW_TEX = (() => {
@@ -135,16 +140,28 @@ function shotCamera(shot, sx, xs, u) {
   camera.updateProjectionMatrix();
 }
 
-function useSet(name) {
-  if (!sets[name]) sets[name] = buildSet(name, data.story.seed);
+/** the shot's set group (its prop variant is fixed for the whole run of shots on that set) in a fresh scene */
+function useSet(shot) {
+  const v = variantByShot.get(shot.id) ?? 0, key = `${shot.set}:${v}`;
+  if (!sets[key]) sets[key] = buildSet(shot.set, data.story.seed, v);
   scene = new THREE.Scene();
-  scene.add(sets[name]);
-  scene.background = sets[name].userData.background;
+  scene.add(sets[key]);
+  scene.background = sets[key].userData.background;
+  scene.fog = sets[key].userData.fog || null;
+  return sets[key];
 }
 
 const png = () => renderer.domElement.toDataURL("image/png");
 
-window.setup = (d) => { data = d; hiddenByShot.clear(); for (const k of Object.keys(sets)) delete sets[k]; };
+window.setup = (d) => {
+  data = d; hiddenByShot.clear(); variantByShot.clear();
+  for (const k of Object.keys(sets)) delete sets[k];
+  let runStart = null; // variant = hash(set, first shot id of the run): props never jump between cuts on one set
+  (d.story.shots || []).forEach((s, i, all) => {
+    if (i === 0 || all[i - 1].set !== s.set) runStart = s.id;
+    variantByShot.set(s.id, setVariant(s.set, runStart, VARIANTS[s.set] || 1));
+  });
+};
 
 const placeAt = (a, u) => {
   const e = a.end_pos || a.start_pos;
@@ -164,9 +181,9 @@ const overlap = (a, b) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[
 
 /** prop pieces to hide for a non-wide shot: any whose screen box overlaps the subject's card (+ margin) at the
  *  shot's start, middle or end. Decided once per shot, so nothing pops in or out mid-shot. */
-function hiddenFor(shot, subject, span) {
+function hiddenFor(shot, subject, span, group) {
   if (hiddenByShot.has(shot.id)) return hiddenByShot.get(shot.id);
-  const hidden = new Set(), pieces = sets[shot.set].userData.pieces;
+  const hidden = new Set(), pieces = group.userData.pieces;
   if (subject && shot.camera.angle !== "wide") {
     const bottom = -CARD_H * (1 - FEET_Y / CH);
     for (const u of [0, 0.5, 1]) {
@@ -192,24 +209,75 @@ function hiddenFor(shot, subject, span) {
   return hidden;
 }
 
+/** set-change wipe covering frame n of shot i, or null: { from, to, p } with p in (0, 1], 1 = new set fully shown */
+function wipeAt(i, n) {
+  const sh = data.story.shots, s = sh[i];
+  let from, to;
+  if (sh[i + 1] && sh[i + 1].set !== s.set && s.end_frame - n <= WIPE.half) [from, to] = [s, sh[i + 1]];
+  else if (sh[i - 1] && sh[i - 1].set !== s.set && n - s.start_frame < WIPE.half) [from, to] = [sh[i - 1], s];
+  else return null;
+  return { from, to, p: (n - (to.start_frame - WIPE.half) + 1) / (2 * WIPE.half) };
+}
+
+/** marker stroke edge: x per y sample for this wipe, ragged but the same shape on every frame of it */
+function strokeEdge(w) {
+  const R = rng(data.story.seed, "wipe", w.to.id), a = R() * 6.28, b = R() * 6.28, pts = [];
+  const M = WIPE.tilt / 2 + WIPE.band / 2 + 70, lead = -M + w.p * (W + 2 * M); // p 0 / 1: stroke fully off left / right
+  for (let y = -40; y <= H + 40; y += 32) {
+    const v = y / H;
+    pts.push([lead + WIPE.tilt * (0.5 - v) + 34 * Math.sin(6 * v + a) + 18 * Math.sin(17 * v + b) + R() * 10, y]);
+  }
+  return pts;
+}
+
+/** both sets: old shot in the WebGL canvas -> composite, then the new shot revealed left of the stroke */
+function composite(w, n) {
+  drawShot(w.from, n);
+  cg.drawImage(canvas, 0, 0);
+  const info = drawShot(w.to, n);
+  const pts = strokeEdge(w), line = (dx) => { cg.beginPath(); pts.forEach(([x, y], k) => (k ? cg.lineTo(x + dx, y) : cg.moveTo(x + dx, y))); };
+  cg.save();
+  line(0); cg.lineTo(-10, H + 50); cg.lineTo(-10, -50); cg.closePath(); cg.clip();
+  cg.drawImage(canvas, 0, 0);
+  cg.restore();
+  cg.lineCap = cg.lineJoin = "round";
+  line(0); cg.strokeStyle = WIPE.color; cg.lineWidth = WIPE.band; cg.stroke();
+  for (const [dx, lw] of [[-38, 7], [-14, 4], [12, 6], [33, 3]]) { line(dx); cg.strokeStyle = WIPE.streak; cg.lineWidth = lw; cg.stroke(); }
+  for (const dx of [-WIPE.band / 2, WIPE.band / 2]) { line(dx); cg.strokeStyle = WIPE.ink; cg.lineWidth = 6; cg.stroke(); }
+  return info;
+}
+
 window.renderFrame = (n) => {
   const { story } = data;
   if (!(n >= 0 && n < story.duration_frames)) throw new Error(`frame ${n} outside 0..${story.duration_frames - 1}`);
-  const shot = story.shots.find((s) => n >= s.start_frame && n < s.end_frame);
-  const u = (n - shot.start_frame) / (shot.end_frame - shot.start_frame), t = n / FPS;
-  useSet(shot.set);
+  const i = story.shots.findIndex((s) => n >= s.start_frame && n < s.end_frame), w = wipeAt(i, n);
+  if (!w) {
+    window.lastInfo = drawShot(story.shots[i], n);
+    return png();
+  }
+  const info = composite(w, n);
+  window.lastInfo = { ...info, wipe: `${w.from.set}->${w.to.set} ${Math.round(w.p * 100)}%` };
+  return comp.toDataURL("image/png");
+};
+
+/** render shot at frame n into the WebGL canvas. n may sit up to WIPE.half frames outside the shot (wipe): shot
+ *  motion (actors, camera) holds at the shot's edge, while boil, blink and breath keep running on n. */
+function drawShot(shot, n) {
+  const kf = Math.min(Math.max(n, shot.start_frame), shot.end_frame - 1); // held frame for shot motion
+  const u = (kf - shot.start_frame) / (shot.end_frame - shot.start_frame), t = n / FPS;
+  const group = useSet(shot);
   const place = (a) => placeAt(a, u);
   const subject = shot.actors.find((a) => a.action !== "idle") || shot.actors[0];
   const span = shot.actors.flatMap((a) => [a.start_pos[0], (a.end_pos || a.start_pos)[0]]);
-  const hidden = hiddenFor(shot, subject, span);
-  for (const [id, pc] of sets[shot.set].userData.pieces) for (const m of pc.meshes) m.visible = !hidden.has(id);
+  const hidden = hiddenFor(shot, subject, span, group);
+  for (const [id, pc] of group.userData.pieces) for (const m of pc.meshes) m.visible = !hidden.has(id);
   shotCamera(shot, subject ? place(subject)[0] : 0, span, u);
   const gestures = [];
   for (const a of shot.actors) {
     const [x, z] = place(a), key = charSeed(a.cast_id);
     const travelled = a.end_pos ? Math.hypot(a.end_pos[0] - a.start_pos[0], a.end_pos[1] - a.start_pos[1]) * u : 0;
     const phase = STRIDE[a.action] ? travelled / STRIDE[a.action] : 0;
-    const ts = (n - shot.start_frame) / FPS, shotSecs = (shot.end_frame - shot.start_frame) / FPS;
+    const ts = (kf - shot.start_frame) / FPS, shotSecs = (shot.end_frame - shot.start_frame) / FPS;
     const plan = gesturePlan(data.story.seed, shot.id, a.cast_id, a.action, shotSecs);
     const gesture = plan ? { kind: plan.kind, k: gestureAmount(plan, ts) } : null;
     if (gesture?.k > 0) gestures.push(`${a.cast_id} ${gesture.kind}`);
@@ -232,10 +300,9 @@ window.renderFrame = (n) => {
     shadow.scale.set(SHADOW.w * k, 1, SHADOW.d * k);
     scene.add(mesh, shadow);
   }
-  window.lastInfo = { angle: shot.camera.angle, hidden: hidden.size, gestures, ...measure(shot.actors.map(place)) };
   renderer.render(scene, camera);
-  return png();
-};
+  return { angle: shot.camera.angle, hidden: hidden.size, gestures, ...measure(shot.actors.map(place)) };
+}
 
 /** smallest figure height as a fraction of frame height, and whether every head, foot and card edge is in frame */
 function measure(spots) {

@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { setVariant } from "../page/rng.js";
 
 const ENGINE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const FIX = path.join(ENGINE, "..", "pipeline", "tests", "fixtures", "story");
@@ -73,10 +74,16 @@ test("bad frame number fails with exit 1", () => {
 });
 
 test("every set preset builds without breaking stage clearance", () => {
-  for (const set of ["room", "office", "street"]) {
-    const part = makePart((s) => { for (const shot of s.shots) shot.set = set; return s; });
-    const r = render("--part", part, "--frame", "10", "--out", path.join(part, "f.png"));
-    assert.equal(r.status, 0, `${set}: ${r.stderr}`);
+  const ids = Array.from({ length: 40 }, (_, i) => `s${i + 1}`);
+  for (const set of ["room", "office", "street", "dirt_road", "countryside", "orchard", "stadium"]) {
+    const variants = ["room", "office", "street"].includes(set) ? [0] : [0, 1, 2];
+    for (const v of variants) { // the run's first shot id picks the variant
+      const id = ids.find((x) => setVariant(set, x, variants.length) === v);
+      const part = makePart((s) => { for (const shot of s.shots) shot.set = set; s.shots[0].id = id; return s; });
+      const r = render("--part", part, "--frame", "10", "--out", path.join(part, "f.png"));
+      assert.equal(r.status, 0, `${set} variant ${v}: ${r.stderr}`);
+      assert.doesNotMatch(r.stderr, /unknown set/);
+    }
   }
 });
 
@@ -86,4 +93,39 @@ test("frame range writes 6-digit names and renderer info", () => {
   assert.equal(r.status, 0, r.stderr);
   assert.deepEqual(fs.readdirSync(out).sort(), ["000008.png", "000009.png", "000010.png"]);
   assert.equal(JSON.parse(fs.readFileSync(info, "utf8")).renderer, "swiftshader");
+});
+
+// fixture: s01 0-60, s02 60-120, s03 120-180, all office. s03 -> street puts a wipe on frames 115..124.
+const png = (dir, n) => fs.readFileSync(path.join(dir, `${String(n).padStart(6, "0")}.png`));
+
+test("set change: marker wipe composites both sets, deterministic; one scene outside the wipe", () => {
+  const wiped = makePart((s) => { s.shots[2].set = "street"; return s; });
+  const office = makePart(), street = makePart((s) => { for (const sh of s.shots) sh.set = "street"; return s; });
+  const out = (p, tag) => path.join(p, tag);
+  const r = render("--part", wiped, "--frames", "110-117", "--out-dir", out(wiped, "a"));
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /frame 117: .*\[wipe office->street 30%\]/);
+  assert.doesNotMatch(r.stdout, /frame 114: .*wipe/);
+  assert.equal(render("--part", wiped, "--frames", "117-117", "--out-dir", out(wiped, "b")).status, 0);
+  for (const p of [office, street]) assert.equal(render("--part", p, "--frames", "110-117", "--out-dir", out(p, "a")).status, 0);
+  assert.ok(png(out(wiped, "a"), 117).equals(png(out(wiped, "b"), 117)), "transition frame not deterministic");
+  assert.ok(png(out(wiped, "a"), 110).equals(png(out(office, "a"), 110)), "frame outside the wipe changed");
+  assert.ok(!png(out(wiped, "a"), 117).equals(png(out(office, "a"), 117)), "new set missing from the wipe frame");
+  assert.ok(!png(out(wiped, "a"), 117).equals(png(out(street, "a"), 117)), "old set missing from the wipe frame");
+});
+
+test("set variant: stable per shot id, all variants reachable, and it changes the props", () => {
+  const ids = Array.from({ length: 40 }, (_, i) => `s${String(i + 1).padStart(2, "0")}`);
+  for (const id of ids) assert.equal(setVariant("orchard", id, 3), setVariant("orchard", id, 3));
+  assert.deepEqual([...new Set(ids.map((id) => setVariant("orchard", id, 3)))].sort(), [0, 1, 2]);
+  assert.equal(setVariant("room", "s07", 1), 0);
+  // same story, only the shot ids differ -> a different variant of dirt_road -> a different picture
+  const other = ids.find((id) => setVariant("dirt_road", id, 3) !== setVariant("dirt_road", "s01", 3));
+  const parts = ["s01", other].map((id) => makePart((s) => {
+    for (const sh of s.shots) sh.set = "dirt_road";
+    s.shots[0].id = id; s.shots[1].id = `x${id}`; s.shots[2].id = `y${id}`;
+    return s;
+  }));
+  for (const p of parts) assert.equal(render("--part", p, "--frame", "10", "--out", path.join(p, "f.png")).status, 0);
+  assert.ok(!fs.readFileSync(path.join(parts[0], "f.png")).equals(fs.readFileSync(path.join(parts[1], "f.png"))));
 });
