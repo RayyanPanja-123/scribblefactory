@@ -5,6 +5,10 @@
 //   node engine/render.mjs --part <dir> --stills          -> <part>/frames/stills/<shot>.png + manifest.json
 //   node engine/render.mjs --series <dir> --cast-sheet    -> <series>/cast-frames/<id>-<pose>.png + manifest.json
 //   node engine/render.mjs --probe                        -> print the renderer it would use
+//   node engine/render.mjs --part <dir> --worker --out-dir <dir>
+//       long-lived worker: one browser, page built once. Prints "READY <renderer info json>", then reads
+//       "A B" lines on stdin and answers "DONE A B" once frames A..B are written. Exits when stdin closes.
+//       stdout carries only that protocol; logs go to stderr.
 // Renderer: the GPU by default; falls back to SwiftShader (with a note) when WebGL reports a software renderer.
 // --swiftshader forces software. --info-out <file> writes the renderer info as JSON (any mode).
 // Serves engine/page and three from node_modules on a localhost port (no extra deps). Exit 0 ok, 1 error.
@@ -13,6 +17,7 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import readline from "node:readline";
 import { parseArgs } from "node:util";
 import { chromium } from "playwright";
 
@@ -121,8 +126,7 @@ function frameJobs(a) {
     if (!m || Number(m[1]) > Number(m[2])) throw new Error(`--frames wants A-B with A <= B, got ${a.frames}`);
     const jobs = [];
     for (let n = Number(m[1]); n <= Number(m[2]); n++) {
-      jobs.push({ label: `frame ${n}`, file: path.join(path.resolve(a["out-dir"]), `${String(n).padStart(6, "0")}.png`),
-        call: ["renderFrame", n] });
+      jobs.push({ label: `frame ${n}`, file: framePng(path.resolve(a["out-dir"]), n), call: ["renderFrame", n] });
     }
     return { data, jobs };
   }
@@ -144,6 +148,38 @@ function castJobs(a) {
   return { data, jobs, manifestDir };
 }
 
+const framePng = (dir, n) => path.join(dir, `${String(n).padStart(6, "0")}.png`);
+
+/** long-lived worker: see the header. One browser + one page build for every chunk it is given. */
+async function runWorker(a) {
+  if (!a.part || !a["out-dir"]) throw new Error("--worker needs --part <dir> --out-dir <dir>");
+  const { data } = frameJobs({ part: a.part });
+  const outDir = path.resolve(a["out-dir"]);
+  const server = await serve();
+  let browser = null;
+  try {
+    const opened = await openPage(server.address().port, a.swiftshader);
+    browser = opened.browser;
+    await opened.page.evaluate((d) => window.setup(d), data);
+    process.stdout.write(`READY ${JSON.stringify(opened.info)}\n`);
+    for await (const line of readline.createInterface({ input: process.stdin })) {
+      if (!line.trim()) continue;
+      const [first, last] = line.trim().split(/\s+/).map(Number);
+      if (!Number.isInteger(first) || !Number.isInteger(last) || first > last) throw new Error(`bad job line: ${line}`);
+      const t0 = performance.now();
+      for (let n = first; n <= last; n++) {
+        writePng(framePng(outDir, n), await opened.page.evaluate((f) => window.renderFrame(f), n));
+      }
+      if (opened.getError()) throw opened.getError();
+      console.error(`frames ${first}-${last}: ${((performance.now() - t0) / (last - first + 1)).toFixed(0)} ms per frame`);
+      process.stdout.write(`DONE ${first} ${last}\n`);
+    }
+  } finally {
+    if (browser) await browser.close();
+    server.close();
+  }
+}
+
 async function main() {
   const { values: a } = parseArgs({
     options: {
@@ -151,8 +187,10 @@ async function main() {
       stills: { type: "boolean" }, "cast-sheet": { type: "boolean" },
       frames: { type: "string" }, "out-dir": { type: "string" },
       swiftshader: { type: "boolean" }, probe: { type: "boolean" }, "info-out": { type: "string" },
+      worker: { type: "boolean" },
     },
   });
+  if (a.worker) return runWorker(a);
   const { data, jobs, manifestDir = null } = a.probe ? { jobs: [] }
     : a.part ? frameJobs(a) : a.series && a["cast-sheet"] ? castJobs(a) : { jobs: [] };
   if (!jobs.length && !a.probe) {

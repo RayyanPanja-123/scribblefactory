@@ -7,6 +7,7 @@ Node renderer: three.js r160 scenes rendered in headless Chromium (Playwright) i
     node engine/render.mjs --part <part-dir> --stills        # frames/stills/<shot>.png + manifest.json
     node engine/render.mjs --series <series-dir> --cast-sheet # cast-frames/<id>-<pose>.png + manifest.json
     node engine/render.mjs --probe                            # which renderer would be used
+    node engine/render.mjs --part <part-dir> --worker --out-dir <dir>  # long-lived: "A B" jobs on stdin
     add --swiftshader to force software WebGL, --info-out file.json to record the renderer
     npm test                                                  # in engine/ (always SwiftShader)
 
@@ -17,4 +18,5 @@ Node renderer: three.js r160 scenes rendered in headless Chromium (Playwright) i
 - `page/borrowed.js`: MIT code from mromidev/claude-animated-shorts @ e3b817b (see its header).
 - WebGL runs on the GPU by default (~5x faster); if WebGL reports a software renderer it falls back to
   SwiftShader with a note. Renders record renderer, GPU name, driver (Windows), Chromium and Playwright versions.
-- Full renders (chunks, workers, resume) are driven by `pipeline/scribble/stages/render.py`.
+- Full renders (chunks, long-lived workers, resume, lock, process-tree cleanup) are driven by
+  `pipeline/scribble/stages/render.py`.

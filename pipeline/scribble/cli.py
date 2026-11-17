@@ -187,7 +187,10 @@ def cmd_run(args) -> int:
 
 
 def gate(pdir: Path, needs: tuple[str, ...]) -> None:
-    """Approval gate before a render, as a user error (the stage status stays untouched)."""
+    """Approvals and the render lock, checked before a render as user errors (the stage status stays untouched)."""
+    pid = render_stage.lock_owner(pdir)
+    if pid:
+        raise UserError(f"another render is running on {pdir.parent.name} {pdir.name} (pid {pid}); wait for it or stop it")
     try:
         render_stage.check_gate(pdir, needs)
     except StageError as e:

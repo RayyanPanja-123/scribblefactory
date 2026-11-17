@@ -1,19 +1,26 @@
 """render: chunked, parallel, resumable full render -> frames/000000.png... + preview.mp4 (voice only, no music).
 
-Frames render in chunks of CHUNK frames; each worker is its own `node engine/render.mjs --frames A-B` process.
+Frames render in chunks of CHUNK frames. Each worker is one long-lived `node engine/render.mjs --worker` process
+(one browser, one driver lookup, one page build) that renders the chunks it is handed over stdin.
 A finished chunk writes frames/chunks/cNNN.json {first, last, count, renderer, inputs_hash}. A chunk is skipped
 on the next run only if its json, all its PNGs and the inputs hash match. If the inputs hash or the renderer
 (GPU / driver / Chromium...) differs from the existing chunks, every frame is deleted and re-rendered.
-Only frames/*.png, frames/chunks/, frames/test/ and the two mp4s are ever written or deleted.
+Only frames/*.png, frames/chunks/, frames/test/, frames/.render.lock and the two mp4s are ever written or deleted.
+Process safety: workers run in their own process group; on Ctrl+C, failure or exit each worker's whole tree
+(node + Chromium) is killed. frames/.render.lock (holding the PID) stops a second render on the same part.
 Also here: the test render (5 s clip with its voice slice) and the approval gates.
 """
 
 import hashlib
 import json
 import os
+import queue
 import shutil
+import signal
 import subprocess
+import threading
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
 from ..io import atomic_write_json, load_part
@@ -28,7 +35,9 @@ FPS = 30
 CHUNK = 150
 WORKERS = 2
 TEST_FRAMES = 150  # 5 s
-POLL_S = 0.2
+POLL_S = 0.5           # how often the scheduler wakes up (keeps Ctrl+C responsive)
+READY_TIMEOUT_S = 120  # browser start + page build per worker
+EXIT_TIMEOUT_S = 30
 
 INPUTS = ["story.json", "phrases.json", "../series.json", "voice.mp3", *map(str, PAGE_FILES)]
 OUTPUTS = ["preview.mp4"]
@@ -79,10 +88,10 @@ def chunk_json(frames: Path, i: int) -> Path:
 
 
 def wipe_frames(frames: Path) -> None:
-    """Delete rendered frames and chunk records (not stills/ or test/)."""
-    for f in frames.glob("[0-9]*.png"):
+    """Delete rendered frames and chunk records (not stills/, test/, the lock or live worker logs)."""
+    for f in [*frames.glob("[0-9]*.png"), *(frames / "chunks").glob("c[0-9][0-9][0-9].json"),
+              *(frames / "chunks").glob("*.info.json")]:
         f.unlink()
-    shutil.rmtree(frames / "chunks", ignore_errors=True)
 
 
 def node_cmd(*args, swiftshader: bool) -> list[str]:
@@ -92,34 +101,176 @@ def node_cmd(*args, swiftshader: bool) -> list[str]:
     return [node, str(RENDER_MJS), *map(str, args), *(["--swiftshader"] if swiftshader else [])]
 
 
-def probe(part_dir: Path, swiftshader: bool) -> dict:
-    """Renderer info the engine would use right now (GPU or SwiftShader fallback, driver, Chromium...)."""
-    out = part_dir / "frames" / "chunks" / "probe.json"
-    out.parent.mkdir(parents=True, exist_ok=True)
-    r = subprocess.run(node_cmd("--probe", "--info-out", out, swiftshader=swiftshader), capture_output=True, text=True)
-    if r.returncode != 0:
-        raise StageError(f"render.mjs --probe failed: {r.stderr.strip()[-300:]}")
-    print(r.stdout.strip())
-    info = json.loads(out.read_text(encoding="utf-8"))
-    out.unlink()
-    return info
+# ---------------- processes ----------------
+
+# own process group / session: Ctrl+C reaches only Python, which then kills each worker tree itself
+GROUP = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if os.name == "nt" else {"start_new_session": True}
 
 
-def start_chunk(part_dir: Path, i: int, first: int, last: int, swiftshader: bool):
-    """Popen of one worker rendering frames first..last; its output goes to frames/chunks/cNNN.log."""
-    chunks = part_dir / "frames" / "chunks"
-    log = open(chunks / f"c{i:03d}.log", "w", encoding="utf-8")
+def kill_pid_tree(pid: int) -> None:
+    """Kill a process and everything it started (node -> Chromium). Workers lead their own group/session."""
+    if os.name == "nt":
+        subprocess.run(["taskkill", "/T", "/F", "/PID", str(pid)], capture_output=True)
+    else:
+        try:
+            os.killpg(pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            pass
+
+
+def kill_tree(proc: subprocess.Popen) -> None:
+    if proc.poll() is not None:
+        return
+    kill_pid_tree(proc.pid)
     try:
-        return subprocess.Popen(node_cmd("--part", part_dir, "--frames", f"{first}-{last}", "--out-dir", part_dir / "frames",
-                                         "--info-out", chunks / f"c{i:03d}.info.json", swiftshader=swiftshader),
-                                stdout=log, stderr=subprocess.STDOUT)
+        proc.wait(timeout=EXIT_TIMEOUT_S)
+    except subprocess.TimeoutExpired:
+        pass
+
+
+def run_tree(cmd: list[str]) -> subprocess.CompletedProcess:
+    """subprocess.run that kills the whole child tree if we are interrupted."""
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, **GROUP)
+    try:
+        out, err = proc.communicate()
+    except BaseException:
+        kill_tree(proc)
+        raise
+    return subprocess.CompletedProcess(cmd, proc.returncode, out, err)
+
+
+class Worker:
+    """One long-lived `render.mjs --worker`: READY <info>, then "A B" jobs in, "DONE A B" out. Events go to `events`."""
+
+    def __init__(self, part_dir: Path, idx: int, swiftshader: bool, events: queue.Queue):
+        self.idx, self.info, self.log = idx, None, part_dir / "frames" / "chunks" / f"worker{idx}.log"
+        with open(self.log, "w", encoding="utf-8") as log:
+            self.proc = subprocess.Popen(
+                node_cmd("--part", part_dir, "--worker", "--out-dir", part_dir / "frames", swiftshader=swiftshader),
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log, text=True, bufsize=1, **GROUP)
+        threading.Thread(target=self._read, args=(events,), daemon=True).start()
+
+    def _read(self, events: queue.Queue) -> None:
+        for line in self.proc.stdout:
+            word, _, rest = line.strip().partition(" ")
+            if word == "READY":
+                events.put(("ready", self, json.loads(rest)))
+            elif word == "DONE":
+                first, last = map(int, rest.split())
+                events.put(("done", self, first, last))
+        events.put(("exit", self, self.proc.wait()))
+
+    def send(self, first: int, last: int) -> None:
+        self.proc.stdin.write(f"{first} {last}\n")
+        self.proc.stdin.flush()
+
+    def close(self) -> None:
+        """No more jobs: the worker finishes and exits."""
+        try:
+            self.proc.stdin.close()
+        except OSError:
+            pass
+
+    def wait(self) -> None:
+        try:
+            self.proc.wait(timeout=EXIT_TIMEOUT_S)
+        except subprocess.TimeoutExpired:
+            pass
+
+    def kill(self) -> None:
+        kill_tree(self.proc)
+
+    def log_tail(self) -> str:
+        return self.log.read_text(encoding="utf-8", errors="replace").strip()[-400:] if self.log.exists() else ""
+
+
+def start_worker(part_dir: Path, idx: int, swiftshader: bool, events: queue.Queue) -> Worker:
+    return Worker(part_dir, idx, swiftshader, events)
+
+
+def next_event(events: queue.Queue, timeout: float) -> tuple:
+    """Blocking get in short slices, so Ctrl+C is handled promptly on Windows too."""
+    end = time.monotonic() + timeout
+    while True:
+        try:
+            return events.get(timeout=POLL_S)
+        except queue.Empty:
+            if time.monotonic() > end:
+                raise StageError(f"no word from the render workers for {timeout:.0f} s")
+
+
+# ---------------- lock ----------------
+
+def pid_alive(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    if os.name == "nt":  # os.kill(pid, 0) would TerminateProcess on Windows
+        import ctypes
+        k = ctypes.windll.kernel32
+        h = k.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+        if not h:
+            return False
+        code = ctypes.c_ulong()
+        ok = k.GetExitCodeProcess(h, ctypes.byref(code))
+        k.CloseHandle(h)
+        return bool(ok) and code.value == 259  # STILL_ACTIVE
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def lock_path(part_dir: Path) -> Path:
+    return part_dir / "frames" / ".render.lock"
+
+
+def _lock_pids(part_dir: Path) -> list[int]:
+    """[render pid, worker pids...] from the lock file ([] if none or unreadable)."""
+    try:
+        return [int(x) for x in lock_path(part_dir).read_text(encoding="utf-8").split()]
+    except (OSError, ValueError):
+        return []
+
+
+def lock_owner(part_dir: Path) -> int | None:
+    """PID of a live render holding this part's lock, else None."""
+    pids = _lock_pids(part_dir)
+    return pids[0] if pids and pid_alive(pids[0]) else None
+
+
+def lock_add_workers(part_dir: Path, pids: list[int]) -> None:
+    """Record worker PIDs, so a later render can stop them if this one dies without cleaning up."""
+    with open(lock_path(part_dir), "a", encoding="utf-8") as f:
+        f.write("".join(f"\n{p}" for p in pids))
+
+
+@contextmanager
+def render_lock(part_dir: Path):
+    f = lock_path(part_dir)
+    f.parent.mkdir(parents=True, exist_ok=True)
+    if f.exists():
+        pid = lock_owner(part_dir)
+        if pid:
+            raise StageError(f"another render is running on this part (pid {pid}); wait for it or stop it")
+        pids = _lock_pids(part_dir)
+        print(f"note: removing stale render lock ({pids[0] if pids else '?'} is not running)")
+        for w in [p for p in pids[1:] if pid_alive(p)]:  # its workers outlived it: stop them before we start
+            print(f"note: stopping leftover render worker {w}")
+            kill_pid_tree(w)
+        f.unlink(missing_ok=True)
+    try:
+        fd = os.open(f, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        raise StageError("another render started on this part just now")
+    with os.fdopen(fd, "w", encoding="utf-8") as out:
+        out.write(str(os.getpid()))
+    try:
+        yield
     finally:
-        log.close()  # the child keeps its own handle
-
-
-def _log_tail(frames: Path, i: int) -> str:
-    f = frames / "chunks" / f"c{i:03d}.log"
-    return f.read_text(encoding="utf-8", errors="replace").strip()[-400:] if f.exists() else ""
+        f.unlink(missing_ok=True)
 
 
 def _chunk_ok(frames: Path, i: int, first: int, last: int, digest: str) -> bool:
@@ -147,48 +298,65 @@ def reset_reason(frames: Path, digest: str, info: dict) -> str | None:
 def render_chunks(part_dir: Path, total: int, workers: int, swiftshader: bool, force: bool) -> None:
     frames = part_dir / "frames"
     (frames / "chunks").mkdir(parents=True, exist_ok=True)
-    digest, info = frames_hash(part_dir), probe(part_dir, swiftshader)
-    reason = "--force" if force else reset_reason(frames, digest, info)
-    if reason:
-        print(f"re-rendering all frames: {reason}")
-        wipe_frames(frames)
-        (frames / "chunks").mkdir(parents=True, exist_ok=True)
-    ranges = chunk_ranges(total)
-    todo = [(i, a, b) for i, (a, b) in enumerate(ranges) if not _chunk_ok(frames, i, a, b, digest)]
-    done = len(ranges) - len(todo)
-    if done:
-        print(f"resuming: {done}/{len(ranges)} chunk(s) already done")
-    running, rendered, t_start = {}, 0, time.monotonic()
+    digest, ranges = frames_hash(part_dir), chunk_ranges(total)
+    events: queue.Queue = queue.Queue()
+    pool: list = []
     try:
-        while todo or running:
-            while todo and len(running) < workers:
+        pool = [start_worker(part_dir, k, swiftshader, events) for k in range(max(1, min(workers, len(ranges))))]
+        if lock_path(part_dir).exists():
+            lock_add_workers(part_dir, [w.proc.pid for w in pool if hasattr(w, "proc")])
+        info = None
+        for _ in pool:  # every worker reports its renderer once its browser and page are up
+            ev = next_event(events, READY_TIMEOUT_S)
+            if ev[0] == "exit":
+                raise StageError(f"render worker failed to start (exit {ev[2]}): {ev[1].log_tail()}")
+            ev[1].info = ev[2]
+            if info is None:
+                info = ev[2]
+                print(f"webgl: {info['renderer']} ({info['gpu_name']})")
+            elif ev[2] != info:
+                raise StageError(f"render workers disagree on the renderer: {info} vs {ev[2]}")
+        reason = "--force" if force else reset_reason(frames, digest, info)
+        if reason:
+            print(f"re-rendering all frames: {reason}")
+            wipe_frames(frames)
+            (frames / "chunks").mkdir(parents=True, exist_ok=True)
+        todo = [(i, a, b) for i, (a, b) in enumerate(ranges) if not _chunk_ok(frames, i, a, b, digest)]
+        done = len(ranges) - len(todo)
+        if done:
+            print(f"resuming: {done}/{len(ranges)} chunk(s) already done")
+        idle, busy, rendered, t_start = list(pool), {}, 0, time.monotonic()
+        while todo or busy:
+            while todo and idle:
+                w = idle.pop(0)
                 i, a, b = todo.pop(0)
-                running[i] = (start_chunk(part_dir, i, a, b, swiftshader), a, b, time.monotonic())
-            time.sleep(POLL_S)
-            for i, (proc, a, b, t0) in list(running.items()):
-                if proc.poll() is None:
-                    continue
-                del running[i]
-                if proc.returncode != 0:
-                    raise StageError(f"chunk {i} (frames {a}-{b}) failed (exit {proc.returncode}): {_log_tail(frames, i)}")
-                missing = [n for n in range(a, b + 1) if not frame_path(frames, n).exists()]
-                if missing:
-                    raise StageError(f"chunk {i} finished but frames are missing: {missing[:5]}")
-                info_file = frames / "chunks" / f"c{i:03d}.info.json"
-                chunk_info = json.loads(info_file.read_text(encoding="utf-8"))
-                info_file.unlink()
-                atomic_write_json(chunk_json(frames, i), {"first": a, "last": b, "count": b - a + 1,
-                                                          "renderer": chunk_info, "inputs_hash": digest})
-                done += 1
-                rendered += b - a + 1
-                print(f"chunk {done}/{len(ranges)} done (frames {a}-{b}, {(b - a + 1) / max(time.monotonic() - t0, 1e-3):.1f} fps)")
+                w.send(a, b)
+                busy[w] = (i, a, b, time.monotonic())
+            ev = next_event(events, READY_TIMEOUT_S + CHUNK * 10)
+            if ev[0] == "exit":
+                raise StageError(f"render worker {ev[1].idx} stopped (exit {ev[2]}): {ev[1].log_tail()}")
+            if ev[0] != "done":
+                continue
+            w, (i, a, b, t0) = ev[1], busy.pop(ev[1])
+            missing = [n for n in range(a, b + 1) if not frame_path(frames, n).exists()]
+            if missing:
+                raise StageError(f"chunk {i} finished but frames are missing: {missing[:5]}")
+            atomic_write_json(chunk_json(frames, i), {"first": a, "last": b, "count": b - a + 1,
+                                                      "renderer": w.info, "inputs_hash": digest})
+            done += 1
+            rendered += b - a + 1
+            idle.append(w)
+            print(f"chunk {done}/{len(ranges)} done (frames {a}-{b}, {(b - a + 1) / max(time.monotonic() - t0, 1e-3):.1f} fps)")
+        for w in pool:
+            w.close()
+        for w in pool:
+            w.wait()
+        if rendered:
+            secs = max(time.monotonic() - t_start, 1e-3)
+            print(f"rendered {rendered} frames in {secs:.1f} s ({rendered / secs:.1f} fps overall, {len(pool)} worker(s))")
     finally:
-        for proc, *_ in running.values():  # failure or Ctrl+C: stop the other workers
-            proc.terminate()
-            proc.wait()
-    if rendered:
-        secs = max(time.monotonic() - t_start, 1e-3)
-        print(f"rendered {rendered} frames in {secs:.1f} s ({rendered / secs:.1f} fps overall, {workers} worker(s))")
+        for w in pool:  # finished, failed or Ctrl+C: no worker (or its browser) outlives the render
+            w.kill()
 
 
 def check_frames(frames: Path, first: int, count: int) -> None:
@@ -224,9 +392,10 @@ def encode(frames: Path, first: int, count: int, voice: Path, out: Path) -> Path
 
 def run(part_dir: Path, workers: int = WORKERS, swiftshader: bool = False, force: bool = False) -> None:
     story = check_gate(part_dir, ("stills", "test_render"))
-    render_chunks(part_dir, story.duration_frames, workers, swiftshader, force)
-    check_frames(part_dir / "frames", 0, story.duration_frames)
-    out = encode(part_dir / "frames", 0, story.duration_frames, part_dir / "voice.mp3", part_dir / "preview.mp4")
+    with render_lock(part_dir):
+        render_chunks(part_dir, story.duration_frames, workers, swiftshader, force)
+        check_frames(part_dir / "frames", 0, story.duration_frames)
+        out = encode(part_dir / "frames", 0, story.duration_frames, part_dir / "voice.mp3", part_dir / "preview.mp4")
     print(f"preview: {out}")
 
 
@@ -237,16 +406,16 @@ def test_render(part_dir: Path, at: float = 0.0, swiftshader: bool = False) -> P
     count = min(TEST_FRAMES, total)
     first = max(0, min(round(at * FPS), total - count))
     test = part_dir / "frames" / "test"
-    shutil.rmtree(test, ignore_errors=True)
-    test.mkdir(parents=True)
-    t0 = time.monotonic()
-    r = subprocess.run(node_cmd("--part", part_dir, "--frames", f"{first}-{first + count - 1}", "--out-dir", test,
-                                "--info-out", test / "renderer.json", swiftshader=swiftshader),
-                       capture_output=True, text=True)
-    if r.returncode != 0:
-        raise StageError(f"test render failed: {r.stderr.strip()[-400:]}")
-    secs = max(time.monotonic() - t0, 1e-3)
-    print(f"rendered frames {first}-{first + count - 1} in {secs:.1f} s ({count / secs:.1f} fps)")
-    check_frames(test, first, count)
-    return encode(test, first, count, part_dir / "voice.mp3", part_dir / "test-render.mp4")
+    with render_lock(part_dir):
+        shutil.rmtree(test, ignore_errors=True)
+        test.mkdir(parents=True)
+        t0 = time.monotonic()
+        r = run_tree(node_cmd("--part", part_dir, "--frames", f"{first}-{first + count - 1}", "--out-dir", test,
+                              "--info-out", test / "renderer.json", swiftshader=swiftshader))
+        if r.returncode != 0:
+            raise StageError(f"test render failed: {r.stderr.strip()[-400:]}")
+        secs = max(time.monotonic() - t0, 1e-3)
+        print(f"rendered frames {first}-{first + count - 1} in {secs:.1f} s ({count / secs:.1f} fps)")
+        check_frames(test, first, count)
+        return encode(test, first, count, part_dir / "voice.mp3", part_dir / "test-render.mp4")
 

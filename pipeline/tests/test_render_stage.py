@@ -1,7 +1,10 @@
-"""render stage: chunking, resume, resets, gates, frame check. The engine and ffmpeg are faked (no browser here)."""
+"""render stage: chunking, workers, resume, resets, lock, gates, frame check. Engine and ffmpeg are faked."""
 
 import json
+import os
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -34,32 +37,43 @@ def test_chunk_ranges(total, size, want):
     assert sum(b - a + 1 for a, b in got) == total
 
 
-class FakeProc:
-    """Stands in for a render.mjs worker: writes its PNGs and info file at once, exits 0."""
+class FakeWorker:
+    """Stands in for a long-lived render.mjs worker: ready at once; a job writes its PNGs and reports done at once,
+    or makes the worker die (state["fail"]) or raises KeyboardInterrupt while it is handed out (state["interrupt"])."""
 
-    def __init__(self, frames, first, last, info_out, info, fail):
-        self.returncode = None
-        if not fail:
-            for n in range(first, last + 1):
-                render.frame_path(frames, n).write_bytes(b"png")
-            Path(info_out).write_text(json.dumps(info))
-        self._rc = 1 if fail else 0
+    def __init__(self, part_dir, idx, events, state):
+        self.idx, self.info, self.events, self.state, self.frames = idx, None, events, state, part_dir / "frames"
+        state["starts"] += 1
+        events.put(("ready", self, dict(state["info"])))
 
-    def poll(self):
-        self.returncode = self._rc
-        return self._rc
+    def send(self, first, last):
+        self.state["calls"].append((first, last))
+        if (first, last) in self.state["interrupt"]:
+            raise KeyboardInterrupt
+        if (first, last) in self.state["fail"]:
+            self.events.put(("exit", self, 1))
+            return
+        for n in range(first, last + 1):
+            render.frame_path(self.frames, n).write_bytes(b"png")
+        self.events.put(("done", self, first, last))
 
-    def terminate(self):
+    def close(self):
         pass
 
     def wait(self):
-        return self._rc
+        pass
+
+    def kill(self):
+        self.state["killed"] += 1
+
+    def log_tail(self):
+        return "worker log"
 
 
 @pytest.fixture
 def part(tmp_path, monkeypatch):
     """library/office-nap/part-01 with the fixture story (180 frames = 2 chunks of 150 / 30 with CHUNK=150),
-    approvals in place, fake engine, fake probe, fake ffmpeg."""
+    approvals in place, fake workers, fake ffmpeg."""
     lib = tmp_path / "lib"
     sd = lib / "office-nap"
     pd = sd / "part-01"
@@ -77,21 +91,15 @@ def part(tmp_path, monkeypatch):
                           "test_render": {"approved_at": "2026-11-16T10:00:00Z"}}}
     (pd / "part.json").write_text(json.dumps(part))
 
-    state = {"info": dict(GPU), "calls": [], "fail": set()}
-
-    def fake_start(part_dir, i, first, last, swiftshader):
-        state["calls"].append((first, last))
-        info_out = part_dir / "frames" / "chunks" / f"c{i:03d}.info.json"
-        return FakeProc(part_dir / "frames", first, last, info_out, state["info"], (first, last) in state["fail"])
+    state = {"info": dict(GPU), "calls": [], "fail": set(), "interrupt": set(), "starts": 0, "killed": 0}
 
     def fake_encode(frames, first, count, voice, out):
         out.write_bytes(b"mp4")
         return out
 
-    monkeypatch.setattr(render, "start_chunk", fake_start)
-    monkeypatch.setattr(render, "probe", lambda part_dir, swiftshader: dict(state["info"]))
+    monkeypatch.setattr(render, "start_worker", lambda part_dir, idx, swiftshader, events: FakeWorker(part_dir, idx, events, state))
     monkeypatch.setattr(render, "encode", fake_encode)
-    monkeypatch.setattr(render, "POLL_S", 0)
+    monkeypatch.setattr(render, "POLL_S", 0.01)
     monkeypatch.setenv("SCRIBBLE_LIBRARY", str(lib))
     pd = PartDir(pd)
     pd.state = state
@@ -218,7 +226,7 @@ def test_test_render_clamps_start(part, monkeypatch):
     class R:
         returncode, stderr = 0, ""
 
-    def fake_run(cmd, **kw):
+    def fake_run(cmd):
         a, b = map(int, cmd[cmd.index("--frames") + 1].split("-"))
         out = Path(cmd[cmd.index("--out-dir") + 1])
         for n in range(a, b + 1):
@@ -226,7 +234,7 @@ def test_test_render_clamps_start(part, monkeypatch):
         calls.append((a, b))
         return R()
 
-    monkeypatch.setattr(render.subprocess, "run", fake_run)
+    monkeypatch.setattr(render, "run_tree", fake_run)
     monkeypatch.setattr(render.shutil, "which", lambda name: name)
     assert main(["test-render", "office-nap", "part-01", "--at", "4"]) == 0  # 4 s = frame 120, but only 180 frames
     assert calls == [(30, 179)]
@@ -235,32 +243,15 @@ def test_test_render_clamps_start(part, monkeypatch):
     assert calls[-1] == (0, 149)
 
 
-def test_ctrl_c_stops_workers_marks_failed_and_resumes(part, monkeypatch):
+def test_ctrl_c_kills_workers_marks_failed_and_resumes(part):
     from pipeline.scribble.stages.runner import run_stage
-    terminated = []
-
-    class Interrupted(FakeProc):
-        def poll(self):
-            raise KeyboardInterrupt
-
-        def terminate(self):
-            terminated.append(True)
-
-    real_start = render.start_chunk
-
-    def start(part_dir, i, first, last, swiftshader):
-        if first == 150:  # second chunk: the user hits Ctrl+C while it renders
-            return Interrupted(part_dir / "frames", first, last, part_dir / "x", {}, fail=True)
-        return real_start(part_dir, i, first, last, swiftshader)
-
-    monkeypatch.setattr(render, "start_chunk", start)
-    monkeypatch.setattr(render, "WORKERS", 1)
+    part.state["interrupt"] = {(150, 179)}  # the user hits Ctrl+C while the second chunk is handed out
     with pytest.raises(KeyboardInterrupt):
         run_stage(part, "render", lambda d: render.run(d, workers=1), inputs=render.INPUTS, outputs=render.OUTPUTS)
-    assert terminated == [True]
+    assert part.state["killed"] == 1  # every worker tree killed
     assert load_part(part / "part.json").stages.render.status == "failed"
-    monkeypatch.setattr(render, "start_chunk", real_start)
-    part.state["calls"] = []
+    assert not render.lock_path(part).exists()  # lock released
+    part.state["interrupt"], part.state["calls"] = set(), []
     assert cli_render() == 0
     assert part.state["calls"] == [(150, 179)]
 
@@ -276,3 +267,78 @@ def test_killed_worker_leftovers_do_not_reset(part, capsys):
     assert cli_render() == 0
     assert part.state["calls"] == [(150, 179)]
     assert "re-rendering all frames" not in capsys.readouterr().out
+
+
+# ---------------- long-lived workers ----------------
+
+def test_one_browser_per_worker_not_per_chunk(part):
+    assert cli_render("--workers", "1") == 0
+    assert part.state["calls"] == [(0, 149), (150, 179)] and part.state["starts"] == 1
+    part.state["starts"] = 0
+    assert cli_render("--force", "--workers", "5") == 0
+    assert part.state["starts"] == 2  # never more workers than chunks
+
+
+def test_chunk_record_shape_unchanged(part):
+    assert cli_render() == 0
+    for i, (a, b) in enumerate([(0, 149), (150, 179)]):
+        c = json.loads(render.chunk_json(part / "frames", i).read_text())
+        assert set(c) == {"first", "last", "count", "renderer", "inputs_hash"}
+        assert (c["first"], c["last"], c["count"], c["renderer"]) == (a, b, b - a + 1, GPU)
+
+
+def test_failed_worker_stops_render_and_kills_all(part, capsys):
+    part.state["fail"] = {(0, 149)}
+    assert cli_render() == 1
+    assert part.state["killed"] == 2
+    assert "render worker 0 stopped (exit 1): worker log" in load_part(part / "part.json").stages.render.error
+    assert not render.lock_path(part).exists()
+
+
+# ---------------- lock ----------------
+
+def test_lock_refuses_second_render(part, capsys):
+    lock = render.lock_path(part)
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    lock.write_text(str(os.getpid()))  # a live process holds it
+    assert cli_render() == 1
+    assert f"another render is running on office-nap part-01 (pid {os.getpid()})" in capsys.readouterr().err
+    assert part.state["starts"] == 0
+    assert load_part(part / "part.json").stages.render.status == "pending"  # the running render's status untouched
+    with pytest.raises(StageError, match="another render is running"):
+        render.run(part)
+    assert lock.read_text() == str(os.getpid())  # not ours: left alone
+
+
+def test_stale_lock_is_removed_with_a_note(part, capsys):
+    dead = subprocess.Popen([sys.executable, "-c", "pass"])
+    dead.wait()
+    lock = render.lock_path(part)
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    lock.write_text(str(dead.pid))
+    assert render.lock_owner(part) is None
+    assert cli_render() == 0
+    assert f"removing stale render lock ({dead.pid} is not running)" in capsys.readouterr().out
+    assert not lock.exists()
+
+
+def test_pid_alive():
+    assert render.pid_alive(os.getpid())
+    assert not render.pid_alive(0) and not render.pid_alive(-5)
+
+
+def test_stale_lock_stops_leftover_workers(part, capsys, monkeypatch):
+    dead = subprocess.Popen([sys.executable, "-c", "pass"])
+    dead.wait()
+    orphan = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"], **render.GROUP)
+    lock = render.lock_path(part)
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    lock.write_text(f"{dead.pid}\n{orphan.pid}")
+    try:
+        assert cli_render() == 0
+        out = capsys.readouterr().out
+        assert f"stopping leftover render worker {orphan.pid}" in out
+        orphan.wait(timeout=10)
+        assert not render.pid_alive(orphan.pid)
+    finally:
+        render.kill_tree(orphan)
