@@ -31,7 +31,7 @@ SPF = SR // FPS               # samples per video frame
 FADE = int(0.030 * SR)        # music stop / start fade
 YAP = {"every": 9, "count": 3}  # engine/page/dog.js BARK: 3 yaps, 9 frames apart, from the cue frame
 CAR_FADE_FRAMES = 8           # engine fade in / out at car shot edges
-CAR_LEVEL = {"arrive": 1.0, "drive": 1.0, "leave": 1.0, "idle": 0.3}
+CAR_LEVEL = {"arrive": 1.0, "drive": 1.0, "leave": 1.0, "idle": 0.3, "broken": 0.0}
 SCALE = [0, 2, 4, 5, 7, 9, 11]
 PROGRESSIONS = [(0, 5, 3, 4), (0, 3, 4, 3), (0, 4, 5, 3), (0, 3, 0, 4)]  # scale degrees, one chord per bar
 TAU = 2 * np.pi
@@ -193,7 +193,7 @@ def yap(R):
 
 
 def car_levels(story: StoryModel) -> np.ndarray:
-    """per-frame engine level: driving 1, parked idle CAR_LEVEL["idle"], none 0; ramped at shot edges"""
+    """per-frame engine level: driving 1, parked idle CAR_LEVEL["idle"], broken/none 0; ramped at shot edges"""
     lv = np.zeros(story.duration_frames)
     for s in story.shots:
         if s.vehicles:
@@ -209,6 +209,27 @@ def car_engine(story: StoryModel, n: int, R) -> np.ndarray:
     putt = np.exp(-6 * (np.cumsum(rate) / SR % 1))     # each putt decays within its cycle
     body = 0.6 * np.sin(TAU * 65 * np.arange(n) / SR) + 0.8 * _lowpass(R.standard_normal(n), 24)
     return putt * body * lv
+
+
+def sputter(R):
+    """engine dying: putts that stumble further and further apart, then a backfire bang"""
+    gaps = 0.07 * 1.4 ** np.arange(7) * (0.8 + 0.4 * R.random(7))
+    starts = (np.concatenate([[0], np.cumsum(gaps)]) * SR).astype(int)
+    out = np.zeros(starts[-1] + int(0.3 * SR))
+    t = _t(0.06)
+    for k, a in enumerate(starts[:-1]):
+        body = 0.6 * np.sin(TAU * 65 * t) + 0.8 * _lowpass(R.standard_normal(len(t)), 24)
+        out[a:a + len(t)] += _edges(body * np.exp(-t / 0.015)) * (1 - k / 10)
+    t = _t(0.3)
+    bang = np.tanh(3 * _lowpass(R.standard_normal(len(t)), 12) * np.exp(-t / 0.04))
+    out[starts[-1]:] += _edges(bang, 0.001, 0.05) * 1.2
+    return out
+
+
+def breakdown_frames(story: StoryModel) -> list[int]:
+    """start of each run of shots with a broken car: the engine dies there"""
+    broken = [any(v.action == "broken" for v in s.vehicles) for s in story.shots]
+    return [s.start_frame for s, b, prev in zip(story.shots, broken, [False] + broken) if b and not prev]
 
 
 def whoosh_frames(story: StoryModel) -> list[int]:
@@ -235,6 +256,8 @@ def render_sfx(story: StoryModel, n: int) -> np.ndarray:
         _place(out, x[:half], f * SPF - half, 0.5, pan=-0.4)  # left to right, like the wipe stroke
         _place(out, x[half:], f * SPF, 0.5, pan=0.4)
     _place(out, car_engine(story, n, R), 0, 0.25)
+    for f in breakdown_frames(story):
+        _place(out, sputter(R), f * SPF, 0.35, pan=0.1)
     return out
 
 

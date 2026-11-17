@@ -108,6 +108,15 @@ def test_sfx_at_cues_and_car(part):
     assert drive > 0.01 and 0 < idle < drive  # car putters while driving, quieter when parked
 
 
+def test_breakdown_sputters_then_dies():
+    shots = [*STORY["shots"][:2], {**STORY["shots"][2], "vehicles": [{**CAR, "action": "broken"}]}]
+    story = StoryModel.model_validate({**STORY, "shots": shots, "cues": []})
+    assert audio.breakdown_frames(story) == [120]
+    assert audio.car_levels(story)[140:].max() == 0  # engine loop off once broken
+    s = audio.render_sfx(story, 180 * SPF)
+    assert rms(s, 120, 170) > 0.01  # sputter + backfire over the dead engine
+
+
 def test_mix_loudness(part):
     lufs, tp = audio.loudness(part / "audio/mix.wav")
     assert abs(lufs - audio.TARGET_LUFS) <= 0.5
