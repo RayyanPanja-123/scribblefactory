@@ -220,6 +220,8 @@ class Stage(Strict):
     finished_at: UtcDateTime | None = None
     error: str | None = None
     inputs_hash: str | None = None  # sha256 of the stage's input files at the last successful run
+    pid: int | None = Field(default=None, description="while running: the process running it (a running stage "
+                                                      "whose process is gone was interrupted)")
 
 
 class Stages(Strict):

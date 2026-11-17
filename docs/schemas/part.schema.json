@@ -134,6 +134,19 @@
           "default": null,
           "title": "Inputs Hash"
         },
+        "pid": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "while running: the process running it (a running stage whose process is gone was interrupted)",
+          "title": "Pid"
+        },
         "started_at": {
           "anyOf": [
             {
@@ -171,6 +184,7 @@
             "error": null,
             "finished_at": null,
             "inputs_hash": null,
+            "pid": null,
             "started_at": null,
             "status": "pending"
           }
@@ -181,6 +195,7 @@
             "error": null,
             "finished_at": null,
             "inputs_hash": null,
+            "pid": null,
             "started_at": null,
             "status": "pending"
           }
@@ -191,6 +206,7 @@
             "error": null,
             "finished_at": null,
             "inputs_hash": null,
+            "pid": null,
             "started_at": null,
             "status": "pending"
           }
@@ -201,6 +217,7 @@
             "error": null,
             "finished_at": null,
             "inputs_hash": null,
+            "pid": null,
             "started_at": null,
             "status": "pending"
           }
@@ -211,6 +228,7 @@
             "error": null,
             "finished_at": null,
             "inputs_hash": null,
+            "pid": null,
             "started_at": null,
             "status": "pending"
           }
@@ -221,6 +239,7 @@
             "error": null,
             "finished_at": null,
             "inputs_hash": null,
+            "pid": null,
             "started_at": null,
             "status": "pending"
           }
@@ -231,6 +250,7 @@
             "error": null,
             "finished_at": null,
             "inputs_hash": null,
+            "pid": null,
             "started_at": null,
             "status": "pending"
           }
@@ -241,6 +261,7 @@
             "error": null,
             "finished_at": null,
             "inputs_hash": null,
+            "pid": null,
             "started_at": null,
             "status": "pending"
           }
@@ -251,6 +272,7 @@
             "error": null,
             "finished_at": null,
             "inputs_hash": null,
+            "pid": null,
             "started_at": null,
             "status": "pending"
           }
@@ -307,6 +329,7 @@
           "error": null,
           "finished_at": null,
           "inputs_hash": null,
+          "pid": null,
           "started_at": null,
           "status": "pending"
         },
@@ -314,6 +337,7 @@
           "error": null,
           "finished_at": null,
           "inputs_hash": null,
+          "pid": null,
           "started_at": null,
           "status": "pending"
         },
@@ -321,6 +345,7 @@
           "error": null,
           "finished_at": null,
           "inputs_hash": null,
+          "pid": null,
           "started_at": null,
           "status": "pending"
         },
@@ -328,6 +353,7 @@
           "error": null,
           "finished_at": null,
           "inputs_hash": null,
+          "pid": null,
           "started_at": null,
           "status": "pending"
         },
@@ -335,6 +361,7 @@
           "error": null,
           "finished_at": null,
           "inputs_hash": null,
+          "pid": null,
           "started_at": null,
           "status": "pending"
         },
@@ -342,6 +369,7 @@
           "error": null,
           "finished_at": null,
           "inputs_hash": null,
+          "pid": null,
           "started_at": null,
           "status": "pending"
         },
@@ -349,6 +377,7 @@
           "error": null,
           "finished_at": null,
           "inputs_hash": null,
+          "pid": null,
           "started_at": null,
           "status": "pending"
         },
@@ -356,6 +385,7 @@
           "error": null,
           "finished_at": null,
           "inputs_hash": null,
+          "pid": null,
           "started_at": null,
           "status": "pending"
         },
@@ -363,6 +393,7 @@
           "error": null,
           "finished_at": null,
           "inputs_hash": null,
+          "pid": null,
           "started_at": null,
           "status": "pending"
         }

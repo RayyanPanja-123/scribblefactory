@@ -21,7 +21,7 @@ from .io import atomic_write_json, load_part, load_series, prop_kinds, save_part
 from .schemas import CastMember, Expression, PartId, PartModel, Post, SeriesModel, Slug, Stages, StoryModel, Style, Voice, utcnow
 from .stages import STAGES
 from .stages import render as render_stage
-from .stages.runner import StageError, run_stage
+from .stages.runner import StageError, recover_stuck, run_stage
 
 RENDER = Path(__file__).resolve().parents[2] / "engine" / "render.mjs"
 CAST_SHEET_COLS = 18   # one row per cast member: idle, walk, talk, 8 expressions, stagger, lie, eat, give, carried,
@@ -188,6 +188,10 @@ def cmd_status(args) -> int:
     if not (d / "series.json").exists():
         raise UserError(f"series {args.slug!r} not found at {d}")
     s = load_series(d / "series.json")
+    for pid in s.parts:
+        if (d / pid / "part.json").exists():
+            for name in recover_stuck(d / pid):
+                print(f"note: {pid} {name} was left running by a process that is gone: marked failed (interrupted)")
     print(f"{s.title} ({s.slug})  status: {s.status}  parts: {len(s.parts)}")
     print(f"voice: {s.voice.voice_name or '-'}  style: {s.style.preset} ({'locked' if s.style.locked else 'unlocked'})")
     cast = [f"{c.id} ({c.top.color}, {c.eyes}, "

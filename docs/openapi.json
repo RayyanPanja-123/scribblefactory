@@ -237,6 +237,17 @@
             ],
             "title": "Current Step"
           },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
           "finished_at": {
             "anyOf": [
               {
@@ -1225,6 +1236,18 @@
               }
             ],
             "title": "Inputs Hash"
+          },
+          "pid": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "while running: the process running it (a running stage whose process is gone was interrupted)",
+            "title": "Pid"
           },
           "started_at": {
             "anyOf": [

@@ -27,13 +27,13 @@ from pydantic import BaseModel, TypeAdapter, ValidationError
 from sse_starlette import EventSourceResponse
 
 from pipeline.scribble import cli
-from pipeline.scribble.io import (atomic_write_text, delete_prop, load_part, load_props, load_series, prop_kinds,
+from pipeline.scribble.io import (atomic_write_json, atomic_write_text, delete_prop, load_part, load_props, load_series, prop_kinds,
                                   save_prop, save_series, unknown_cast_props)
 from pipeline.scribble.schemas import (BuiltinProp, CastMember, CustomProp, PartModel, Posted, SeriesModel, Slug, Stage, Stages,
                                        utcnow)
 from pipeline.scribble.stages import render as render_stage
 from pipeline.scribble.stages.import_check import probe_duration
-from pipeline.scribble.stages.runner import StageError
+from pipeline.scribble.stages.runner import StageError, recover_stuck
 
 ROOT = Path(__file__).resolve().parents[1]
 OPENAPI = ROOT / "docs" / "openapi.json"
@@ -45,7 +45,13 @@ KEEP_JOBS = 50
 OUTPUT_LINES = 200
 HEARTBEAT_S = 15
 
-app = FastAPI(title="scribblefactory")
+@contextlib.asynccontextmanager
+async def lifespan(_app):
+    startup()
+    yield
+
+
+app = FastAPI(title="scribblefactory", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173"], allow_methods=["*"], allow_headers=["*"])
 
 
@@ -230,6 +236,7 @@ class Job(BaseModel):
     finished_at: str | None
     returncode: int | None
     output: list[str]
+    error: str | None = None  # why it failed without a return code, e.g. "interrupted by restart"
 
 
 # ---------------- read endpoints ----------------
@@ -555,7 +562,8 @@ def clean_frames(slug: str, part: str):
 
 
 # ---------------- jobs ----------------
-# ponytail: one in-process worker and an in-memory list; jobs are lost on restart (the files they wrote are not).
+# One in-process worker. Jobs persist to library/.jobs.json (atomic) on every state change, so a restart resumes the
+# queue (see startup). Output lines are saved with them, not streamed to disk line by line.
 
 JOBS: list[dict] = []
 _procs: dict[int, subprocess.Popen] = {}
@@ -588,7 +596,66 @@ def _iso(dt: datetime | None) -> str | None:
 
 
 def public(job: dict) -> dict:
-    return {**{k: v for k, v in job.items() if k != "argv"}, "output": list(job["output"])}
+    return {**{k: v for k, v in job.items() if k not in ("argv", "pid")}, "output": list(job["output"])}
+
+
+_save_lock = threading.Lock()
+
+
+def jobs_file() -> Path:
+    return lib() / ".jobs.json"
+
+
+def save_jobs() -> None:
+    with _save_lock:
+        jobs = [{**public(j), "argv": j["argv"], "pid": j.get("pid")} for j in list(JOBS)]
+        jobs_file().parent.mkdir(parents=True, exist_ok=True)
+        atomic_write_json(jobs_file(), jobs)
+
+
+def load_jobs() -> list[str]:
+    """library/.jobs.json -> JOBS. A job left running by the last API process failed ("interrupted by restart"); its
+    process, if it still runs (job steps start in their own process group, so they can outlive the API), is stopped:
+    no one follows its output any more. Queued jobs stay queued and the worker picks them up. Returns notes."""
+    global _ids
+    f, notes = jobs_file(), []
+    try:
+        saved = json.loads(f.read_bytes()) if f.is_file() else []
+    except (OSError, ValueError) as e:
+        return [f"ignoring unreadable {f.name}: {e}"]
+    for j in saved:
+        j["output"] = deque(j.get("output", []), maxlen=OUTPUT_LINES)
+        if j["status"] == "running":
+            pid = j.get("pid")
+            if pid and render_stage.pid_alive(pid) and render_stage.RUNNER_PROCESS.match(
+                    render_stage.process_name(pid) or ""):
+                render_stage.kill_pid_tree(pid)
+                notes.append(f"job {j['id']}: stopped its orphaned process {pid}")
+            j.update(status="failed", error="interrupted by restart", finished_at=_iso(utcnow()), pid=None)
+            notes.append(f"job {j['id']} ({j['slug']} {j['part']}) was running: marked failed (interrupted by restart)")
+    with _cv:
+        JOBS[:] = saved
+        _ids = itertools.count(max((j["id"] for j in saved), default=0) + 1)
+        if any(j["status"] == "queued" for j in saved):
+            notes.append(f"resuming {sum(j['status'] == 'queued' for j in saved)} queued job(s)")
+            _start_worker()
+            _cv.notify()
+    if saved:
+        save_jobs()
+    return notes
+
+
+def startup() -> None:
+    """API start: jobs from .jobs.json, then every part's stuck stages and stale render locks (orphan workers)."""
+    notes = load_jobs()
+    for d in all_series():
+        for pid, p in parts_of(d):
+            if p is None:
+                continue
+            notes += [f"{d.name} {pid}: {n}" for n in render_stage.clear_stale_lock(d / pid)]
+            notes += [f"{d.name} {pid}: {n} was left running: marked failed (interrupted)" for n in recover_stuck(d / pid)]
+    for n in notes:
+        print(f"startup: {n}", flush=True)
 
 
 @app.post("/api/jobs", response_model=Job)
@@ -602,11 +669,12 @@ def submit_job(body: JobRequest):
         raise HTTPException(409, str(e))
     job = {"id": next(_ids), "slug": body.slug, "part": body.part, "steps": body.steps, "argv": argv,
            "current_step": None, "status": "queued", "queued_at": _iso(utcnow()), "started_at": None,
-           "finished_at": None, "returncode": None, "output": deque(maxlen=OUTPUT_LINES)}
+           "finished_at": None, "returncode": None, "output": deque(maxlen=OUTPUT_LINES), "error": None, "pid": None}
     with _cv:
         JOBS.append(job)
         _start_worker()
         _cv.notify()
+    save_jobs()
     publish("job-queued", public(job))
     return public(job)
 
@@ -632,6 +700,7 @@ def cancel_job(job_id: int):
     elif was_queued:
         job["finished_at"] = _iso(utcnow())
         publish("job-finished", _brief(job))
+    save_jobs()
     return public(job)
 
 
@@ -652,14 +721,16 @@ def _work() -> None:
             while not (job := next((j for j in JOBS if j["status"] == "queued"), None)):
                 _cv.wait()
             job["status"], job["started_at"] = "running", _iso(utcnow())
+        save_jobs()
         publish("job-started", _brief(job))
         _run(job)
-        job["finished_at"] = _iso(utcnow())
+        job["finished_at"], job["pid"] = _iso(utcnow()), None
         publish("job-finished", _brief(job))
         with _cv:  # keep the last KEEP_JOBS finished jobs
             done = [j for j in JOBS if j["status"] not in ("queued", "running")]
             for j in done[:-KEEP_JOBS]:
                 JOBS.remove(j)
+        save_jobs()
 
 
 def _run(job: dict) -> None:
@@ -673,6 +744,8 @@ def _run(job: dict) -> None:
             proc = subprocess.Popen(argv, cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                     text=True, encoding="utf-8", errors="replace", **render_stage.GROUP)
             _procs[job["id"]] = proc
+            job["pid"] = proc.pid
+        save_jobs()
         for line in proc.stdout:
             line = line.rstrip("\r\n")
             job["output"].append(line)

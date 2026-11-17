@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import os
 import traceback
 from pathlib import Path
 
@@ -54,18 +55,40 @@ def run_stage(part_dir, name, fn, force=False, inputs=(), outputs=(), extra=None
         return "skipped"
 
     print(f"{name}: running")
-    _update(part_json, name, status="running", started_at=utcnow(), finished_at=None, error=None, inputs_hash=None)
+    _update(part_json, name, status="running", started_at=utcnow(), finished_at=None, error=None, inputs_hash=None,
+            pid=os.getpid())
     try:
         fn(part_dir)
     except BaseException as e:
         msg = str(e) or type(e).__name__
-        _update(part_json, name, status="failed", finished_at=utcnow(), error=msg)
+        _update(part_json, name, status="failed", finished_at=utcnow(), error=msg, pid=None)
         if not isinstance(e, Exception):  # Ctrl+C etc: record, then let it propagate
             raise
         if not isinstance(e, StageError):
             traceback.print_exc()  # unexpected: keep the trace for debugging
         print(f"{name}: failed: {msg}")
         return "failed"
-    _update(part_json, name, status="done", finished_at=utcnow(), inputs_hash=digest)
+    _update(part_json, name, status="done", finished_at=utcnow(), inputs_hash=digest, pid=None)
     print(f"{name}: done")
     return "done"
+
+
+def recover_stuck(part_dir) -> list[str]:
+    """Stages left at "running" by a process that is gone (killed, crashed, machine restarted) -> failed
+    "interrupted", so they can run again. A stage whose process still runs, or with a live render lock, is left alone.
+    Returns the stage names changed."""
+    from .render import RUNNER_PROCESS, lock_owner, pid_alive, process_name  # render imports this module
+    part_json = Path(part_dir) / "part.json"
+    part = load_part(part_json)
+    stuck = []
+    for field, info in type(part.stages).model_fields.items():
+        stage = getattr(part.stages, field)
+        if stage.status != "running":
+            continue
+        live = stage.pid and pid_alive(stage.pid) and RUNNER_PROCESS.match(process_name(stage.pid) or "")
+        if live or (field == "render" and lock_owner(Path(part_dir))):
+            continue
+        stuck.append(info.alias or field)
+    for name in stuck:  # re-read per stage: _update is the one writer of stage fields
+        _update(part_json, name, status="failed", finished_at=utcnow(), error="interrupted", pid=None)
+    return stuck

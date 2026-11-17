@@ -435,6 +435,8 @@ export interface components {
         Job: {
             /** Current Step */
             current_step: number | null;
+            /** Error */
+            error?: string | null;
             /** Finished At */
             finished_at: string | null;
             /** Id */
@@ -811,6 +813,11 @@ export interface components {
             finished_at?: string | null;
             /** Inputs Hash */
             inputs_hash?: string | null;
+            /**
+             * Pid
+             * @description while running: the process running it (a running stage whose process is gone was interrupted)
+             */
+            pid?: number | null;
             /** Started At */
             started_at?: string | null;
             /**

@@ -1,5 +1,7 @@
 import json
+import os
 import socket
+import subprocess
 import sys
 import threading
 import time
@@ -12,6 +14,7 @@ from fastapi.testclient import TestClient
 import api.main as m
 from pipeline.scribble.cli import main as cli
 from pipeline.scribble.io import load_part, save_part
+from pipeline.scribble.stages import render as render_stage
 from pipeline.scribble.stages.render import pid_alive
 
 P = "/api/series/demo/parts/part-01"
@@ -375,3 +378,66 @@ def test_web_app_served_in_production_only(client, tmp_path, monkeypatch):
     assert client.get("/api/health").json() == {"ok": True}
     assert client.get("/assets/..%2F..%2F..%2Fapi%2Fmain.py").text == "<html>app</html>"  # never outside dist
 
+
+# ---------------- restart recovery ----------------
+
+def dead_pid() -> int:
+    p = subprocess.Popen([PY, "-c", "pass"])
+    p.wait()
+    return p.pid
+
+
+def test_jobs_persist_and_resume_after_restart(client, lib):
+    job = {"slug": "demo", "part": "part-01", "current_step": None, "queued_at": "2026-01-01T00:00:00Z",
+           "started_at": None, "finished_at": None, "returncode": None, "output": [], "error": None}
+    (lib / ".jobs.json").write_text(json.dumps([
+        {**job, "id": 7, "steps": ["run --stage prep"], "status": "running", "pid": dead_pid(),
+         "argv": [[PY, "-c", "print('never')"]]},
+        {**job, "id": 8, "steps": ["run --stage prep"], "status": "queued", "pid": None,
+         "argv": [[PY, "-c", "print('resumed')"]]},
+    ]), encoding="utf-8")
+    m.startup()
+    jobs = {j["id"]: j for j in client.get("/api/jobs").json()}
+    assert jobs[7]["status"] == "failed" and jobs[7]["error"] == "interrupted by restart"
+    assert wait_job(client, 8)["output"] == ["resumed"]
+    new = client.post("/api/jobs", json={"slug": "demo", "part": "part-01", "steps": ["render-stills"]}).json()
+    assert new["id"] == 9  # ids continue after the saved ones
+    client.delete(f"/api/jobs/{new['id']}")
+    saved = {j["id"]: j for j in json.loads((lib / ".jobs.json").read_text(encoding="utf-8"))}
+    assert saved[8]["status"] == "done" and saved[8]["output"] == ["resumed"] and 9 in saved
+
+
+def test_startup_fails_stuck_stages_and_keeps_live_ones(client, lib, capsys):
+    f = lib / "demo" / "part-01" / "part.json"
+    p = load_part(f)
+    p.stages.timing.status, p.stages.timing.pid = "running", dead_pid()
+    p.stages.prep.status, p.stages.prep.pid = "running", os.getpid()  # this python process: still running
+    p.stages.render.status = "running"  # no pid at all (a part.json from before pids were recorded)
+    save_part(f, p)
+    m.startup()
+    p = load_part(f)
+    assert (p.stages.timing.status, p.stages.timing.error) == ("failed", "interrupted")
+    assert p.stages.render.status == "failed" and p.stages.prep.status == "running"
+    assert "demo part-01: timing was left running: marked failed (interrupted)" in capsys.readouterr().out
+
+
+def test_status_command_fails_stuck_stages(lib, capsys):
+    f = lib / "demo" / "part-01" / "part.json"
+    p = load_part(f)
+    p.stages.shots.status, p.stages.shots.pid = "running", dead_pid()
+    save_part(f, p)
+    assert cli(["status", "demo"]) == 0
+    assert load_part(f).stages.shots.status == "failed"
+    assert "part-01 shots was left running by a process that is gone" in capsys.readouterr().out
+
+
+def test_startup_stops_orphan_render_workers(client, lib):
+    pdir = lib / "demo" / "part-01"
+    worker = subprocess.Popen(["node", "-e", "setTimeout(() => {}, 60000)"], **render_stage.GROUP)
+    try:
+        (pdir / "frames" / ".render.lock").write_text(f"{dead_pid()}\n{worker.pid}", encoding="utf-8")
+        m.startup()
+        worker.wait(timeout=10)
+        assert not (pdir / "frames" / ".render.lock").exists()
+    finally:
+        render_stage.kill_tree(worker)

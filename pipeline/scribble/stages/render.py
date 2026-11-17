@@ -122,6 +122,7 @@ def kill_pid_tree(pid: int) -> None:
 
 
 RENDER_PROCESS = re.compile(r"^(node|chrome|chromium|chromium-browser|chrome-headless-shell|headless_shell)(\.exe)?$", re.I)
+RUNNER_PROCESS = re.compile(r"^(python[0-9.]*|pythonw?)(\.exe)?$", re.I)  # the CLI running a stage or job step
 
 
 def process_name(pid: int) -> str | None:
@@ -263,24 +264,34 @@ def lock_add_workers(part_dir: Path, pids: list[int]) -> None:
         f.write("".join(f"\n{p}" for p in pids))
 
 
+def clear_stale_lock(part_dir: Path) -> list[str]:
+    """A lock whose render is gone: stop the workers it outlived (only if the PID still is a render process: never
+    a reused PID), then remove the lock. Returns what was done; [] if there is no stale lock."""
+    f = lock_path(part_dir)
+    if not f.exists() or lock_owner(part_dir):
+        return []
+    pids = _lock_pids(part_dir)
+    notes = [f"removing stale render lock ({pids[0] if pids else '?'} is not running)"]
+    for w in [p for p in pids[1:] if pid_alive(p)]:
+        name = process_name(w)
+        if name and RENDER_PROCESS.match(name):
+            notes.append(f"stopping leftover render worker {w} ({name})")
+            kill_pid_tree(w)
+        else:
+            notes.append(f"not stopping pid {w} from the stale lock: it is {name or 'unknown'}, not a render worker")
+    f.unlink(missing_ok=True)
+    return notes
+
+
 @contextmanager
 def render_lock(part_dir: Path):
     f = lock_path(part_dir)
     f.parent.mkdir(parents=True, exist_ok=True)
-    if f.exists():
-        pid = lock_owner(part_dir)
-        if pid:
-            raise StageError(f"another render is running on this part (pid {pid}); wait for it or stop it")
-        pids = _lock_pids(part_dir)
-        print(f"note: removing stale render lock ({pids[0] if pids else '?'} is not running)")
-        for w in [p for p in pids[1:] if pid_alive(p)]:  # its workers outlived it: stop them before we start
-            name = process_name(w)
-            if name and RENDER_PROCESS.match(name):
-                print(f"note: stopping leftover render worker {w} ({name})")
-                kill_pid_tree(w)
-            else:  # the PID was reused by something else: never kill that
-                print(f"note: not stopping pid {w} from the stale lock: it is {name or 'unknown'}, not a render worker")
-        f.unlink(missing_ok=True)
+    pid = lock_owner(part_dir)
+    if pid:
+        raise StageError(f"another render is running on this part (pid {pid}); wait for it or stop it")
+    for note in clear_stale_lock(part_dir):
+        print(f"note: {note}")
     try:
         fd = os.open(f, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
     except FileExistsError:
