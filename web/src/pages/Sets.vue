@@ -4,7 +4,6 @@ import { computed } from 'vue'
 import { api } from '../api/client'
 import Card from '../components/Card.vue'
 import ErrorCard from '../components/ErrorCard.vue'
-import SetPreview from '../components/SetPreview.vue'
 import { refetchOn } from '../composables/live'
 import { useApi } from '../composables/useApi'
 import { builtinNote } from '../lib/sets'
@@ -36,18 +35,17 @@ const all = computed(() => [
       every series. Outdoor sets allow travelling shots (the world scrolls past walking actors); indoor ones have a
       back wall. Changing a set changes every part that uses it on its next render.
     </p>
-    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      <Card v-for="s in all" :key="s.id" class="space-y-3 p-4">
-        <SetPreview :id="s.id" :custom="custom" :label="`Preview of the ${s.name} set`" class="aspect-[9/16] w-full" />
-        <div class="flex items-start gap-2">
-          <div class="min-w-0 flex-1">
-            <h3 class="font-display text-lg font-semibold capitalize">{{ s.name }}</h3>
+    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <Card v-for="s in all" :key="s.id" class="flex items-center gap-3 p-4">
+        <div class="min-w-0 flex-1">
+          <div>
+            <h3 class="truncate font-display text-lg font-semibold capitalize">{{ s.name }}</h3>
             <p class="text-xs text-muted"><code>@set {{ s.id }}</code><template v-if="s.builtin"> · {{ builtinNote(s.id) }}</template></p>
           </div>
-          <span class="chip" :class="s.kind === 'outdoor' ? 'chip-green' : 'chip-amber'">{{ s.kind }}</span>
         </div>
-        <RouterLink v-if="!s.builtin" :to="`/sets/${s.id}`" class="btn btn-secondary">Edit</RouterLink>
-        <p v-else class="text-xs text-muted">built in</p>
+        <span class="chip shrink-0" :class="s.kind === 'outdoor' ? 'chip-green' : 'chip-amber'">{{ s.kind }}</span>
+        <RouterLink v-if="!s.builtin" :to="`/sets/${s.id}`" class="btn btn-secondary shrink-0 px-3" :aria-label="`Edit ${s.name}`">Edit</RouterLink>
+        <span v-else class="shrink-0 text-xs text-muted">built in</span>
       </Card>
     </div>
   </div>

@@ -16,6 +16,7 @@ const video = ref<HTMLVideoElement>()
 const playing = ref(false)
 const time = ref(0)
 const duration = ref(0)
+const mediaError = ref(false)
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
 
 function toggle() {
@@ -34,14 +35,19 @@ function onKey(e: KeyboardEvent) {
   else return
   e.preventDefault()
 }
+function choose(key: string) {
+  current.value = key
+  mediaError.value = false
+}
 </script>
 
 <template>
   <div class="space-y-4 outline-none" tabindex="0" aria-label="Video player: space plays, arrow keys seek 5 seconds"
     @keydown="onKey">
     <div v-if="p.sources.length > 1" class="inset relative flex rounded-full p-1" role="tablist" aria-label="Source">
-      <button v-for="s in p.sources" :key="s.key" role="tab" :aria-selected="current === s.key"
-        class="relative flex-1 rounded-full px-3 py-1.5 text-sm font-semibold" @click="current = s.key">
+      <button v-for="s in p.sources" :key="s.key" type="button" role="tab" :aria-selected="current === s.key"
+        :aria-controls="`video-panel-${s.key}`" :tabindex="current === s.key ? 0 : -1"
+        class="relative flex-1 rounded-full px-3 py-1.5 text-sm font-semibold" @click="choose(s.key)">
         <motion.span v-if="current === s.key" layout-id="player-src" class="absolute inset-0 rounded-full bg-panel shadow-[var(--shadow-raised)]"
           :transition="SPRING" />
         <span class="relative">{{ s.label }}</span>
@@ -49,10 +55,12 @@ function onKey(e: KeyboardEvent) {
     </div>
 
     <div class="inset overflow-hidden p-2">
-      <video ref="video" :key="src" :src="src" class="aspect-[9/16] w-full rounded-[10px] bg-ink" preload="metadata"
+      <video :id="`video-panel-${current}`" ref="video" :key="src" :src="src" class="aspect-[9/16] w-full rounded-[10px] bg-ink" preload="metadata"
         playsinline @click="toggle" @play="playing = true" @pause="playing = false" @ended="playing = false"
-        @timeupdate="time = video!.currentTime" @loadedmetadata="duration = video!.duration; time = 0" />
+        @timeupdate="time = video!.currentTime" @loadedmetadata="duration = video!.duration; time = 0; mediaError = false" @error="mediaError = true" />
     </div>
+
+    <p v-if="mediaError" class="text-sm text-red-ink" role="alert">This video could not be loaded. Try another source or refresh the part.</p>
 
     <div class="flex items-center gap-3">
       <button class="round-btn size-12! shrink-0 text-ink" :aria-label="playing ? 'Pause' : 'Play'" @click="toggle">

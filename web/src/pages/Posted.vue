@@ -39,7 +39,8 @@ const PLATFORMS: { key: Platform; name: string; icon: typeof Youtube; color: str
     </div>
     <EmptyState v-if="!rows.length" :icon="Send" title="No parts yet" text="Parts show up here once a series has some." />
     <Card v-else class="overflow-hidden p-2">
-      <table class="w-full text-left text-sm">
+      <div class="overflow-x-auto" tabindex="0" aria-label="Posted parts table. Scroll horizontally for platform links.">
+      <table class="min-w-[680px] w-full text-left text-sm">
         <thead>
           <tr class="text-xs tracking-wide text-muted uppercase">
             <th class="px-4 py-3 font-semibold">Series</th>
@@ -71,6 +72,7 @@ const PLATFORMS: { key: Platform; name: string; icon: typeof Youtube; color: str
           </tr>
         </tbody>
       </table>
+      </div>
     </Card>
   </div>
 </template>

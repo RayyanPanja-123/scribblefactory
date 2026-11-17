@@ -47,6 +47,7 @@ function lookSummary(l: Obj): string {
 
 // ---- JSON import: an array of cast entries, {"cast": [...]}, or a whole series.json ----
 const importOpen = ref(false)
+const customizeCast = ref(false)
 const importText = ref('')
 const importError = ref('')
 async function loadFile(e: Event) {
@@ -130,13 +131,15 @@ const field = 'inset mt-1 block h-11 w-full rounded-full px-4 text-sm text-ink o
         </label>
       </div>
 
-      <fieldset class="space-y-3">
+      <fieldset id="cast-customize" class="space-y-3">
         <legend class="font-display text-lg font-semibold">Cast</legend>
         <div class="flex flex-wrap items-start gap-3">
-          <p class="flex-1 text-xs text-muted">Hats, suits and bib numbers come in through a JSON import, or later with cast-edit.
-            Each new look needs approval on the cast sheet.</p>
+          <p class="flex-1 text-xs text-muted">Add names now and customize outfits later. Cast is optional; you can add characters after creating the series.</p>
+          <button type="button" class="btn btn-secondary" :aria-expanded="customizeCast" aria-controls="cast-customize" @click="customizeCast = !customizeCast">
+            {{ customizeCast ? 'Hide cast details' : 'Customize cast' }}
+          </button>
           <button type="button" class="btn btn-secondary" :aria-expanded="importOpen" aria-controls="cast-import" @click="importOpen = !importOpen">
-            <FileJson :size="16" aria-hidden="true" /> Import JSON
+            <FileJson :size="16" aria-hidden="true" /> Advanced: import JSON
           </button>
         </div>
 
@@ -164,10 +167,10 @@ const field = 'inset mt-1 block h-11 w-full rounded-full px-4 text-sm text-ink o
           <label class="block text-xs font-semibold text-muted">Name
             <input v-model="r.name" placeholder="Fred Lorz" :class="field" @input="onName(r)" />
           </label>
-          <label class="block text-xs font-semibold text-muted">Id (used in @cast)
+          <label v-if="customizeCast" class="block text-xs font-semibold text-muted">Id (used in @cast)
             <input v-model="r.id" pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="fred" :class="field" @input="r.idEdited = true" />
           </label>
-          <label class="block text-xs font-semibold text-muted">Outfit
+          <label v-if="customizeCast" class="block text-xs font-semibold text-muted">Outfit
             <span class="inset mt-1 flex h-11 cursor-pointer items-center gap-2 rounded-full pr-4 pl-1.5 focus-within:outline-2 focus-within:outline-ink">
               <!-- native picker, drawn as a round raised swatch -->
               <input v-model="r.color" type="color" :aria-label="`Outfit colour for ${r.name || `character ${i + 1}`}`"
@@ -177,7 +180,7 @@ const field = 'inset mt-1 block h-11 w-full rounded-full px-4 text-sm text-ink o
               <span class="num font-mono text-sm text-ink uppercase">{{ r.color }}</span>
             </span>
           </label>
-          <label class="block text-xs font-semibold text-muted">Eyes
+          <label v-if="customizeCast" class="block text-xs font-semibold text-muted">Eyes
             <select v-model="r.eyes" :class="field">
               <option value="dots">dots</option>
               <option value="half_closed">half closed</option>
@@ -186,7 +189,7 @@ const field = 'inset mt-1 block h-11 w-full rounded-full px-4 text-sm text-ink o
           <button type="button" class="btn btn-secondary size-11 justify-center p-0" :aria-label="`Remove cast row ${i + 1}`" @click="cast.splice(i, 1)">
             <Trash2 :size="16" aria-hidden="true" />
           </button>
-          <div class="flex flex-wrap gap-3 sm:col-span-5">
+          <div v-if="customizeCast" class="flex flex-wrap gap-3 sm:col-span-5">
             <label v-for="h in HANDS" :key="h" class="block min-w-40 flex-1 text-xs font-semibold text-muted">{{ h === 'left' ? 'Left hand' : 'Right hand' }}
               <select v-model="r.hands[h]" :class="field">
                 <option value="">nothing</option>
@@ -194,7 +197,7 @@ const field = 'inset mt-1 block h-11 w-full rounded-full px-4 text-sm text-ink o
               </select>
             </label>
           </div>
-          <p v-if="lookSummary(r.look)" class="-mt-1 pl-4 text-xs text-muted sm:col-span-5">Imported look: {{ lookSummary(r.look) }}</p>
+          <p v-if="customizeCast && lookSummary(r.look)" class="-mt-1 pl-4 text-xs text-muted sm:col-span-5">Imported look: {{ lookSummary(r.look) }}</p>
         </div>
         <button type="button" class="btn btn-secondary" @click="addCast"><Plus :size="16" aria-hidden="true" /> Add character</button>
       </fieldset>

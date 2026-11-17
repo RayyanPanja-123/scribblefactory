@@ -21,6 +21,13 @@ const x = (i: number) => L + (i * (W - L - R)) / Math.max(1, p.months.length - 1
 const y = (v: number) => H - B - (v / top.value) * (H - B - T)
 const ticks = computed(() => [0, 1, 2, 3, 4].map((i) => (top.value * i) / 4))
 const monthName = (m: string) => new Date(`${m}-01T00:00:00Z`).toLocaleString('en-GB', { month: 'short', timeZone: 'UTC' })
+const chartSummary = computed(() => {
+  if (empty.value) return 'No posts yet.'
+  const latest = p.months.at(-1) ?? { youtube: 0, instagram: 0 }
+  const peakYoutube = p.months.reduce((a, b) => b.youtube > a.youtube ? b : a, p.months[0])
+  const peakInstagram = p.months.reduce((a, b) => b.instagram > a.instagram ? b : a, p.months[0])
+  return `Latest month: ${latest.youtube} YouTube and ${latest.instagram} Instagram posts. YouTube peak: ${peakYoutube.youtube} in ${monthName(peakYoutube.month)}. Instagram peak: ${peakInstagram.instagram} in ${monthName(peakInstagram.month)}.`
+})
 
 /** Catmull-Rom -> cubic Bézier, control points clamped to the plot so curves never dip below zero. */
 function smooth(pts: [number, number][]): string {
@@ -49,7 +56,8 @@ function onMove(e: PointerEvent) {
 
 <template>
   <div class="relative">
-    <svg :viewBox="`0 0 ${W} ${H}`" class="block w-full" role="img"
+    <p id="posts-chart-summary" class="sr-only">{{ chartSummary }}</p>
+    <svg :viewBox="`0 0 ${W} ${H}`" class="block w-full" role="img" aria-describedby="posts-chart-summary"
       :aria-label="`Posts per month, last ${months.length} months, YouTube and Instagram`"
       @pointermove="onMove" @pointerleave="hover = null">
       <defs>

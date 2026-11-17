@@ -13,7 +13,7 @@ const route = useRoute()
 const router = useRouter()
 const tabs = [
   { to: '/', name: 'Overview', icon: LayoutDashboard, match: (n: string) => n === 'overview' },
-  { to: '/series', name: 'Series', icon: Layers, match: (n: string) => n.startsWith('series') || n === 'part' },
+  { to: '/series', name: 'Series', icon: Layers, match: (n: string) => n.startsWith('series') || n === 'part' || n === 'new-series' || n === 'new-part' },
   { to: '/review', name: 'Review', icon: ClipboardCheck, match: (n: string) => n === 'review' },
   { to: '/props', name: 'Props', icon: Backpack, match: (n: string) => n.startsWith('prop') },
   { to: '/sets', name: 'Sets', icon: Mountain, match: (n: string) => n === 'sets' || n === 'set-edit' },
@@ -43,27 +43,19 @@ function onScroll() {
 <template>
   <MotionConfig :transition="SPRING" reduced-motion="user">
     <!-- one dark layer: the bezel is the outer frame (8 px margin, 6 px under 1280 px), same colour as the page -->
-    <div class="h-full p-1.5 xl:p-2">
-      <div class="bezel h-full rounded-frame bg-bezel p-2.5">
+    <div class="h-full">
+      <div class="bezel h-full rounded-frame bg-bezel p-1">
         <div class="screen grain relative flex h-full overflow-hidden rounded-[22px] bg-surface">
-          <!-- icon rail -->
-          <nav class="flex w-[88px] shrink-0 flex-col items-center gap-4 py-6" aria-label="Main">
-            <BrandMark class="mb-4" />
-            <RouterLink v-for="t in tabs" :key="t.to" :to="t.to" class="round-btn"
-              :aria-current="active === t ? 'page' : undefined" :aria-label="t.name" :title="t.name">
-              <component :is="t.icon" :size="20" aria-hidden="true" />
-            </RouterLink>
-          </nav>
-
           <div class="relative flex min-w-0 flex-1 flex-col">
-            <header class="flex items-center gap-6 py-5 pr-8">
+            <header class="flex flex-wrap items-center gap-x-6 gap-y-3 py-4 pr-4 pl-4 lg:py-5 lg:pr-8 lg:pl-8">
+              <BrandMark class="size-10 shrink-0" />
               <p class="font-display text-xl font-semibold whitespace-nowrap">Scribble Factory</p>
-              <span class="h-9 w-px bg-[#cfc8bb]" aria-hidden="true" />
+              <span class="hidden h-9 w-px bg-[#cfc8bb] lg:block" aria-hidden="true" />
               <div class="min-w-0">
-                <h1 class="font-display text-2xl font-semibold">Welcome, Rayyan</h1>
+                <h1 class="font-display text-xl font-semibold lg:text-2xl">Welcome, Rayyan</h1>
                 <p class="text-sm text-muted">{{ today }}</p>
               </div>
-              <label class="inset ml-auto flex w-full max-w-sm items-center gap-2 rounded-full px-4 py-2.5">
+              <label class="inset order-last flex basis-full items-center gap-2 rounded-full px-4 py-2.5 lg:order-none lg:ml-auto lg:w-full lg:max-w-sm">
                 <Search :size="18" class="shrink-0 text-faint" aria-hidden="true" />
                 <span class="sr-only">Search series</span>
                 <input v-model="search" type="search" placeholder="Search series"
@@ -79,7 +71,7 @@ function onScroll() {
               </button>
             </header>
 
-            <main class="scroll fade-bottom min-h-0 flex-1 overflow-y-auto pr-8 pb-[calc(var(--tabbar-h)+20px+24px)]"
+            <main class="scroll fade-bottom min-h-0 flex-1 overflow-y-auto pt-2 pr-4 pb-[calc(var(--tabbar-h)+20px+24px)] pl-4 lg:pr-8 lg:pl-8"
               :class="{ scrolling }" @scroll.passive="onScroll">
               <RouterView v-slot="{ Component, route: r }">
                 <AnimatePresence mode="wait">
@@ -92,10 +84,10 @@ function onScroll() {
             </main>
 
             <!-- floating tab bar: the dark pill slides between tabs (shared layout) -->
-            <nav class="absolute bottom-5 left-1/2 flex h-[var(--tabbar-h)] -translate-x-1/2 items-center gap-1 rounded-full border border-white/60 bg-white/45 p-1.5 shadow-[0_10px_30px_rgb(120_104_82/0.25)] backdrop-blur-xl"
+            <nav class="absolute bottom-2 left-1/2 flex h-14 w-[calc(100%-16px)] max-w-[560px] -translate-x-1/2 items-center gap-0 rounded-full border border-white/60 bg-white/45 p-1 shadow-[0_10px_30px_rgb(120_104_82/0.25)] backdrop-blur-xl lg:bottom-5 lg:h-[var(--tabbar-h)] lg:w-auto lg:gap-1 lg:p-1.5"
               aria-label="Tabs">
               <RouterLink v-for="t in tabs" :key="t.to" :to="t.to"
-                class="relative flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold"
+                class="relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-full px-1 py-1 text-[10px] font-semibold lg:flex-row lg:gap-2 lg:px-4 lg:py-2.5 lg:text-sm"
                 :class="active === t ? 'text-white' : 'text-ink'" :aria-current="active === t ? 'page' : undefined">
                 <motion.span v-if="active === t" layout-id="tab-pill" class="absolute inset-0 rounded-full bg-ink shadow-[var(--shadow-dark)]"
                   :transition="SPRING" />
@@ -112,4 +104,3 @@ function onScroll() {
     <Overlays />
   </MotionConfig>
 </template>
-

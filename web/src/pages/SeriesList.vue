@@ -69,7 +69,7 @@ const shown = computed(() => {
           <RouterLink :to="`/series/${s.slug}/new-part`" class="btn btn-secondary">
             <Plus :size="16" aria-hidden="true" /> New part
           </RouterLink>
-          <RouterLink :to="`/series/${s.slug}`" class="btn btn-primary" tabindex="-1" aria-hidden="true">
+          <RouterLink :to="`/series/${s.slug}`" class="btn btn-primary" aria-label="Open series">
             Open <ArrowRight :size="16" aria-hidden="true" />
           </RouterLink>
         </div>

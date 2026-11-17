@@ -332,6 +332,11 @@ watch(data, async (v, old) => {
       </div>
     </div>
 
+    <nav class="sticky top-0 z-10 -mx-1 flex gap-1 overflow-x-auto rounded-full border border-white/60 bg-surface/90 p-1 shadow-[0_6px_18px_rgb(120_104_82/0.14)] backdrop-blur-md" aria-label="Part sections">
+      <a v-for="s in [{ id: 'video', label: 'Video' }, { id: 'voice', label: 'Voice' }, { id: 'run', label: 'Run' }, { id: 'review', label: 'Review' }, { id: 'approvals', label: 'Approvals' }, { id: 'thumbnails', label: 'Thumbnail' }, { id: 'posting', label: 'Post' }]"
+        :key="s.id" :href="`#${s.id}`" class="shrink-0 rounded-full px-3 py-2 text-xs font-semibold text-muted hover:bg-panel hover:text-ink">{{ s.label }}</a>
+    </nav>
+
     <div class="grid items-start gap-6 xl:grid-cols-[360px_1fr]">
       <!-- player -->
       <section id="video" class="raised p-5" aria-label="Video">
@@ -536,4 +541,5 @@ watch(data, async (v, old) => {
 }
 button:disabled { cursor: not-allowed; opacity: 0.55; }
 .next-target { outline: 2px solid var(--color-amber); outline-offset: 4px; scroll-margin-top: 1.5rem; }
+:where(section[id], div[id]) { scroll-margin-top: 4.5rem; }
 </style>

@@ -59,6 +59,9 @@ async function cancel(j: Job) {
   })
   if (ok) await act(() => api.cancelJob(j.id), queuedOnly ? `Job ${j.id} removed` : `Job ${j.id} cancelled`)
 }
+async function retry(j: Job) {
+  await act(() => api.submitJob(j.slug, j.part, j.steps), `Job ${j.id} queued again`)
+}
 
 // ---- history ----
 const duration = (j: Job) =>
@@ -87,7 +90,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
     <motion.div v-if="drawerOpen" key="scrim" class="absolute inset-0 z-30 bg-ink/12 backdrop-blur-[2px]"
       :initial="{ opacity: 0 }" :animate="{ opacity: 1 }" :exit="{ opacity: 0 }" @click="drawerOpen = false" />
     <motion.aside v-if="drawerOpen" key="drawer" role="dialog" aria-label="Jobs"
-      class="raised absolute top-3 right-3 bottom-3 z-30 flex w-[440px] flex-col rounded-[28px]! p-5"
+      class="raised absolute top-2 right-2 bottom-2 z-30 flex w-[calc(100%-16px)] max-w-[440px] flex-col rounded-[28px]! p-4 sm:top-3 sm:right-3 sm:bottom-3 sm:p-5"
       :initial="{ opacity: 0, x: 40, scale: 0.98 }" :animate="{ opacity: 1, x: 0, scale: 1 }"
       :exit="{ opacity: 0, x: 40, scale: 0.98 }" :transition="SPRING">
       <header class="flex items-center gap-3">
@@ -207,7 +210,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
                 <span class="num block text-sm text-ink">{{ duration(j) }}</span>{{ ago(j.finished_at) }}
               </span>
             </button>
-            <motion.div v-if="expanded === j.id" class="px-3 pb-3"
+              <motion.div v-if="expanded === j.id" class="px-3 pb-3"
               :initial="still ? { opacity: 0 } : { clipPath: 'inset(0 0 100% 0)', opacity: 0 }"
               :animate="still ? { opacity: 1 } : { clipPath: 'inset(0 0 0% 0)', opacity: 1 }" :transition="SPRING">
               <div class="relative">
@@ -215,6 +218,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
                   tabindex="0" :aria-label="`Log of job ${j.id}`">{{ j.output.map(shortPaths).join('\n') || '(no output)' }}</pre>
                 <button class="absolute top-2 right-2 grid size-7 place-items-center rounded-full bg-[#2c2a26] text-[#ece6da] hover:bg-[#36332e]"
                   :aria-label="`Copy log of job ${j.id}`" @click="copyLog(j)"><Copy :size="13" /></button>
+              </div>
+              <div class="mt-2 flex flex-wrap gap-2">
+                <RouterLink :to="`/series/${j.slug}/${j.part}`" class="btn btn-secondary text-xs" @click="drawerOpen = false">Open part</RouterLink>
+                <button v-if="j.status === 'failed'" class="btn btn-primary text-xs" @click="retry(j)">Run again</button>
               </div>
             </motion.div>
           </motion.div>
