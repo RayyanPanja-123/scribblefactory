@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { backoff, connectStream, type EventSourceLike } from './events'
 import { nextSteps, type PipelineState } from './nextSteps'
 import { jobFraction, parseProgress } from './progress'
+import { buildPrompt, importProp } from './propPrompt'
 
 const ALL = ['prep', 'import_check', 'timing', 'shots', 'validate', 'render', 'audio', 'finish', 'thumbnails']
 const NONE = { stills: false, test_render: false, final: false }
@@ -156,5 +157,27 @@ describe('shortPaths', () => {
   it('leaves other text alone', () => {
     for (const s of ['prep: done', 'chunk 3/4 done (frames 300-449)', 'words: 2, estimated duration: 0.8 s'])
       expect(shortPaths(s)).toBe(s)
+  })
+})
+
+describe('build with AI', () => {
+  it('prompt names the thing, a suggested id, the taken ids and the format', () => {
+    const p = buildPrompt('Water Gun', ['apple', 'torch'])
+    expect(p).toContain('**Water Gun**')
+    expect(p).toContain('"id": "water-gun"')
+    expect(p).toContain('NOT be one of: apple, torch')
+    expect(p).toContain('"shape": "circle"')
+  })
+  it('imports a fenced reply, a props file, and rejects junk', () => {
+    const reply = 'Sure!\n```json\n{"id": "Gun!", "name": "Gun", "shapes": [{"shape": "rect", "pts": [[0,-10],[80,10]], "fill": "#333333"}, {"shape": "circle", "pts": [[0,0]], "r": 5}]}\n```\nEnjoy.'
+    const { prop } = importProp(reply)
+    expect(prop?.id).toBe('gun')
+    expect(prop?.shapes).toEqual([
+      { shape: 'rect', pts: [[0, -10], [80, 10]], r: null, fill: '#333333', width: 8 },
+      { shape: 'circle', pts: [[0, 0]], r: 5, fill: null, width: 8 },
+    ])
+    expect(importProp('{"props": [{"name": "Flag", "shapes": [{"shape": "line", "pts": [[0,0],[0,-90]]}]}]}').prop?.id).toBe('flag')
+    expect(importProp('no json here').error).toMatch(/Not valid JSON/)
+    expect(importProp('{"shapes": [{"shape": "star", "pts": [[0,0]]}]}').error).toMatch(/Shape #1/)
   })
 })

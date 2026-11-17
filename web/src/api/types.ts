@@ -107,6 +107,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/props": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Props */
+        get: operations["get_props_api_props_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/props/{prop_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put Prop */
+        put: operations["put_prop_api_props__prop_id__put"];
+        post?: never;
+        /** Remove Prop */
+        delete: operations["remove_prop_api_props__prop_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/series": {
         parameters: {
             query?: never;
@@ -359,6 +394,21 @@ export interface components {
              */
             props: components["schemas"]["Prop"][];
             top: components["schemas"]["Top"];
+        };
+        /** CustomProp */
+        CustomProp: {
+            /**
+             * Id
+             * @description the prop kind used in cast props and @do eat / give
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Shapes
+             * @description drawn in order: later ones on top
+             */
+            shapes: components["schemas"]["PropShape"][];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -645,11 +695,56 @@ export interface components {
              * @enum {string}
              */
             hand: "left" | "right";
+            /** Kind */
+            kind: string;
+        };
+        /** PropCatalog */
+        PropCatalog: {
+            /** Builtin */
+            builtin: ("clipboard" | "stopwatch" | "bottle" | "syringe" | "apple" | "medal")[];
             /**
-             * Kind
+             * Cleared
+             * @default []
+             */
+            cleared: string[];
+            /** Custom */
+            custom: components["schemas"]["CustomProp"][];
+        };
+        /**
+         * PropShape
+         * @description one piece of a custom prop, in hand space: the hand at (0, 0), y down, x away from the body (canvas px; the
+         *     figure is 512 x 1024, the built-in props span about -40..110). Drawn with the same wobbly ink as the built-ins.
+         */
+        PropShape: {
+            /**
+             * Fill
+             * @description no fill: outline only (ignored for line)
+             */
+            fill?: string | null;
+            /**
+             * Pts
+             * @description rect: 2 corners; circle: the centre; line: 2+ points; poly: 3+ points (closed)
+             */
+            pts: [
+                number,
+                number
+            ][];
+            /**
+             * R
+             * @description circle: the radius
+             */
+            r?: number | null;
+            /**
+             * Shape
              * @enum {string}
              */
-            kind: "clipboard" | "stopwatch" | "bottle" | "syringe" | "apple" | "medal";
+            shape: "rect" | "circle" | "line" | "poly";
+            /**
+             * Width
+             * @description outline / line width; 0: no outline
+             * @default 8
+             */
+            width: number;
         };
         /** SeriesCard */
         SeriesCard: {
@@ -1049,6 +1144,92 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Overview"];
+                };
+            };
+        };
+    };
+    get_props_api_props_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropCatalog"];
+                };
+            };
+        };
+    };
+    put_prop_api_props__prop_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                prop_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomProp"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropCatalog"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_prop_api_props__prop_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                prop_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropCatalog"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

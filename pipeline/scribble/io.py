@@ -1,4 +1,4 @@
-"""Load/save series.json and part.json. Writes are atomic; saves never drop an existing approval."""
+"""Load/save series.json, part.json and library/props.json. Writes are atomic; saves never drop an existing approval."""
 
 import json
 import os
@@ -6,7 +6,9 @@ import tempfile
 import time
 from pathlib import Path
 
-from .schemas import PartModel, SeriesModel
+from typing import get_args
+
+from .schemas import BuiltinProp, CustomProp, PartModel, PropLibrary, SeriesModel
 
 # User-owned files a save must never write to.
 PROTECTED = {"story.md", "voice.mp3"}
@@ -55,6 +57,60 @@ def replace_file(tmp, path) -> None:
 
 def load_series(path) -> SeriesModel:
     return SeriesModel.model_validate_json(Path(path).read_bytes())
+
+
+def load_props(library) -> PropLibrary:
+    """library/props.json (custom props, shared by every series); none yet: an empty library"""
+    f = Path(library) / "props.json"
+    return PropLibrary.model_validate_json(f.read_bytes()) if f.exists() else PropLibrary()
+
+
+def prop_kinds(library) -> list[str]:
+    """every prop kind a cast member or @do can use: the built-ins, then the library's custom props"""
+    return [*get_args(BuiltinProp), *(p.id for p in load_props(library).props)]
+
+
+def unknown_cast_props(cast, library) -> list[str]:
+    """'<cast id>: <kind>' for each held prop that is neither built in nor in library/props.json"""
+    known = set(prop_kinds(library))
+    return [f"{c.id}: {p.kind}" for c in cast for p in c.props if p.kind not in known]
+
+
+def prop_holders(library, kind: str) -> list[tuple[Path, str]]:
+    """(series.json, cast id) for every cast member, in every series of the library, holding a prop of this kind"""
+    return [(f, c.id) for f in sorted(Path(library).glob("*/series.json")) for c in load_series(f).cast
+            if any(p.kind == kind for p in c.props)]
+
+
+def save_prop(library, prop: CustomProp) -> list[str]:
+    """add or replace a custom prop. A changed drawing changes the look of everyone holding it, so their cast
+    approvals are cleared (like cast-edit). Returns "<slug>/<cast id>" for each approval cleared."""
+    lib = load_props(library)
+    old = next((p for p in lib.props if p.id == prop.id), None)
+    lib.props = [prop if p.id == prop.id else p for p in lib.props] if old else [*lib.props, prop]
+    atomic_write_json(Path(library) / "props.json", lib.model_dump(mode="json"))
+    cleared = []
+    if old and old.shapes != prop.shapes:
+        for f, cid in prop_holders(library, prop.id):
+            series = load_series(f)
+            c = next(c for c in series.cast if c.id == cid)
+            if c.approved_at:
+                c.approved_at = None
+                # written directly: save_series would restore the approval (it only ever adds approvals)
+                atomic_write_json(f, series.model_dump(mode="json"))
+                cleared.append(f"{series.slug}/{cid}")
+    return cleared
+
+
+def delete_prop(library, prop_id: str) -> None:
+    """remove a custom prop; refused (ValueError) while any cast member holds it"""
+    lib = load_props(library)
+    if not any(p.id == prop_id for p in lib.props):
+        raise KeyError(prop_id)
+    if held := prop_holders(library, prop_id):
+        raise ValueError(f"{prop_id} is still held by " + ", ".join(f"{f.parent.name}/{cid}" for f, cid in held))
+    lib.props = [p for p in lib.props if p.id != prop_id]
+    atomic_write_json(Path(library) / "props.json", lib.model_dump(mode="json"))
 
 
 def load_part(path) -> PartModel:

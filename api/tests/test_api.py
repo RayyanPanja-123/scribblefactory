@@ -194,6 +194,40 @@ def test_create_series_and_part(client, lib):
     assert client.post("/api/series/nope/parts", json={}).status_code == 404
 
 
+FLAG = {"id": "flag", "name": "Flag", "shapes": [{"shape": "line", "pts": [[0, 40], [0, -120]], "width": 6},
+                                                 {"shape": "rect", "pts": [[0, -120], [70, -80]], "fill": "#d84a3a"}]}
+
+
+def test_custom_props(client, lib):
+    r = client.get("/api/props").json()
+    assert "medal" in r["builtin"] and r["custom"] == []
+    assert client.put("/api/props/flag", json={**FLAG, "id": "other"}).status_code == 409
+    assert client.put("/api/props/medal", json={**FLAG, "id": "medal"}).status_code == 422  # built-in name
+    bad = {**FLAG, "shapes": [{"shape": "circle", "pts": [[0, 0]]}]}
+    assert client.put("/api/props/flag", json=bad).status_code == 422  # circle without r
+    # unknown until it exists, then any series can hold it
+    hold = {"slug": "flags", "title": "Flags", "cast": [{"id": "ann", "name": "Ann", "color": "#00ff00",
+                                                        "props": [{"kind": "flag", "hand": "left"}]}]}
+    assert "unknown prop ann: flag" in client.post("/api/series", json=hold).json()["detail"]
+    assert client.put("/api/props/flag", json=FLAG).json()["custom"][0]["id"] == "flag"
+    assert client.post("/api/series", json=hold).status_code == 200
+    # a new drawing clears the holder's approval; a rename alone does not
+    s = json.loads((lib / "flags" / "series.json").read_text(encoding="utf-8"))
+    s["cast"][0]["approved_at"] = "2026-01-01T00:00:00Z"
+    (lib / "flags" / "series.json").write_text(json.dumps(s), encoding="utf-8")
+    assert client.put("/api/props/flag", json={**FLAG, "name": "Banner"}).json()["cleared"] == []
+    moved = {**FLAG, "shapes": [*FLAG["shapes"], {"shape": "circle", "pts": [[0, -124]], "r": 8, "fill": "#e8b923"}]}
+    assert client.put("/api/props/flag", json=moved).json()["cleared"] == ["flags/ann"]
+    assert client.get("/api/series/flags").json()["series"]["cast"][0]["approved_at"] is None
+    # held: no delete; free: gone
+    r = client.delete("/api/props/flag")
+    assert r.status_code == 409 and "flags/ann" in r.json()["detail"]
+    s["cast"][0]["props"] = []
+    (lib / "flags" / "series.json").write_text(json.dumps(s), encoding="utf-8")
+    assert client.delete("/api/props/flag").json()["custom"] == []
+    assert client.delete("/api/props/flag").status_code == 404
+
+
 def test_voice_upload(client, lib):
     f = lib / "demo" / "part-01" / "voice.mp3"
     assert client.put(f"{P}/voice.mp3", content=b"not audio").status_code == 415 and not f.exists()

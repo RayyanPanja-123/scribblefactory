@@ -12,15 +12,15 @@ import re
 import zlib
 from pathlib import Path
 
-from ..io import atomic_write_json
+from ..io import atomic_write_json, prop_kinds, unknown_cast_props
 from ..schemas import Actor, Animal, Camera, Cue, Extra, PhrasesModel, SeriesModel, Shot, StoryModel, Travel, Vehicle
 from ..validate import (CAR_SPEED, CROWD_Z, DOG_RUN_SPEED, MAX_SHOT_FRAMES, MOODS, OUTDOOR_SETS, SPEEDS,
                         duration_frames, validate)
-from .prep import DO_CAR, FX_MODES, MARKER_RE, clean_markdown, mark_directives, parse_do
+from .prep import BUILTIN_PROPS, DO_CAR, FX_MODES, MARKER_RE, clean_markdown, mark_directives, parse_do
 from .runner import StageError
 from .validate import load_model
 
-INPUTS = ["story.md", "phrases.json", "../series.json"]
+INPUTS = ["story.md", "phrases.json", "../series.json", "../../props.json"]
 OUTPUTS = ["story.json"]
 
 FPS = 30
@@ -109,7 +109,7 @@ def seed_for(slug: str, part_number: int) -> int:
     return zlib.crc32(slug.encode()) + part_number  # stable across runs (unlike hash())
 
 
-def tag_words(md: str, cast_ids: list[str], default_cast: list[str]):
+def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILTIN_PROPS):
     """Return (words, [(set, cast tuple, twist starts here, dogs, car mode, do, crowd, runners)]) from story.md,
     words as prep's script has them. do: (story.md line, @do clauses) for the words of the line after an @do, else
     None. crowd: (mood, N) or None. A set change resets crowd and runners."""
@@ -151,7 +151,7 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str]):
             elif name == "fx" and arg in FX_MODES:
                 pass  # caption effect: finish reads it
             elif name == "do":
-                do = (line, tuple(parse_do(arg, line, cast_ids)))
+                do = (line, tuple(parse_do(arg, line, cast_ids, props)))
             elif name == "crowd":
                 crowd = parse_crowd(arg, line)
             elif name == "runners" and arg.isdigit() and int(arg) <= MAX_RUNNERS:
@@ -486,11 +486,11 @@ def _car_move(mode, park, actors, subject, seconds, seed) -> Vehicle:
                    facing=facing)
 
 
-def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int) -> StoryModel:
+def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, props=BUILTIN_PROPS) -> StoryModel:
     if not series.cast:
         raise StageError("series.json has no cast: add some with cast-add")
     ids = [c.id for c in series.cast]
-    words, tags = tag_words(md, ids, ids[:DEFAULT_CAST_SIZE])
+    words, tags = tag_words(md, ids, ids[:DEFAULT_CAST_SIZE], props)
     heard = [w.text for w in phrases.words]
     if words != heard:
         i = next((i for i, (a, b) in enumerate(zip(words, heard)) if a != b), min(len(words), len(heard)))
@@ -630,7 +630,11 @@ def run(part_dir: Path) -> None:
         raise StageError("story.md not found")
     phrases = load_model(part_dir / "phrases.json", PhrasesModel)
     series = load_model(part_dir.parent / "series.json", SeriesModel)
-    story = plan(story_md.read_text(encoding="utf-8"), phrases, series, int(part_dir.name.split("-")[1]))
+    library = part_dir.parent.parent
+    if unknown := unknown_cast_props(series.cast, library):
+        raise StageError(f"cast holds a prop that is not in library/props.json: {', '.join(unknown)}")
+    story = plan(story_md.read_text(encoding="utf-8"), phrases, series, int(part_dir.name.split("-")[1]),
+                 prop_kinds(library))
     errors = validate(story, phrases, {c.id for c in series.cast})
     for e in errors:
         print(f"  {e.shot_id or '-'}  {e.rule}: {e.message}")

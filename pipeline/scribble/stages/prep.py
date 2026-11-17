@@ -15,11 +15,11 @@ import re
 from pathlib import Path
 from typing import NamedTuple, get_args
 
-from ..io import atomic_write_text
-from ..schemas import PropKind
+from ..io import atomic_write_text, prop_kinds
+from ..schemas import BuiltinProp
 from .runner import StageError
 
-INPUTS = ["story.md"]
+INPUTS = ["story.md", "../../props.json"]
 OUTPUTS = ["script-for-tts.txt"]
 WPM = 150
 MAX_SECONDS = 90  # parts may run ~70 s
@@ -37,7 +37,7 @@ MARKER_RE = re.compile("^⟦([0-9]+|!|/)⟧$")
 DO_ACTIONS = {"idle", "talk", "walk", "run", "point", "react", "wave", "stagger", "lie", "collapse", "eat", "give",
               "carry", "support", "cheer", "angry", "gasp"}
 DO_CAR = "car"            # "@do car: broken": the car on stage breaks down
-PROPS = get_args(PropKind)
+BUILTIN_PROPS = get_args(BuiltinProp)
 HOLDERS = {"carry": (2, 2), "support": (1, 2)}
 
 
@@ -48,8 +48,9 @@ class DoClause(NamedTuple):
     prop: str | None = None
 
 
-def parse_do(arg: str, line: int, cast_ids=None) -> list[DoClause]:
+def parse_do(arg: str, line: int, cast_ids=None, props=BUILTIN_PROPS) -> list[DoClause]:
     """Parse an @do directive (the text after "@do"). With cast_ids, cast and targets must be in the series too.
+    props: the prop kinds eat / give may name (io.prop_kinds: built-ins + library/props.json).
     Errors name the story.md line."""
     def bad(msg):
         raise StageError(f"story.md line {line}: @do: {msg}")
@@ -82,10 +83,10 @@ def parse_do(arg: str, line: int, cast_ids=None) -> list[DoClause]:
                 bad('eat takes one prop, e.g. "eat apple"')
             prop = args[0] if args else "apple"
         elif act == "give":
-            props = [w for w in args if w in PROPS]
-            if len(args) != 2 or len(props) != 1:
-                bad(f'give needs a prop and a target, e.g. "give medal fred" (props: {", ".join(PROPS)})')
-            prop, target = props[0], next(w for w in args if w != props[0])
+            named = [w for w in args if w in props]
+            if len(args) != 2 or len(named) != 1:
+                bad(f'give needs a prop and a target, e.g. "give medal fred" (props: {", ".join(props)})')
+            prop, target = named[0], next(w for w in args if w != named[0])
         elif act in HOLDERS:
             lo, hi = HOLDERS[act]
             if len(args) != 1:
@@ -95,8 +96,8 @@ def parse_do(arg: str, line: int, cast_ids=None) -> list[DoClause]:
             target = args[0]
         elif args:
             bad(f"{act} takes no target or prop (got {' '.join(args)!r})")
-        if prop is not None and prop not in PROPS:
-            bad(f"unknown prop {prop!r} (props: {', '.join(PROPS)})")
+        if prop is not None and prop not in props:
+            bad(f"unknown prop {prop!r} (props: {', '.join(props)})")
         if target is not None and target in who:
             bad(f"{target} cannot {act} itself")
         for w in who + ((target,) if target else ()):
@@ -141,12 +142,12 @@ def mark_directives(md: str) -> tuple[str, list[tuple[int, str]]]:
     return "\n".join(out), found
 
 
-def check_do(md: str) -> None:
+def check_do(md: str, props=BUILTIN_PROPS) -> None:
     """syntax, actions and props of every @do line (cast ids are checked by the shots stage)"""
     for no, d in mark_directives(md)[1]:
         name, _, arg = d.partition(" ")
         if name == "do":
-            parse_do(arg, no)
+            parse_do(arg, no, props=props)
 
 
 def clean_markdown(md: str) -> str:
@@ -179,7 +180,7 @@ def run(part_dir: Path) -> None:
     if not story.exists():
         raise StageError("story.md not found")
     md = story.read_text(encoding="utf-8")
-    check_do(md)
+    check_do(md, prop_kinds(part_dir.parent.parent))
     text = clean_markdown(strip_directives(md))
     if not text:
         raise StageError("story.md has no body text (only a title?)")

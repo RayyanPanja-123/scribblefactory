@@ -8,6 +8,7 @@ const proxy = { '/api': process.env.SCRIBBLE_API ?? 'http://127.0.0.1:8765' }
 
 export default defineConfig({
   plugins: [vue(), tailwindcss()],
-  server: { proxy },
+  // fs.allow: the prop preview imports the engine's own drawing code from ../engine/page
+  server: { proxy, fs: { allow: ['..'] } },
   preview: { proxy },
 })

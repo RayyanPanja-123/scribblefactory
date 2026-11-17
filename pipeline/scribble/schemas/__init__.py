@@ -1,7 +1,7 @@
-"""series.json / part.json / phrases.json / story.json models. These are the source of truth; docs/schemas/ is generated."""
+"""series.json / part.json / phrases.json / story.json / props.json models. These are the source of truth; docs/schemas/ is generated."""
 
 from datetime import datetime, timezone
-from typing import Annotated, Literal
+from typing import Annotated, Literal, get_args
 
 from pydantic import (AfterValidator, AwareDatetime, BaseModel, ConfigDict, Field, PlainSerializer,
                       field_validator, model_validator)
@@ -71,7 +71,16 @@ class Legwear(Strict):
     _check = model_validator(mode="after")(_needs_color)
 
 
-PropKind = Literal["clipboard", "stopwatch", "bottle", "syringe", "apple", "medal"]
+BuiltinProp = Literal["clipboard", "stopwatch", "bottle", "syringe", "apple", "medal"]
+# a built-in prop, or the id of a custom one in library/props.json (checked against the library where it is loaded);
+# "none" stays reserved: v2's "no prop"
+def _not_none(v):
+    if v == "none":
+        raise ValueError("none is not a prop (use [] for no props)")
+    return v
+
+
+PropKind = Annotated[Slug, AfterValidator(_not_none)]
 
 
 class Prop(Strict):
@@ -148,6 +157,58 @@ class SeriesModel(Strict):
         # approvals are merged by cast id on save, so ids must be unique
         if len({c.id for c in v}) != len(v):
             raise ValueError("cast contains duplicate ids")
+        return v
+
+
+# --- library/props.json (custom props, shared by every series) ---
+
+Point = tuple[float, float]
+
+
+class PropShape(Strict):
+    """one piece of a custom prop, in hand space: the hand at (0, 0), y down, x away from the body (canvas px; the
+    figure is 512 x 1024, the built-in props span about -40..110). Drawn with the same wobbly ink as the built-ins."""
+    shape: Literal["rect", "circle", "line", "poly"]
+    pts: list[Point] = Field(min_length=1, max_length=24, description="rect: 2 corners; circle: the centre; "
+                                                                      "line: 2+ points; poly: 3+ points (closed)")
+    r: float | None = Field(default=None, gt=0, le=200, description="circle: the radius")
+    fill: HexColor | None = Field(default=None, description="no fill: outline only (ignored for line)")
+    width: float = Field(default=8, ge=0, le=24, description="outline / line width; 0: no outline")
+
+    @model_validator(mode="after")
+    def _fits(self):
+        need = {"rect": (2, 2), "circle": (1, 1), "line": (2, 24), "poly": (3, 24)}[self.shape]
+        if not need[0] <= len(self.pts) <= need[1]:
+            raise ValueError(f"{self.shape} takes {need[0] if need[0] == need[1] else f'{need[0]}+'} points")
+        if (self.shape == "circle") != (self.r is not None):
+            raise ValueError("r is for circles, and every circle needs one")
+        if any(abs(v) > 300 for p in self.pts for v in p):
+            raise ValueError("points must stay within 300 px of the hand")
+        return self
+
+
+class CustomProp(Strict):
+    id: Slug = Field(description="the prop kind used in cast props and @do eat / give")  # checked: _not_builtin
+    name: str = Field(min_length=1, max_length=40)
+    shapes: list[PropShape] = Field(min_length=1, max_length=40, description="drawn in order: later ones on top")
+
+    @field_validator("id")
+    @classmethod
+    def _not_builtin(cls, v):
+        if v in get_args(BuiltinProp) or v == "none":
+            raise ValueError(f"{v} is a built-in prop" if v != "none" else "none is reserved")
+        return v
+
+
+class PropLibrary(Strict):
+    schema_version: Literal[1] = 1
+    props: list[CustomProp] = []
+
+    @field_validator("props")
+    @classmethod
+    def _unique(cls, v):
+        if dupes := sorted({p.id for p in v if sum(q.id == p.id for q in v) > 1}):
+            raise ValueError(f"prop ids must be unique: {', '.join(dupes)}")
         return v
 
 

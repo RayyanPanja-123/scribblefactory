@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { after, before, test } from "node:test";
-import { FEET_Y, FIGURE_PX, HAT_BRIM, drawStickman, hatFit, skeleton } from "../page/stickman.js";
+import { FEET_Y, FIGURE_PX, HAT_BRIM, drawStickman, hatFit, setCustomProps, skeleton } from "../page/stickman.js";
 import { FIX, fixturePart, jobOk, renderNamed } from "./batch.mjs";
 
 /** fake canvas: records every fill / stroke with its style and the path points (pre-transform canvas px) */
@@ -53,6 +53,21 @@ test("every top, headwear, legwear, prop and expression builds and draws in its 
   // nothing costume-related is drawn for a plain figure: same ops with or without "none" costume parts
   const none = { top: { style: "plain", color: BASE.color }, headwear: { kind: "none" }, legwear: { kind: "none" }, props: [] };
   assert.deepEqual(record({ ...BASE, ...none }), record(BASE));
+});
+
+test("custom props (library/props.json) draw every shape in its colour, in either hand; an unknown kind throws", () => {
+  setCustomProps([{ id: "flag", name: "Flag", shapes: [
+    { shape: "line", pts: [[0, 40], [0, -120]], width: 6 },
+    { shape: "rect", pts: [[0, -120], [70, -80]], fill: "#123456" },
+    { shape: "circle", pts: [[0, -124]], r: 8, fill: "#abcdef" },
+    { shape: "poly", pts: [[0, -80], [40, -60], [0, -40]], fill: "#fedcba", width: 0 },
+  ] }]);
+  for (const hand of ["left", "right"]) {
+    const ops = record({ ...BASE, props: [{ kind: "flag", hand }] });
+    for (const c of ["#123456", "#abcdef", "#fedcba"]) assert.ok(fills(ops, c).length, `${hand}: ${c}`);
+  }
+  assert.throws(() => record({ ...BASE, props: [{ kind: "nope", hand: "right" }] }), /unknown prop "nope"/);
+  setCustomProps([]);
 });
 
 test("same options, same drawing (determinism); boil changes the jitter", () => {

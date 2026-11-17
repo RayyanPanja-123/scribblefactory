@@ -3,6 +3,8 @@ import { ArrowLeft, Download, FileJson, Plus, Trash2 } from 'lucide-vue-next'
 import { computed, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../api/client'
+import { useApi } from '../composables/useApi'
+import { HANDS, propOptions, type Hand, type Prop } from '../lib/props'
 import { act, toast } from '../composables/feedback'
 
 const router = useRouter()
@@ -16,15 +18,22 @@ watch(title, (t) => { if (!slugEdited.value) slug.value = slugify(t) })
 
 type Obj = Record<string, unknown>
 type Eyes = 'dots' | 'half_closed'
-// look: everything else an imported entry carries (top style, headwear, props, ...), sent back untouched
-type Row = { name: string; id: string; idEdited: boolean; color: string; eyes: Eyes; look: Obj }
+// look: everything else an imported entry carries (top style, headwear, ...), sent back untouched
+type Row = { name: string; id: string; idEdited: boolean; color: string; eyes: Eyes; hands: Record<Hand, string>; look: Obj }
+// built-in + custom props (library/props.json); an imported kind not in the list still shows, the server checks it
+const { data: catalog } = useApi(() => api.props())
+const options = (r: Row) => {
+  const o = propOptions(catalog.value)
+  return [...o, ...HANDS.map((h) => r.hands[h]).filter((k) => k && !o.some((x) => x.id === k)).map((k) => ({ id: k, name: `${k} (unknown)` }))]
+}
 const cast = reactive<Row[]>([])
 const nextColor = () => PALETTE[cast.length % PALETTE.length]
-const addCast = () => cast.push({ name: '', id: '', idEdited: false, color: nextColor(), eyes: 'dots', look: {} })
+const addCast = () => cast.push({ name: '', id: '', idEdited: false, color: nextColor(), eyes: 'dots', hands: { left: '', right: '' }, look: {} })
+const propsOf = (r: Row): Prop[] => HANDS.filter((h) => r.hands[h]).map((h) => ({ kind: r.hands[h], hand: h }))
 addCast()
 const onName = (r: Row) => { if (!r.idEdited) r.id = slugify(r.name) }
 
-/** "tank #31 · bowler · trousers · clipboard, stopwatch · cheeky": what an import adds beyond the row's fields */
+/** "tank #31 · bowler · trousers · cheeky": what an import adds beyond the row's fields */
 function lookSummary(l: Obj): string {
   const top = (l.top ?? {}) as Obj
   const kind = (x: unknown) => (x as Obj | undefined)?.kind
@@ -32,7 +41,6 @@ function lookSummary(l: Obj): string {
     [top.style !== 'plain' && top.style, top.number && `#${top.number}`].filter(Boolean).join(' '),
     kind(l.headwear) !== 'none' && kind(l.headwear),
     kind(l.legwear) !== 'none' && kind(l.legwear),
-    ((l.props ?? []) as Obj[]).map((x) => x.kind).join(', '),
     l.default_expression !== 'neutral' && l.default_expression,
   ].filter(Boolean).join(' · ').replaceAll('_', ' ')
 }
@@ -71,10 +79,12 @@ function runImport() {
   }
   cast.splice(0, cast.length, ...cast.filter((r) => r.name.trim() || r.id.trim())) // drop empty rows
   for (const x of entries as Obj[]) {
-    const { id, name, color, eyes, approved_at: _approved, ...look } = x
+    const { id, name, color, eyes, props, approved_at: _approved, ...look } = x
     const top = (look.top ?? {}) as Obj
+    const hands: Row['hands'] = { left: '', right: '' }
+    for (const p of (props ?? []) as Partial<Prop>[]) if (p.kind) hands[p.hand ?? 'right'] = p.kind
     const row: Row = {
-      id: id as string, name: name as string, idEdited: true, eyes: (eyes as Eyes | undefined) ?? 'dots',
+      id: id as string, name: name as string, idEdited: true, eyes: (eyes as Eyes | undefined) ?? 'dots', hands,
       color: ((color ?? top.color) as string | undefined)?.toLowerCase() ?? nextColor(), look,
     }
     const at = cast.findIndex((r) => r.id === row.id) // same id: the import replaces that row
@@ -94,7 +104,7 @@ async function create() {
   saving.value = true
   const body = {
     slug: slug.value, title: title.value.trim(),
-    cast: filled.value.map((r) => ({ ...r.look, id: r.id, name: r.name.trim(), eyes: r.eyes, top: { ...(r.look.top as Obj), color: r.color } })),
+    cast: filled.value.map((r) => ({ ...r.look, id: r.id, name: r.name.trim(), eyes: r.eyes, props: propsOf(r), top: { ...(r.look.top as Obj), color: r.color } })),
   }
   const s = await act(() => api.createSeries(body), `Series “${body.title}” created`)
   saving.value = false
@@ -123,7 +133,7 @@ const field = 'inset mt-1 block h-11 w-full rounded-full px-4 text-sm text-ink o
       <fieldset class="space-y-3">
         <legend class="font-display text-lg font-semibold">Cast</legend>
         <div class="flex flex-wrap items-start gap-3">
-          <p class="flex-1 text-xs text-muted">Hats, props, suits and bib numbers come in through a JSON import, or later with cast-edit.
+          <p class="flex-1 text-xs text-muted">Hats, suits and bib numbers come in through a JSON import, or later with cast-edit.
             Each new look needs approval on the cast sheet.</p>
           <button type="button" class="btn btn-secondary" :aria-expanded="importOpen" aria-controls="cast-import" @click="importOpen = !importOpen">
             <FileJson :size="16" aria-hidden="true" /> Import JSON
@@ -176,6 +186,14 @@ const field = 'inset mt-1 block h-11 w-full rounded-full px-4 text-sm text-ink o
           <button type="button" class="btn btn-secondary size-11 justify-center p-0" :aria-label="`Remove cast row ${i + 1}`" @click="cast.splice(i, 1)">
             <Trash2 :size="16" aria-hidden="true" />
           </button>
+          <div class="flex flex-wrap gap-3 sm:col-span-5">
+            <label v-for="h in HANDS" :key="h" class="block min-w-40 flex-1 text-xs font-semibold text-muted">{{ h === 'left' ? 'Left hand' : 'Right hand' }}
+              <select v-model="r.hands[h]" :class="field">
+                <option value="">nothing</option>
+                <option v-for="p in options(r)" :key="p.id" :value="p.id">{{ p.name }}</option>
+              </select>
+            </label>
+          </div>
           <p v-if="lookSummary(r.look)" class="-mt-1 pl-4 text-xs text-muted sm:col-span-5">Imported look: {{ lookSummary(r.look) }}</p>
         </div>
         <button type="button" class="btn btn-secondary" @click="addCast"><Plus :size="16" aria-hidden="true" /> Add character</button>

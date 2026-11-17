@@ -40,7 +40,7 @@ POLL_S = 0.5           # how often the scheduler wakes up (keeps Ctrl+C responsi
 READY_TIMEOUT_S = 120  # browser start + page build per worker
 EXIT_TIMEOUT_S = 30
 
-INPUTS = ["story.json", "phrases.json", "../series.json", "voice.mp3", *map(str, PAGE_FILES)]
+INPUTS = ["story.json", "phrases.json", "../series.json", "../../props.json", "voice.mp3", *map(str, PAGE_FILES)]
 OUTPUTS = ["preview.mp4"]
 
 
@@ -73,10 +73,12 @@ def chunk_ranges(total: int, size: int = CHUNK) -> list[tuple[int, int]]:
 
 
 def frames_hash(part_dir: Path) -> str:
-    """sha256 over story.json, phrases.json, series.json and the engine page code: anything that changes pixels."""
+    """sha256 over story.json, phrases.json, series.json, props.json and the engine page code: anything that changes
+    pixels."""
     h = hashlib.sha256()
-    for f in [part_dir / "story.json", part_dir / "phrases.json", part_dir.parent / "series.json", *PAGE_FILES]:
-        h.update(f.name.encode() + b"\0" + f.read_bytes() + b"\0")
+    for f in [part_dir / "story.json", part_dir / "phrases.json", part_dir.parent / "series.json",
+              part_dir.parent.parent / "props.json", *PAGE_FILES]:
+        h.update(f.name.encode() + b"\0" + (f.read_bytes() if f.exists() else b"<missing>") + b"\0")
     return h.hexdigest()
 
 

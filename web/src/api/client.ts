@@ -11,6 +11,8 @@ export type PartDetail = S['PartDetail']
 export type PartModel = S['PartModel']
 export type CastMember = S['CastMember']
 export type Job = S['Job']
+export type PropCatalog = S['PropCatalog']
+export type CustomProp = S['CustomProp']
 export type Approval = 'stills' | 'test_render' | 'final'
 export type Platform = 'youtube' | 'instagram'
 
@@ -66,4 +68,7 @@ export const api = {
   jobs: () => call<Job[]>('GET', '/api/jobs'),
   submitJob: (slug: string, p: string, steps: string[]) => call<Job>('POST', '/api/jobs', { slug, part: p, steps }),
   cancelJob: (id: number) => call<Job>('DELETE', `/api/jobs/${id}`),
+  props: () => call<PropCatalog>('GET', '/api/props'),
+  saveProp: (p: CustomProp) => call<PropCatalog>('PUT', `/api/props/${e(p.id)}`, p),
+  deleteProp: (id: string) => call<PropCatalog>('DELETE', `/api/props/${e(id)}`),
 }

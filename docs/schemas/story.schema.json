@@ -83,14 +83,7 @@
         "prop": {
           "anyOf": [
             {
-              "enum": [
-                "clipboard",
-                "stopwatch",
-                "bottle",
-                "syringe",
-                "apple",
-                "medal"
-              ],
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
               "type": "string"
             },
             {

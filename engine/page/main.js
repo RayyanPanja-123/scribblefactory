@@ -2,7 +2,7 @@
 // render.mjs calls setup(data) once, then renderFrame(n) or renderCast(pose) per image (PNG data URL back).
 import * as THREE from "three";
 import { dolly, glide } from "./borrowed.js";
-import { CH, CW, FEET_Y, FIGURE_PX, HAT_TOP, HEAD_R, drawStickman, skeleton } from "./stickman.js";
+import { CH, CW, FEET_Y, FIGURE_PX, HAT_TOP, HEAD_R, drawStickman, setCustomProps, skeleton } from "./stickman.js";
 import { DH, DOG_FEET, DW, barkAmount, drawDog, gallopPhase } from "./dog.js";
 import { gestureAmount, gesturePlan, mouthCurve, mouthCycles, pointAmount, stressBob, waveAmount } from "./motion.js";
 import { CARRIED_LIFT, HELD_Z, HOLD_GAP, LIE, collapseAt, eatAt, gaitPhase, giveAt, handOf, heldPlace, propsByShot, sideToward, staggerAt,
@@ -184,6 +184,7 @@ const png = () => renderer.domElement.toDataURL("image/png");
 
 window.setup = (d) => {
   data = d; hiddenByShot.clear(); variantByShot.clear(); extrasByShot.clear();
+  setCustomProps(d.props); // library/props.json
   ownedProps = propsByShot(d.story.shots || [], Object.fromEntries((d.series.cast || []).map((c) => [c.id, castOf(c.id).props])));
   mouth = d.phrases ? mouthCurve(mouthCycles(d.phrases.words, d.phrases.phrases), d.story.duration_frames) : mouth;
   for (const k of Object.keys(sets)) delete sets[k];

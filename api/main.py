@@ -18,7 +18,7 @@ import threading
 from collections import deque
 from datetime import datetime
 from pathlib import Path
-from typing import Literal
+from typing import Literal, get_args
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,8 +27,10 @@ from pydantic import BaseModel, TypeAdapter, ValidationError
 from sse_starlette import EventSourceResponse
 
 from pipeline.scribble import cli
-from pipeline.scribble.io import atomic_write_text, load_part, load_series, save_series
-from pipeline.scribble.schemas import CastMember, PartModel, Posted, SeriesModel, Slug, Stage, Stages, utcnow
+from pipeline.scribble.io import (atomic_write_text, delete_prop, load_part, load_props, load_series, prop_kinds,
+                                  save_prop, save_series, unknown_cast_props)
+from pipeline.scribble.schemas import (BuiltinProp, CastMember, CustomProp, PartModel, Posted, SeriesModel, Slug, Stage, Stages,
+                                       utcnow)
 from pipeline.scribble.stages import render as render_stage
 from pipeline.scribble.stages.import_check import probe_duration
 from pipeline.scribble.stages.runner import StageError
@@ -439,6 +441,8 @@ def create_series(body: NewSeries):
     cast = [cast_member(i, c) for i, c in enumerate(body.cast)]  # all checked before anything is written
     if dupes := sorted({c.id for c in cast if sum(d.id == c.id for d in cast) > 1}):
         raise HTTPException(409, f"cast ids must be unique: {', '.join(dupes)}")
+    if unknown := unknown_cast_props(cast, lib()):
+        raise HTTPException(409, f"unknown prop {unknown[0]} (props: {', '.join(prop_kinds(lib()))})")
     cli_call("new-series", body.slug, f"--title={body.title}")
     d = series_path(body.slug)
     if cast:
@@ -447,6 +451,55 @@ def create_series(body: NewSeries):
         save_series(d / "series.json", series)
     publish("series-changed", {"slug": body.slug})
     return series_json(d)
+
+
+# ---------------- props (library/props.json, shared by every series) ----------------
+
+class PropCatalog(BaseModel):
+    builtin: list[BuiltinProp]
+    custom: list[CustomProp]
+    cleared: list[str] = []  # after a save: "<slug>/<cast id>" approvals cleared because the drawing changed
+
+
+def prop_catalog(cleared=()) -> PropCatalog:
+    return PropCatalog(builtin=list(get_args(BuiltinProp)), custom=load_props(lib()).props, cleared=list(cleared))
+
+
+def check_no_jobs() -> None:
+    """props.json feeds every render: no changes while one runs (its chunks would mix two drawings)"""
+    if run := next((j for j in list(JOBS) if j["status"] == "running"), None):
+        raise HTTPException(409, f"job {run['id']} is running on {run['slug']} {run['part']}; wait for it or cancel it")
+
+
+@app.get("/api/props", response_model=PropCatalog)
+def get_props():
+    return prop_catalog()
+
+
+@app.put("/api/props/{prop_id}", response_model=PropCatalog)
+def put_prop(prop_id: Slug, body: CustomProp):
+    if body.id != prop_id:
+        raise HTTPException(409, f"body id {body.id!r} does not match {prop_id!r}")
+    check_no_jobs()
+    lib().mkdir(parents=True, exist_ok=True)
+    cleared = save_prop(lib(), body)
+    publish("props-changed", {"id": prop_id})
+    for slug in {c.split("/")[0] for c in cleared}:
+        publish("series-changed", {"slug": slug})
+    return prop_catalog(cleared)
+
+
+@app.delete("/api/props/{prop_id}", response_model=PropCatalog)
+def remove_prop(prop_id: Slug):
+    check_no_jobs()
+    try:
+        delete_prop(lib(), prop_id)
+    except KeyError:
+        raise HTTPException(404, f"no custom prop {prop_id!r}")
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+    publish("props-changed", {"id": prop_id})
+    return prop_catalog()
 
 
 class NewPart(BaseModel):

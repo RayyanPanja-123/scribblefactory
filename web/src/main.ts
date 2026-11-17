@@ -18,6 +18,8 @@ const router = createRouter({
     { path: '/series/:slug', name: 'series-detail', component: () => import('./pages/SeriesDetail.vue'), props: true },
     { path: '/series/:slug/:part', name: 'part', component: () => import('./pages/PartDetail.vue'), props: true },
     { path: '/review', name: 'review', component: () => import('./pages/Review.vue') },
+    { path: '/props', name: 'props', component: () => import('./pages/Props.vue') },
+    { path: '/props/:id', name: 'prop-edit', component: () => import('./pages/PropEditor.vue'), props: true },
     { path: '/posted', name: 'posted', component: () => import('./pages/Posted.vue') },
   ],
 })

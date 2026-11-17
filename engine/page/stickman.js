@@ -378,13 +378,27 @@ function chestNumber(p, cos, num, k, flip) {
   });
 }
 
+// custom props from library/props.json: id -> shapes (schema PropShape), set once per page by setCustomProps
+let CUSTOM = new Map();
+export const setCustomProps = (list = []) => { CUSTOM = new Map(list.map((c) => [c.id, c.shapes])); };
+const BUILTIN = new Set(["clipboard", "stopwatch", "bottle", "syringe", "apple", "medal"]);
+
 /** prop in a hand: local shapes (hand at 0,0, y down, x away from the body) turned partly with the forearm */
-function drawProp(p, cos, kind, hand, fore, side) {
+export function drawProp(p, cos, kind, hand, fore, side) {
   const th = -fore * 0.35, c = Math.cos(th), s = Math.sin(th);
   const T = (pts) => jitter(pts.map(([x, y]) => [hand[0] + x * side * c - y * s, hand[1] + x * side * s + y * c]), cos, 1.2);
   const poly = (pts, fill, w = OL) => p.poly(T(pts), fill, w), line = (pts, w) => p.stroke(T(pts), w);
   const circ = (x, y, r) => ellPts(x, y, r, r, 0, 360, 0, 20);
-  if (kind === "clipboard") {
+  if (!BUILTIN.has(kind)) {
+    const shapes = CUSTOM.get(kind);
+    if (!shapes) throw new Error(`unknown prop "${kind}": not built in and not in library/props.json`);
+    for (const s of shapes) {
+      if (s.shape === "line") { line(s.pts, s.width ?? OL); continue; }
+      const [[x0, y0], [x1, y1] = [0, 0]] = s.pts;
+      const pts = s.shape === "rect" ? rect(x0, y0, x1, y1) : s.shape === "circle" ? circ(x0, y0, s.r) : s.pts;
+      poly(pts, s.fill ?? null, s.width ?? OL);
+    }
+  } else if (kind === "clipboard") {
     poly(rect(-6, -48, 74, 58), "#a8743a");
     poly(rect(4, -30, 64, 50), "#fbf8ef", 4);
     poly(rect(22, -56, 46, -40), "#9e9e9e", 6);

@@ -1,0 +1,136 @@
+{
+  "$defs": {
+    "CustomProp": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "the prop kind used in cast props and @do eat / give",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 40,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "shapes": {
+          "description": "drawn in order: later ones on top",
+          "items": {
+            "$ref": "#/$defs/PropShape"
+          },
+          "maxItems": 40,
+          "minItems": 1,
+          "title": "Shapes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "shapes"
+      ],
+      "title": "CustomProp",
+      "type": "object"
+    },
+    "PropShape": {
+      "additionalProperties": false,
+      "description": "one piece of a custom prop, in hand space: the hand at (0, 0), y down, x away from the body (canvas px; the\nfigure is 512 x 1024, the built-in props span about -40..110). Drawn with the same wobbly ink as the built-ins.",
+      "properties": {
+        "fill": {
+          "anyOf": [
+            {
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "no fill: outline only (ignored for line)",
+          "title": "Fill"
+        },
+        "pts": {
+          "description": "rect: 2 corners; circle: the centre; line: 2+ points; poly: 3+ points (closed)",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "maxItems": 24,
+          "minItems": 1,
+          "title": "Pts",
+          "type": "array"
+        },
+        "r": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 200,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "circle: the radius",
+          "title": "R"
+        },
+        "shape": {
+          "enum": [
+            "rect",
+            "circle",
+            "line",
+            "poly"
+          ],
+          "title": "Shape",
+          "type": "string"
+        },
+        "width": {
+          "default": 8,
+          "description": "outline / line width; 0: no outline",
+          "maximum": 24,
+          "minimum": 0,
+          "title": "Width",
+          "type": "number"
+        }
+      },
+      "required": [
+        "shape",
+        "pts"
+      ],
+      "title": "PropShape",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "props": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/CustomProp"
+      },
+      "title": "Props",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    }
+  },
+  "title": "PropLibrary",
+  "type": "object"
+}

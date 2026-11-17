@@ -17,7 +17,7 @@ from pathlib import Path
 from pydantic import TypeAdapter, ValidationError
 
 from . import sheet
-from .io import atomic_write_json, load_part, load_series, save_part, save_series
+from .io import atomic_write_json, load_part, load_series, prop_kinds, save_part, save_series, unknown_cast_props
 from .schemas import CastMember, Expression, PartId, PartModel, Post, SeriesModel, Slug, Stages, StoryModel, Style, Voice, utcnow
 from .stages import STAGES
 from .stages import render as render_stage
@@ -103,6 +103,8 @@ def cmd_cast_edit(args) -> int:
     if args.props is not None:
         data["props"] = parse_props(args.props)
     new = CastMember.model_validate(data)  # validates colours, kinds, number
+    if unknown := unknown_cast_props([new], library_root(args)):
+        raise UserError(f"unknown prop {unknown[0].split(': ')[1]!r} (props: {', '.join(prop_kinds(library_root(args)))})")
     if new.look() != old.look() and old.approved_at:
         new.approved_at = None
         print(f"note: {args.id}'s look changed, so its approval was cleared: check cast-sheet {args.slug}, "
@@ -426,8 +428,8 @@ def build_parser() -> Parser:
     c.add_argument("--headwear-color", help="#rrggbb")
     c.add_argument("--legwear", choices=["none", "shorts", "ragged_shorts", "trousers"])
     c.add_argument("--legwear-color", help="#rrggbb")
-    c.add_argument("--props", help='held props "kind:hand,kind:hand" (max 2, one per hand), e.g. '
-                                    '"clipboard:right,stopwatch:left", or none')
+    c.add_argument("--props", help='held props "kind:hand,kind:hand" (max 2, one per hand; built-in or from '
+                                    'library/props.json), e.g. "clipboard:right,stopwatch:left", or none')
     c.add_argument("--default-expression", choices=list(get_args(Expression)))
     c.add_argument("--eyes", choices=["dots", "half_closed"])
     c.set_defaults(func=cmd_cast_edit)

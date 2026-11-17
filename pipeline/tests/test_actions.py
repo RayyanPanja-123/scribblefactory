@@ -254,3 +254,14 @@ def test_schema_accepts_new_actions():
 def test_phrases_helper_ignores_do_lines():
     md = "# T\n\n@do fred: lie\nFred slept.\n"
     assert [w.text for w in phrases_for(md).words] == ["Fred", "slept."]
+
+
+def test_do_takes_custom_props_from_the_library():
+    """eat / give accept a library/props.json id only when it is passed in (prop_kinds): unknown otherwise"""
+    line = "@do fred: give flag amy"
+    with pytest.raises(StageError, match="give needs a prop and a target"):
+        prep.parse_do(line[4:], 4)
+    [c] = prep.parse_do(line[4:], 4, props=[*prep.BUILTIN_PROPS, "flag"])
+    assert (c.action, c.prop, c.target) == ("give", "flag", "amy")
+    with pytest.raises(StageError, match="unknown prop 'torch'"):
+        prep.parse_do("fred: eat torch", 4, props=[*prep.BUILTIN_PROPS, "flag"])
