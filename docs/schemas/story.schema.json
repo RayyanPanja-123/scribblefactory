@@ -10,7 +10,9 @@
             "run",
             "talk",
             "point",
-            "react"
+            "react",
+            "wave",
+            "ride"
           ],
           "title": "Action",
           "type": "string"
@@ -323,6 +325,14 @@
           "default": false,
           "title": "Twist",
           "type": "boolean"
+        },
+        "vehicles": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Vehicle"
+          },
+          "title": "Vehicles",
+          "type": "array"
         }
       },
       "required": [
@@ -350,6 +360,105 @@
         "speed"
       ],
       "title": "Travel",
+      "type": "object"
+    },
+    "Vehicle": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "enum": [
+            "arrive",
+            "drive",
+            "leave",
+            "idle"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "end_pos": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End Pos"
+        },
+        "facing": {
+          "enum": [
+            "left",
+            "right"
+          ],
+          "title": "Facing",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[a-z0-9_-]+$",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "car",
+          "title": "Kind",
+          "type": "string"
+        },
+        "riders": {
+          "default": [],
+          "description": "cast ids seated (actors with action ride, or wave/talk while riding)",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 3,
+          "title": "Riders",
+          "type": "array"
+        },
+        "start_pos": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Start Pos",
+          "type": "array"
+        },
+        "variant": {
+          "enum": [
+            "red",
+            "green",
+            "navy",
+            "yellow"
+          ],
+          "title": "Variant",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "action",
+        "start_pos",
+        "facing",
+        "variant"
+      ],
+      "title": "Vehicle",
       "type": "object"
     }
   },

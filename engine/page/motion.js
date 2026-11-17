@@ -97,3 +97,15 @@ export function mouthCurve(cycles, total) {
   }
   return out;
 }
+
+// Wave: the right arm rises, waves side to side WAVE.count times (swing eased in and out), then lowers to rest.
+export const WAVE = { rise: 0.25, count: 3, hz: 2.2, ease: 0.2, fall: 0.3 }; // seconds / waves per second
+
+/** { k: 0..1 arm raised, swing: -1..1 forearm side to side } at shot-local time ts */
+export function waveAmount(ts) {
+  const end = WAVE.rise + WAVE.count / WAVE.hz;
+  const k = Math.min(glide(ts / WAVE.rise), 1 - glide((ts - end) / WAVE.fall));
+  if (ts < WAVE.rise || ts > end) return { k, swing: 0 };
+  const env = glide(Math.min(ts - WAVE.rise, end - ts) / WAVE.ease);
+  return { k, swing: env * Math.sin(2 * Math.PI * WAVE.hz * (ts - WAVE.rise)) };
+}

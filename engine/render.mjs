@@ -229,7 +229,7 @@ async function main() {
         : fi?.hidden ? ` [${fi.hidden} prop(s) hidden behind the subject]` : "";
       const gest = fi?.gestures?.length ? ` [gesture: ${fi.gestures.join(", ")}]` : "";
       const wipe = (fi?.wipe ? ` [wipe ${fi.wipe}]` : "") + (fi?.travel ? ` [travel ${fi.travel}]` : "")
-        + (fi?.dogs ? ` [dogs ${fi.dogs}]` : "");
+        + (fi?.dogs ? ` [dogs ${fi.dogs}]` : "") + (fi?.cars ? ` [car ${fi.cars}]` : "");
       console.log(`${j.label}: ${times.at(-1).toFixed(0)} ms -> ${j.file}${note}${gest}${wipe}`);
     }
     if (opened.getError()) throw opened.getError();

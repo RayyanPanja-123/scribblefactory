@@ -357,3 +357,93 @@ def test_schema_rejects_bad_animal(mutate):
 
 def test_animals_default_empty():
     assert StoryModel.model_validate(load("story.json")).shots[0].animals == []
+
+
+# --- cars ---
+
+def _car(action="drive", start=(0.0, -0.6), end=(6.0, -0.6), facing="right", riders=(), rider_action="ride",
+         travel=None, extra_actor=None):
+    """s01 (2 s) gets car1; riders become actor entries with rider_action. travel=speed: s01 is a travel shot."""
+    def m(d):
+        s = shot(d, 0)
+        if travel:
+            s["set"], s["travel"] = "dirt_road", {"speed": travel}
+        s["actors"] = [{"cast_id": r, "action": rider_action, "start_pos": list(start), "facing": facing,
+                        "expression": "neutral"} for r in riders] or s["actors"]
+        if not riders and travel:
+            s["actors"] = []
+        if extra_actor:
+            s["actors"].append(extra_actor)
+        s["vehicles"] = [{"id": "car1", "kind": "car", "action": action, "start_pos": list(start),
+                          "end_pos": list(end) if end else None, "facing": facing, "riders": list(riders),
+                          "variant": "red"}]
+    return m
+
+
+def test_cars_pass():
+    assert rules(_car()) == set()                                          # 3 u/s
+    assert rules(_car("arrive", start=(6, 0), end=(1, 0), facing="left")) == set()  # peak 2 x 2.5 = 5
+    assert rules(_car("leave", end=(4, -0.6))) == set()                    # peak 4
+    assert rules(_car("idle", end=None, riders=("bob",))) == set()
+    for act in ("ride", "wave", "talk"):
+        assert rules(_car(riders=("bob", "amy"), rider_action=act)) == set()
+    assert rules(_car(travel=4.0, end=(0, -0.6), riders=("bob",), rider_action="wave")) == set()
+
+
+def test_car_constants():
+    from pipeline.scribble.validate import CAR_SPEED
+    assert CAR_SPEED == (1.5, 8.0)
+
+
+@pytest.mark.parametrize("kw", [
+    dict(end=(2.0, -0.6)),                         # drive 1.0 u/s < 1.5
+    dict(end=(17.0, -0.6)),                        # 8.5 > 8
+    dict(action="arrive", end=(8.5, -0.6)),        # peak 2 x 4.25 = 8.5 > 8
+    dict(action="leave", end=(1.0, -0.6)),         # peak 2 x 0.5 = 1.0 < 1.5
+    dict(travel=9.0, end=(0, -0.6), riders=("bob",)),  # travel speed is the car's speed
+])
+def test_car_speed(kw):
+    assert rules(_car(**kw)) == {"vehicle_speed"}
+
+
+@pytest.mark.parametrize("kw,rule", [
+    (dict(action="idle"), "vehicle_motion"),                   # idle must not move
+    (dict(action="arrive", end=(0.0, -0.6)), "vehicle_motion"),  # arrive must move
+    (dict(facing="left"), "facing"),
+])
+def test_car_motion_rules(kw, rule):
+    assert rules(_car(**kw)) == {rule}
+
+
+def test_rider_rules():
+    assert rules(_car(riders=("zed",))) >= {"cast_id"}
+    assert rules(_car(riders=("bob",), rider_action="walk")) >= {"riders"}         # riders sit
+    standing = {"cast_id": "bob", "action": "idle", "start_pos": [1, 0], "facing": "camera", "expression": "neutral"}
+    assert rules(_car(riders=("bob",), extra_actor=standing)) == {"riders"}         # also standing
+    def no_entry(d):
+        _car(riders=("bob",))(d)
+        shot(d, 0)["actors"] = []
+    assert rules(no_entry) == {"riders"}
+    def unlisted(d):
+        _car()(d)
+        shot(d, 0)["actors"][0]["action"] = "ride"                                  # rides, no car lists bob
+        shot(d, 0)["actors"][0]["end_pos"] = None
+    assert rules(unlisted) == {"riders"}
+    def two_cars(d):
+        _car(riders=("bob",))(d)
+        shot(d, 0)["vehicles"].append(dict(shot(d, 0)["vehicles"][0], id="car2"))
+    assert rules(two_cars) == {"riders"}
+
+
+def test_car_travel_rule():
+    walker = {"cast_id": "amy", "action": "walk", "start_pos": [2, 0], "end_pos": [2, 0], "facing": "right",
+              "expression": "neutral"}
+    assert "travel_actors" in rules(_car(travel=4.0, end=(0, -0.6), riders=("bob",), extra_actor=walker))
+    assert rules(_car(travel=4.0, end=(1, -0.6), riders=("bob",))) == {"travel_vehicle"}   # car keeps its x
+    assert rules(_car("idle", travel=4.0, end=None, riders=("bob",))) == {"travel_vehicle"}
+    # with a car, the dogs chase the car's way (riders face anything)
+    def dogs(d):
+        _car(travel=4.0, end=(0, -0.6), riders=("bob",), facing="left")(d)
+        shot(d, 0)["animals"] = [{"id": "dog1", "kind": "dog", "action": "run", "start_pos": [3, 0],
+                                  "end_pos": [2.5, 0], "facing": "left", "variant": "tan"}]
+    assert rules(dogs) == set()

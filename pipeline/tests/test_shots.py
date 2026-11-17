@@ -343,8 +343,8 @@ def test_starting_spread_is_plus_minus_one():
     ("Bob got dizzy.", "react", "sleepy"),
     ("Bob had cramps.", "react", "sad"),
     ("Bob hopped in.", "react", "neutral"),
-    ("Bob waved cheerfully.", "point", "happy"),
-    ("Bob kept waving.", "point", "neutral"),
+    ("Bob waved cheerfully.", "wave", "happy"),
+    ("Bob kept waving.", "wave", "neutral"),
     ("Amy showed up late.", "talk", "neutral"),        # "showed" no longer points
     ("Bob rode comfortably.", "talk", "happy"),
     ("Bob fought exhaustion.", "talk", "sleepy"),
@@ -512,3 +512,99 @@ def test_dog_variants_seeded_and_stable_for_the_part():
     seen = {shots.dog_variant(seed, f"dog{j}") for seed in range(20) for j in range(1, 7)}
     assert seen == set(shots.DOG_VARIANTS)
     assert plan(EDGES)[0] == story
+
+
+# --- dog fixes ---
+
+def test_dog_colours_unique_until_all_used():
+    for seed in range(30):
+        cols = [shots.dog_variant(seed, f"dog{j}") for j in range(1, 7)]
+        assert sorted(cols[:4]) == sorted(shots.DOG_VARIANTS) and cols[4:] == cols[:2]
+    orders = {tuple(shots.dog_variant(seed, f"dog{j}") for j in range(1, 5)) for seed in range(30)}
+    assert len(orders) > 1  # seeded order
+
+
+def test_chase_pack_spacing_and_z_stagger():
+    md = CHASE.replace("@dogs 4", "@dogs 6")
+    for part in range(1, 8):
+        story = shots.plan(md, phrases_for(md), SERIES, part)
+        for s in story.shots:
+            if not s.animals:
+                continue
+            for u in (0, 0.5, 1):  # spacing holds all shot long (one closing rate per shot)
+                xs = sorted(d.start_pos[0] + (d.end_pos[0] - d.start_pos[0]) * u for d in s.animals)
+                assert min(b - a for a, b in zip(xs, xs[1:])) >= shots.CHASE_STEP - 1e-6
+            zs = [d.start_pos[1] for d in s.animals]
+            assert all((z > 0) != (z2 > 0) for z, z2 in zip(zs, zs[1:]))  # alternating sides in z
+            assert all(0.1 <= abs(z) <= shots.DOG_Z for z in zs)
+
+
+# --- car ---
+
+CAR_STORY = ("# T\n\n@set dirt_road\n@cast bob\nBob sat down.\n@car arrive\nA car pulled up. It waited there.\n"
+             "@car ride\nBob hopped in. Bob waved at us. Bob rode on.\n@car leave\nThe car drove away. It was quiet.\n"
+             "@car off\nThe end came.\n")
+
+
+def _car_plan(md=CAR_STORY, part=1):
+    story = shots.plan(md, phrases_for(md), SERIES, part)
+    assert validate(story, phrases_for(md), {c.id for c in SERIES.cast}) == []
+    return story
+
+
+def test_car_directive_modes():
+    story = _car_plan()
+    modes = [(s.vehicles[0].action if s.vehicles else None) for s in story.shots]
+    assert modes == [None, "arrive", "idle", "drive", "drive", "drive", "leave", None, None]
+
+
+def test_car_arrives_beside_subject_who_reacts_then_parks():
+    story = _car_plan()
+    arrive, parked = story.shots[1], story.shots[2]
+    v, bob = arrive.vehicles[0], arrive.actors[0]
+    assert abs(abs(v.end_pos[0] - bob.start_pos[0]) - shots.CAR_BESIDE) < 1e-9
+    assert abs(v.start_pos[0] - v.end_pos[0]) == shots.car_dist((arrive.end_frame - arrive.start_frame) / 30)
+    assert bob.action == "react" and v.riders == [] and not arrive.travel
+    assert parked.vehicles[0].start_pos == v.end_pos and parked.vehicles[0].facing == v.facing
+
+
+def test_car_ride_is_a_travel_shot_riders_wave_on_wave_lines():
+    story = _car_plan()
+    for s in story.shots[3:6]:
+        assert s.travel.speed == shots.CAR_TRAVEL_SPEED == 4.0
+        v = s.vehicles[0]
+        assert v.riders == ["bob"] and v.end_pos == v.start_pos and v.facing in ("left", "right")
+        assert [a.cast_id for a in s.actors] == ["bob"]
+    assert [s.actors[0].action for s in story.shots[3:6]] == ["ride", "wave", "ride"]  # "hopped" is not a ride verb
+
+
+def test_car_leave_drives_off_then_gone():
+    story = _car_plan()
+    leave = story.shots[6].vehicles[0]
+    way = 1 if leave.facing == "right" else -1
+    assert (leave.end_pos[0] - leave.start_pos[0]) * way > 0 and not story.shots[7].vehicles
+
+
+def test_car_ride_indoors_parks_and_car_variant_stable():
+    story = _car_plan(CAR_STORY.replace("dirt_road", "office"))
+    ride = story.shots[3]
+    assert ride.travel is None and ride.vehicles[0].action == "idle" and ride.vehicles[0].riders == ["bob"]
+    assert len({v.variant for s in story.shots for v in s.vehicles}) == 1
+
+
+@pytest.mark.parametrize("line", ["@car fly", "@car", "@car ride now"])
+def test_bad_car_directive_fails(line):
+    with pytest.raises(StageError, match=r"@car arrive \| ride \| leave \| off"):
+        plan(f"# T\n\n{line}\nBob sat.\n")
+
+
+def test_car_seats_three():
+    md = "# T\n\n@set dirt_road\n@cast bob, amy, karen, bob\n@car ride\nThey rode.\n"
+    with pytest.raises(StageError, match="seats 3"):
+        plan(md)
+
+
+def test_prep_strips_car_directive():
+    plain = "# T\n\nUntil his manager pulled up. Fred hopped in.\n"
+    marked = "# T\n\n@car arrive\nUntil his manager pulled up.\n@car ride\nFred hopped in.\n"
+    assert clean_markdown(strip_directives(marked)) == clean_markdown(strip_directives(plain))

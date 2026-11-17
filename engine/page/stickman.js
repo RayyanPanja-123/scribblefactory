@@ -26,6 +26,7 @@ const TALK_SWAY = 3;      // degrees of slow arm sway while talking, at TALK_SWA
 const TALK_SWAY_HZ = 0.6;
 const BOB_PX = 7;         // body lift on a stressed word (canvas px; legs stretch, feet stay planted)
 const POINT_ANGLE = 96;   // point arm, fully raised
+const WAVE_ARM = [100, 50, 25]; // wave: upper arm angle, forearm bend, forearm swing +- (degrees); clears the head
 // gesture targets [left angle, left bend, right angle, right bend, shoulder lift px]
 const GESTURES = {
   palm: [-ARM_REST, 0, 40, 60, 0],     // right forearm out, open palm toward the listener
@@ -78,7 +79,8 @@ const quad = (a, c, b, n = 10) => Array.from({ length: n + 1 }, (_, i) => {
  *      mouth (0..1 open), breath (-1..1), facing: "left"|"right"|"camera", t (seconds),
  *      px (screen px per canvas px; face strokes keep a minimum on-screen width, default 1),
  *      bob (0..1 stressed-word lift), gesture ({ kind: palm|chin|shrug, k: 0..1 } while talking),
- *      pointK (0..1 point arm raised, default 1) }
+ *      pointK (0..1 point arm raised, default 1), wave ({ k: 0..1 raised, swing: -1..1 } for action wave) }
+ * action "ride" draws like idle (the car hides the legs).
  */
 export function drawStickman(canvas, o) {
   const g = canvas.getContext("2d");
@@ -126,6 +128,10 @@ export function drawStickman(canvas, o) {
     }
   } else if (o.action === "point") {
     aR += (deg(POINT_ANGLE) - aR) * (o.pointK ?? 1); // main.js lowers it again after a moment
+  } else if (o.action === "wave") {
+    const w = o.wave || { k: 1, swing: 0 };
+    aR += (deg(WAVE_ARM[0]) - aR) * w.k;
+    bendR = deg(WAVE_ARM[1] + WAVE_ARM[2] * w.swing) * w.k;
   } else if (o.action === "react") {
     aL = deg(-128); aR = deg(128); bendL = deg(-25); bendR = deg(25); // hands up beside the head
   } else {

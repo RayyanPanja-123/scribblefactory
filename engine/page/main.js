@@ -4,7 +4,8 @@ import * as THREE from "three";
 import { dolly, glide } from "./borrowed.js";
 import { CH, CW, FEET_Y, FIGURE_PX, drawStickman } from "./stickman.js";
 import { DH, DOG_FEET, DW, barkAmount, drawDog, gallopPhase } from "./dog.js";
-import { gestureAmount, gesturePlan, mouthCurve, mouthCycles, pointAmount, stressBob } from "./motion.js";
+import { gestureAmount, gesturePlan, mouthCurve, mouthCycles, pointAmount, stressBob, waveAmount } from "./motion.js";
+import { CAR_CARD_W, CAR_GROUND, DRIVER_X, RIDER_X, VH, VW, carEase, carSpeedShare, drawCar, seatOffset } from "./car.js";
 import { rng, setVariant } from "./rng.js";
 import { SETS, VARIANTS, buildSet, loopExcess, scrollSet } from "./world.js";
 
@@ -22,6 +23,9 @@ const lerp = (a, b, u) => a + (b - a) * u;
 const WIDE = { margin: 0.8, maxFill: 0.30, camY: 2.1, lookY: 0.75 };
 const SUBJECT_MARGIN = 0.05; // props must clear the subject's on-screen card bounds grown by 5% per side
 const SHADOW = { w: 0.75, d: 0.3, opacity: 0.32, bounce: 0.08, y: 0.025 }; // y clears the room rug
+const CAR_CARD_H = CAR_CARD_W * (VH / VW), CAR_SHADOW = { w: 2.6, d: 0.55 }, CAR_HALF = 1.4;
+const DUST_SETS = new Set(["dirt_road"]); // sets with a dirt ground: moving cars kick up dust
+const DRIVER = { outfit_color: "#8a8a8a", eyes: "dots" }; // generic extra, not cast
 const DOG_CARD_W = 1.3, DOG_CARD_H = DOG_CARD_W * (DH / DW), DOG_SHADOW = { w: 0.9, d: 0.26 };
 // set change: a marker stroke sweeps left to right over the last HALF frames of the old shot and the first HALF of
 // the new one, revealing the new set. band = stroke width px, tilt = how far the bottom trails the top px.
@@ -44,6 +48,7 @@ renderer.setPixelRatio(1);
 renderer.setSize(W, H, false);
 const camera = new THREE.PerspectiveCamera(45, W / H, 0.05, 100);
 const CARD_GEO = new THREE.PlaneGeometry(CARD_W, CARD_H).translate(0, CARD_H / 2 - CARD_H * (1 - FEET_Y / CH), 0);
+const CAR_GEO = new THREE.PlaneGeometry(CAR_CARD_W, CAR_CARD_H).translate(0, CAR_CARD_H / 2 - CAR_CARD_H * (1 - CAR_GROUND / VH), 0);
 const DOG_GEO = new THREE.PlaneGeometry(DOG_CARD_W, DOG_CARD_H).translate(0, DOG_CARD_H / 2 - DOG_CARD_H * (1 - DOG_FEET / DH), 0);
 
 let data = null, scene = null;
@@ -97,9 +102,15 @@ function shotWords(shot) {
 
 let mouth = new Float32Array(0); // per-frame mouth opening for the whole part (motion.js), built in setup
 
+/** drawStickman options for cast member id (look from series.json), merged over the per-frame options o */
+function figure(id, o) {
+  const cast = castOf(id);
+  return { seed: charSeed(id), color: cast.outfit_color, eyes: cast.eyes, ...o };
+}
+
 function drawCard(id, o) {
-  const c = card(id), cast = castOf(id), seed = charSeed(id);
-  drawStickman(c.cv, { seed, color: cast.outfit_color, eyes: cast.eyes, ...o });
+  const c = card(id);
+  drawStickman(c.cv, figure(id, o));
   c.tex.needsUpdate = true;
   return c.mesh;
 }
@@ -110,7 +121,9 @@ function shotCamera(shot, sx, xs, u) {
   const A = ANGLES[shot.camera.angle] || ANGLES.medium;
   let pos, look;
   // chase (travel shot with dogs): every angle fits actors + pack like wide, at the angle's own camera height
-  const wide = shot.camera.angle === "wide", chase = !!(shot.travel && shot.animals?.length);
+  // a car pulling up / parked / leaving likewise frames the cast and where the car stands
+  const wide = shot.camera.angle === "wide", chase = !!(shot.travel && shot.animals?.length)
+    || !!(!shot.travel && shot.vehicles?.length);
   if ((wide || chase) && xs.length) {
     const lo = Math.min(...xs), hi = Math.max(...xs), cx = (lo + hi) / 2;
     const end = shot.camera.speed, tan = Math.tan(rad(A.fov / 2)); // end = move size at u = 1
@@ -267,19 +280,31 @@ function drawShot(shot, n) {
   const kf = Math.min(Math.max(n, shot.start_frame), shot.end_frame - 1); // held frame for shot motion
   const u = (kf - shot.start_frame) / (shot.end_frame - shot.start_frame), t = n / FPS;
   const group = useSet(shot);
-  const place = (a) => placeAt(a, u);
+  const animals = shot.animals || [], vehicles = shot.vehicles || [];
+  // riders sit in their car's seats: their spot is the car's spot plus the seat offset
+  const seated = new Map();
+  for (const v of vehicles) {
+    const [cx, cz] = carAt(v, u), sgn = v.facing === "left" ? -1 : 1;
+    v.riders.forEach((r, i) => seated.set(r, [cx + sgn * seatOffset(RIDER_X[i]), cz]));
+  }
+  const place = (a) => seated.get(a.cast_id) || placeAt(a, u);
   const subject = shot.actors.find((a) => a.action !== "idle") || shot.actors[0];
-  const animals = shot.animals || [];
-  const span = [...shot.actors, ...animals].flatMap((a) => [a.start_pos[0], (a.end_pos || a.start_pos)[0]]);
-  // travel shot: the world scrolls against the actors' facing at travel.speed; props wrap around the band and the
-  // near ones are hidden (not hidden-behind-subject: everything moves, so that per-shot choice would be stale)
-  const dir = shot.travel ? (shot.actors[0]?.facing === "left" ? -1 : 1) : 0;
+  const span = [...shot.actors.filter((a) => !seated.has(a.cast_id)), ...animals]
+    .flatMap((a) => [a.start_pos[0], (a.end_pos || a.start_pos)[0]]);
+  for (const v of vehicles) { // where the car stands: arrive its stop, leave its start, else both ends
+    const xs = v.action === "arrive" ? [(v.end_pos || v.start_pos)[0]] : v.action === "leave" ? [v.start_pos[0]]
+      : [v.start_pos[0], (v.end_pos || v.start_pos)[0]];
+    for (const x of xs) span.push(x - CAR_HALF, x + CAR_HALF);
+  }
+  // travel shot: the world scrolls against the car's (else the actors') facing at travel.speed; props wrap around
+  // the band and the near ones are hidden (not hidden-behind-subject: everything moves, so that choice would be stale)
+  const dir = shot.travel ? ((vehicles[0] || shot.actors[0])?.facing === "left" ? -1 : 1) : 0;
   const shift = shot.travel ? -dir * shot.travel.speed * ((kf - shot.start_frame) / FPS) : 0;
   const travelHidden = scrollSet(group, shift, !!shot.travel);
   const hidden = shot.travel ? travelHidden : hiddenFor(shot, subject, span, group);
   for (const [id, pc] of group.userData.pieces) for (const m of pc.meshes) m.visible = !hidden.has(id);
   shotCamera(shot, subject ? place(subject)[0] : 0, span, u);
-  const gestures = [];
+  const gestures = [], riders = new Map(); // riders: cast id -> drawStickman options, drawn inside the car card
   for (const a of shot.actors) {
     const [x, z] = place(a), key = charSeed(a.cast_id);
     const own = a.end_pos ? Math.hypot(a.end_pos[0] - a.start_pos[0], a.end_pos[1] - a.start_pos[1]) : 0;
@@ -293,14 +318,17 @@ function drawShot(shot, n) {
     camera.updateMatrixWorld();
     const feet = new THREE.Vector3(x, 0, z).project(camera), head = new THREE.Vector3(x, FIG_H, z).project(camera);
     const px = (((head.y - feet.y) / 2) * H) / FIGURE_PX; // screen px per card canvas px
-    const mesh = drawCard(a.cast_id, {
+    const o = {
       boil: Math.floor(n / BOIL_FRAMES), action: a.action, expression: a.expression, facing: a.facing, t, phase, px,
       lid: lidAt(n, key),
       breath: Math.sin((2 * Math.PI * t) / 3.4 + 2 * Math.PI * rng(key, "breath")()),
       mouth: a.action === "talk" && n === kf ? mouth[n] : 0, // shut while drawn outside its shot (wipe)
-      bob: a.action === "talk" ? stressBob(t, shotWords(shot)) : 0,
+      bob: a.action === "talk" && !seated.has(a.cast_id) ? stressBob(t, shotWords(shot)) : 0,
       gesture, pointK: a.action === "point" ? pointAmount(ts) : 1,
-    });
+      wave: a.action === "wave" ? waveAmount(ts) : null,
+    };
+    if (seated.has(a.cast_id)) { riders.set(a.cast_id, figure(a.cast_id, o)); continue; }
+    const mesh = drawCard(a.cast_id, o);
     mesh.position.set(x, 0, z);
     mesh.rotation.set(0, Math.atan2(camera.position.x - x, camera.position.z - z), 0);
     // contact shadow: follows the feet, a little wider when the stride lowers the body
@@ -310,10 +338,12 @@ function drawShot(shot, n) {
     scene.add(mesh, shadow);
   }
   drawAnimals(shot, animals, n, kf, u);
+  const cars = drawVehicles(shot, vehicles, riders, n, u);
   renderer.render(scene, camera);
   const travel = shot.travel ? { travel: `${shot.travel.speed} u/s ${dir < 0 ? "left" : "right"}, shift ${shift.toFixed(2)}`
     + `, loop excess ${(({ excess, row }) => `${excess.toFixed(3)} (row z ${row})`)(loopExcess(group, shift))}` } : {};
-  return { angle: shot.camera.angle, hidden: hidden.size, gestures, dogs: animals.length, ...travel, ...measure(shot.actors.map(place)) };
+  return { angle: shot.camera.angle, hidden: hidden.size, gestures, dogs: animals.length, ...cars, ...travel,
+    ...measure(shot.actors.filter((a) => !seated.has(a.cast_id)).map(place)) };
 }
 
 /** dog cards: gallop phase from distance travelled (scroll + own move), barks start at the shot's bark cue */
@@ -340,6 +370,42 @@ function drawAnimals(shot, animals, n, kf, u) {
     c.shadow.scale.set(DOG_SHADOW.w * k, 1, DOG_SHADOW.d * k);
     scene.add(c.mesh, c.shadow);
   }
+}
+
+/** car position at shot fraction u: arrive eases to a stop, leave eases out from one, idle stays */
+function carAt(v, u) {
+  const e = v.end_pos || v.start_pos, k = carEase(v.action, u);
+  return [lerp(v.start_pos[0], e[0], k), lerp(v.start_pos[1], e[1], k)];
+}
+
+/** car cards with the driver (generic grey extra) and seated riders; wheels turn by the distance driven */
+function drawVehicles(shot, vehicles, riders, n, u) {
+  const t = n / FPS, secs = (shot.end_frame - shot.start_frame) / FPS, info = [];
+  for (const v of vehicles) {
+    const [x, z] = carAt(v, u), key = charSeed(`car:${v.id}`), id = `vehicle:${v.id}`;
+    const e = v.end_pos || v.start_pos, own = Math.hypot(e[0] - v.start_pos[0], e[1] - v.start_pos[1]);
+    const scroll = shot.travel ? shot.travel.speed : 0;
+    const distance = scroll * secs * u + own * carEase(v.action, u);
+    const speed = scroll + (own / secs) * carSpeedShare(v.action, u); // units/s right now
+    const dk = `${key}:driver`;
+    const driver = { seed: dk, color: DRIVER.outfit_color, eyes: DRIVER.eyes, action: "idle", expression: "neutral",
+      boil: Math.floor(n / BOIL_FRAMES), lid: lidAt(n, dk), t, px: 1,
+      breath: Math.sin((2 * Math.PI * t) / 3.4 + 2 * Math.PI * rng(dk, "breath")()) };
+    const c = card(id, CAR_GEO, VW, VH);
+    drawCar(c.cv, {
+      seed: key, variant: v.variant, facing: v.facing, boil: Math.floor(n / BOIL_FRAMES), distance,
+      moving: speed > 0.05, dust: DUST_SETS.has(shot.set) ? Math.min(1, speed / 4) : 0,
+      driver, riders: v.riders.map((r) => riders.get(r)).filter(Boolean),
+    });
+    c.tex.needsUpdate = true;
+    c.mesh.position.set(x, 0, z);
+    c.mesh.rotation.set(0, Math.atan2(camera.position.x - x, camera.position.z - z), 0);
+    c.shadow.position.set(x, SHADOW.y, z);
+    c.shadow.scale.set(CAR_SHADOW.w, 1, CAR_SHADOW.d);
+    scene.add(c.mesh, c.shadow);
+    info.push(`${v.id} ${v.action}${v.riders.length ? ` (${v.riders.join(", ")})` : ""} x ${x.toFixed(2)}`);
+  }
+  return info.length ? { cars: info.join("; ") } : {};
 }
 
 /** smallest figure height as a fraction of frame height, and whether every head, foot and card edge is in frame */

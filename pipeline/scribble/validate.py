@@ -15,9 +15,11 @@ MAX_SHOT_FRAMES = 90
 WALK_SPEED = (0.6, 1.8)   # units/s, inclusive
 RUN_SPEED = (1.8, 4.0)
 DOG_RUN_SPEED = (2.0, 5.0)
+CAR_SPEED = (1.5, 8.0)    # drive: average speed; arrive/leave: peak speed (2x average: eased to / from a stop)
 TWIST_CUE_WINDOW = 3      # frames either side of the twist shot's start
 PHRASE_TOLERANCE = 3      # frames either side of a shot's phrase time span
 MOVING = {"walk", "run"}
+RIDING = {"ride", "wave", "talk"}  # what a seated rider may do
 OUTDOOR_SETS = {"street", "dirt_road", "countryside", "orchard", "stadium"}  # sets that can scroll (travel shots)
 
 
@@ -73,6 +75,7 @@ def validate(story: StoryModel, phrases: PhrasesModel, cast_ids: set[str]) -> li
             err(s.id, "animal_id", f"animal ids repeat: {ids}")
         for d in s.animals:
             _check_animal(s, d, n / fps, err)
+        _check_vehicles(s, n / fps, cast_ids, err)
 
         if s.twist:
             _check_twist(s, story, err)
@@ -103,12 +106,31 @@ def validate(story: StoryModel, phrases: PhrasesModel, cast_ids: set[str]) -> li
     return errs
 
 
+def travel_way(s) -> str | None:
+    """the way a travel shot moves: its car's facing, else the first actor's"""
+    return s.vehicles[0].facing if s.vehicles else s.actors[0].facing if s.actors else None
+
+
 def _check_travel(s, seconds, err) -> None:
-    """Travel shot: outdoor set, every actor walks or runs, all facing one left/right direction."""
+    """Travel shot: outdoor set, every actor walks or runs, all facing one left/right direction.
+    With a car: the car drives and keeps its x, the world scrolls at the car's speed, no actor walks or runs."""
     if s.set not in OUTDOOR_SETS:
         err(s.id, "travel_set", f"travel on set {s.set!r}: only {', '.join(sorted(OUTDOOR_SETS))}")
     if not s.actors:
         err(s.id, "travel_actors", "travel shot has no actors")
+    if s.vehicles:
+        lo, hi = CAR_SPEED
+        if not lo <= s.travel.speed <= hi:
+            err(s.id, "vehicle_speed", f"travel speed {s.travel.speed} is the car's speed: must be {lo}..{hi}")
+        for v in s.vehicles:
+            if v.action != "drive" or (v.end_pos is not None and v.end_pos[0] != v.start_pos[0]):
+                err(s.id, "travel_vehicle", f"{v.id} {v.action}: a car in a travel shot drives and keeps its x")
+        if len({v.facing for v in s.vehicles}) > 1:
+            err(s.id, "travel_facing", "cars in a travel shot must all face one way")
+        for a in s.actors:
+            if a.action in MOVING:
+                err(s.id, "travel_actors", f"{a.cast_id} {a.action}: nobody walks or runs in a car travel shot")
+        return
     for a in s.actors:
         if a.action not in MOVING:
             err(s.id, "travel_actors", f"{a.cast_id} {a.action}: every actor in a travel shot must walk or run")
@@ -127,7 +149,7 @@ def _check_actor(sid, a, seconds, cast_ids, err, travel=None) -> None:
 def _check_animal(s, d, seconds, err) -> None:
     """Dogs: same facing / no-gliding rules as actors at DOG_RUN_SPEED; in travel shots every dog runs the travel way."""
     if s.travel:
-        way = s.actors[0].facing if s.actors else None
+        way = travel_way(s)
         if d.action != "run" or d.facing != way:
             err(s.id, "travel_animals", f"{d.id} {d.action} facing {d.facing}: dogs in a travel shot must run {way}")
     _check_move(s.id, d.id, d, d.action == "run", DOG_RUN_SPEED, seconds, err, s.travel)
@@ -152,6 +174,48 @@ def _check_move(sid, who, a, moving, lo_hi, seconds, err, travel) -> None:
         speed = travel.speed + abs(dx) / seconds if travel else math.dist(a.start_pos, end) / seconds
         if not lo <= speed <= hi:
             err(sid, "gliding", f"{who} {a.action} speed {speed:.2f} units/s, must be {lo}..{hi}")
+
+
+def _check_vehicles(s, seconds, cast_ids, err) -> None:
+    ids = [v.id for v in s.vehicles]
+    if len(set(ids)) != len(ids):
+        err(s.id, "vehicle_id", f"vehicle ids repeat: {ids}")
+    riders = [r for v in s.vehicles for r in v.riders]
+    if len(set(riders)) != len(riders):
+        err(s.id, "riders", f"a cast member rides in two seats: {riders}")
+    for v in s.vehicles:
+        for r in v.riders:
+            if r not in cast_ids:
+                err(s.id, "cast_id", f"rider {r!r} of {v.id} is not in series.json cast")
+            entries = [a for a in s.actors if a.cast_id == r]
+            if len(entries) != 1 or entries[0].action not in RIDING:
+                err(s.id, "riders", f"{r} rides {v.id}: needs exactly one actor entry with action "
+                                    f"{'/'.join(sorted(RIDING))} (not also a standing actor)")
+        if s.travel:
+            continue  # speed and x rules in _check_travel
+        end = v.end_pos if v.end_pos is not None else v.start_pos
+        moved = tuple(end) != tuple(v.start_pos)
+        if v.action == "idle":
+            if moved:
+                err(s.id, "vehicle_motion", f"{v.id} idle: must not move")
+            continue
+        if not moved:
+            err(s.id, "vehicle_motion", f"{v.id} {v.action}: end_pos must differ from start_pos")
+            continue
+        dx = end[0] - v.start_pos[0]
+        want = "left" if dx < 0 else "right" if dx > 0 else None
+        if want and v.facing != want:
+            err(s.id, "facing", f"{v.id} {v.action}s {want} but faces {v.facing}")
+        if seconds > 0:
+            avg = math.dist(v.start_pos, end) / seconds
+            speed = avg if v.action == "drive" else 2 * avg  # eased to/from a stop: peak = 2x average
+            lo, hi = CAR_SPEED
+            if not lo <= speed <= hi:
+                err(s.id, "vehicle_speed", f"{v.id} {v.action} {'peak ' if v.action != 'drive' else ''}speed "
+                                           f"{speed:.2f} units/s, must be {lo}..{hi}")
+    for a in s.actors:
+        if a.action == "ride" and a.cast_id not in riders:
+            err(s.id, "riders", f"{a.cast_id} rides but no vehicle lists it")
 
 
 def _check_twist(s, story, err) -> None:

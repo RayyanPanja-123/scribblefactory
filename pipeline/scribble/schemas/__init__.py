@@ -197,7 +197,7 @@ class Camera(Strict):
 
 class Actor(Strict):
     cast_id: str
-    action: Literal["idle", "walk", "run", "talk", "point", "react"]
+    action: Literal["idle", "walk", "run", "talk", "point", "react", "wave", "ride"]
     start_pos: Pos
     end_pos: Pos | None = None
     facing: Literal["left", "right", "camera"]
@@ -218,6 +218,18 @@ class Animal(Strict):
     variant: Literal["brown", "black", "tan", "white_patches"]
 
 
+class Vehicle(Strict):
+    id: str = Field(pattern=r"^[a-z0-9_-]+$")
+    kind: Literal["car"]
+    action: Literal["arrive", "drive", "leave", "idle"]  # arrive eases to a stop, leave eases out from one
+    start_pos: Pos
+    end_pos: Pos | None = None
+    facing: Literal["left", "right"]  # side-view card: no camera facing
+    riders: list[str] = Field(default=[], max_length=3, description="cast ids seated (actors with action ride, "
+                                                                    "or wave/talk while riding)")
+    variant: Literal["red", "green", "navy", "yellow"]
+
+
 class Shot(Strict):
     id: str = Field(pattern=r"^s[0-9]{2,}$")
     start_frame: int = Field(ge=0)
@@ -227,6 +239,7 @@ class Shot(Strict):
     camera: Camera
     actors: list[Actor] = []
     animals: list[Animal] = []
+    vehicles: list[Vehicle] = []
     twist: bool = False
     travel: Travel | None = Field(default=None, description="travel shot: the world scrolls past the actors")
 

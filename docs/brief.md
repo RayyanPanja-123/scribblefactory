@@ -69,6 +69,8 @@ library/<series-slug>/
 ## Story directives (in story.md, one per line)
 - "@set office": set for the following lines until changed. Default "room".
 - "@cast bob, karen": cast ids on stage until changed. Must exist in series.json. Default: first 2 cast members.
+- "@dogs N": dog pack size (0-6) for the following lines until changed. Travel shots: the pack chases behind. Other shots: dogs idle or bark at the stage edges. "@dogs 0" removes them. Default 0.
+- "@car <mode>": arrive | ride | leave | off, for the following lines until changed. arrive: a car drives in and stops beside the subject (then stays parked). ride: the current @cast ride in the car (travel shot on outdoor sets; wave keywords make riders wave). leave: the car drives off-screen. off: no car. Default off.
 - "!! text": this line is the twist (push-in with roll, music stops, low hit).
 - prep strips directives from script-for-tts.txt. The shot planner reads them.
 
