@@ -114,9 +114,11 @@ class Builder {
   }
   /** centred primitive at pos; outline = inverted hull grown by HULL_T on every side; floor = exempt from clearance.
    *  Anything that is not floor or backdrop (walls, windows, posters, buildings) is a prop piece. */
-  add(geo, mat, pos, { outline = true, rot = null, floor = false, backdrop = false } = {}) {
+  add(geo, mat, pos, { outline = true, rot = null, floor = false, backdrop = false, travelHide = false } = {}) {
     const m = new THREE.Mesh(geo, mat);
     m.position.set(...pos);
+    m.userData.kind = floor ? "floor" : backdrop ? "backdrop" : "prop";
+    m.userData.travelHide = travelHide; // floor/backdrop mark that makes no sense scrolling past (finish line)
     if (rot) m.rotation.set(...rot);
     if (!floor) {
       m.updateMatrixWorld();
@@ -176,25 +178,35 @@ function fence(b, a, c, at, { h = 0.9, step = 1.6, along = "x", mat }) {
   });
 }
 
+// Outdoor layouts that repeat along x repeat with a period dividing the scroll band (BAND, 28 units), so a
+// travel shot can wrap them around the band without a seam.
+export const BAND = { lo: -14, hi: 14 };
+
 function dirt_road(b, R, v) {
-  const fenceSide = [-1, 1, -1][v], poleSide = -fenceSide;
+  // crossroads: the actors' road runs across the frame (travel shots scroll along it), a side road runs off into
+  // the distance from the junction; fence behind the near road, telegraph line further back
+  const sx = [0, -3, 3][v], poleOff = [3.5, 1, 6][v];
   b.box(140, 0.1, 100, "#dcbc72", [0, -0.07, -38], { outline: false, floor: true, pattern: lines("h", 10, "#c49c50", 5), repeat: [30, 20] });
-  b.box(4.4, 0.1, 100, "#c69a68", [0, -0.05, -38], { outline: false, floor: true, pattern: lines("v", 3, "#a87b4e", 7), repeat: [1, 30] });
+  b.box(140, 0.1, 3.4, "#c69a68", [0, -0.05, -0.1], { outline: false, floor: true, pattern: lines("h", 3, "#a87b4e", 7), repeat: [40, 1] });
+  b.box(3.4, 0.1, 60, "#c69a68", [sx, -0.051, -31.8], { outline: false, floor: true, pattern: lines("v", 3, "#a87b4e", 7), repeat: [1, 18] });
   sky(b, "#bfe0ee", "#f7e7bf");
   for (let i = 0; i < 6; i++) { // distant hills
     b.mound(14 + R() * 10, 0.28, ["#a9b779", "#b9b07a", "#98a86e"][i % 3], [-60 + i * 24 + R() * 8, -1, -48 - R() * 10], { backdrop: true });
   }
-  const wood = b.mat("#8a5a32"), pole = b.mat("#6b4a2e");
-  fence(b, 0.5, -30, fenceSide * 3.1, { along: "z", mat: wood });
-  if (v === 2) fence(b, -4, -30, -fenceSide * 3.1, { along: "z", mat: wood }); // both sides, near gap left open
-  const wire = b.mat("#2b2b2b"), px = poleSide * 4.0;
-  for (let z = -1.5 - R() * 2; z > -50; z -= 7) b.piece(() => { // telegraph pole, crossbar, wires to the next pole
-    b.cyl(0.07, 0.1, 4.4, null, [px, 2.2, z], { mat: pole });
-    b.box(1.1, 0.09, 0.09, null, [px, 4.0, z], { mat: pole });
-    for (const dx of [-0.45, 0.45]) b.box(0.03, 0.03, 7, null, [px + dx, 3.92, z - 3.5], { mat: wire, outline: false });
+  const wood = b.mat("#8a5a32"), pole = b.mat("#6b4a2e"), wire = b.mat("#2b2b2b");
+  fence(b, BAND.lo, sx - 1.9, -2.0, { mat: wood }); // gap where the side road leaves
+  fence(b, sx + 1.9, BAND.hi, -2.0, { mat: wood });
+  for (let x = BAND.lo + poleOff; x < BAND.hi; x += 7) b.piece(() => { // pole, crossbar, wires half-way to each neighbour
+    b.cyl(0.07, 0.1, 4.4, null, [x, 2.2, -3.2], { mat: pole });
+    b.box(0.09, 0.09, 1.1, null, [x, 4.0, -3.2], { mat: pole });
+    for (const dz of [-0.45, 0.45]) b.box(7, 0.03, 0.03, null, [x, 3.92, -3.2 + dz], { mat: wire, outline: false });
+  });
+  for (let z = -8; z > -50; z -= 7) b.piece(() => { // a second line beside the side road, into the distance
+    b.cyl(0.07, 0.1, 4.4, null, [sx + 2.4, 2.2, z], { mat: pole });
+    b.box(1.1, 0.09, 0.09, null, [sx + 2.4, 4.0, z], { mat: pole });
   });
   const bush = b.mat("#a3a04f");
-  const bushes = [[[-4.5, -3], [5, -7]], [[4.6, -2.5], [-5.2, -9]], [[-5, -5], [4.8, -4]]][v];
+  const bushes = [[[-4.5, -3], [5, -7], [-9, -5]], [[4.6, -2.8], [-6.2, -9], [10, -4]], [[-5, -5], [7.8, -4], [-11, -3]]][v];
   for (const [x, z] of bushes) b.piece(() => b.mound(0.6 + R() * 0.3, 0.6, null, [x, 0.15, z], { mat: bush }));
 }
 
@@ -241,10 +253,10 @@ function orchard(b, R, v) {
   sky(b, "#9fd3f5", "#e3f2e6");
   for (let i = 0; i < 5; i++) b.mound(12 + R() * 8, 0.3, "#6aa83f", [-50 + i * 25, -1.5, -45 - R() * 8], { backdrop: true });
   const trunk = b.mat("#7b5132"), leaf = b.mat("#3f9a3a", grass("#2f7d2c", 60)), apple = b.mat("#a6d63c");
-  const off = [0, 1.3, 0.65][v];
+  const off = [0, 1.4, 0.7][v], step = 2.8; // 10 trees per row fill the 28-unit band exactly
   for (let row = 0; row < 6; row++) { // rows of apple trees; green apples on the near rows
-    const z = -3.2 - row * 3.3;
-    for (let x = -13 + off + (row % 2) * 1.3; x < 13; x += 2.6) b.piece(() => {
+    const z = -3.2 - row * 3.3, x0 = BAND.lo + ((off + (row % 2) * 1.4) % step);
+    for (let k = 0, x = x0; k < 10; x = x0 + ++k * step) b.piece(() => {
       b.cyl(0.12, 0.17, 1.3, null, [x, 0.65, z], { mat: trunk });
       b.ball(0.95, null, [x, 1.95, z], { mat: leaf });
       for (let i = 0; row < 3 && i < 6; i++) { // on the front half of the crown
@@ -256,7 +268,7 @@ function orchard(b, R, v) {
   }
   const wood = b.mat("#a0703f");
   if (v === 2) fence(b, -1.6, -12, -3.2, { h: 0.6, step: 1.2, along: "z", mat: wood });
-  else fence(b, -12, 12, -1.6, { h: 0.6, step: 1.2, mat: wood }); // low fence behind the actors
+  else fence(b, BAND.lo, BAND.hi, -1.6, { h: 0.6, step: 1.2, mat: wood }); // low fence behind the actors
   const cx = [3.2, -3.3, 3.4][v];
   b.piece(() => { // crate of picked apples off to one side
     b.box(0.7, 0.4, 0.5, "#c8935a", [cx, 0.2, -1.3]);
@@ -269,7 +281,7 @@ function stadium(b, R, v) {
   b.box(140, 0.1, 6, "#c4553b", [0, -0.05, -0.4], { outline: false, floor: true, pattern: lines("h", 6, "#f4efe4", 3), repeat: [40, 1] });
   sky(b, "#9fd3f5", "#e8f4f0");
   const fx = [2.7, -2.7, 3.6][v];
-  b.box(0.3, 0.1, 6, "#ffffff", [fx, -0.03, -0.4], { outline: false, floor: true }); // finish line on the track
+  b.box(0.3, 0.1, 6, "#ffffff", [fx, -0.03, -0.4], { outline: false, floor: true, travelHide: true }); // finish line
   b.piece(() => { // finish tape on two posts, across the track
     const post = b.mat("#f4f4f4");
     for (const z of [-2.4, 0.45]) b.cyl(0.05, 0.05, 1.3, null, [fx, 0.65, z], { mat: post });
@@ -282,8 +294,8 @@ function stadium(b, R, v) {
     b.box(140, 0.8, 0.05, "#9aa0a6", [0, h + 0.4, z + 0.62],{ outline: false, backdrop: true, pattern: crowd(2 / 0.8), repeat: [70, 1] });
   }
   const cols = ["#e63946", "#f4a261", "#2a9d8f", "#e9c46a", "#457b9d"], top = 1.1 + 4 * 0.8 + 0.8;
-  for (let i = 0; i < 9; i++) { // flags on the top rim
-    const x = -16 + i * 4 + [0, 2, 1][v] + (R() - 0.5), z = -10.8;
+  for (let i = 0; i < 7; i++) { // flags on the top rim, every 4 units across the band
+    const x = BAND.lo + i * 4 + [0.5, 2.5, 1.5][v], z = -10.8;
     b.cyl(0.04, 0.04, 2.0, "#f4f4f4", [x, top + 1.0, z], { backdrop: true });
     b.box(0.9, 0.55, 0.03, cols[(i + v) % cols.length], [x + 0.47, top + 1.7, z], { backdrop: true });
   }
@@ -340,12 +352,15 @@ function office(b) {
 }
 
 function street(b, R) {
-  b.box(14, 0.1, 5.5, "#c9c3b8", [0, -0.05, -1.0], { outline: false, floor: true, pattern: lines("v", 6, "#a9a397", 3), repeat: [6, 2] });
-  b.box(14, 0.08, 9.4, "#5a5a60", [0, -0.08, 6.4], { outline: false, floor: true, pattern: lines("h", 1, "#f2f2f2", 6), repeat: [3, 2] });
+  // floors span 140 so travel shots can scroll them; buildings fill the 28-unit band exactly (last one sized to fit)
+  b.box(140, 0.1, 5.5, "#c9c3b8", [0, -0.05, -1.0], { outline: false, floor: true, pattern: lines("v", 6, "#a9a397", 3), repeat: [60, 2] });
+  b.box(140, 0.08, 9.4, "#5a5a60", [0, -0.08, 6.4], { outline: false, floor: true, pattern: lines("h", 1, "#f2f2f2", 6), repeat: [30, 2] });
   const palette = ["#e07a5f", "#f2cc8f", "#81b29a", "#c97b84", "#7aa6c2", "#e9c46a"];
-  let x = -6;
-  while (x < 6) {
-    const w = 2.2 + R() * 1.2, h = 5 + R() * 3;
+  let x = BAND.lo;
+  while (x < BAND.hi - 0.05) {
+    let w = 2.2 + R() * 1.2;
+    const h = 5 + R() * 3;
+    if (BAND.hi - x - w - 0.05 < 2.2) w = BAND.hi - x - 0.05;
     b.box(w, h, 2, palette[Math.floor(R() * palette.length)], [x + w / 2, h / 2, -4.2],
       { backdrop: true, pattern: windows, repeat: [Math.round(w), Math.round(h / 2)] });
     x += w + 0.05;
@@ -379,5 +394,95 @@ export function buildSet(name, seed, variant = 0) {
   group.add(sun, new THREE.AmbientLight(0xffffff, 1.1));
   group.userData.background = new THREE.Color(BACKGROUND[name]);
   if (FOG[name]) group.userData.fog = new THREE.Fog(BACKGROUND[name], ...FOG[name]);
+  group.updateMatrixWorld(true);
+  group.userData.movers = movers(group);
   return group;
+}
+
+// --- travel shots: the world scrolls along x past actors running in place.
+// Each mover is a prop piece or a floor/backdrop mesh, shifted by f * shift:
+//   period: wide floors and long backdrops (>= 50 units) move by the shift modulo one texture tile, so they never
+//           run out and look unchanged
+//   band:   props and near backdrop inside BAND wrap around it (leave one end, come back at the other)
+//   shift:  everything else just moves (far layers, out-of-band items; f < 1 there, so the shift stays small)
+// Parallax: floors, props and backdrop nearer than z -12 move at full speed, mid backdrop (fields, farmhouse)
+// at 0.35, far hills and sky at 0.1. Props reaching forward of z STAGE.behind are hidden in travel shots: wrapping
+// past the actors they would break stage clearance.
+const PARALLAX = [[-12, 1], [-40, 0.35], [-Infinity, 0.1]]; // [z centre above, factor]
+const BAND_W = BAND.hi - BAND.lo;
+const mod = (a, n) => ((a % n) + n) % n;
+const inBand = (x) => x >= BAND.lo && x < BAND.hi;
+
+function movers(group) {
+  const list = [];
+  for (const [id, pc] of group.userData.pieces) {
+    const cx = pc.box.getCenter(new THREE.Vector3()).x;
+    list.push({ meshes: pc.meshes, cx, f: 1, mode: inBand(cx) ? "band" : "shift", piece: id, box: pc.box.clone(),
+      near: pc.box.max.z > STAGE.behind });
+  }
+  for (const m of group.children) {
+    const kind = m.userData.kind;
+    if (kind !== "floor" && kind !== "backdrop") continue;
+    const box = new THREE.Box3().setFromObject(m), c = box.getCenter(new THREE.Vector3()), w = box.max.x - box.min.x;
+    const f = kind === "floor" ? 1 : PARALLAX.find(([z]) => c.z > z)[1];
+    const mode = w >= 50 ? "period" : f === 1 && inBand(c.x) ? "band" : "shift";
+    const period = w / (m.material.map ? m.material.map.repeat.x : 1);
+    list.push({ meshes: [m, ...(m.userData.hull ? [m.userData.hull] : [])], cx: c.x, f, mode, period, box,
+      hide: m.userData.travelHide });
+  }
+  for (const mv of list) mv.base = mv.meshes.map((m) => m.position.x);
+  return list;
+}
+
+/** x offset of one mover for a world shift (shift 0: exactly 0, so static shots are untouched) */
+function moverDx(mv, shift) {
+  if (!shift) return 0;
+  const d = mv.f * shift;
+  if (mv.mode === "band") return BAND.lo + mod(mv.cx + d - BAND.lo, BAND_W) - mv.cx;
+  if (mv.mode === "period") return mod(d + mv.period / 2, mv.period) - mv.period / 2;
+  return d;
+}
+
+/** place the set for a world shift (units, + = world moves right). Returns the prop pieces to hide (travel). */
+export function scrollSet(group, shift, travel) {
+  const hidden = new Set();
+  for (const mv of group.userData.movers) {
+    const dx = moverDx(mv, shift);
+    mv.meshes.forEach((m, i) => { m.position.x = mv.base[i] + dx; });
+    if (mv.hide) for (const m of mv.meshes) m.visible = !travel;
+    if (travel && mv.near) hidden.add(mv.piece);
+  }
+  return hidden;
+}
+
+/** seam check for a world shift: rows of band-looping items (same depth, >= 3 items), the widest empty x stretch
+ *  around the band now minus the widest one inside the static layout, and that row's z. Excess <= 0 in every row:
+ *  the loop adds no gap. */
+export function loopExcess(group, shift) {
+  const rows = new Map();
+  for (const mv of group.userData.movers) {
+    if (mv.mode !== "band" || mv.near || mv.hide) continue;
+    const z = Math.round(mv.box.getCenter(new THREE.Vector3()).z);
+    if (!rows.has(z)) rows.set(z, []);
+    rows.get(z).push(mv);
+  }
+  let worst = -Infinity, at = null;
+  for (const [z, items] of rows) {
+    if (items.length < 3) continue;
+    const merge = (iv) => { // sorted [a, b] intervals -> widest gap between their union's pieces
+      iv.sort((p, q) => p[0] - q[0]);
+      let end = iv[0][1], gap = 0;
+      for (const [a, b] of iv.slice(1)) { gap = Math.max(gap, a - end); end = Math.max(end, b); }
+      return { gap, first: iv[0][0], end };
+    };
+    const inside = merge(items.map((mv) => [mv.box.min.x, mv.box.max.x])).gap;
+    const circ = [];
+    for (const mv of items) {
+      const dx = moverDx(mv, shift), a = BAND.lo + mod(mv.box.min.x + dx - BAND.lo, BAND_W), b = a + mv.box.max.x - mv.box.min.x;
+      if (b > BAND.hi) circ.push([a, BAND.hi], [BAND.lo, b - BAND_W]); else circ.push([a, b]);
+    }
+    const m = merge(circ), around = Math.max(m.gap, m.first + BAND_W - m.end); // incl. the gap across the seam
+    if (around - inside > worst) [worst, at] = [around - inside, z];
+  }
+  return { excess: at === null ? 0 : worst, row: at ?? "none" };  // no rows: nothing loops in a line
 }

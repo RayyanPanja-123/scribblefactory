@@ -204,6 +204,10 @@ class Actor(Strict):
     expression: Literal["neutral", "happy", "sad", "angry", "surprised", "sleepy"]
 
 
+class Travel(Strict):
+    speed: float = Field(gt=0, description="world scroll speed, units/s; actors run in place against it")
+
+
 class Shot(Strict):
     id: str = Field(pattern=r"^s[0-9]{2,}$")
     start_frame: int = Field(ge=0)
@@ -213,6 +217,7 @@ class Shot(Strict):
     camera: Camera
     actors: list[Actor] = []
     twist: bool = False
+    travel: Travel | None = Field(default=None, description="travel shot: the world scrolls past the actors")
 
 
 class Cue(Strict):

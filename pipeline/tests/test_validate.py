@@ -219,3 +219,61 @@ def test_stage_reports_invalid_story(part, capsys):
     (part / "story.json").write_text('{"schema_version": 1}')
     assert run_validate(part) == 1
     assert "story.json is invalid" in load_part(part / "part.json").stages.validate_.error
+
+
+# --- travel shots ---
+
+def _travel(speed=1.2, set_="dirt_road", dx=0.0, facing="right", action="walk"):
+    """s01 (2 s) as a travel shot: bob walks in place (or dx units) while the world scrolls at speed."""
+    def m(d):
+        s = shot(d, 0)
+        s["set"], s["travel"] = set_, {"speed": speed}
+        s["actors"] = [{"cast_id": "bob", "action": action, "start_pos": [0, 0], "end_pos": [dx, 0],
+                        "facing": facing, "expression": "neutral"},
+                       {"cast_id": "amy", "action": action, "start_pos": [1, 0.2], "end_pos": [1 + dx, 0.2],
+                        "facing": facing, "expression": "neutral"}]
+    return m
+
+
+def test_travel_shot_passes():
+    assert rules(_travel()) == set()                     # walk in place at 1.2 units/s
+    assert rules(_travel(2.5, action="run", facing="left", set_="stadium")) == set()
+    assert rules(_travel(1.0, dx=1.0)) == set()          # 1.0 scroll + 0.5 own move = 1.5: still a walk
+
+
+@pytest.mark.parametrize("set_", ["room", "office", "moon"])
+def test_travel_only_on_outdoor_sets(set_):
+    assert rules(_travel(set_=set_)) == {"travel_set"}
+
+
+def test_travel_actors_must_all_walk_or_run():
+    def m(d):
+        _travel()(d)
+        actor(d, 0, 1).update(action="idle", end_pos=None)
+    assert rules(m) == {"travel_actors"}
+
+
+@pytest.mark.parametrize("facings", [("right", "left"), ("camera", "camera")])
+def test_travel_actors_face_one_left_right_way(facings):
+    def m(d):
+        _travel()(d)
+        for j, f in enumerate(facings):
+            actor(d, 0, j)["facing"] = f
+    assert rules(m) == {"travel_facing"}
+
+
+@pytest.mark.parametrize("speed,dx,action", [
+    (0.4, 0.0, "walk"),   # 0.4 < 0.6: legs too slow for the scroll
+    (1.2, 2.0, "walk"),   # 1.2 + 1.0 = 2.2 > 1.8
+    (1.2, 0.0, "run"),    # 1.2 < 1.8: a run this slow glides
+    (3.8, 1.0, "run"),    # 3.8 + 0.5 = 4.3 > 4.0
+])
+def test_travel_effective_stride_speed(speed, dx, action):
+    assert rules(_travel(speed, dx=dx, action=action)) == {"gliding"}
+
+
+def test_schema_travel_speed_positive():
+    d = load("story.json")
+    shot(d, 0)["travel"] = {"speed": 0}
+    with pytest.raises(ValidationError):
+        StoryModel.model_validate(d)

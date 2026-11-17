@@ -17,6 +17,7 @@ RUN_SPEED = (1.8, 4.0)
 TWIST_CUE_WINDOW = 3      # frames either side of the twist shot's start
 PHRASE_TOLERANCE = 3      # frames either side of a shot's phrase time span
 MOVING = {"walk", "run"}
+OUTDOOR_SETS = {"street", "dirt_road", "countryside", "orchard", "stadium"}  # sets that can scroll (travel shots)
 
 
 class Error(NamedTuple):
@@ -62,8 +63,10 @@ def validate(story: StoryModel, phrases: PhrasesModel, cast_ids: set[str]) -> li
         elif prev and first < prev.phrase_range[1]:
             err(s.id, "phrase_range", f"{[first, last]} goes back before {prev.id} {list(prev.phrase_range)}")
 
+        if s.travel:
+            _check_travel(s, n / fps, err)
         for a in s.actors:
-            _check_actor(s.id, a, n / fps, cast_ids, err)
+            _check_actor(s.id, a, n / fps, cast_ids, err, s.travel)
 
         if s.twist:
             _check_twist(s, story, err)
@@ -94,7 +97,21 @@ def validate(story: StoryModel, phrases: PhrasesModel, cast_ids: set[str]) -> li
     return errs
 
 
-def _check_actor(sid, a, seconds, cast_ids, err) -> None:
+def _check_travel(s, seconds, err) -> None:
+    """Travel shot: outdoor set, every actor walks or runs, all facing one left/right direction."""
+    if s.set not in OUTDOOR_SETS:
+        err(s.id, "travel_set", f"travel on set {s.set!r}: only {', '.join(sorted(OUTDOOR_SETS))}")
+    if not s.actors:
+        err(s.id, "travel_actors", "travel shot has no actors")
+    for a in s.actors:
+        if a.action not in MOVING:
+            err(s.id, "travel_actors", f"{a.cast_id} {a.action}: every actor in a travel shot must walk or run")
+    facings = {a.facing for a in s.actors}
+    if len(facings) > 1 or facings - {"left", "right"}:
+        err(s.id, "travel_facing", f"travel actors face {sorted(facings)}: all must face one way, left or right")
+
+
+def _check_actor(sid, a, seconds, cast_ids, err, travel=None) -> None:
     who = a.cast_id
     if who not in cast_ids:
         err(sid, "cast_id", f"{who!r} is not in series.json cast")
@@ -102,16 +119,18 @@ def _check_actor(sid, a, seconds, cast_ids, err) -> None:
         if a.end_pos is not None:
             err(sid, "end_pos", f"{who} {a.action}: end_pos must be null")
         return
-    if a.end_pos is None or tuple(a.end_pos) == tuple(a.start_pos):
+    end = a.end_pos if a.end_pos is not None else a.start_pos
+    if not travel and tuple(end) == tuple(a.start_pos):  # travel: may stay put, the world moves
         err(sid, "end_pos", f"{who} {a.action}: end_pos must differ from start_pos")
         return
-    dx = a.end_pos[0] - a.start_pos[0]
+    dx = end[0] - a.start_pos[0]
     want = "left" if dx < 0 else "right" if dx > 0 else None  # pure z movement: any facing
     if want and a.facing != want:
         err(sid, "facing", f"{who} {a.action}s {want} but faces {a.facing}")
     if seconds > 0:
         lo, hi = WALK_SPEED if a.action == "walk" else RUN_SPEED
-        speed = math.dist(a.start_pos, a.end_pos) / seconds
+        # travel: legs cover the scroll plus the actor's own x move (effective stride speed)
+        speed = travel.speed + abs(dx) / seconds if travel else math.dist(a.start_pos, end) / seconds
         if not lo <= speed <= hi:
             err(sid, "gliding", f"{who} {a.action} speed {speed:.2f} units/s, must be {lo}..{hi}")
 

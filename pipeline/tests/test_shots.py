@@ -149,7 +149,9 @@ def test_walk_direction_distance_and_facing():
     a, s = _subject("Amy walked in.")  # amy at x=STAGE_X, no direction word: toward the centre
     secs = (s.end_frame - s.start_frame) / 30
     assert a.start_pos == (shots.STAGE_X, 0.0) and a.facing == "left"
-    assert a.end_pos[0] == pytest.approx(shots.STAGE_X - 1.2 * secs, abs=1e-3)
+    # full walk would end 0.56 from bob (at -STAGE_X): it stops MIN_GAP short of him instead
+    assert shots.STAGE_X - 1.2 * secs < -shots.STAGE_X + shots.MIN_GAP
+    assert a.end_pos[0] == pytest.approx(-shots.STAGE_X + shots.MIN_GAP, abs=1e-3)
     a, s = _subject("Amy ran right.")  # 4.25 units fits neither way: flipped, shortened to the left edge
     assert a.facing == "left" and a.end_pos == (shots.BOUNDS[0], 0.0)
     a, _ = _subject("Amy left.")  # "left": walk keyword and direction (amy at STAGE_X has room to the left)
@@ -357,3 +359,69 @@ def test_lexicon_additions(line, action, expression):
 def test_plural_cast_id_matches_subject():
     story, _ = plan("# P\n\n@cast bob, amy\nThen the amys had to leave.\n")
     assert next(a for a in story.shots[0].actors if a.action != "idle").cast_id == "amy"
+
+
+# --- actor spacing and travel shots ---
+
+def _xs_apart(story):
+    """every pair of actors >= MIN_GAP apart in x at the start and at the end of every shot"""
+    for s in story.shots:
+        for pts in ([a.start_pos for a in s.actors], [a.end_pos or a.start_pos for a in s.actors]):
+            xs = sorted(p[0] for p in pts)
+            assert all(b - a >= shots.MIN_GAP - 1e-9 for a, b in zip(xs, xs[1:])), (s.id, xs)
+
+
+def test_spacing_holds_through_walks_cast_changes_and_big_casts():
+    md = ("# S\n\n@cast bob, amy, karen\n" + " ".join(["Amy walked left.", "Bob ran right.", "Karen walked in."] * 3)
+          + "\n@cast amy\nAmy walked right. Amy ran left.\n@cast karen, bob, amy\nBob walked left. Karen smiled.\n")
+    story, ph = plan(md)
+    _xs_apart(story)
+    assert validate(story, ph, {c.id for c in SERIES.cast}) == []
+    assert all(b - a >= shots.MIN_GAP for a, b in zip(*[iter(sorted(shots.spread("abcdef").values()))] * 2))
+
+
+def test_spread_widens_for_big_casts():
+    xs = sorted(shots.spread(["a", "b", "c", "d"]).values())
+    assert xs == pytest.approx([-1.2, -0.4, 0.4, 1.2]) and shots.spread(["a", "b"]) == {"a": -1.0, "b": 1.0}
+
+
+def test_fit_move_keeps_gap_and_may_pass():
+    # 1 s from 1.0 with someone at 0: left would end 0.2 from them, right past the edge: the free 1.0 to the right
+    assert shots.fit_move(1.0, -1, "walk", 1.0, [0.0]) == ("walk", 1, pytest.approx(1.0))
+    # 2.3 s: min walk 1.38 > the 1.2 to the gap, so it walks past bob (at -1) to -1.8, 0.8 beyond him
+    assert shots.fit_move(1.0, -1, "walk", 2.3, [-1.0]) == ("walk", -1, pytest.approx(2.8))
+
+
+TRAVEL = "# T\n\n@set dirt_road\n@cast bob, amy\nAmy ran away. Bob ran on. Amy walked on. Amy smiled.\n"
+
+
+def test_outdoor_walk_or_run_becomes_travel_shot():
+    story, ph = plan(TRAVEL)
+    travel = [s for s in story.shots if s.travel]
+    assert [s.travel.speed for s in travel] == [2.5, 2.5, 1.2] and story.shots[-1].travel is None
+    for s in travel:
+        assert {a.cast_id for a in s.actors} == {"bob", "amy"}  # the whole on-stage cast joins
+        assert len({a.action for a in s.actors}) == 1 and len({a.facing for a in s.actors}) == 1
+        for a in s.actors:
+            assert a.end_pos == a.start_pos and -shots.TRAVEL_Z <= a.start_pos[1] <= shots.TRAVEL_Z  # dx = 0
+    assert {a.facing for s in travel for a in s.actors} < {"left", "right"}  # one run: one direction
+    assert len({a.start_pos[1] for a in travel[0].actors}) == 2  # staggered in z
+    _xs_apart(story)
+    assert validate(story, ph, {c.id for c in SERIES.cast}) == []
+
+
+def test_travel_direction_seeded_per_run():
+    story, _ = plan(TRAVEL)
+    dirs = {}
+    for seed_part in range(1, 30):  # across seeds both directions occur, each run keeps one
+        st = shots.plan(TRAVEL, phrases_for(TRAVEL), SERIES, seed_part)
+        facings = {a.facing for s in st.shots if s.travel for a in s.actors}
+        assert len(facings) == 1
+        dirs[seed_part] = facings.pop()
+    assert set(dirs.values()) == {"left", "right"}
+    assert plan(TRAVEL)[0] == story  # deterministic
+
+
+def test_no_travel_indoors():
+    story, _ = plan(TRAVEL.replace("@set dirt_road", "@set office"))
+    assert all(s.travel is None for s in story.shots)

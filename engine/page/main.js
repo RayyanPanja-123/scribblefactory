@@ -5,7 +5,7 @@ import { dolly, glide } from "./borrowed.js";
 import { CH, CW, FEET_Y, FIGURE_PX, drawStickman } from "./stickman.js";
 import { gestureAmount, gesturePlan, pointAmount, stressBob } from "./motion.js";
 import { rng, setVariant } from "./rng.js";
-import { VARIANTS, buildSet } from "./world.js";
+import { VARIANTS, buildSet, loopExcess, scrollSet } from "./world.js";
 
 const FPS = 30, W = 1080, H = 1920;
 const CARD_H = 1.6, CARD_W = CARD_H * (CW / CH);
@@ -269,13 +269,20 @@ function drawShot(shot, n) {
   const place = (a) => placeAt(a, u);
   const subject = shot.actors.find((a) => a.action !== "idle") || shot.actors[0];
   const span = shot.actors.flatMap((a) => [a.start_pos[0], (a.end_pos || a.start_pos)[0]]);
-  const hidden = hiddenFor(shot, subject, span, group);
+  // travel shot: the world scrolls against the actors' facing at travel.speed; props wrap around the band and the
+  // near ones are hidden (not hidden-behind-subject: everything moves, so that per-shot choice would be stale)
+  const dir = shot.travel ? (shot.actors[0]?.facing === "left" ? -1 : 1) : 0;
+  const shift = shot.travel ? -dir * shot.travel.speed * ((kf - shot.start_frame) / FPS) : 0;
+  const travelHidden = scrollSet(group, shift, !!shot.travel);
+  const hidden = shot.travel ? travelHidden : hiddenFor(shot, subject, span, group);
   for (const [id, pc] of group.userData.pieces) for (const m of pc.meshes) m.visible = !hidden.has(id);
   shotCamera(shot, subject ? place(subject)[0] : 0, span, u);
   const gestures = [];
   for (const a of shot.actors) {
     const [x, z] = place(a), key = charSeed(a.cast_id);
-    const travelled = a.end_pos ? Math.hypot(a.end_pos[0] - a.start_pos[0], a.end_pos[1] - a.start_pos[1]) * u : 0;
+    const own = a.end_pos ? Math.hypot(a.end_pos[0] - a.start_pos[0], a.end_pos[1] - a.start_pos[1]) : 0;
+    const shotLen = (shot.end_frame - shot.start_frame) / FPS;
+    const travelled = ((shot.travel ? shot.travel.speed * shotLen : 0) + own) * u; // effective stride distance
     const phase = STRIDE[a.action] ? travelled / STRIDE[a.action] : 0;
     const ts = (kf - shot.start_frame) / FPS, shotSecs = (shot.end_frame - shot.start_frame) / FPS;
     const plan = gesturePlan(data.story.seed, shot.id, a.cast_id, a.action, shotSecs);
@@ -301,7 +308,9 @@ function drawShot(shot, n) {
     scene.add(mesh, shadow);
   }
   renderer.render(scene, camera);
-  return { angle: shot.camera.angle, hidden: hidden.size, gestures, ...measure(shot.actors.map(place)) };
+  const travel = shot.travel ? { travel: `${shot.travel.speed} u/s ${dir < 0 ? "left" : "right"}, shift ${shift.toFixed(2)}`
+    + `, loop excess ${(({ excess, row }) => `${excess.toFixed(3)} (row z ${row})`)(loopExcess(group, shift))}` } : {};
+  return { angle: shot.camera.angle, hidden: hidden.size, gestures, ...travel, ...measure(shot.actors.map(place)) };
 }
 
 /** smallest figure height as a fraction of frame height, and whether every head, foot and card edge is in frame */

@@ -210,6 +210,18 @@
           "title": "Start Frame",
           "type": "integer"
         },
+        "travel": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Travel"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "travel shot: the world scrolls past the actors"
+        },
         "twist": {
           "default": false,
           "title": "Twist",
@@ -225,6 +237,22 @@
         "camera"
       ],
       "title": "Shot",
+      "type": "object"
+    },
+    "Travel": {
+      "additionalProperties": false,
+      "properties": {
+        "speed": {
+          "description": "world scroll speed, units/s; actors run in place against it",
+          "exclusiveMinimum": 0,
+          "title": "Speed",
+          "type": "number"
+        }
+      },
+      "required": [
+        "speed"
+      ],
+      "title": "Travel",
       "type": "object"
     }
   },

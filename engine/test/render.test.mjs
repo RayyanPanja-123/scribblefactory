@@ -129,3 +129,41 @@ test("set variant: stable per shot id, all variants reachable, and it changes th
   for (const p of parts) assert.equal(render("--part", p, "--frame", "10", "--out", path.join(p, "f.png")).status, 0);
   assert.ok(!fs.readFileSync(path.join(parts[0], "f.png")).equals(fs.readFileSync(path.join(parts[1], "f.png"))));
 });
+
+// --- travel shots ---
+/** s01 (frames 0-59) becomes a travel shot on `set`: bob walks in place facing `facing`, the world scrolls */
+const travelPart = (set, speed = 1.2, facing = "right", id = "s01", extra = (s) => s) => makePart((s) => {
+  const a = s.shots[0].actors[0];
+  Object.assign(s.shots[0], { set, travel: { speed }, id });
+  Object.assign(a, { start_pos: [0, 0.1], end_pos: [0, 0.1], facing });
+  return extra(s);
+});
+
+test("travel shot: deterministic, the world scrolls, a wipe out of it still composites", () => {
+  const part = travelPart("dirt_road", 1.2, "left", "s01", (s) => { s.shots[1].set = "orchard"; return s; });
+  const still = makePart((s) => { s.shots[0].set = "dirt_road"; s.shots[0].actors[0].end_pos = [0, 0.1]; return s; });
+  const r = render("--part", part, "--frames", "30-57", "--out-dir", path.join(part, "a"));
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /frame 30: .*\[travel 1\.2 u\/s left, shift 1\.20, loop excess -?[\d.]+ \(row z -?\d+\)\]/);
+  assert.match(r.stdout, /frame 57: .*\[wipe dirt_road->orchard 30%\]/);
+  assert.equal(render("--part", part, "--frames", "30-30", "--out-dir", path.join(part, "b")).status, 0);
+  assert.equal(render("--part", still, "--frames", "30-30", "--out-dir", path.join(still, "a")).status, 0);
+  assert.ok(png(path.join(part, "a"), 30).equals(png(path.join(part, "b"), 30)), "travel frame not deterministic");
+  assert.ok(!png(path.join(part, "a"), 30).equals(png(path.join(still, "a"), 30)), "world did not scroll");
+});
+
+test("travel: props loop around the band without gaps, every outdoor set and variant", () => {
+  const ids = Array.from({ length: 40 }, (_, i) => `s${String(i + 1).padStart(2, "0")}`);
+  for (const set of ["street", "dirt_road", "countryside", "orchard", "stadium"]) {
+    for (const v of set === "street" ? [0] : [0, 1, 2]) {
+      const id = ids.find((x) => setVariant(set, x, set === "street" ? 1 : 3) === v);
+      // 75 u/s: 2.5 units a frame, so frames 0-11 sweep the whole 28-unit band at offsets no layout step divides
+      const part = travelPart(set, 75, "right", id);
+      const r = render("--part", part, "--frames", "0-11", "--out-dir", path.join(part, "f"));
+      assert.equal(r.status, 0, `${set}#${v}: ${r.stderr}`);
+      const excess = [...r.stdout.matchAll(/loop excess (-?[\d.]+)/g)].map((m) => Number(m[1]));
+      assert.equal(excess.length, 12, r.stdout);
+      for (const e of excess) assert.ok(e <= 0.001, `${set}#${v}: the seam opens a gap ${e} wider than the layout's own`);
+    }
+  }
+});
