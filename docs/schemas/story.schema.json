@@ -12,7 +12,17 @@
             "point",
             "react",
             "wave",
-            "ride"
+            "ride",
+            "stagger",
+            "lie",
+            "collapse",
+            "eat",
+            "give",
+            "receive",
+            "carry",
+            "carried",
+            "support",
+            "supported"
           ],
           "title": "Action",
           "type": "string"
@@ -67,6 +77,27 @@
           "title": "Facing",
           "type": "string"
         },
+        "prop": {
+          "anyOf": [
+            {
+              "enum": [
+                "clipboard",
+                "stopwatch",
+                "bottle",
+                "syringe",
+                "apple",
+                "medal"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "eat / give: the prop eaten / handed over",
+          "title": "Prop"
+        },
         "start_pos": {
           "maxItems": 2,
           "minItems": 2,
@@ -80,6 +111,19 @@
           ],
           "title": "Start Pos",
           "type": "array"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "give / receive: the other actor; carry / support: the actor carried / supported",
+          "title": "Target"
         }
       },
       "required": [
@@ -373,7 +417,8 @@
             "arrive",
             "drive",
             "leave",
-            "idle"
+            "idle",
+            "broken"
           ],
           "title": "Action",
           "type": "string"

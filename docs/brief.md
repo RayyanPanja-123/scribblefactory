@@ -71,6 +71,7 @@ library/<series-slug>/
 - "@cast bob, karen": cast ids on stage until changed. Must exist in series.json. Default: first 2 cast members.
 - "@dogs N": dog pack size (0-6) for the following lines until changed. Travel shots: the pack chases behind. Other shots: dogs idle or bark at the stage edges. "@dogs 0" removes them. Default 0.
 - "@car <mode>": arrive | ride | leave | off, for the following lines until changed. arrive: a car drives in and stops beside the subject (then stays parked). ride: the current @cast ride in the car (travel shot on outdoor sets; wave keywords make riders wave). leave: the car drives off-screen. off: no car. Default off.
+- "@do <cast>: <action> [<target>|<prop>] [, <cast>: <action> ...]": overrides keyword guessing for every shot of the next line only; cast not named keep the planner's choice. Actions: idle, talk, walk, run, point, react, wave, stagger, lie, collapse, eat [prop], give <prop> <target>, carry <target> (2 carriers), support <target> (1-2), and "car: broken". Unknown cast, action, target or prop fails prep / shots with the story.md line. A collapse happens once per line (later shots of the line lie).
 - "!! text": this line is the twist (push-in with roll, music stops, low hit).
 - prep strips directives from script-for-tts.txt. The shot planner reads them.
 
@@ -139,6 +140,7 @@ library/<series-slug>/
   - Actions: lie, ride, wave, eat, stagger, carried, chase, give.
   - Extras: crowd and background runners (non-cast, generic look).
   - Directives: "@do <cast>: <action> [target]" overrides keyword guessing for that line.
+  - 5c-6: stagger, lie (sleeping: closed eyes, Zs), collapse, eat, give / receive (prop changes hands at mid-shot, ownership carries over on the set), carried / carry, support / supported; car "broken" (smoke, shake); @do directive; cast sheet columns stagger, lie, eat, give, carried. DONE. Not yet: lie-against-a-tree variant, crowd extras.
 - Step 6: FastAPI + Vue web view. DONE.
   - 6.1: FastAPI backend: reads, media with Range, actions, one-worker jobs, SSE, docs/openapi.json. DONE.
   - 6.2a: Vue dashboard foundation: design system (docs/design.md), shell, overview and series pages. DONE.

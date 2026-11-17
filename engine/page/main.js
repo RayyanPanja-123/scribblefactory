@@ -5,6 +5,8 @@ import { dolly, glide } from "./borrowed.js";
 import { CH, CW, FEET_Y, FIGURE_PX, drawStickman } from "./stickman.js";
 import { DH, DOG_FEET, DW, barkAmount, drawDog, gallopPhase } from "./dog.js";
 import { gestureAmount, gesturePlan, mouthCurve, mouthCycles, pointAmount, stressBob, waveAmount } from "./motion.js";
+import { CARRIED_LIFT, HELD_Z, HOLD_GAP, LIE, collapseAt, eatAt, gaitPhase, giveAt, handOf, heldPlace, propsByShot, sideToward, staggerAt,
+  withProp, zzzAt } from "./actions.js";
 import { CAR_CARD_W, CAR_GROUND, DRIVER_X, RIDER_X, VH, VW, carEase, carSpeedShare, drawCar, seatOffset } from "./car.js";
 import { rng, setVariant } from "./rng.js";
 import { SETS, VARIANTS, buildSet, loopExcess, scrollSet } from "./world.js";
@@ -13,7 +15,6 @@ const FPS = 30, W = 1080, H = 1920;
 const CARD_H = 1.6, CARD_W = CARD_H * (CW / CH);
 const FIG_H = (CARD_H * FIGURE_PX) / CH; // tallest standing figure in world units, from stickman.js
 const BOIL_FRAMES = 4;                 // marker jitter changes every 4 frames (7.5 fps "boil")
-const STRIDE = { walk: 1.0, run: 1.8 }; // world units per full walk cycle (two steps)
 const LID = [0.5, 1, 1, 0.5];          // 4-frame blink: half, shut, shut, half
 const rad = (d) => (d * Math.PI) / 180;
 const lerp = (a, b, u) => a + (b - a) * u;
@@ -53,6 +54,7 @@ const DOG_GEO = new THREE.PlaneGeometry(DOG_CARD_W, DOG_CARD_H).translate(0, DOG
 
 let data = null, scene = null;
 const sets = {}, cards = {}, hiddenByShot = new Map(), variantByShot = new Map();
+let ownedProps = new Map(); // shot id -> { cast id: props held at the shot's start } (give hands props on)
 const comp = Object.assign(document.createElement("canvas"), { width: W, height: H }); // wipe composite
 const cg = comp.getContext("2d");
 
@@ -127,7 +129,7 @@ function drawCard(id, o) {
 
 /** xs: x of every actor at the start and end of the shot. Wide centres on all of them and backs off until the
  *  whole cast fits for the entire shot, including where the move ends (push-in reach, truck shift). */
-function shotCamera(shot, sx, xs, u) {
+function shotCamera(shot, sx, xs, u, drop = 0) {
   const A = ANGLES[shot.camera.angle] || ANGLES.medium;
   let pos, look;
   // chase (travel shot with dogs): every angle fits actors + pack like wide, at the angle's own camera height
@@ -146,6 +148,8 @@ function shotCamera(shot, sx, xs, u) {
     const fx = sx * A.follow;
     pos = [fx + A.pos[0], A.pos[1], A.pos[2]]; look = [fx + A.look[0], A.look[1], A.look[2]];
   }
+  // a lying subject: the framing comes down with it (drop: world units, 0 standing)
+  if (drop) { pos[1] = Math.max(0.3, pos[1] - drop); look[1] -= drop; }
   const k = shot.camera.speed * u; // the camera keeps creeping for the whole shot (speed >= 0.05)
   switch (shot.camera.move) {
     case "push_in": ({ pos, look } = dolly(pos, look, 1 - 0.5 * k)); break;
@@ -178,6 +182,7 @@ const png = () => renderer.domElement.toDataURL("image/png");
 
 window.setup = (d) => {
   data = d; hiddenByShot.clear(); variantByShot.clear();
+  ownedProps = propsByShot(d.story.shots || [], Object.fromEntries((d.series.cast || []).map((c) => [c.id, castOf(c.id).props])));
   mouth = d.phrases ? mouthCurve(mouthCycles(d.phrases.words, d.phrases.phrases), d.story.duration_frames) : mouth;
   for (const k of Object.keys(sets)) delete sets[k];
   let runStart = null; // variant = hash(set, first shot id of the run): props never jump between cuts on one set
@@ -297,7 +302,8 @@ function drawShot(shot, n) {
     const [cx, cz] = carAt(v, u), sgn = v.facing === "left" ? -1 : 1;
     v.riders.forEach((r, i) => seated.set(r, [cx + sgn * seatOffset(RIDER_X[i]), cz]));
   }
-  const place = (a) => seated.get(a.cast_id) || placeAt(a, u);
+  const place = (a) => seated.get(a.cast_id) || heldPlace(a, shot.actors, placeAt, u) || placeAt(a, u);
+  const owned = ownedProps.get(shot.id) || {};
   const subject = shot.actors.find((a) => a.action !== "idle") || shot.actors[0];
   const span = [...shot.actors.filter((a) => !seated.has(a.cast_id)), ...animals]
     .flatMap((a) => [a.start_pos[0], (a.end_pos || a.start_pos)[0]]);
@@ -313,15 +319,18 @@ function drawShot(shot, n) {
   const travelHidden = scrollSet(group, shift, !!shot.travel);
   const hidden = shot.travel ? travelHidden : hiddenFor(shot, subject, span, group);
   for (const [id, pc] of group.userData.pieces) for (const m of pc.meshes) m.visible = !hidden.has(id);
-  shotCamera(shot, subject ? place(subject)[0] : 0, span, u);
+  shotCamera(shot, subject ? place(subject)[0] : 0, span, u, subject ? LIE.drop * lying(subject, kf, shot) : 0);
   const gestures = [], riders = new Map(); // riders: cast id -> drawStickman options, drawn inside the car card
+  const ownMove = (a) => (a.end_pos ? Math.hypot(a.end_pos[0] - a.start_pos[0], a.end_pos[1] - a.start_pos[1]) : 0);
   for (const a of shot.actors) {
     const [x, z] = place(a), key = charSeed(a.cast_id);
-    const own = a.end_pos ? Math.hypot(a.end_pos[0] - a.start_pos[0], a.end_pos[1] - a.start_pos[1]) : 0;
+    // carried / supported move with their holders: their stride distance is the holders' move
+    const holder = shot.actors.find((h) => h.target === a.cast_id && (h.action === "carry" || h.action === "support"));
+    const own = holder && (a.action === "carried" || a.action === "supported") ? ownMove(holder) : ownMove(a);
     const shotLen = (shot.end_frame - shot.start_frame) / FPS;
     const travelled = ((shot.travel ? shot.travel.speed * shotLen : 0) + own) * u; // effective stride distance
-    const phase = STRIDE[a.action] ? travelled / STRIDE[a.action] : 0;
     const ts = (kf - shot.start_frame) / FPS, shotSecs = (shot.end_frame - shot.start_frame) / FPS;
+    const phase = gaitPhase(a.action, travelled, ts);
     const plan = gesturePlan(data.story.seed, shot.id, a.cast_id, a.action, shotSecs);
     const gesture = plan ? { kind: plan.kind, k: gestureAmount(plan, ts) } : null;
     if (gesture?.k > 0) gestures.push(`${a.cast_id} ${gesture.kind}`);
@@ -336,15 +345,23 @@ function drawShot(shot, n) {
       bob: a.action === "talk" && !seated.has(a.cast_id) ? stressBob(t, shotWords(shot)) : 0,
       gesture, pointK: a.action === "point" ? pointAmount(ts) : 1,
       wave: a.action === "wave" ? waveAmount(ts) : null,
+      props: owned[a.cast_id] || castOf(a.cast_id).props,
     };
+    const roll = actionPose(shot, a, o, x, u, ts, n);
     if (seated.has(a.cast_id)) { riders.set(a.cast_id, figure(a.cast_id, o)); continue; }
-    const mesh = drawCard(a.cast_id, o);
-    mesh.position.set(x, 0, z);
-    mesh.rotation.set(0, Math.atan2(camera.position.x - x, camera.position.z - z), 0);
-    // contact shadow: follows the feet, a little wider when the stride lowers the body
+    const mesh = drawCard(a.cast_id, o), yaw = Math.atan2(camera.position.x - x, camera.position.z - z);
+    // lying (lie, the end of a collapse): the card rolls 90 degrees about the feet in its own plane and lifts so the
+    // body rests on the floor; carried: lifted clear of the ground
+    // the lying body is centred on the actor's spot (feet half a figure one way, head the other), so it stays in
+    // frame and clear of its neighbours as far as it can
+    const reach = roll.k * (FIG_H / 2), hx = -roll.sign * reach * Math.cos(yaw), hz = roll.sign * reach * Math.sin(yaw);
+    mesh.position.set(x - hx, a.action === "carried" ? CARRIED_LIFT : LIE.lift * roll.k, z - hz);
+    mesh.rotation.set(0, yaw, roll.sign * roll.k * Math.PI / 2);
+    // contact shadow: follows the feet, a little wider when the stride lowers the body; under a lying body it
+    // stretches along it
     const { shadow } = cards[a.cast_id], k = 1 + SHADOW.bounce * Math.abs(Math.sin(2 * Math.PI * phase));
     shadow.position.set(x, SHADOW.y, z);
-    shadow.scale.set(SHADOW.w * k, 1, SHADOW.d * k);
+    shadow.scale.set(SHADOW.w * k * (1 + 1.3 * roll.k) * (a.action === "carried" ? 0.7 : 1), 1, SHADOW.d * k);
     scene.add(mesh, shadow);
   }
   drawAnimals(shot, animals, n, kf, u);
@@ -354,6 +371,47 @@ function drawShot(shot, n) {
     + `, loop excess ${(({ excess, row }) => `${excess.toFixed(3)} (row z ${row})`)(loopExcess(group, shift))}` } : {};
   return { angle: shot.camera.angle, hidden: hidden.size, gestures, dogs: animals.length, ...cars, ...travel,
     ...measure(shot.actors.filter((a) => !seated.has(a.cast_id)).map(place)) };
+}
+
+/** 0..1 how far actor a lies at frame kf of shot (lie 1, collapse its fall, else 0): framing follows it down */
+const lying = (a, kf, shot) => (a.action === "lie" ? 1 : a.action === "collapse"
+  ? collapseAt((kf - shot.start_frame) / FPS).fall : 0);
+
+/** per-action drawing options for actor a (mutates o); returns the card roll { k 0..1 of 90 degrees, sign } */
+function actionPose(shot, a, o, x, u, ts, n) {
+  const key = `${charSeed(a.cast_id)}:${shot.id}`, other = shot.actors.find((b) => b.cast_id === a.target);
+  const partnerX = (b) => (b ? (b.end_pos ? lerp(b.start_pos[0], b.end_pos[0], u) : b.start_pos[0]) : x);
+  const sleepy = o.expression === "sleepy";
+  let roll = { k: 0, sign: a.facing === "left" ? 1 : -1 }; // head toward the way it faced
+  if (a.action === "stagger" || a.action === "supported") o.stagger = staggerAt(key, o.phase);
+  if (a.action === "carry" || a.action === "support") o.reach = { side: sideToward(x, partnerX(other), a.facing), k: 1 };
+  if (a.action === "supported") {
+    const h = shot.actors.find((b) => b.action === "support" && b.target === a.cast_id);
+    if (h) o.reach = { side: sideToward(x, partnerX(h), a.facing), k: 1 };
+  }
+  if (a.action === "eat") {
+    const props = o.props.some((p) => p.kind === a.prop) ? o.props : withProp(o.props, a.prop || "apple", "right");
+    const e = eatAt(ts), hand = props.find((p) => p.kind === (a.prop || "apple")).hand;
+    Object.assign(o, { props, eat: { ...e, side: hand === "left" ? -1 : 1 }, mouth: e.k > 0.8 ? 0.35 * e.chew : 0 });
+  }
+  if (a.action === "give" || a.action === "receive") {
+    const g = giveAt(u), side = sideToward(x, partnerX(other), a.facing);
+    o.reach = { side, k: g.reach };
+    const mine = (a.action === "give") === (g.held === "giver"), kind = a.action === "give" ? a.prop : other?.prop;
+    if (kind) o.props = mine ? withProp(o.props, kind, handOf(side)) : o.props.filter((p) => p.kind !== kind);
+  }
+  if (a.action === "collapse" || a.action === "lie") {
+    const c = a.action === "collapse" ? collapseAt(ts) : { buckle: 0, fall: 1 };
+    roll = { ...roll, k: c.fall };
+    o.buckle = c.fall < 1 ? c.buckle : 0;
+    o.facing = "camera"; // drawn face-on: the card itself lies down
+    if (c.fall >= 1) {
+      o.action = "lie";
+      o.breath = Math.sin((2 * Math.PI * ts) / LIE.breath);
+      if (sleepy) { o.lid = 1; o.zzz = zzzAt(charSeed(a.cast_id), n / FPS); o.zSide = roll.sign > 0 ? 1 : -1; }
+    }
+  }
+  return roll;
 }
 
 /** dog cards: gallop phase from distance travelled (scroll + own move), barks start at the shot's bark cue */
@@ -403,7 +461,8 @@ function drawVehicles(shot, vehicles, riders, n, u) {
       breath: Math.sin((2 * Math.PI * t) / 3.4 + 2 * Math.PI * rng(dk, "breath")()) };
     const c = card(id, CAR_GEO, VW, VH);
     drawCar(c.cv, {
-      seed: key, variant: v.variant, facing: v.facing, boil: Math.floor(n / BOIL_FRAMES), distance,
+      seed: key, variant: v.variant, facing: v.facing, boil: Math.floor(n / BOIL_FRAMES), distance, t,
+      broken: v.action === "broken",
       moving: speed > 0.05, dust: DUST_SETS.has(shot.set) ? Math.min(1, speed / 4) : 0,
       driver, riders: v.riders.map((r) => riders.get(r)).filter(Boolean),
     });
@@ -431,21 +490,48 @@ function measure(spots) {
   return { figure, inFrame };
 }
 
-/** cast sheet image: one character on a plain background. pose: idle | walk | talk; expression for the face
- *  (none given: the cast member's default expression) */
+const EXTRA = { color: "#8a8a8a", eyes: "dots" }; // generic grey extras (cast sheet carriers), not cast
+
+/** cast sheet image: one character on a plain background. pose: idle | walk | talk | stagger | lie | eat | give |
+ *  carried (between two grey extras); expression for the face (none given: the cast member's default) */
 window.renderCast = ({ castId, pose, expression = castOf(castId).default_expression }) => {
   scene = new THREE.Scene();
   scene.background = new THREE.Color("#f4f1ea");
-  const o = { boil: 0, lid: 0, breath: 0, mouth: 0, t: 0.3, phase: 0, action: "idle", facing: "camera", expression };
+  const props = castOf(castId).props;
+  const o = { boil: 0, lid: 0, breath: 0, mouth: 0, t: 0.3, phase: 0, action: "idle", facing: "camera", expression, props };
+  let cam = [0, 0.82, 2.6], look = [0, 0.8, 0], y = 0, roll = 0;
   if (pose === "walk") Object.assign(o, { action: "walk", facing: "right", phase: 0.25 });
   if (pose === "talk") Object.assign(o, { action: "talk", mouth: 0.8 });
+  if (pose === "stagger") Object.assign(o, { action: "stagger", facing: "right", phase: 0.3, stagger: { sway: 0.7, buckle: 0.6 } });
+  if (pose === "lie") { Object.assign(o, { action: "lie" }); roll = -Math.PI / 2; y = LIE.lift; cam = [0, 0.62, 2.9]; look = [0, 0.3, 0]; }
+  if (pose === "eat") {
+    const kind = "apple", has = props.find((p) => p.kind === kind);
+    const ps = has ? props : withProp(props, kind, "right"), side = (has?.hand || "right") === "left" ? -1 : 1;
+    Object.assign(o, { action: "eat", facing: "right", props: ps, eat: { k: 1, chew: 0.6, side }, mouth: 0.25 });
+  }
+  if (pose === "give") {
+    const kind = props[0]?.kind || "medal";
+    Object.assign(o, { action: "give", facing: "right", props: withProp(props, kind, "right"), reach: { side: 1, k: 1 } });
+  }
+  if (pose === "carried") {
+    Object.assign(o, { action: "carried", phase: 0.2 });
+    y = CARRIED_LIFT; cam = [0, 1.0, 3.3]; look = [0, 0.95, 0];
+    for (const [id, x] of [["extra:left", -HOLD_GAP], ["extra:right", HOLD_GAP]]) {
+      const c = card(id), side = x < 0 ? 1 : -1;
+      drawStickman(c.cv, { seed: `${data.series.slug}:${id}`, ...EXTRA, boil: 0, lid: 0, breath: 0, mouth: 0, t: 0.3,
+        phase: 0, action: "carry", facing: "camera", expression: "neutral", reach: { side, k: 1 } });
+      c.tex.needsUpdate = true;
+      c.mesh.position.set(x, 0, 0); c.mesh.rotation.set(0, 0, 0);
+      scene.add(c.mesh);
+    }
+  }
   scene.add(drawCard(castId, o));
-  cards[castId].mesh.position.set(0, 0, 0);
-  cards[castId].mesh.rotation.set(0, 0, 0);
+  cards[castId].mesh.position.set(pose === "lie" ? -FIG_H / 2 : 0, y, pose === "carried" ? HELD_Z : 0);
+  cards[castId].mesh.rotation.set(0, 0, roll);
   camera.fov = 45;
-  camera.position.set(0, 0.82, 2.6);
+  camera.position.set(...cam);
   camera.up.set(0, 1, 0);
-  camera.lookAt(0, 0.8, 0);
+  camera.lookAt(...look);
   camera.updateProjectionMatrix();
   renderer.render(scene, camera);
   return png();

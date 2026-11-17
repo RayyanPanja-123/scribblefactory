@@ -1,7 +1,8 @@
 """shots: story.md directives + phrases.json + series cast -> story.json. Rule-based and seeded, no AI.
 
 Each phrase gets a shot starting at its first word (pauses stay with the earlier shot); shots over
-MAX_SHOT_FRAMES split into equal parts. Directive state (@set, @cast, @dogs, @car, !!) is read at a phrase's first word.
+MAX_SHOT_FRAMES split into equal parts. Directive state (@set, @cast, @dogs, @car, @do, !!) is read at a phrase's first
+word. @do overrides the named actors (and the car) for every shot of the one line after it.
 The output must pass the validator, otherwise nothing is written.
 """
 
@@ -13,8 +14,9 @@ from pathlib import Path
 
 from ..io import atomic_write_json
 from ..schemas import Actor, Animal, Camera, Cue, PhrasesModel, SeriesModel, Shot, StoryModel, Travel, Vehicle
-from ..validate import CAR_SPEED, DOG_RUN_SPEED, MAX_SHOT_FRAMES, OUTDOOR_SETS, RUN_SPEED, WALK_SPEED, duration_frames, validate
-from .prep import FX_MODES, MARKER_RE, clean_markdown, mark_directives
+from ..validate import (CAR_SPEED, DOG_RUN_SPEED, MAX_SHOT_FRAMES, OUTDOOR_SETS, SPEEDS, duration_frames,
+                        validate)
+from .prep import DO_CAR, FX_MODES, MARKER_RE, clean_markdown, mark_directives, parse_do
 from .runner import StageError
 from .validate import load_model
 
@@ -32,8 +34,10 @@ SPEED = (0.15, 0.35)
 TWIST_ROLL = (6.0, 10.0)   # degrees, sign seeded
 STAGE_X = 1.0              # starting cast spread across -STAGE_X..STAGE_X, z = 0
 BOUNDS = (-2.0, 2.0)       # x range a walk/run must end inside
-MOVE_SPEED = {"walk": 1.2, "run": 2.5}  # units/s
-MIN_SPEED = {"walk": WALK_SPEED[0], "run": RUN_SPEED[0]}  # shortened moves never go slower than the validator allows
+MOVE_SPEED = {"walk": 1.2, "run": 2.5, "stagger": 0.6}  # units/s
+MIN_SPEED = {a: SPEEDS[a][0] for a in MOVE_SPEED}  # shortened moves never go slower than the validator allows
+GROUP_SPEED = {"carry": 0.9, "support": 0.8}  # @do carry / support: the group walks toward the stage centre
+HOLD_GAP = 0.42            # carry / support: a holder stands this far (x) beside the held actor (engine actions.js)
 MIN_GAP = 0.8              # actors at least this far apart in x at the start and end of every shot
 TRAVEL_Z = 0.3             # travel shots: each actor seeded in z -0.3..0.3 so a pack reads as a group
 # dogs (@dogs N): ids dog1..dogN; colours from a seeded order of the variants, unique until all are used
@@ -67,6 +71,10 @@ ACTIONS = {
     **dict.fromkeys(["wave", "waves", "waved", "waving"], "wave"),
     **dict.fromkeys(["gasped", "froze", "frozen", "shocked", "collapsed", "collapse", "dizzy", "cramps", "hopped"],
                     "react"),
+    **dict.fromkeys(["stagger", "staggers", "staggered", "staggering", "stumbled", "stumbling", "wobbled"], "stagger"),
+    **dict.fromkeys(["lay", "lying", "napped"], "lie"),
+    **dict.fromkeys(["fainted", "faints"], "collapse"),
+    **dict.fromkeys(["eat", "eats", "ate", "eating"], "eat"),
 }
 EXPRESSIONS = {
     **dict.fromkeys(["happy", "glad", "smiled", "smiles", "laughed", "laughs", "laughing", "grinned", "joy",
@@ -89,19 +97,21 @@ def seed_for(slug: str, part_number: int) -> int:
 
 
 def tag_words(md: str, cast_ids: list[str], default_cast: list[str]):
-    """Return (words, [(set, cast tuple, twist starts here, dogs, car mode)]) from story.md, words as prep's script
-    has them."""
+    """Return (words, [(set, cast tuple, twist starts here, dogs, car mode, do)]) from story.md, words as prep's
+    script has them. do: (story.md line, @do clauses) for the words of the line after an @do, else None."""
     text, directives = mark_directives(md)
-    set_, cast, twist_next, dogs, car = DEFAULT_SET, tuple(default_cast), False, 0, "off"
+    set_, cast, twist_next, dogs, car, do = DEFAULT_SET, tuple(default_cast), False, 0, "off", None
     words, tags = [], []
     for tok in clean_markdown(text).split():
         m = MARKER_RE.match(tok)
         if not m:
             words.append(tok)
-            tags.append((set_, cast, twist_next, dogs, car))
+            tags.append((set_, cast, twist_next, dogs, car, do))
             twist_next = False
         elif m[1] == "!":
             twist_next = True
+        elif m[1] == "/":
+            do = None  # the @do line is over
         else:
             line, d = directives[int(m[1])]
             name, _, arg = d.strip().partition(" ")
@@ -123,9 +133,12 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str]):
                 car = arg
             elif name == "fx" and arg in FX_MODES:
                 pass  # caption effect: finish reads it
+            elif name == "do":
+                do = (line, tuple(parse_do(arg, line, cast_ids)))
             else:
                 raise StageError(f"story.md line {line}: bad directive @{d.strip()} (use @set <name>, @cast a, b, "
-                                 f"@dogs 0-{MAX_DOGS}, @car {' | '.join(CAR_MODES)} or @fx {' | '.join(FX_MODES)})")
+                                 f"@dogs 0-{MAX_DOGS}, @car {' | '.join(CAR_MODES)}, @fx {' | '.join(FX_MODES)} "
+                                 f"or @do <cast>: <action>)")
     return words, tags
 
 
@@ -162,7 +175,7 @@ def fit_move(x: float, d: int, action: str, seconds: float, others=()) -> tuple[
         if _free(round(x + dd * dist, 3), others):
             return action, dd, dist
     lo = MIN_SPEED[action] * seconds + 0.001
-    hi_speed = (WALK_SPEED if action == "walk" else RUN_SPEED)[1] * seconds
+    hi_speed = SPEEDS[action][1] * seconds
     room = {dd: math.floor(((BOUNDS[1] - x) if dd > 0 else (x - BOUNDS[0])) * 1000) / 1000 for dd in (1, -1)}
     cands = []
     for dd in (1, -1):
@@ -204,8 +217,100 @@ def _actors(cast, pos, subject, words, seconds, travel_dir=0, zs=None):
                              facing="left" if d < 0 else "right", expression=expression))
         else:
             act = "idle" if action in MOVE_SPEED else action  # a walk/run that can't fit on stage
-            out.append(Actor(cast_id=cid, action=act, start_pos=(x, 0.0), facing="camera", expression=expression))
+            out.append(Actor(cast_id=cid, action=act, start_pos=(x, 0.0), facing="camera", expression=expression,
+                             prop="apple" if act == "eat" else None))  # "Bob ate.": an apple unless @do says
     return out
+
+
+def _inside(xs) -> bool:
+    return all(BOUNDS[0] <= x <= BOUNDS[1] for x in xs)
+
+
+def _group_move(xs: list[float], role: str, seconds: float) -> float:
+    """signed x distance a carry / support group walks (toward the stage centre, else away), keeping every member
+    inside the bounds and at least the validator's minimum speed; 0 = it stands"""
+    mid = sum(xs) / len(xs)
+    d = 1 if mid <= 0 else -1
+    want, lo = GROUP_SPEED[role] * seconds, SPEEDS[role][0] * seconds + 0.001
+    for dd in (d, -d):
+        room = (BOUNDS[1] - max(xs)) if dd > 0 else (min(xs) - BOUNDS[0])
+        dist = math.floor(min(want, room) * 1000) / 1000
+        if dist >= lo:
+            return dd * dist
+    return 0.0
+
+
+def _apply_do(clauses, line, cast, pos, actors, vehicles, seconds, fallen) -> list[Actor]:
+    """@do for one shot: the named actors get the given action (others keep the planner's choice); "car: broken"
+    stops the car on stage. pos is updated to where everyone ends. fallen: (line, cast id) already collapsed on
+    this line: a collapse happens once, in the line's first shot, and the line's later shots lie."""
+    def bad(msg):
+        raise StageError(f"story.md line {line}: @do: {msg}")
+    by = {a.cast_id: a for a in actors}
+    named = {w for c in clauses for w in c.who}
+    for c in clauses:
+        if c.who == (DO_CAR,):
+            if not vehicles:
+                bad("car: broken, but there is no car on stage here (bring one with @car arrive)")
+            for v in vehicles:
+                v.action, v.start_pos, v.end_pos = "broken", v.end_pos or v.start_pos, None  # stops where it stands
+            continue
+        for w in c.who + ((c.target,) if c.target else ()):
+            if w not in by:
+                bad(f"{w} is not on stage on this line (@cast {', '.join(cast)})")
+        if c.target in named:
+            bad(f"{c.target} is the target of {c.action} and has its own action too")
+    for cid in named & set(by):  # undo the planner's move for every actor @do takes over
+        pos[cid] = by[cid].start_pos[0]
+    face = lambda d: "left" if d < 0 else "right"
+    for c in clauses:
+        if c.who == (DO_CAR,):
+            continue
+        if c.action == "give":
+            g, t = c.who[0], c.target
+            dg = 1 if pos[t] >= pos[g] else -1
+            by[g] = Actor(cast_id=g, action="give", target=t, prop=c.prop, start_pos=(pos[g], 0.0), facing=face(dg),
+                          expression=by[g].expression)
+            by[t] = Actor(cast_id=t, action="receive", target=g, start_pos=(pos[t], 0.0), facing=face(-dg),
+                          expression=by[t].expression)
+        elif c.action in GROUP_SPEED:
+            held, holders = c.target, list(c.who)
+            mid = pos[held]
+            if len(holders) == 2:
+                spots = [round(mid - HOLD_GAP, 3), round(mid + HOLD_GAP, 3)]
+            else:
+                spots = [round(mid + (HOLD_GAP if mid <= 0 else -HOLD_GAP), 3)]
+            dx = _group_move(spots + [mid], c.action, seconds)
+            facing = face(dx) if dx else "camera"
+            for h, x in zip(holders, spots):
+                end = (round(x + dx, 3), 0.0) if dx else None
+                by[h] = Actor(cast_id=h, action=c.action, target=held, start_pos=(x, 0.0), end_pos=end, facing=facing,
+                              expression=by[h].expression)
+                pos[h] = end[0] if end else x
+            by[held] = Actor(cast_id=held, action="carried" if c.action == "carry" else "supported",
+                             start_pos=(mid, 0.0), facing=facing, expression=by[held].expression)
+            pos[held] = round(mid + dx, 3)
+        else:
+            for cid in c.who:
+                x, old = pos[cid], by[cid]
+                if c.action in MOVE_SPEED:
+                    d = 1 if x <= 0 else -1
+                    move = fit_move(x, d, c.action, seconds, [pos[o] for o in cast if o != cid])
+                    if move:
+                        act, dd, dist = move
+                        pos[cid] = round(x + dd * dist, 3)
+                        by[cid] = Actor(cast_id=cid, action=act, start_pos=(x, 0.0), end_pos=(pos[cid], 0.0),
+                                        facing=face(dd), expression=old.expression)
+                        continue
+                    action = "idle"
+                else:
+                    action = c.action
+                if action == "collapse":
+                    action = "lie" if (line, cid) in fallen else action
+                    fallen.add((line, cid))
+                by[cid] = Actor(cast_id=cid, action=action, start_pos=(x, 0.0), facing=old.facing,
+                                expression=old.expression, prop=c.prop if action == "eat" else None)
+    return [by[a.cast_id] for a in actors]
 
 
 def dog_variant(seed: int, dog_id: str) -> str:
@@ -311,8 +416,9 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int) 
     car_mode, car_left, park = "off", False, None  # park: (x, facing) where an arrived car stands
     prev_cast, travel_run = (), None  # travel_run: first shot id of the current run of travel shots on one set
     pos: dict[str, float] = {}  # where each actor stands now; reset on a set change
+    fallen: set = set()  # (@do line, cast id) that already collapsed
     for i, p in enumerate(phrases.phrases):
-        set_, cast, _, dogs, mode = tags[p.word_start]
+        set_, cast, _, dogs, mode, do = tags[p.word_start]
         if set_ != prev_set:
             pos, park = {}, None
         if mode != car_mode:
@@ -353,7 +459,7 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int) 
             sid, tdir, zs = f"s{len(shots) + 1:02d}", 0, None
             ride = car_mode == "ride"
             car_here = ride or car_mode == "arrive" or (car_mode == "leave" and not car_left)
-            travel = set_ in OUTDOOR_SETS and (ride or (action in MOVE_SPEED and not car_here))
+            travel = set_ in OUTDOOR_SETS and (ride or (action in MOVE_SPEED and not car_here and not do))
             tspeed = CAR_TRAVEL_SPEED if ride else MOVE_SPEED.get(action)
             if travel:  # direction and z stagger seeded once per run of travel shots, so the run keeps them
                 if travel_run is None or set_ != prev_set:
@@ -364,6 +470,8 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int) 
             else:
                 travel_run = None
             seconds, vehicles = (s1 - s0) / FPS, []
+            if ride and do:
+                raise StageError(f"story.md line {do[0]}: @do: not while @car ride (the cast is seated in the car)")
             if ride:  # the whole @cast sits in the car; a travel shot outdoors, parked indoors
                 facing = "left" if tdir < 0 else "right"
                 act = "wave" if any(ACTIONS.get(w) == "wave" for w in pw) else "ride"
@@ -384,6 +492,11 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int) 
                             subj.action = "react"  # the subject reacts to the car pulling up
                     elif v.action == "leave":
                         car_left, park = True, None
+                if do:
+                    actors = _apply_do(do[1], do[0], cast, pos, actors, vehicles, seconds, fallen)
+                    for v in vehicles:
+                        if v.action == "broken":  # it stays where it broke down
+                            park, car_left = (v.start_pos[0], v.facing), False
             xs = [x for ac in actors for x in (ac.start_pos[0], (ac.end_pos or ac.start_pos)[0])]
             for v in vehicles:  # where the car stands (arrive: its stop, leave: its start), both ends of the body
                 cx = (v.end_pos or v.start_pos)[0] if v.action == "arrive" else v.start_pos[0]

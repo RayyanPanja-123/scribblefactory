@@ -15,12 +15,15 @@ watch(confirmState, async (s) => {
     confirmBtn.value?.focus()
   }
 })
+// Esc closes the top layer only: capture phase + stopImmediatePropagation, so the job drawer (which also listens
+// for Esc) stays open until the next press
 function onKey(e: KeyboardEvent) {
-  if (e.key !== 'Escape') return
+  if (e.key !== 'Escape' || !(confirmState.value || zoomed.value)) return
+  e.stopImmediatePropagation()
   if (confirmState.value) confirmState.value.resolve(false)
   else zoomed.value = null
 }
-window.addEventListener('keydown', onKey)
+window.addEventListener('keydown', onKey, true)
 </script>
 
 <template>

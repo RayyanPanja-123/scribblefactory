@@ -35,6 +35,12 @@ const GESTURES = {
 };
 const TAU = Math.PI * 2;
 const deg = (d) => (d * Math.PI) / 180;
+// 5c-6 poses (degrees): carried arms over the holders' shoulders (upper arm, forearm bend: forearms hang down),
+// a holder's inner arm at the held actor's shoulder, give / receive arm held out, knee buckle splay at full dip
+const OVER_SHOULDER = [122, -77], HOLD_ARM = [68, 35], GIVE_ARM = [80, -10], BUCKLE = 16;
+const GAITS = new Set(["walk", "run", "stagger", "carry", "support", "supported", "carried"]);
+const LOOSE = new Set(["stagger", "supported"]); // wobbly gait, loose arms
+const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 
 // headwear: the band's lower edge sits HAT_BRIM above the head centre (forehead, just over the neutral brows) and
 // reaches past the head outline on both sides; nothing rises more than HAT_TOP above the head centre
@@ -84,20 +90,38 @@ const quad = (a, c, b, n = 10) => Array.from({ length: n + 1 }, (_, i) => {
  *  feet when drawing). legs: [[hip, foot] x2], arms: [[shoulder, elbow, hand] left (-x), right (+x)], fore: forearm
  *  angles, head: [hx, hy]. */
 export function skeleton(o) {
-  const moving = o.action === "walk" || o.action === "run", run = o.action === "run";
-  const lean = run ? deg(9) : o.action === "react" ? deg(-6) : o.action === "walk" ? deg(3) : 0;
-  // legs: walk phase drives the swing; hip height = FEET_Y - LEG cos(angle). A stressed-word bob lifts the hips;
-  // the legs reach down to the same planted feet.
+  const act = o.action, moving = GAITS.has(act), run = act === "run";
+  const st = o.stagger || { sway: 0, buckle: 0 }; // stagger / supported: sideways sway and knee dips
+  let lean = run ? deg(9) : act === "react" ? deg(-6) : act === "walk" || act === "carry" || act === "support" ? deg(3) : 0;
+  if (LOOSE.has(act)) lean = deg(4) + deg(8) * st.sway;
+  // legs: gait phase drives the swing; a buckle (stagger dip, collapse) splays both legs outward so the hips drop.
+  // The more upright leg stands on FEET_Y. A stressed-word bob lifts the hips; the legs reach the same planted feet.
   const s = Math.sin(TAU * (o.phase || 0));
-  const A = moving ? deg(run ? 34 : 24) * s : deg(IDLE_LEG);
-  const hipBase = FEET_Y - LEG * Math.cos(A), hipY = hipBase - BOB_PX * (o.bob || 0);
-  const legs = [[-18, -A], [18, A]].map(([dx, a]) => [[CW / 2 + dx, hipY], at([CW / 2 + dx, hipBase], a, LEG)]);
+  const swing = run ? 34 : act === "carried" ? 30 : LOOSE.has(act) ? 18 : 24;
+  const A = moving ? deg(swing) * s : deg(IDLE_LEG), B = deg(BUCKLE) * Math.min(1, (o.buckle || 0) + st.buckle);
+  const legA = [-A - B, A + B];
+  const hipBase = FEET_Y - LEG * Math.max(Math.cos(legA[0]), Math.cos(legA[1])), hipY = hipBase - BOB_PX * (o.bob || 0);
+  const legs = [[-18, legA[0]], [18, legA[1]]].map(([dx, a]) => [[CW / 2 + dx, hipY], at([CW / 2 + dx, hipBase], a, LEG)]);
   // body: breathing scales its height from the hips up
   const ry = BODY_RY * (1 + BREATH * (o.breath || 0)), cy = hipY + HIP_OVERLAP - ry, top = cy - ry;
 
   // arms (screen angles from straight down, + toward +x)
   let lift = 0, aL = deg(-ARM_REST), aR = deg(ARM_REST), bendL = 0, bendR = 0;
-  if (moving) {
+  const arm = (side, a, bend, k = 1) => { // blend one arm (side -1 left, +1 right) toward angle a / bend (radians)
+    if (side > 0) { aR += (a - aR) * k; bendR += (bend - bendR) * k; } else { aL += (a - aL) * k; bendL += (bend - bendL) * k; }
+  };
+  if (LOOSE.has(act)) { // loose arms, swinging out of step with each other
+    const ph = TAU * 0.5 * (o.phase || 0);
+    aL = deg(-24) + deg(16) * Math.sin(ph + 1) + deg(10) * st.sway; bendL = deg(-20);
+    aR = deg(24) + deg(16) * Math.sin(ph + 2.4) + deg(10) * st.sway; bendR = deg(20);
+  } else if (act === "carried") {
+    aL = -deg(OVER_SHOULDER[0]); bendL = -deg(OVER_SHOULDER[1]); aR = deg(OVER_SHOULDER[0]); bendR = deg(OVER_SHOULDER[1]);
+  } else if (act === "collapse") { // arms fly up as the knees go
+    const k = o.buckle || 0;
+    aL = deg(-ARM_REST - 50 * k); aR = deg(ARM_REST + 50 * k); bendL = deg(-30 * k); bendR = deg(30 * k);
+  } else if (act === "lie") {
+    aL = deg(-8); aR = deg(8);
+  } else if (moving) {
     const S = deg(run ? 16 : 13) * s; // both arms sway with the stride; small enough never to cross the body
     aL = deg(-18) + S; aR = deg(18) + S;
     if (run) { bendL = deg(70); bendR = deg(70); }
@@ -119,8 +143,16 @@ export function skeleton(o) {
     bendR = deg(WAVE_ARM[1] + WAVE_ARM[2] * w.swing) * w.k;
   } else if (o.action === "react") {
     aL = deg(-128); aR = deg(128); bendL = deg(-25); bendR = deg(25); // hands up beside the head
-  } else {
+  } else if (!["carried", "collapse", "lie", "stagger", "supported"].includes(act)) {
     aL -= deg(2) * (o.breath || 0); aR += deg(2) * (o.breath || 0);
+  }
+  // one arm toward a partner: o.reach { side, k }. Holders hold the held actor's shoulder; the supported drapes
+  // an arm over its supporter; give / receive hold an arm out
+  if (o.reach) {
+    const { side, k = 1 } = o.reach;
+    if (act === "carry" || act === "support") arm(side, side * deg(HOLD_ARM[0]), side * deg(HOLD_ARM[1]), k);
+    else if (act === "supported") arm(side, side * deg(OVER_SHOULDER[0] - 7), side * deg(OVER_SHOULDER[1] + 7), k);
+    else arm(side, side * deg(GIVE_ARM[0]), side * deg(GIVE_ARM[1]), k);
   }
   // seated in the car (legs and low hands hidden by the side panel): each prop hand comes up to the chest,
   // unless that arm is waving
@@ -133,7 +165,29 @@ export function skeleton(o) {
     return [shp, elbow, at(elbow, a + bend, ARM * 0.48)];
   });
   const head = [CW / 2 + (o.action === "react" ? -10 : 0), top - HEAD_R + NECK_OVERLAP];
-  return { lean, legs, hipY, cy, ry, top, arms, fore: [aL + bendL, aR + bendR], head };
+  // eat: the prop hand comes up to the mouth (two-joint reach); that arm is drawn over the head
+  let late = -1;
+  if (act === "eat" && o.eat && o.eat.k > 0) {
+    const side = o.eat.side ?? 1, i = side > 0 ? 1 : 0, look = o.facing === "camera" ? 0 : 1;
+    const target = [head[0] + 30 * look + (look ? 18 : 30 * side), head[1] + 104];
+    const [up, bend] = reachFor(arms[i][0], target, side);
+    const a0 = i ? aR : aL, b0 = i ? bendR : bendL, ua = a0 + wrap(up - a0) * o.eat.k, ub = b0 + wrap(bend - b0) * o.eat.k;
+    const elbow = at(arms[i][0], ua, ARM * 0.52);
+    arms[i] = [arms[i][0], elbow, at(elbow, ua + ub, ARM * 0.48)];
+    if (i) { aR = ua; bendR = ub; } else { aL = ua; bendL = ub; }
+    if (o.eat.k > 0.2) late = i;
+  }
+  return { lean, legs, hipY, cy, ry, top, arms, fore: [aL + bendL, aR + bendR], head, late };
+}
+
+/** two-joint reach: upper arm angle and forearm bend (radians, from straight down, + toward +x) that put the hand of
+ *  an arm from shoulder s on t (or as close as the arm reaches); the elbow points out to the arm's own side */
+export function reachFor(s, t, side) {
+  const L1 = ARM * 0.52, L2 = ARM * 0.48, dx = t[0] - s[0], dy = t[1] - s[1];
+  const d = Math.max(1, Math.min(Math.hypot(dx, dy), L1 + L2 - 1)), base = Math.atan2(dx, dy);
+  const al = Math.acos(Math.min(1, Math.max(-1, (L1 * L1 + d * d - L2 * L2) / (2 * L1 * d))));
+  const up = base - side * al, e = at(s, up, L1);
+  return [up, wrap(Math.atan2(t[0] - e[0], t[1] - e[1]) - up)];
 }
 
 /**
@@ -178,13 +232,14 @@ export function drawStickman(canvas, o) {
   }
 
   // arms and dot hands over the body; a held prop sits in its hand, under the hand dot
-  k.arms.forEach(([shp, elbow, hand], i) => {
+  const drawArm = ([shp, elbow, hand], i) => {
     p.stroke(jitter([shp, elbow, hand], boil), 9);
     for (const pr of o.props || []) {
       if ((pr.hand === "left" ? 0 : 1) === i) drawProp(p, cos, pr.kind, hand, k.fore[i], i ? 1 : -1);
     }
     p.dot(hand[0], hand[1], 15);
-  });
+  };
+  k.arms.forEach((a, i) => { if (i !== k.late) drawArm(a, i); });
 
   // head last: wobbly white circle, thick outline, sits on the body (raised arms go behind it)
   const [hx, hy] = k.head;
@@ -192,6 +247,24 @@ export function drawStickman(canvas, o) {
   p.poly(headPts, "#ffffff", 14 + boil() * 1.5);
   face(p, boil, o, hx + 26 * look, hy, look);
   if (o.headwear && o.headwear.kind !== "none") headwear(p, cos, o.headwear, headPts, hx, hy, look);
+  if (k.late >= 0) drawArm(k.arms[k.late], k.late); // eating: the hand and its prop come up in front of the face
+  if (o.zzz != null) zzz(p, g, boil, o, hx, hy);
+}
+
+/** sleeping: three marker "Z"s rising away from the head. The card lies rolled 90 degrees (o.zSide: the canvas side
+ *  that is "up" on screen), so each glyph is counter-rotated to read upright. o.zzz 0..1: how far the trail rose. */
+function zzz(p, g, boil, o, hx, hy) {
+  const side = o.zSide || 1, rise = o.zzz;
+  [0, 1, 2].forEach((j) => {
+    const show = rise * 3 - j; // the glyphs appear one after another
+    if (show <= 0) return;
+    const size = 26 + 9 * j, cx = hx + side * (168 + 30 * j + 18 * rise), cy = hy - 70 - 40 * j;
+    g.save();
+    g.translate(cx, cy); g.rotate(-side * Math.PI / 2);
+    g.globalAlpha = Math.min(1, show) * (1 - Math.max(0, rise - 0.8) / 0.2);
+    p.stroke(jitter([[-size / 2, -size / 2], [size / 2, -size / 2], [-size / 2, size / 2], [size / 2, size / 2]], boil, 1.5), 7);
+    g.restore();
+  });
 }
 
 // --- costumes (flat colour, thick outline, marker jitter; all in unrotated canvas px) ---
@@ -357,7 +430,7 @@ function face(p, boil, o, fx, hy, look) {
   const w = (k) => Math.min(FACE[k][0] * FACE_MAX, Math.max(FACE[k][0], FACE[k][1] / (o.px || 1)));
   const ex = [fx - 50, fx + 50], ey = hy - 8;
   const expr = o.expression || "neutral";
-  const big = expr === "surprised" || o.action === "react";
+  const big = expr === "surprised" || o.action === "react" || (o.action === "collapse" && (o.buckle || 0) > 0.3);
   // expression overrides the base eye style; blinks win over everything
   const kind = o.lid >= 1 ? "closed" : o.lid === 0.5 ? "half"
     : expr === "surprised" ? "round"                      // wide open, small pupils, for every character

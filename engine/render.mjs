@@ -28,7 +28,8 @@ const SERVED = [path.join(ENGINE, "page"), path.join(ENGINE, "node_modules", "th
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript", ".json": "application/json" };
 const PLAYWRIGHT = JSON.parse(fs.readFileSync(path.join(ENGINE, "node_modules", "playwright", "package.json"), "utf8")).version;
 export const POSES = [["idle", "idle"], ["walk", "walk"], ["talk", "talk"],
-  ...["neutral", "happy", "sad", "angry", "surprised", "sleepy", "cheeky", "exhausted"].map((e) => [e, "idle", e])];
+  ...["neutral", "happy", "sad", "angry", "surprised", "sleepy", "cheeky", "exhausted"].map((e) => [e, "idle", e]),
+  ...["stagger", "lie", "eat", "give", "carried"].map((a) => [a, a])];
 // Software GL (SwiftShader): output does not depend on the machine's GPU or driver.
 const SWIFTSHADER_ARGS = ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"];
 // Chromium's default ANGLE backend on the real GPU (D3D11 on Windows).

@@ -70,8 +70,11 @@ class Legwear(Strict):
     _check = model_validator(mode="after")(_needs_color)
 
 
+PropKind = Literal["clipboard", "stopwatch", "bottle", "syringe", "apple", "medal"]
+
+
 class Prop(Strict):
-    kind: Literal["clipboard", "stopwatch", "bottle", "syringe", "apple", "medal"]
+    kind: PropKind
     hand: Literal["left", "right"] = "right"
 
 
@@ -268,11 +271,16 @@ class Camera(Strict):
 
 class Actor(Strict):
     cast_id: str
-    action: Literal["idle", "walk", "run", "talk", "point", "react", "wave", "ride"]
+    # partner roles: give <-> receive, carry (2 carriers) <-> carried, support (1-2) <-> supported
+    action: Literal["idle", "walk", "run", "talk", "point", "react", "wave", "ride",
+                    "stagger", "lie", "collapse", "eat", "give", "receive", "carry", "carried", "support", "supported"]
     start_pos: Pos
     end_pos: Pos | None = None
     facing: Literal["left", "right", "camera"]
     expression: Expression = Field(description="neutral: the cast member's default_expression")
+    target: str | None = Field(default=None, description="give / receive: the other actor; carry / support: the "
+                                                         "actor carried / supported")
+    prop: PropKind | None = Field(default=None, description="eat / give: the prop eaten / handed over")
 
 
 class Travel(Strict):
@@ -292,7 +300,8 @@ class Animal(Strict):
 class Vehicle(Strict):
     id: str = Field(pattern=r"^[a-z0-9_-]+$")
     kind: Literal["car"]
-    action: Literal["arrive", "drive", "leave", "idle"]  # arrive eases to a stop, leave eases out from one
+    # arrive eases to a stop, leave eases out from one; broken: parked, smoking, shaking
+    action: Literal["arrive", "drive", "leave", "idle", "broken"]
     start_pos: Pos
     end_pos: Pos | None = None
     facing: Literal["left", "right"]  # side-view card: no camera facing

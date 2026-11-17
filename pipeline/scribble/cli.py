@@ -24,7 +24,8 @@ from .stages import render as render_stage
 from .stages.runner import StageError, run_stage
 
 RENDER = Path(__file__).resolve().parents[2] / "engine" / "render.mjs"
-CAST_SHEET_COLS = 11   # one row per cast member: idle, walk, talk + 8 expressions (engine/render.mjs POSES)
+CAST_SHEET_COLS = 16   # one row per cast member: idle, walk, talk, 8 expressions, stagger, lie, eat, give, carried
+                       # (engine/render.mjs POSES)
 STILLS_SHEET_COLS = 6
 
 

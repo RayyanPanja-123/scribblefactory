@@ -16,7 +16,9 @@ export const DRIVER_X = 570, RIDER_X = [380, 280, 180]; // seat x (canvas px), r
 const RIDER_SCALE = PX / (CH / 1.6);              // stickman canvas -> car canvas (same world scale as actors)
 const HIP_PX = FEET_Y - 220 * Math.cos((6 * Math.PI) / 180); // standing hip height on the stickman canvas
 const BOUNCE = { px: 3, every: 0.7 };            // body bobs 3 px per 0.7 world units driven
-const INK = "#1c1a1a", LEATHER = "#4a2e1c", BRASS = "#c9a227", DUST = "#d9c7a0";
+const INK = "#1c1a1a", LEATHER = "#4a2e1c", BRASS = "#c9a227", DUST = "#d9c7a0", SMOKE = "#9a9a9a";
+// broken: grey marker puffs rise from the bonnet on a loop (seeded phase), the car shakes a little
+export const BROKEN = { puffs: 3, rise: 1.6, height: 190, x: 760, y: 352, shake: [2.2, 1.4] };
 export const CAR_COLOURS = { red: "#c0392b", green: "#2e7d4f", navy: "#2c3e72", yellow: "#e2b33c" };
 
 /** wheel turn (radians) after driving `distance` world units: rolling, never sliding */
@@ -39,7 +41,7 @@ export const seatOffset = (seatX) => (seatX - VW / 2) / PX;
 
 let tmp = null; // scratch canvas for one seated figure
 
-/** o: { seed, boil, variant, facing, distance (driven, world units), moving (bool), dust (0..1),
+/** o: { seed, boil, variant, facing, distance (driven, world units), moving (bool), dust (0..1), broken (bool), t (s),
  *       driver: drawStickman options, riders: [drawStickman options] front to back } */
 export function drawCar(canvas, o) {
   const g = canvas.getContext("2d");
@@ -50,6 +52,7 @@ export function drawCar(canvas, o) {
   const dist = o.distance || 0;
   const dy = o.moving ? BOUNCE.px * Math.sin((2 * Math.PI * dist) / BOUNCE.every) : 0;
   const J = (pts, amp = 2) => jitter(pts, boil, amp);
+  const t = o.t || 0, sh = o.broken ? [BROKEN.shake[0] * Math.sin(t * 37), BROKEN.shake[1] * Math.sin(t * 29 + 1)] : [0, 0];
 
   // dust: a few marker puffs behind the rear wheel while driving on dirt
   if (o.dust > 0.02) {
@@ -63,7 +66,7 @@ export function drawCar(canvas, o) {
     g.restore();
   }
 
-  g.save(); g.translate(0, dy);
+  g.save(); g.translate(sh[0], dy + sh[1]);
   // seat backs (behind the figures)
   p.poly(J([[140, 340], [148, 240], [204, 236], [210, 340]]), LEATHER, 10);
   p.poly(J([[468, 380], [474, 282], [516, 280], [522, 380]]), LEATHER, 10);
@@ -94,6 +97,8 @@ export function drawCar(canvas, o) {
   for (const x of WHEELS) p.stroke(J(ellPts(x, WY, WR + 20, WR + 20, 195, 345, 0, 16)), 5);
   g.restore();
 
+  if (o.broken) smoke(p, g, o.seed, boil, t);
+
   // wheels: tyre, rim, 10 spokes turned by the distance driven, hub
   const turn = wheelAngle(dist);
   for (const x of WHEELS) {
@@ -104,5 +109,17 @@ export function drawCar(canvas, o) {
       p.stroke([[x + 16 * Math.cos(a), WY + 16 * Math.sin(a)], [x + (WR - 26) * Math.cos(a), WY + (WR - 26) * Math.sin(a)]], 5);
     }
     p.dot(x, WY, 17, INK); p.dot(x, WY, 8, BRASS);
+  }
+}
+
+/** broken down: BROKEN.puffs grey puffs, each rising from the bonnet and growing as it fades, staggered in time */
+function smoke(p, g, seed, boil, t) {
+  const off = rng(seed, "smoke")();
+  for (let k = 0; k < BROKEN.puffs; k++) {
+    const u = (t / BROKEN.rise + off + k / BROKEN.puffs) % 1, r = 18 + 42 * u;
+    g.save(); g.globalAlpha = 0.85 * (1 - u);
+    p.poly(wobble(BROKEN.x - 24 * u + 10 * Math.sin(6 * u + k), BROKEN.y - BROKEN.height * u, r, r * 0.85,
+      rng(seed, "smoke", k), boil, 0.08, 0.04, 20), SMOKE, 5);
+    g.restore();
   }
 }

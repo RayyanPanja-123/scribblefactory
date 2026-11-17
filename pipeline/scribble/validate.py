@@ -18,7 +18,14 @@ DOG_RUN_SPEED = (2.0, 5.0)
 CAR_SPEED = (1.5, 8.0)    # drive: average speed; arrive/leave: peak speed (2x average: eased to / from a stop)
 TWIST_CUE_WINDOW = 3      # frames either side of the twist shot's start
 PHRASE_TOLERANCE = 3      # frames either side of a shot's phrase time span
-MOVING = {"walk", "run"}
+STAGGER_SPEED = (0.3, 1.0)
+SUPPORT_SPEED = (0.6, 1.0)  # supporters walk a staggering actor along: where walk and stagger speeds overlap
+SPEEDS = {"walk": WALK_SPEED, "run": RUN_SPEED, "stagger": STAGGER_SPEED, "carry": WALK_SPEED, "support": SUPPORT_SPEED}
+MOVING = set(SPEEDS)       # actions that may move (walk / run / stagger always do; a carry or support group may stand)
+HOLDING = {"carry", "support"}
+PARTNER = {"give": "receive", "receive": "give", "carry": "carried", "support": "supported"}  # action -> target's
+GROUPS = {"carried": ("carry", 2, 2), "supported": ("support", 1, 2)}  # held actor -> (holder action, min, max)
+NEEDS_PROP = {"eat", "give"}
 RIDING = {"ride", "wave", "talk"}  # what a seated rider may do
 OUTDOOR_SETS = {"street", "dirt_road", "countryside", "orchard", "stadium"}  # sets that can scroll (travel shots)
 
@@ -70,6 +77,7 @@ def validate(story: StoryModel, phrases: PhrasesModel, cast_ids: set[str]) -> li
             _check_travel(s, n / fps, err)
         for a in s.actors:
             _check_actor(s.id, a, n / fps, cast_ids, err, s.travel)
+        _check_partners(s, err)
         ids = [d.id for d in s.animals]
         if len(set(ids)) != len(ids):
             err(s.id, "animal_id", f"animal ids repeat: {ids}")
@@ -132,8 +140,9 @@ def _check_travel(s, seconds, err) -> None:
                 err(s.id, "travel_actors", f"{a.cast_id} {a.action}: nobody walks or runs in a car travel shot")
         return
     for a in s.actors:
-        if a.action not in MOVING:
-            err(s.id, "travel_actors", f"{a.cast_id} {a.action}: every actor in a travel shot must walk or run")
+        if a.action not in MOVING and a.action not in GROUPS:
+            err(s.id, "travel_actors", f"{a.cast_id} {a.action}: every actor in a travel shot must walk, run, stagger "
+                                       f"or be carried / supported along")
     facings = {a.facing for a in s.actors}
     if len(facings) > 1 or facings - {"left", "right"}:
         err(s.id, "travel_facing", f"travel actors face {sorted(facings)}: all must face one way, left or right")
@@ -142,8 +151,47 @@ def _check_travel(s, seconds, err) -> None:
 def _check_actor(sid, a, seconds, cast_ids, err, travel=None) -> None:
     if a.cast_id not in cast_ids:
         err(sid, "cast_id", f"{a.cast_id!r} is not in series.json cast")
-    lo_hi = WALK_SPEED if a.action == "walk" else RUN_SPEED
-    _check_move(sid, a.cast_id, a, a.action in MOVING, lo_hi, seconds, err, travel)
+    # a carry / support group may also stand still (no end_pos); walk, run and stagger always move
+    moving = a.action in MOVING and (a.action not in HOLDING or a.end_pos is not None or travel is not None)
+    _check_move(sid, a.cast_id, a, moving, SPEEDS.get(a.action, WALK_SPEED), seconds, err, travel)
+
+
+def _check_partners(s, err) -> None:
+    """targets and props: give <-> receive pairs, carry / support groups around a carried / supported actor"""
+    on = {a.cast_id: a for a in s.actors}
+    for a in s.actors:
+        want = PARTNER.get(a.action)
+        if want:
+            t = on.get(a.target)
+            if a.target is None or a.target == a.cast_id:
+                err(s.id, "target", f"{a.cast_id} {a.action}: needs a target (another actor in the shot)")
+            elif t is None:
+                err(s.id, "target", f"{a.cast_id} {a.action} {a.target}: {a.target} is not on stage in this shot")
+            elif t.action != want or (a.action in ("give", "receive") and t.target != a.cast_id):
+                err(s.id, "target", f"{a.cast_id} {a.action} {a.target}: {a.target} must {want}"
+                                    + (f" from / to {a.cast_id}" if a.action in ("give", "receive") else ""))
+        elif a.target is not None:
+            err(s.id, "target", f"{a.cast_id} {a.action}: only give / receive / carry / support take a target")
+        if a.action in NEEDS_PROP and a.prop is None:
+            err(s.id, "prop", f"{a.cast_id} {a.action}: needs a prop")
+        elif a.action not in NEEDS_PROP and a.prop is not None:
+            err(s.id, "prop", f"{a.cast_id} {a.action}: only eat / give take a prop")
+        if a.action in GROUPS:
+            role, lo, hi = GROUPS[a.action]
+            holders = [h for h in s.actors if h.action == role and h.target == a.cast_id]
+            if not lo <= len(holders) <= hi:
+                need = str(lo) if lo == hi else f"{lo}-{hi}"
+                err(s.id, "holders", f"{a.cast_id} {a.action}: needs {need} actor(s) with action {role} "
+                                     f"targeting it, has {len(holders)}")
+            moves = {_move(h) for h in holders}
+            if len(moves) > 1 or len({h.facing for h in holders}) > 1:
+                err(s.id, "holders", f"{a.cast_id} {a.action}: its {role} actors must move together, side by side "
+                                     f"(same move and facing)")
+
+
+def _move(a) -> tuple[float, float]:
+    end = a.end_pos if a.end_pos is not None else a.start_pos
+    return round(end[0] - a.start_pos[0], 2), round(end[1] - a.start_pos[1], 2)
 
 
 def _check_animal(s, d, seconds, err) -> None:
@@ -195,9 +243,9 @@ def _check_vehicles(s, seconds, cast_ids, err) -> None:
             continue  # speed and x rules in _check_travel
         end = v.end_pos if v.end_pos is not None else v.start_pos
         moved = tuple(end) != tuple(v.start_pos)
-        if v.action == "idle":
+        if v.action in ("idle", "broken"):
             if moved:
-                err(s.id, "vehicle_motion", f"{v.id} idle: must not move")
+                err(s.id, "vehicle_motion", f"{v.id} {v.action}: must not move")
             continue
         if not moved:
             err(s.id, "vehicle_motion", f"{v.id} {v.action}: end_pos must differ from start_pos")

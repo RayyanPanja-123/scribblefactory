@@ -142,3 +142,19 @@ describe('connectStream', () => {
     expect(FakeES.all).toHaveLength(3)
   })
 })
+
+import { shortPaths } from './paths'
+
+describe('shortPaths', () => {
+  it('shortens Windows and POSIX library paths to …/<series>/<part>/…', () => {
+    const win = String.raw`s33: 82 ms -> C:\Users\me\AppData\Local\Temp\scribble-demo-x1\great-emu-war\part-07\frames\stills\s33.png [travel]`
+    expect(shortPaths(win)).toBe('s33: 82 ms -> …/great-emu-war/part-07/frames/stills/s33.png [travel]')
+    expect(shortPaths('stills sheet: /home/me/library/marathon-1904/part-01/stills-sheet.png'))
+      .toBe('stills sheet: …/marathon-1904/part-01/stills-sheet.png')
+    expect(shortPaths(String.raw`preview: D:\lib\cat\part-12`)).toBe('preview: …/cat/part-12')
+  })
+  it('leaves other text alone', () => {
+    for (const s of ['prep: done', 'chunk 3/4 done (frames 300-449)', 'words: 2, estimated duration: 0.8 s'])
+      expect(shortPaths(s)).toBe(s)
+  })
+})

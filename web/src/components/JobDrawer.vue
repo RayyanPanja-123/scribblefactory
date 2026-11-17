@@ -3,9 +3,10 @@ import { Check, CircleDashed, Copy, Film, LoaderCircle, Square, X } from 'lucide
 import { AnimatePresence, LayoutGroup, motion } from 'motion-v'
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { api, type Job } from '../api/client'
-import { act, confirm, confirmState, toast } from '../composables/feedback'
+import { act, confirm, confirmState, toast, zoomed } from '../composables/feedback'
 import { drawerOpen, jobs, runningJob, stepStart } from '../composables/live'
 import { reducedMotion, SPRING } from '../composables/ui'
+import { shortPaths } from '../lib/paths'
 import { jobFraction, parseProgress } from '../lib/progress'
 
 // Lives inside the screen frame (App.vue): dims only the screen, never the bezel.
@@ -74,7 +75,8 @@ const summary = (j: Job) => (j.steps.length === 1 ? j.steps[0] : `${j.steps[0]} 
 const DOT: Record<string, string> = { done: 'bg-green', failed: 'bg-red', cancelled: 'bg-faint' }
 
 function onKey(e: KeyboardEvent) {
-  if (e.key === 'Escape' && drawerOpen.value && !confirmState.value) drawerOpen.value = false // a confirm on top closes first
+  // a dialog or zoom on top takes the first Esc (Overlays.vue also stops that event); the next one closes the drawer
+  if (e.key === 'Escape' && drawerOpen.value && !confirmState.value && !zoomed.value) drawerOpen.value = false
 }
 window.addEventListener('keydown', onKey)
 onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
@@ -82,7 +84,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
 <template>
   <AnimatePresence>
-    <motion.div v-if="drawerOpen" key="scrim" class="absolute inset-0 z-30 bg-ink/18 backdrop-blur-[6px]"
+    <motion.div v-if="drawerOpen" key="scrim" class="absolute inset-0 z-30 bg-ink/12 backdrop-blur-[2px]"
       :initial="{ opacity: 0 }" :animate="{ opacity: 1 }" :exit="{ opacity: 0 }" @click="drawerOpen = false" />
     <motion.aside v-if="drawerOpen" key="drawer" role="dialog" aria-label="Jobs"
       class="raised absolute top-3 right-3 bottom-3 z-30 flex w-[440px] flex-col rounded-[28px]! p-5"
@@ -139,7 +141,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
           <motion.div class="relative mt-3" v-bind="row(1)">
             <pre ref="log" class="terminal scroll scrolling h-56 overflow-auto rounded-[16px] p-3 pt-7 font-mono text-[12px] leading-5 whitespace-pre-wrap text-[#ece6da]"
-              tabindex="0" aria-label="Live log">{{ run.output.join('\n') || 'waiting for output' }}</pre>
+              tabindex="0" aria-label="Live log">{{ run.output.map(shortPaths).join('\n') || 'waiting for output' }}</pre>
             <button class="absolute top-2 right-2 grid size-8 place-items-center rounded-full bg-[#2c2a26] text-[#ece6da] shadow-[0_2px_6px_rgb(0_0_0/0.4)] hover:bg-[#36332e]"
               aria-label="Copy log" title="Copy log" @click="copyLog(run)"><Copy :size="14" /></button>
           </motion.div>
@@ -210,7 +212,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
               :animate="still ? { opacity: 1 } : { clipPath: 'inset(0 0 0% 0)', opacity: 1 }" :transition="SPRING">
               <div class="relative">
                 <pre class="terminal scroll scrolling max-h-52 overflow-auto rounded-[14px] p-3 pt-6 font-mono text-[12px] leading-5 whitespace-pre-wrap text-[#ece6da]"
-                  tabindex="0" :aria-label="`Log of job ${j.id}`">{{ j.output.join('\n') || '(no output)' }}</pre>
+                  tabindex="0" :aria-label="`Log of job ${j.id}`">{{ j.output.map(shortPaths).join('\n') || '(no output)' }}</pre>
                 <button class="absolute top-2 right-2 grid size-7 place-items-center rounded-full bg-[#2c2a26] text-[#ece6da] hover:bg-[#36332e]"
                   :aria-label="`Copy log of job ${j.id}`" @click="copyLog(j)"><Copy :size="13" /></button>
               </div>

@@ -163,10 +163,10 @@ before(async () => {
 });
 const img = (k, tag = "f") => fs.readFileSync(path.join(rides[k], `${tag}.png`));
 
-test("cast sheet with costumes (v3 + v1 entries): 22 images; idle uses the cast default expression", () => {
+test("cast sheet with costumes (v3 + v1 entries): one image per pose each; idle uses the cast default expression", () => {
   jobOk(R, "sheet");
   const m = JSON.parse(fs.readFileSync(path.join(sheetDir, "cast-frames", "manifest.json"), "utf8"));
-  assert.equal(m.frames.length, 2 * 11);
+  assert.equal(m.frames.length, 2 * 16); // render.mjs POSES: idle, walk, talk, 8 expressions, 5 actions
   const f = (l) => fs.readFileSync(path.join(sheetDir, "cast-frames", m.frames.find((x) => x.label === l).file));
   assert.ok(f("bob idle").equals(f("bob cheeky")));
   assert.ok(!f("bob idle").equals(f("bob neutral")));
