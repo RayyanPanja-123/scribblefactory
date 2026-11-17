@@ -1,11 +1,15 @@
 """finish: frames + audio/mix.wav (+ burned-in captions from phrases.json) -> final.mp4, then QA -> qa.json.
 
 Captions: phrases split into chunks of <= CAP_MAX_WORDS words (never inside a name), one ASS event per word so
-the word being spoken is yellow. Rendered by ffmpeg's subtitles filter (libass) with the vendored font only.
+the word being spoken is yellow. Effects (pop, drop, shake, punch) are written as one event per video frame while
+they animate: \\t restarts with every event, so it can't carry an animation across the per-word events.
+Rendered by ffmpeg's subtitles filter (libass) with the vendored font only.
 QA failure fails the stage but keeps final.mp4 for inspection.
 """
 
+import json
 import math
+import random
 import re
 import shutil
 import subprocess
@@ -15,12 +19,14 @@ from ..io import atomic_write_json, atomic_write_text, load_part, replace_file
 from ..schemas import PhrasesModel, SeriesModel, StoryModel
 from .audio import loudness
 from .import_check import probe_duration
+from .prep import FX_MODES, TWIST_PREFIX, _is_directive, clean_markdown
 from .render import FPS, check_frames
 from .runner import StageError
+from .shots import token
 from .timing import _can_break_after, _capitalised
 from .validate import load_model
 
-INPUTS = ["frames/chunks", "audio/mix.wav", "phrases.json", "../series.json"]
+INPUTS = ["frames/chunks", "audio/mix.wav", "phrases.json", "story.json", "story.md"]
 OUTPUTS = ["final.mp4", "qa.json"]  # + captions.ass when the series has captions on
 FONTS = Path(__file__).resolve().parents[3] / "assets" / "fonts"
 
@@ -42,12 +48,23 @@ CAP_MARGIN_L = round(0.10 * W)  # 80% max width, and clear of the right-hand UI 
 CAP_MARGIN_R = round(0.15 * W)
 WHITE, YELLOW = "&H00FFFFFF", "&H004AD5FF"  # ASS colours are &HAABBGGRR; yellow = #ffd54a
 SHADOW = "&H80000000"
+RED = "&H004F5AFF"         # #ff5a4f
+
+# --- caption effects (per video frame; seeded from story.json) ---
+FX_POP = (80, 90, 100, 110, 105, 100)                     # chunk scale % per frame: 80 -> 110 -> 100
+FX_DROP = (-200, -170, -120, -50, 0, -30, -36, -22, 0, -10, -6, 0)  # chunk y offset px per frame: fall, 2 bounces
+FX_SHAKE_S, FX_SHAKE_PX, FX_SHAKE_DEG = 0.35, 10, 3      # twist / @fx shake: jitter, decaying to 0
+FX_EMPHASIS_SHAKE_S = 0.2                                 # the short shake after a punch word
+FX_SHAKE_GAP_S = 2.0                                      # auto shakes at least this far apart
+FX_PUNCH = (115, 130, 126, 118, 110, 105, 102, 100)      # punch word scale % per frame
+FX_PUNCH_RED_FRAMES = 4                                   # red this long, then back to yellow / white
+EMPHASIS = {"collapsed", "chased", "furious", "banned", "poison", "rat", "nap", "cramps", "dogs", "lift", "fake",
+            "joke", "gold"}
 
 # --- QA ---
 QA_FREEZE_S = 1.0
 QA_FREEZE_NOISE = "-60dB"
 QA_BLACK_S = 0.2
-QA_SCAN_CROP = 0.55        # freeze / black scan the top 55% of the frame, above the captions (they'd mask both)
 QA_DURATION_TOL = 0.1
 QA_LUFS, QA_LUFS_TOL, QA_TRUE_PEAK = -14.0, 1.0, -1.0
 
@@ -116,14 +133,133 @@ def _fit(lines: list[str]) -> str:
     return f"{{\\fs{CAP_SIZE * CAP_FIT_CHARS // longest}}}" if longest > CAP_FIT_CHARS else ""
 
 
+def _cs(seconds: float) -> int:
+    """centiseconds, floored: a frame at n/FPS always falls in the event that starts at n/FPS"""
+    return math.floor(seconds * 100 + 1e-6)
+
+
 def _ts(seconds: float) -> str:
-    cs = round(seconds * 100)
+    cs = _cs(seconds)
     return f"{cs // 360000}:{cs // 6000 % 60:02d}:{cs // 100 % 60:02d}.{cs % 100:02d}"
 
 
-def ass(phrases: PhrasesModel) -> str:
-    """the libass script: per chunk, one event per word, that word in yellow until the next word starts"""
+def _frame(seconds: float) -> int:
+    """first video frame shown at or after this time"""
+    return math.ceil(seconds * FPS - 1e-6)
+
+
+# ---------------- caption effects ----------------
+
+def fx_overrides(md: str, n_words: int) -> list[str | None]:
+    """per word: the "@fx <mode>" that covers it (the line after the directive), else None.
+    Words come out exactly as prep's script has them, so they index phrases.json's words."""
+    lines, pending = [], None
+    for line in md.replace("\r\n", "\n").split("\n"):
+        if _is_directive(line):
+            name, _, arg = line.strip()[1:].partition(" ")
+            if name == "fx" and arg.strip() in FX_MODES:
+                pending = arg.strip()
+            continue
+        line = TWIST_PREFIX.sub(r"\1", line)
+        if pending and line.strip():  # markers on their own lines: they survive clean_markdown as tokens
+            lines += [f"⟦fx:{pending}⟧", line, "⟦/fx⟧"]
+            pending = None
+        else:
+            lines.append(line)
+    modes, mode = [], None
+    for tok in clean_markdown("\n".join(lines)).split():
+        if tok.startswith("⟦fx:"):
+            mode = tok[4:-1]
+        elif tok == "⟦/fx⟧":
+            mode = None
+        else:
+            modes.append(mode)
+    if len(modes) != n_words:
+        print(f"warning: story.md has {len(modes)} words, phrases.json {n_words}: @fx ignored (re-run prep/timing)")
+        return [None] * n_words
+    return modes
+
+
+def _shake(start: int, seconds: float) -> dict:
+    return {"start": start, "frames": max(1, round(seconds * FPS))}
+
+
+def plan_fx(phrases: PhrasesModel, story: StoryModel, overrides: list[str | None]) -> list[dict]:
+    """per chunk: {"entrance": "pop" | "drop" | None, "shakes": [{start, frames}], "punch": [word index]}.
+    Auto: pop for every chunk; the twist shot's first chunk drops and shakes from the low_hit cue; emphasis words
+    punch with a short shake; auto shakes keep FX_SHAKE_GAP_S apart. "@fx" on a line replaces all of that for its
+    chunks: drop, shake (pop + shake), pop, none (no effect at all)."""
+    cs = chunks(phrases)
+    plan = [{"entrance": "pop", "shakes": [], "punch": []} for _ in cs]
+    by_first = {c["first"]: k for k, c in enumerate(cs)}
+    forced, wanted = [], []  # (frame, chunk index, seconds)
+    for k, c in enumerate(cs):
+        mode = overrides[c["first"]]
+        if mode:
+            plan[k]["entrance"] = None if mode == "none" else "drop" if mode == "drop" else "pop"
+            if mode == "shake":
+                forced.append((_frame(c["start"]), k, FX_SHAKE_S))
+            continue
+        for i in range(c["first"], c["last"] + 1):
+            if token(phrases.words[i].text) in EMPHASIS:
+                plan[k]["punch"].append(i)
+                wanted.append((_frame(phrases.words[i].start), k, FX_EMPHASIS_SHAKE_S))
+    for shot in (s for s in story.shots if s.twist):
+        k = by_first.get(phrases.phrases[shot.phrase_range[0]].word_start)
+        if k is None or overrides[cs[k]["first"]]:
+            continue
+        plan[k]["entrance"] = "drop"
+        for cue in story.cues:
+            if cue.kind == "low_hit" and shot.start_frame <= cue.frame < shot.end_frame:
+                forced.append((max(cue.frame, _frame(cs[k]["start"])), k, FX_SHAKE_S))
+    kept = []
+    for f, k, secs in sorted(forced) + sorted(wanted):  # forced ones always stay; auto ones only with room
+        if (f, k, secs) in forced or all(abs(f - g) >= FX_SHAKE_GAP_S * FPS for g, _ in kept):
+            kept.append((f, k))
+            plan[k]["shakes"].append(_shake(f, secs))
+    return plan
+
+
+def fx_state(c: dict, fx: dict, n: int, seed: int) -> tuple[float, int, int, float, dict]:
+    """at video frame n: chunk scale %, x / y offset px, rotation deg, {word: (scale %, red)} for punch words"""
+    i = max(n - _frame(c["start"]), 0)
+    scale, dx, dy, rot = 100, 0, 0, 0.0
+    if fx["entrance"] == "pop" and i < len(FX_POP):
+        scale = FX_POP[i]
+    elif fx["entrance"] == "drop" and i < len(FX_DROP):
+        dy = FX_DROP[i]
+    for s in fx["shakes"]:
+        j = n - s["start"]
+        if 0 <= j < s["frames"]:
+            R, decay = random.Random(f"{seed}:shake:{s['start']}:{j}"), 1 - j / s["frames"]
+            dx += round(R.uniform(-1, 1) * FX_SHAKE_PX * decay)
+            dy += round(R.uniform(-1, 1) * FX_SHAKE_PX * decay)
+            rot += round(R.uniform(-1, 1) * FX_SHAKE_DEG * decay, 1)
+    punch = {}
+    for w in fx["punch"]:
+        j = n - _frame(c["words"][w]["start"])
+        if 0 <= j < len(FX_PUNCH):
+            punch[w] = (FX_PUNCH[j], j < FX_PUNCH_RED_FRAMES)
+    return scale, dx, dy, rot, punch
+
+
+def _animated_frames(c: dict, fx: dict) -> set[int]:
+    f0 = _frame(c["start"])
+    out = set()
+    if fx["entrance"]:
+        out |= set(range(f0, f0 + len(FX_POP if fx["entrance"] == "pop" else FX_DROP)))
+    for s in fx["shakes"]:
+        out |= set(range(s["start"], s["start"] + s["frames"]))
+    for w in fx["punch"]:
+        out |= set(range(_frame(c["words"][w]["start"]), _frame(c["words"][w]["start"]) + len(FX_PUNCH)))
+    return out
+
+
+def ass(phrases: PhrasesModel, story: StoryModel, overrides: list[str | None] | None = None) -> str:
+    """the libass script: per chunk, one event per word (that word yellow until the next word starts), split into
+    one event per video frame while an effect animates"""
     margin_v = round(H * (1 - CAP_BASELINE))
+    base_x, base_y = CAP_MARGIN_L + (W - CAP_MARGIN_L - CAP_MARGIN_R) // 2, H - margin_v  # where \an2 puts it
     head = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: {W}
@@ -143,19 +279,40 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     words, events = phrases.words, []
     wd = [w.model_dump() for w in words]
-    for c in chunks(phrases):
+    overrides = overrides or [None] * len(words)
+    for c, fx in zip(chunks(phrases), plan_fx(phrases, story, overrides)):
+        c = {**c, "words": wd}
         idx = list(range(c["first"], c["last"] + 1))
         texts = [caption_text(words[i].text) for i in idx]
         br = line_break(wd, idx, texts)  # one break per chunk (plain text): the layout never jumps between words
         fit = _fit([" ".join(texts)] if br is None else [" ".join(texts[:br]), " ".join(texts[br:])])
-        for k, i in enumerate(idx):
-            t0 = c["start"] if k == 0 else words[i].start
-            t1 = c["end"] if k == len(idx) - 1 else words[idx[k + 1]].start
-            if round(t1 * 100) <= round(t0 * 100) and k < len(idx) - 1:
-                continue  # zero-length at centisecond precision: the next word takes over at once
-            hl = [f"{{\\1c{YELLOW}&}}{t}{{\\1c{WHITE}&}}" if j == k else t for j, t in enumerate(texts)]
-            text = fit + (" ".join(hl) if br is None else " ".join(hl[:br]) + "\\N" + " ".join(hl[br:]))
-            events.append(f"Dialogue: 0,{_ts(t0)},{_ts(t1)},Caption,,0,0,0,,{text}")
+        # word k is highlighted from its start (the chunk start for the first) to the next word's start
+        starts = [c["start"]] + [words[i].start for i in idx[1:]]
+        cuts = {c["start"], c["end"], *(t for t in starts if c["start"] < t < c["end"])}
+        for n in _animated_frames(c, fx):
+            cuts |= {t for t in (n / FPS, (n + 1) / FPS) if c["start"] < t < c["end"]}
+        cuts = sorted(cuts)
+        for a, b in zip(cuts, cuts[1:]):
+            if _cs(b) <= _cs(a):
+                continue  # shorter than a centisecond: the next event takes over at once
+            k = max(j for j, t in enumerate(starts) if t <= a + 1e-9)
+            scale, dx, dy, rot, punch = fx_state(c, fx, _frame(a), story.seed)
+            parts = []
+            for j, (i, t) in enumerate(zip(idx, texts)):
+                colour = YELLOW if j == k else WHITE
+                if i in punch:
+                    s = round(scale * punch[i][0] / 100)
+                    parts.append(f"{{\\fscx{s}\\fscy{s}\\1c{RED if punch[i][1] else colour}&}}{t}"
+                                 f"{{\\fscx{scale}\\fscy{scale}\\1c{WHITE}&}}")
+                elif colour == YELLOW:
+                    parts.append(f"{{\\1c{YELLOW}&}}{t}{{\\1c{WHITE}&}}")
+                else:
+                    parts.append(t)
+            tags = (f"\\pos({base_x + dx},{base_y + dy})" if dx or dy else "") + (f"\\frz{rot:g}" if rot else "") \
+                + (f"\\fscx{scale}\\fscy{scale}" if scale != 100 else "")
+            text = fit + (f"{{{tags}}}" if tags else "") \
+                + (" ".join(parts) if br is None else " ".join(parts[:br]) + "\\N" + " ".join(parts[br:]))
+            events.append(f"Dialogue: 0,{_ts(a)},{_ts(b)},Caption,,0,0,0,,{text}")
     return head + "\n".join(events) + "\n"
 
 
@@ -220,11 +377,14 @@ def _spans(log: str, kind: str, total: float) -> list[tuple[float, float]]:
     return list(zip(starts, ends + [total] * (len(starts) - len(ends))))
 
 
-def scan(path: Path, total: float) -> tuple[float, float]:
-    """longest frozen and longest black span (seconds), scanning the frame above the captions"""
-    log = _ffmpeg("-i", path, "-map", "0:v", "-vf",
-                  f"crop=iw:ih*{QA_SCAN_CROP}:0:0,freezedetect=n={QA_FREEZE_NOISE}:d={QA_FREEZE_S},"
-                  f"blackdetect=d={QA_BLACK_S}", "-f", "null", "-").stderr
+def scan(frames: Path, count: int) -> tuple[float, float]:
+    """longest frozen and longest black span (seconds) in the rendered frames final.mp4 is made from: the
+    caption-free picture (moving captions would hide a frozen or black picture, and no crop can dodge them
+    when the only motion is a character inside the caption band)"""
+    total = count / FPS
+    log = _ffmpeg("-framerate", FPS, "-i", frames / "%06d.png", "-frames:v", count, "-vf",
+                  f"freezedetect=n={QA_FREEZE_NOISE}:d={QA_FREEZE_S},blackdetect=d={QA_BLACK_S}",
+                  "-f", "null", "-").stderr
     longest = lambda spans: round(max([b - a for a, b in spans], default=0.0), 3)  # noqa: E731
     return longest(_spans(log, "freeze", total)), longest(_spans(log, "black", total))
 
@@ -247,7 +407,7 @@ def qa(part_dir: Path, story: StoryModel, phrases: PhrasesModel, captions_on: bo
     num, den = (p.get("r_frame_rate") or "0/1").split("/")
     fps, duration = float(num) / float(den), float(p.get("duration", 0))
     voice = probe_duration(part_dir / "voice.mp3")
-    frozen, black = scan(final, duration)
+    frozen, black = scan(part_dir / "frames", story.duration_frames)
     lufs, tp = loudness(final)
     cap = caption_check(phrases, chunks(phrases)) if captions_on else None
 
@@ -282,11 +442,19 @@ def check_gate(part_dir: Path) -> None:
                                      for n in waiting))
 
 
+def extra_inputs(part_dir: Path) -> dict:
+    """the only series.json field finish uses (hashed instead of the whole file: approvals, new parts don't count)"""
+    f = part_dir.parent / "series.json"
+    return {"captions": json.loads(f.read_bytes()).get("style", {}).get("captions", True) if f.exists() else None}
+
+
 def run(part_dir: Path) -> None:
     check_gate(part_dir)
     story = load_model(part_dir / "story.json", StoryModel)
     phrases = load_model(part_dir / "phrases.json", PhrasesModel)
     captions_on = load_model(part_dir.parent / "series.json", SeriesModel).style.captions
+    md = part_dir / "story.md"
+    overrides = fx_overrides(md.read_text(encoding="utf-8"), len(phrases.words)) if md.exists() else None
     check_frames(part_dir / "frames", 0, story.duration_frames)
     if not (part_dir / "audio" / "mix.wav").exists():
         raise StageError("audio/mix.wav not found: run --stage audio")
@@ -295,7 +463,7 @@ def run(part_dir: Path) -> None:
     if captions_on:
         if not has_libass():
             raise StageError("this ffmpeg has no libass (subtitles filter): install a build with --enable-libass")
-        atomic_write_text(captions, ass(phrases))
+        atomic_write_text(captions, ass(phrases, story, overrides))
     else:
         captions.unlink(missing_ok=True)  # stale from when captions were on
     print(f"captions: {'on' if captions_on else 'off'}")

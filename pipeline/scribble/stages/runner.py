@@ -1,6 +1,7 @@
 """Run one stage of a part, tracking status/timestamps/inputs hash in part.json."""
 
 import hashlib
+import json
 import traceback
 from pathlib import Path
 
@@ -12,8 +13,12 @@ class StageError(Exception):
     """Expected stage failure; the message is stored in part.json."""
 
 
-def inputs_hash(part_dir: Path, inputs) -> str:
+def inputs_hash(part_dir: Path, inputs, extra=None) -> str:
+    """sha256 over the input files (a directory: the files directly inside it), plus extra(part_dir) as JSON:
+    the few values a stage uses from a file it shouldn't hash whole"""
     h = hashlib.sha256()
+    if extra:
+        h.update(json.dumps(extra(part_dir), sort_keys=True).encode() + b"\0")
     for name in sorted(inputs):
         f = part_dir / name
         h.update(name.encode() + b"\0")
@@ -34,7 +39,7 @@ def _update(part_json: Path, name: str, **fields) -> None:
     save_part(part_json, part)
 
 
-def run_stage(part_dir, name, fn, force=False, inputs=(), outputs=()) -> str:
+def run_stage(part_dir, name, fn, force=False, inputs=(), outputs=(), extra=None) -> str:
     """Run fn(part_dir). Returns "done", "skipped" or "failed".
 
     Skips when the stage is done, its input files hash the same, its outputs exist and not force.
@@ -42,7 +47,7 @@ def run_stage(part_dir, name, fn, force=False, inputs=(), outputs=()) -> str:
     part_dir = Path(part_dir)
     part_json = part_dir / "part.json"
     stage = getattr(load_part(part_json).stages, "validate_" if name == "validate" else name)
-    digest = inputs_hash(part_dir, inputs)
+    digest = inputs_hash(part_dir, inputs, extra)
     if (not force and stage.status == "done" and stage.inputs_hash == digest
             and all((part_dir / o).exists() for o in outputs)):
         print(f"{name}: skipped (up to date)")

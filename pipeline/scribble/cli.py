@@ -205,7 +205,8 @@ def part_dir(args) -> Path:
 def cmd_run(args) -> int:
     pdir = part_dir(args)
     stage = STAGES[args.stage]
-    result = run_stage(pdir, args.stage, stage.run, force=args.force, inputs=stage.INPUTS, outputs=stage.OUTPUTS)
+    result = run_stage(pdir, args.stage, stage.run, force=args.force, inputs=stage.INPUTS, outputs=stage.OUTPUTS,
+                       extra=getattr(stage, "extra_inputs", None))
     return 1 if result == "failed" else 0
 
 

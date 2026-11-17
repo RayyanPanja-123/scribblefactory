@@ -14,7 +14,7 @@ from pathlib import Path
 from ..io import atomic_write_json
 from ..schemas import Actor, Animal, Camera, Cue, PhrasesModel, SeriesModel, Shot, StoryModel, Travel, Vehicle
 from ..validate import CAR_SPEED, DOG_RUN_SPEED, MAX_SHOT_FRAMES, OUTDOOR_SETS, RUN_SPEED, WALK_SPEED, duration_frames, validate
-from .prep import MARKER_RE, clean_markdown, mark_directives
+from .prep import FX_MODES, MARKER_RE, clean_markdown, mark_directives
 from .runner import StageError
 from .validate import load_model
 
@@ -121,9 +121,11 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str]):
                 dogs = int(arg)
             elif name == "car" and arg in CAR_MODES:
                 car = arg
+            elif name == "fx" and arg in FX_MODES:
+                pass  # caption effect: finish reads it
             else:
                 raise StageError(f"story.md line {line}: bad directive @{d.strip()} (use @set <name>, @cast a, b, "
-                                 f"@dogs 0-{MAX_DOGS} or @car {' | '.join(CAR_MODES)})")
+                                 f"@dogs 0-{MAX_DOGS}, @car {' | '.join(CAR_MODES)} or @fx {' | '.join(FX_MODES)})")
     return words, tags
 
 

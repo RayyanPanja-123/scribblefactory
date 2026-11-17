@@ -4,6 +4,7 @@ story.md directives (one per line) are stripped from the script:
   @set office        set for the following lines
   @cast bob, karen   cast on stage for the following lines
   @dogs 4            dog pack size (0-6) for the following lines
+  @fx drop           caption effect for the next line's chunks: drop | shake | pop | none
   !! text            this line is the twist (prefix stripped, text kept)
 """
 
@@ -17,6 +18,7 @@ INPUTS = ["story.md"]
 OUTPUTS = ["script-for-tts.txt"]
 WPM = 150
 MAX_SECONDS = 90  # parts may run ~70 s
+FX_MODES = ("drop", "shake", "pop", "none")  # @fx: read by finish (captions); the shot planner ignores it
 
 QUOTES = str.maketrans({"‘": "'", "’": "'", "‚": "'", "‛": "'",
                         "“": '"', "”": '"', "„": '"', "‟": '"'})

@@ -5,6 +5,7 @@ Candidates: 1 middle of the twist shot, 2 middle of the first wide shot, 3 middl
 No text overlay. upload.md is the user's to edit: created once, never overwritten.
 """
 
+import json
 import re
 from pathlib import Path
 
@@ -14,10 +15,17 @@ from .render import frame_path
 from .runner import StageError
 from .validate import load_model
 
-INPUTS = ["story.json", "frames/chunks"]
+INPUTS = ["story.json", "frames/chunks", "script-for-tts.txt"]
 OUTPUTS = ["thumbs/thumb-1.png", "thumbs/thumb-2.png", "thumbs/thumb-3.png", "upload.md"]
 HASHTAGS = "#shorts #stickman #history"
 EXPRESSIVE = {"surprised", "angry", "react"}  # expressions, plus the react action
+
+
+def extra_inputs(part_dir: Path) -> dict:
+    """the series.json fields upload.md uses (not the whole file: approvals don't count)"""
+    f = part_dir.parent / "series.json"
+    s = json.loads(f.read_bytes()) if f.exists() else {}
+    return {"title": s.get("title"), "parts": len(s.get("parts", []))}
 
 
 def _mid(s: Shot) -> int:

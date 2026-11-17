@@ -1,6 +1,7 @@
 """finish (captions, encode, QA), thumbnails, and the posting CLI commands. Tiny synthetic parts in temp dirs."""
 
 import json
+import re
 import shutil
 import subprocess
 from datetime import datetime, timezone
@@ -10,7 +11,7 @@ import pytest
 from pipeline.scribble.cli import main
 from pipeline.scribble.io import load_part, load_series, save_part, save_series
 from pipeline.scribble.schemas import PartModel, PhrasesModel, SeriesModel, Stage, StoryModel, Style, Voice
-from pipeline.scribble.stages import finish, thumbnails
+from pipeline.scribble.stages import finish, prep, shots, thumbnails
 from pipeline.scribble.stages.runner import StageError
 
 needs_ffmpeg = pytest.mark.skipif(not (shutil.which("ffmpeg") and shutil.which("ffprobe")),
@@ -31,16 +32,19 @@ STORY = {"duration_frames": FRAMES, "seed": 7, "shots": [
 ]}
 
 
-def phrases() -> PhrasesModel:
-    """12 words over ~1.9 s; phrase 0 has 7 words, so it splits into 2 caption chunks"""
+def phrases(text=TEXT, ranges=((0, 6), (7, 7), (8, 11)), step=0.155) -> PhrasesModel:
+    """TEXT: 12 words over ~1.9 s; phrase 0 has 7 words, so it splits into 2 caption chunks"""
     words, t = [], 0.0
-    for w in TEXT.split():
-        words.append({"text": w, "start": round(t, 3), "end": round(t + 0.12, 3)})
-        t += 0.155
-    return PhrasesModel(duration=2.0, words=words, phrases=[
-        {"text": "", "start": words[0]["start"], "end": words[6]["end"], "word_start": 0, "word_end": 6},
-        {"text": "", "start": words[7]["start"], "end": words[7]["end"], "word_start": 7, "word_end": 7},
-        {"text": "", "start": words[8]["start"], "end": words[11]["end"], "word_start": 8, "word_end": 11}])
+    for w in text.split():
+        words.append({"text": w, "start": round(t, 3), "end": round(t + step * 0.8, 3)})
+        t += step
+    return PhrasesModel(duration=round(t + 0.1, 3), words=words, phrases=[
+        {"text": "", "start": words[a]["start"], "end": words[b]["end"], "word_start": a, "word_end": b}
+        for a, b in ranges])
+
+
+def story(**changes) -> StoryModel:
+    return StoryModel.model_validate({**STORY, **changes})
 
 
 def ff(*args):
@@ -128,7 +132,7 @@ def test_chunk_never_splits_a_name():
 
 
 def test_ass_file():
-    text = finish.ass(phrases())
+    text = finish.ass(phrases(), story(), ["none"] * 12)  # no effects: one event per word
     assert text.startswith("[Script Info]") and "[V4+ Styles]" in text and "[Events]" in text
     assert f"Style: Caption,{finish.CAP_FONT},{finish.CAP_SIZE}," in text
     events = [x for x in text.splitlines() if x.startswith("Dialogue:")]
@@ -284,3 +288,94 @@ def test_clean_frames(lib, capsys):
 def test_first_sentence_skips_ellipsis():
     assert thumbnails.first_sentence("It was bad... so bad. Then more.") == "It was bad... so bad."
     assert thumbnails.first_sentence("Really?  Yes.") == "Really?"
+
+
+# ---------------- caption effects ----------------
+
+def events(text, at=None):
+    """Dialogue lines, or only those starting at h:mm:ss.cc `at`"""
+    return [x for x in text.splitlines() if x.startswith("Dialogue:") and (at is None or x.split(",")[1] == at)]
+
+
+def body(event):
+    return event.split(",,0,0,0,,", 1)[1]
+
+
+def plain_story(**changes):
+    """STORY without the twist (for phrase sets that don't have its phrase 2)"""
+    return story(shots=[{**s, "twist": False} for s in STORY["shots"]], **changes)
+
+
+def test_fx_pop_default():
+    text = finish.ass(phrases(), plain_story())
+    first = [e for e in events(text) if e.split(",")[1] < "0:00:00.20"]  # chunk 1's first 6 frames
+    scales = [int(m[1]) for e in first if (m := re.match(r"\{\\fscx(\d+)\\fscy\1\}", body(e)))]
+    assert scales[0] == 80 and set(scales) == {80, 90, 110, 105}  # 80 -> 110 -> 100 (100 needs no tag)
+    assert r"\pos" not in text and r"\frz" not in text  # no drop / shake without a twist or emphasis
+
+
+def test_fx_twist_drop_and_shake_at_low_hit():
+    st = story(cues=[{"frame": 40, "kind": "low_hit"}])
+    ph = phrases()
+    plan = finish.plan_fx(ph, st, [None] * 12)
+    assert [p["entrance"] for p in plan] == ["pop", "pop", "pop", "drop"]  # twist = phrase 2 = chunk 4
+    assert plan[3]["shakes"] == [{"start": 40, "frames": round(finish.FX_SHAKE_S * 30)}]
+    calm = finish.ass(ph, story())  # no low_hit: the drop alone
+    assert body(events(calm, "0:00:01.24")[0]).startswith(r"{\pos(513,1106)}")  # chunk 4 appears 200 px high
+    assert any(r"\pos(513,1276)" in e for e in events(calm))                     # ... and bounces
+    text = finish.ass(ph, st)
+    shook = [e for e in events(text) if r"\frz" in e]
+    assert len(shook) >= 8 and all("0:00:01.33" <= e.split(",")[1] < "0:00:01.70" for e in shook)  # 0.35 s
+
+
+def test_fx_punch_and_shake_rate_limit():
+    ph = phrases("He took a nap then chased the dogs", ((0, 3), (4, 7)), step=0.2)
+    plan = finish.plan_fx(ph, plain_story(), [None] * 8)
+    assert [ph.words[i].text for p in plan for i in p["punch"]] == ["nap", "chased", "dogs"]
+    assert [s["start"] for p in plan for s in p["shakes"]] == [18]  # nap at 0.6 s; the others within 2 s: dropped
+    text = finish.ass(ph, plain_story())
+    nap = [e for e in events(text) if r"\fscx130\fscy130" in e]
+    assert nap and rf"\1c{finish.RED}&}}nap" in nap[0]
+    assert any(rf"\1c{finish.YELLOW}&}}nap" in e for e in events(text))  # settles back to yellow
+
+
+def test_fx_shake_gap_allows_later_shakes():
+    ph = phrases("nap " + "x " * 12 + "nap", ((0, 13),), step=0.2)
+    shakes = [s["start"] for p in finish.plan_fx(ph, plain_story(), [None] * 14) for s in p["shakes"]]
+    assert shakes == [0, 78]  # 2.6 s apart: both kept
+
+
+def test_fx_directive_override():
+    md = ("# T\n\n@fx none\n@set office\nOld John Smith ran far, then he stopped.\n@fx shake\nReally?\n"
+          "Yes... the end.\n")
+    assert "@" not in prep.strip_directives(md)
+    ov = finish.fx_overrides(md, 12)
+    assert ov == ["none"] * 8 + ["shake"] + [None] * 3
+    plan = finish.plan_fx(phrases(), story(cues=[{"frame": 40, "kind": "low_hit"}]), ov)
+    assert [p["entrance"] for p in plan] == [None, None, None, "pop"]  # the override beats the twist drop
+    assert plan[3]["shakes"] == [{"start": 38, "frames": round(finish.FX_SHAKE_S * 30)}]  # at the chunk, not low_hit
+    words, _ = shots.tag_words(md, ["bob"], ["bob"])  # the shot planner accepts @fx
+    assert len(words) == 12
+    with pytest.raises(StageError):
+        shots.tag_words("@fx wobble\nhi", ["bob"], ["bob"])
+
+
+def test_fx_deterministic():
+    st = story(cues=[{"frame": 40, "kind": "low_hit"}])
+    assert finish.ass(phrases(), st) == finish.ass(phrases(), st)
+
+
+@needs_ffmpeg
+def test_finish_reruns_only_for_what_it_uses(lib, capsys):
+    assert stage(lib, "finish") == 0 and stage(lib, "thumbnails") == 0
+    first = (pdir(lib) / "captions.ass").read_bytes()
+    sf = lib / "demo" / "series.json"
+    series = load_series(sf)
+    series.parts.append("part-03")  # a new part ...
+    save_series(sf, series)
+    assert cli(lib, "approve", "demo", "part-01", "final") == 0  # ... and an approval
+    capsys.readouterr()
+    assert stage(lib, "finish") == 0
+    assert "finish: skipped" in capsys.readouterr().out
+    assert stage(lib, "finish", "--force") == 0
+    assert (pdir(lib) / "captions.ass").read_bytes() == first  # same captions.ass bytes
