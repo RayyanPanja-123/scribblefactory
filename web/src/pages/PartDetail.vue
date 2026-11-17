@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeft, Check, CircleCheck, CircleX, Clock, ExternalLink, HardDrive, Instagram, Minus, Play, Plus, Save, Trash2, Youtube } from 'lucide-vue-next'
+import { ArrowLeft, Check, CircleCheck, CircleX, Clock, ExternalLink, HardDrive, Instagram, Minus, Play, Plus, Save, Trash2, Upload, Youtube } from 'lucide-vue-next'
 import { animate, motion } from 'motion-v'
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
@@ -63,6 +63,26 @@ async function rerun(stage: string) {
     return run(['render --force'])
   }
   return run([`run --stage ${stage} --force`])
+}
+
+// ---- voice ----
+const uploading = ref(false)
+async function uploadVoice(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = '' // same file can be picked again
+  if (!file) return
+  const replace = has('voice.mp3')
+  if (replace && !await confirm({ title: 'Replace voice.mp3?', body: 'The current recording is overwritten. Stages after it will need re-running.', confirm: 'Replace', danger: true })) return
+  uploading.value = true
+  try {
+    if (await act(() => api.uploadVoice(props.slug, props.part, file, replace), 'voice.mp3 uploaded')) {
+      refresh()
+      await run([`run --stage import_check${replace ? ' --force' : ''}`])
+    }
+  } finally {
+    uploading.value = false
+  }
 }
 
 // ---- approvals ----
@@ -233,6 +253,20 @@ watch(data, async (v, old) => {
       </section>
 
       <div class="space-y-6">
+        <!-- voice -->
+        <section id="voice" class="raised p-6">
+          <div class="flex items-center gap-2">
+            <h3 class="font-display text-lg font-semibold">Voice</h3>
+            <span class="text-xs text-muted">{{ has('voice.mp3') ? `voice.mp3 · ${d?.voice_duration?.toFixed(1) ?? '?'} s` : 'no voice.mp3 yet' }}</span>
+            <label class="btn btn-secondary ml-auto" :class="{ 'pointer-events-none opacity-50': !!busy || uploading }" :title="busy ?? undefined">
+              <Upload :size="16" aria-hidden="true" /> {{ uploading ? 'Uploading…' : has('voice.mp3') ? 'Replace' : 'Upload mp3' }}
+              <input type="file" accept=".mp3,audio/mpeg" class="sr-only" :disabled="!!busy || uploading" @change="uploadVoice" />
+            </label>
+          </div>
+          <audio v-if="has('voice.mp3')" :key="d?.voice_duration ?? 0" :src="src('voice.mp3')" controls class="mt-4 w-full" />
+          <p class="mt-1 text-xs text-muted">Read from script-for-tts.txt. An import check runs after each upload.</p>
+        </section>
+
         <!-- run controls -->
         <section id="run" class="raised p-6">
           <h3 class="font-display text-lg font-semibold">Run</h3>

@@ -117,7 +117,8 @@ export interface paths {
         /** Series List */
         get: operations["series_list_api_series_get"];
         put?: never;
-        post?: never;
+        /** Create Series */
+        post: operations["create_series_api_series_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -152,6 +153,23 @@ export interface paths {
         put?: never;
         /** Approve Cast */
         post: operations["approve_cast_api_series__slug__approve_cast_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/series/{slug}/parts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Part */
+        post: operations["create_part_api_series__slug__parts_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -253,6 +271,26 @@ export interface paths {
         get?: never;
         /** Put Upload Md */
         put: operations["put_upload_md_api_series__slug__parts__part__upload_md_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/series/{slug}/parts/{part}/voice.mp3": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Voice
+         * @description Raw mp3 body (no multipart dep). voice.mp3 is protected: replacing it needs ?replace=true.
+         */
+        put: operations["put_voice_api_series__slug__parts__part__voice_mp3_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -410,6 +448,27 @@ export interface components {
             month: string;
             /** Youtube */
             youtube: number;
+        };
+        /** NewPart */
+        NewPart: {
+            /** Story */
+            story?: string | null;
+            /** Title */
+            title?: string | null;
+        };
+        /** NewSeries */
+        NewSeries: {
+            /**
+             * Cast
+             * @default []
+             */
+            cast: {
+                [key: string]: unknown;
+            }[];
+            /** Slug */
+            slug: string;
+            /** Title */
+            title: string;
         };
         /** Overview */
         Overview: {
@@ -1014,6 +1073,39 @@ export interface operations {
             };
         };
     };
+    create_series_api_series_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewSeries"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesModel"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     series_detail_api_series__slug__get: {
         parameters: {
             query?: never;
@@ -1067,6 +1159,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SeriesModel"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_part_api_series__slug__parts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewPart"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartDetail"];
                 };
             };
             /** @description Validation Error */
@@ -1264,6 +1391,40 @@ export interface operations {
                 "application/json": components["schemas"]["UploadText"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_voice_api_series__slug__parts__part__voice_mp3_put: {
+        parameters: {
+            query?: {
+                replace?: boolean;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                part: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

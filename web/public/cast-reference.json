@@ -1,0 +1,58 @@
+{
+  "_about": "Cast import for scribblefactory. Same shape as the \"cast\" list in series.json, so a cast copied from another series imports as is. Only \"cast\" is read; keys starting with _ are notes. approved_at is ignored: every imported look is approved on the cast sheet.",
+  "_values": {
+    "id": "lowercase slug, used in @cast / @do: a-z 0-9 and single hyphens",
+    "eyes": ["dots", "half_closed"],
+    "default_expression": ["neutral", "happy", "sad", "angry", "surprised", "sleepy", "cheeky", "exhausted"],
+    "top.style": ["plain", "suit", "tank", "shirt", "dress"],
+    "top.color": "#rrggbb (required)",
+    "top.accent_color": "#rrggbb or null: suit = tie colour, dress = wide hat ribbon and flower",
+    "top.number": "1-3 digits as a string, or null: chest number on a white bib",
+    "headwear.kind": ["none", "flat_cap", "postman_cap", "bowler", "straw_hat", "wide_hat"],
+    "legwear.kind": ["none", "shorts", "ragged_shorts", "trousers"],
+    "headwear.color / legwear.color": "#rrggbb, required unless kind is none",
+    "props": "0-2 of {kind, hand}, one per hand",
+    "props[].kind": ["clipboard", "stopwatch", "bottle", "syringe", "apple", "medal"],
+    "props[].hand": ["right", "left"],
+    "shorthand": "{\"id\", \"name\", \"color\"} is a plain top in that colour, everything else default"
+  },
+  "cast": [
+    {
+      "id": "fred",
+      "name": "Fred Lorz",
+      "eyes": "dots",
+      "default_expression": "cheeky",
+      "top": { "style": "tank", "color": "#e53935", "number": "31" },
+      "legwear": { "kind": "shorts", "color": "#1f1d1a" }
+    },
+    {
+      "id": "sullivan",
+      "name": "James Sullivan",
+      "top": { "style": "suit", "color": "#1f3a68", "accent_color": "#b71c1c" },
+      "headwear": { "kind": "bowler", "color": "#1f1d1a" },
+      "legwear": { "kind": "trousers", "color": "#1f3a68" },
+      "props": [
+        { "kind": "clipboard", "hand": "right" },
+        { "kind": "stopwatch", "hand": "left" }
+      ]
+    },
+    {
+      "id": "daughter",
+      "name": "Alice Roosevelt",
+      "eyes": "half_closed",
+      "default_expression": "happy",
+      "top": { "style": "dress", "color": "#f5f0e6", "accent_color": "#c2185b" },
+      "headwear": { "kind": "wide_hat", "color": "#f5f0e6" },
+      "props": [{ "kind": "medal", "hand": "right" }]
+    },
+    {
+      "id": "trainer",
+      "name": "Charles Lucas",
+      "top": { "style": "shirt", "color": "#8d6e63" },
+      "headwear": { "kind": "flat_cap", "color": "#5d4037" },
+      "legwear": { "kind": "trousers", "color": "#3e2723" },
+      "props": [{ "kind": "bottle", "hand": "right" }]
+    },
+    { "id": "bob", "name": "Bob", "color": "#3a7bd5" }
+  ]
+}

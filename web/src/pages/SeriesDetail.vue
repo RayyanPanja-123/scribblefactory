@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeft, Check, ChevronRight, Clock, FileQuestion, ImageOff, Instagram, Mic, Palette, Youtube } from 'lucide-vue-next'
+import { ArrowLeft, Check, ChevronRight, Clock, FileQuestion, ImageOff, Instagram, Mic, Palette, Plus, Youtube } from 'lucide-vue-next'
 import { api, type CastMember, type PartSummary } from '../api/client'
 import Card from '../components/Card.vue'
 import EmptyState from '../components/EmptyState.vue'
@@ -93,9 +93,11 @@ function approval(p: PartSummary, a: string): [string, string] {
     </Card>
 
     <section class="space-y-4" aria-label="Parts">
-      <h3 class="font-display text-xl font-semibold">Parts</h3>
-      <EmptyState v-if="!data.parts.length" :icon="FileQuestion" title="No parts yet"
-        :text="`Add one with: new-part ${data.series.slug}`" />
+      <div class="flex items-center gap-3">
+        <h3 class="font-display text-xl font-semibold">Parts</h3>
+        <RouterLink :to="`/series/${slug}/new-part`" class="btn btn-primary ml-auto"><Plus :size="16" aria-hidden="true" /> New part</RouterLink>
+      </div>
+      <EmptyState v-if="!data.parts.length" :icon="FileQuestion" title="No parts yet" text="Add one with the New part button." />
       <Card v-for="(p, i) in data.parts" :key="p.id" :index="i" :lift="!p.missing" :press="!p.missing">
         <p v-if="p.missing" class="p-5 text-sm text-muted">{{ p.id }}: part.json is missing</p>
         <RouterLink v-else :to="`/series/${slug}/${p.id}`" class="block p-5" @click="expand($event, p)">

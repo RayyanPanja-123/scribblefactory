@@ -26,7 +26,7 @@ export function nextSteps(s: PipelineState): Plan {
   const steps: string[] = []
 
   if (!done('prep')) steps.push('run --stage prep')
-  if (!s.files.voice) return { steps, stop: 'voice.mp3: make it on freetts.ai and drop it into the part folder' }
+  if (!s.files.voice) return { steps, stop: 'voice.mp3: make it on freetts.ai and upload it in the Voice card' }
 
   for (const st of PREP_STRETCH) if (steps.length || !done(st)) steps.push(`run --stage ${st}`)
 

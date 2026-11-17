@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Clapperboard, HardDrive, ImageOff, Instagram, SearchX, Youtube } from 'lucide-vue-next'
+import { ArrowRight, Clapperboard, HardDrive, ImageOff, Instagram, Plus, SearchX, Youtube } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { api } from '../api/client'
 import Card from '../components/Card.vue'
@@ -20,45 +20,59 @@ const shown = computed(() => {
 <template>
   <ErrorCard v-if="error" :message="error" @retry="reload" />
 
-  <div v-else-if="loading" class="grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-6" aria-busy="true" aria-label="Loading series">
-    <div v-for="i in 4" :key="i" class="skeleton h-[520px]" />
+  <div v-else-if="loading" class="space-y-4" aria-busy="true" aria-label="Loading series">
+    <div v-for="i in 3" :key="i" class="skeleton h-44" />
   </div>
 
   <template v-else-if="data">
-    <div class="mb-5 flex items-baseline gap-3">
+    <div class="mb-5 flex flex-wrap items-center gap-3">
       <h2 class="font-display text-2xl font-semibold">Series</h2>
       <span class="text-sm text-muted">{{ shown.length }} of {{ data.length }}</span>
+      <RouterLink to="/new-series" class="btn btn-primary ml-auto"><Plus :size="16" aria-hidden="true" /> New series</RouterLink>
     </div>
     <EmptyState v-if="!data.length" :icon="Clapperboard" title="No series yet"
-      text="Create one with: python -m pipeline.scribble.cli new-series <slug> --title ..." />
+      text="Start one with the New series button." />
     <EmptyState v-else-if="!shown.length" :icon="SearchX" title="No match" :text="`Nothing matches “${search}”.`" />
-    <div v-else class="grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-6">
-      <Card v-for="(s, i) in shown" :key="s.slug" :index="i" lift press class="p-3">
-        <RouterLink :to="`/series/${s.slug}`" class="block rounded-[inherit]">
-          <div class="inset aspect-[9/16] overflow-hidden p-1.5">
-            <img v-if="s.cover" :src="s.cover" :alt="`${s.title} cover`" loading="lazy"
-              class="size-full rounded-[10px] object-cover" />
-            <div v-else class="grid size-full place-items-center text-faint"><ImageOff :size="28" aria-hidden="true" /></div>
+    <div v-else class="space-y-4" role="list">
+      <Card v-for="(s, i) in shown" :key="s.slug" role="listitem" :index="i" lift
+        class="relative flex items-center gap-4 p-3 sm:gap-6">
+        <div class="flex min-w-0 flex-1 items-center gap-4 sm:gap-6">
+          <div class="inset aspect-[9/16] w-20 shrink-0 overflow-hidden p-1.5 sm:w-24">
+            <img v-if="s.cover" :src="s.cover" alt="" loading="lazy" class="size-full rounded-[10px] object-cover" />
+            <div v-else class="grid size-full place-items-center text-faint"><ImageOff :size="24" aria-hidden="true" /></div>
           </div>
-          <div class="px-2 pt-4 pb-2">
-            <div class="flex items-start gap-2">
-              <h3 class="min-w-0 flex-1 font-display text-lg leading-tight font-semibold">{{ s.title }}</h3>
+  
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <!-- the title link covers the whole row (after:inset-0); the actions sit above it -->
+              <RouterLink :to="`/series/${s.slug}`"
+                class="font-display text-xl leading-tight font-semibold text-balance after:absolute after:inset-0 after:rounded-[inherit] after:content-['']">
+                {{ s.title }}
+              </RouterLink>
               <span class="chip" :class="statusChip(s.status)">{{ s.status }}</span>
             </div>
-            <div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm whitespace-nowrap text-muted">
-              <span>{{ s.part_count }} {{ s.part_count === 1 ? 'part' : 'parts' }}</span>
-              <span class="flex items-center gap-1" :title="`${s.posted.youtube} on YouTube`">
-                <Youtube :size="16" :class="s.posted.youtube ? 'text-youtube' : 'text-faint'" aria-hidden="true" />
-                <span class="sr-only">YouTube</span>{{ s.posted.youtube }}
-              </span>
-              <span class="flex items-center gap-1" :title="`${s.posted.instagram} on Instagram`">
-                <Instagram :size="16" :class="s.posted.instagram ? 'text-instagram' : 'text-faint'" aria-hidden="true" />
-                <span class="sr-only">Instagram</span>{{ s.posted.instagram }}
-              </span>
-              <span class="ml-auto flex items-center gap-1"><HardDrive :size="14" aria-hidden="true" />{{ bytes(s.disk_usage) }}</span>
-            </div>
+            <p class="mt-0.5 text-sm text-muted">{{ s.slug }}</p>
+            <dl class="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm whitespace-nowrap text-muted">
+              <div class="flex items-baseline gap-1.5"><dt class="sr-only">Parts</dt>
+                <dd class="num font-display text-lg font-semibold text-ink">{{ s.part_count }}</dd>{{ s.part_count === 1 ? 'part' : 'parts' }}</div>
+              <div class="flex items-center gap-1.5" :title="`${s.posted.youtube} posted on YouTube`"><dt class="sr-only">YouTube</dt>
+                <Youtube :size="16" :class="s.posted.youtube ? 'text-youtube' : 'text-faint'" aria-hidden="true" /><dd class="num">{{ s.posted.youtube }}</dd></div>
+              <div class="flex items-center gap-1.5" :title="`${s.posted.instagram} posted on Instagram`"><dt class="sr-only">Instagram</dt>
+                <Instagram :size="16" :class="s.posted.instagram ? 'text-instagram' : 'text-faint'" aria-hidden="true" /><dd class="num">{{ s.posted.instagram }}</dd></div>
+              <div class="flex items-center gap-1.5"><dt class="sr-only">Disk</dt>
+                <HardDrive :size="14" class="text-faint" aria-hidden="true" /><dd class="num">{{ bytes(s.disk_usage) }}</dd></div>
+            </dl>
           </div>
-        </RouterLink>
+        </div>
+
+        <div class="relative z-10 flex shrink-0 flex-col items-end justify-between gap-3 self-stretch py-1 pr-1 sm:pr-3">
+          <RouterLink :to="`/series/${s.slug}/new-part`" class="btn btn-secondary">
+            <Plus :size="16" aria-hidden="true" /> New part
+          </RouterLink>
+          <RouterLink :to="`/series/${s.slug}`" class="btn btn-primary" tabindex="-1" aria-hidden="true">
+            Open <ArrowRight :size="16" aria-hidden="true" />
+          </RouterLink>
+        </div>
       </Card>
     </div>
   </template>

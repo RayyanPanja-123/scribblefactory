@@ -22,11 +22,12 @@ export class ApiError extends Error {
 
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
   let r: Response
+  const raw = body instanceof Blob // files go up as-is, everything else as JSON
   try {
     r = await fetch(path, {
       method,
-      headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      headers: body === undefined ? undefined : { 'Content-Type': raw ? body.type || 'application/octet-stream' : 'application/json' },
+      body: body === undefined ? undefined : raw ? body : JSON.stringify(body),
     })
   } catch {
     throw new ApiError(0, 'The API is not reachable. Is uvicorn running on port 8765?')
@@ -57,6 +58,10 @@ export const api = {
   markPosted: (slug: string, p: string, body: { platform: Platform; url: string; date?: string; force?: boolean }) =>
     call<PartModel>('POST', `${part(slug, p)}/mark-posted`, body),
   saveUpload: (slug: string, p: string, text: string) => call<PartDetail>('PUT', `${part(slug, p)}/upload.md`, { text }),
+  createSeries: (body: S['NewSeries']) => call<SeriesModel>('POST', '/api/series', body),
+  createPart: (slug: string, body: S['NewPart']) => call<PartDetail>('POST', `/api/series/${e(slug)}/parts`, body),
+  uploadVoice: (slug: string, p: string, file: File, replace = false) =>
+    call<PartDetail>('PUT', `${part(slug, p)}/voice.mp3${replace ? '?replace=true' : ''}`, file),
   cleanFrames: (slug: string, p: string) => call<PartModel>('POST', `${part(slug, p)}/clean-frames`),
   jobs: () => call<Job[]>('GET', '/api/jobs'),
   submitJob: (slug: string, p: string, steps: string[]) => call<Job>('POST', '/api/jobs', { slug, part: p, steps }),

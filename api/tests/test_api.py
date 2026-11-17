@@ -169,6 +169,41 @@ def test_upload_md(client, lib):
     assert (lib / "demo" / "part-01" / "upload.md").read_bytes() == b"New title\n#shorts\n"
 
 
+def test_create_series_and_part(client, lib):
+    cast = [{"id": "ann", "name": "Ann", "color": "#00ff00"}, {"id": "cy", "name": "Cy", "color": "#0000ff", "eyes": "half_closed"}]
+    r = client.post("/api/series", json={"slug": "fresh", "title": "Fresh", "cast": cast})
+    assert r.status_code == 200 and [c["id"] for c in r.json()["cast"]] == ["ann", "cy"]
+    assert client.post("/api/series", json={"slug": "fresh", "title": "Again"}).status_code == 409
+    bad = {"slug": "other", "title": "Other", "cast": [{"id": "x", "name": "X", "color": "green"}]}
+    assert client.post("/api/series", json=bad).status_code == 409 and not (lib / "other").exists()
+    full = {"id": "sul", "name": "Sul", "top": {"style": "suit", "color": "#1f3a68", "accent_color": "#b71c1c"},
+            "headwear": {"kind": "bowler", "color": "#111111"}, "props": [{"kind": "clipboard"}],
+            "approved_at": "2026-01-01T00:00:00Z"}
+    r = client.post("/api/series", json={"slug": "imported", "title": "Imported", "cast": [full]})
+    sul = r.json()["cast"][0]
+    assert sul["top"]["style"] == "suit" and sul["headwear"]["kind"] == "bowler" and sul["approved_at"] is None
+    bad = {"slug": "other2", "title": "O", "cast": [full, {**full, "id": "x", "headwear": {"kind": "bowler"}}]}
+    r = client.post("/api/series", json=bad)
+    assert r.status_code == 409 and "cast #2 (x): headwear" in r.json()["detail"] and not (lib / "other2").exists()
+    dup = {"slug": "other3", "title": "O", "cast": [full, full]}
+    assert "unique: sul" in client.post("/api/series", json=dup).json()["detail"]
+    r = client.post("/api/series/fresh/parts", json={"title": "One", "story": "# One\n\n@cast ann\nAnn ran.\n"})
+    assert r.status_code == 200 and r.json()["part"]["id"] == "part-01"
+    assert (lib / "fresh" / "part-01" / "story.md").read_text(encoding="utf-8") == "# One\n\n@cast ann\nAnn ran.\n"
+    assert client.post("/api/series/fresh/parts", json={}).json()["part"]["title"] == "Part 2"
+    assert client.post("/api/series/nope/parts", json={}).status_code == 404
+
+
+def test_voice_upload(client, lib):
+    f = lib / "demo" / "part-01" / "voice.mp3"
+    assert client.put(f"{P}/voice.mp3", content=b"not audio").status_code == 415 and not f.exists()
+    r = client.put(f"{P}/voice.mp3", content=b"ID3first")
+    assert r.status_code == 200 and r.json()["files"]["voice.mp3"] and f.read_bytes() == b"ID3first"
+    assert client.put(f"{P}/voice.mp3", content=b"ID3second").status_code == 409 and f.read_bytes() == b"ID3first"
+    assert client.put(f"{P}/voice.mp3?replace=true", content=b"\xff\xfbsecond").status_code == 200
+    assert f.read_bytes() == b"\xff\xfbsecond"
+
+
 def test_clean_frames_gate(client, lib):
     frames = lib / "demo" / "part-01" / "frames"
     assert client.post(f"{P}/clean-frames").status_code == 409 and frames.exists()

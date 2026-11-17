@@ -20,15 +20,15 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, TypeAdapter, ValidationError
 from sse_starlette import EventSourceResponse
 
 from pipeline.scribble import cli
-from pipeline.scribble.io import atomic_write_text, load_part, load_series
-from pipeline.scribble.schemas import PartModel, Posted, SeriesModel, Slug, Stage, Stages, utcnow
+from pipeline.scribble.io import atomic_write_text, load_part, load_series, save_series
+from pipeline.scribble.schemas import CastMember, PartModel, Posted, SeriesModel, Slug, Stage, Stages, utcnow
 from pipeline.scribble.stages import render as render_stage
 from pipeline.scribble.stages.import_check import probe_duration
 from pipeline.scribble.stages.runner import StageError
@@ -407,6 +407,91 @@ def put_upload_md(slug: str, part: str, body: UploadText):
     pdir = part_path(slug, part)
     check_free(slug, part)
     atomic_write_text(pdir / "upload.md", body.text)
+    publish("part-changed", {"slug": slug, "part": part})
+    return part_detail(slug, part)
+
+
+class NewSeries(BaseModel):
+    slug: str
+    title: str
+    # same shape as series.json "cast" (approved_at is dropped: an imported look still needs approval);
+    # shorthand: {"id", "name", "color"} for a plain top. Reference: web/public/cast-reference.json
+    cast: list[dict] = []
+
+
+def cast_member(i: int, c: dict) -> CastMember:
+    """one imported cast entry -> CastMember, or a 409 naming the entry and the field"""
+    c = {k: v for k, v in c.items() if k != "approved_at"}
+    if "color" in c:
+        c.setdefault("top", {})
+        c["top"] = {**c["top"], "color": c.pop("color")} if isinstance(c["top"], dict) else c["top"]
+    c.setdefault("eyes", "dots")
+    try:
+        return CastMember.model_validate(c)
+    except ValidationError as e:
+        err = e.errors()[0]
+        where = ".".join(map(str, err["loc"])) or "entry"
+        raise HTTPException(409, f"cast #{i + 1} ({c.get('id', 'no id')}): {where}: {err['msg']}")
+
+
+@app.post("/api/series", response_model=SeriesModel)
+def create_series(body: NewSeries):
+    cast = [cast_member(i, c) for i, c in enumerate(body.cast)]  # all checked before anything is written
+    if dupes := sorted({c.id for c in cast if sum(d.id == c.id for d in cast) > 1}):
+        raise HTTPException(409, f"cast ids must be unique: {', '.join(dupes)}")
+    cli_call("new-series", body.slug, f"--title={body.title}")
+    d = series_path(body.slug)
+    if cast:
+        series = load_series(d / "series.json")
+        series.cast = cast
+        save_series(d / "series.json", series)
+    publish("series-changed", {"slug": body.slug})
+    return series_json(d)
+
+
+class NewPart(BaseModel):
+    title: str | None = None
+    story: str | None = None  # story.md body; default: the CLI's "# <title>" stub
+
+
+def write_story(pdir: Path, text: str) -> None:
+    """story.md is user-owned, so not via io.atomic_write_text (it refuses PROTECTED names on purpose)"""
+    tmp = pdir / ".story.md.upload.tmp"
+    tmp.write_text(text, encoding="utf-8", newline="\n")
+    os.replace(tmp, pdir / "story.md")
+
+
+@app.post("/api/series/{slug}/parts", response_model=PartDetail)
+def create_part(slug: str, body: NewPart):
+    d = series_path(slug)
+    check_free(slug)
+    cli_call("new-part", slug, *([f"--title={body.title}"] if body.title else []))
+    part = load_series(d / "series.json").parts[-1]
+    if body.story is not None:
+        write_story(d / part, body.story)
+    publish("series-changed", {"slug": slug})
+    return part_detail(slug, part)
+
+
+MAX_VOICE_BYTES = 100 * 2**20
+
+
+@app.put("/api/series/{slug}/parts/{part}/voice.mp3", response_model=PartDetail)
+async def put_voice(slug: str, part: str, request: Request, replace: bool = False):
+    """Raw mp3 body (no multipart dep). voice.mp3 is protected: replacing it needs ?replace=true."""
+    pdir = part_path(slug, part)
+    check_free(slug, part)
+    if (pdir / "voice.mp3").exists() and not replace:
+        raise HTTPException(409, "voice.mp3 already exists; pass replace=true to overwrite it")
+    data = await request.body()
+    if len(data) > MAX_VOICE_BYTES:
+        raise HTTPException(413, f"voice.mp3 is over {MAX_VOICE_BYTES // 2**20} MB")
+    if not (data[:3] == b"ID3" or (len(data) > 1 and data[0] == 0xFF and data[1] & 0xE0 == 0xE0)):
+        raise HTTPException(415, "not an mp3 file (no ID3 tag or MPEG frame header)")
+    # user-owned file, so not via io.atomic_write_bytes (it refuses PROTECTED names on purpose)
+    tmp = pdir / ".voice.mp3.upload.tmp"
+    tmp.write_bytes(data)
+    os.replace(tmp, pdir / "voice.mp3")
     publish("part-changed", {"slug": slug, "part": part})
     return part_detail(slug, part)
 

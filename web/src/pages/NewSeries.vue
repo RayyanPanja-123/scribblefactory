@@ -1,0 +1,189 @@
+<script setup lang="ts">
+import { ArrowLeft, Download, FileJson, Plus, Trash2 } from 'lucide-vue-next'
+import { computed, reactive, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import { api } from '../api/client'
+import { act, toast } from '../composables/feedback'
+
+const router = useRouter()
+const slugify = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+const PALETTE = ['#3a7bd5', '#d53a3a', '#2e9e5b', '#e0a020', '#8a4fd5', '#d5703a']
+
+const title = ref('')
+const slug = ref('')
+const slugEdited = ref(false)
+watch(title, (t) => { if (!slugEdited.value) slug.value = slugify(t) })
+
+type Obj = Record<string, unknown>
+type Eyes = 'dots' | 'half_closed'
+// look: everything else an imported entry carries (top style, headwear, props, ...), sent back untouched
+type Row = { name: string; id: string; idEdited: boolean; color: string; eyes: Eyes; look: Obj }
+const cast = reactive<Row[]>([])
+const nextColor = () => PALETTE[cast.length % PALETTE.length]
+const addCast = () => cast.push({ name: '', id: '', idEdited: false, color: nextColor(), eyes: 'dots', look: {} })
+addCast()
+const onName = (r: Row) => { if (!r.idEdited) r.id = slugify(r.name) }
+
+/** "tank #31 · bowler · trousers · clipboard, stopwatch · cheeky": what an import adds beyond the row's fields */
+function lookSummary(l: Obj): string {
+  const top = (l.top ?? {}) as Obj
+  const kind = (x: unknown) => (x as Obj | undefined)?.kind
+  return [
+    [top.style !== 'plain' && top.style, top.number && `#${top.number}`].filter(Boolean).join(' '),
+    kind(l.headwear) !== 'none' && kind(l.headwear),
+    kind(l.legwear) !== 'none' && kind(l.legwear),
+    ((l.props ?? []) as Obj[]).map((x) => x.kind).join(', '),
+    l.default_expression !== 'neutral' && l.default_expression,
+  ].filter(Boolean).join(' · ').replaceAll('_', ' ')
+}
+
+// ---- JSON import: an array of cast entries, {"cast": [...]}, or a whole series.json ----
+const importOpen = ref(false)
+const importText = ref('')
+const importError = ref('')
+async function loadFile(e: Event) {
+  const input = e.target as HTMLInputElement
+  const f = input.files?.[0]
+  input.value = ''
+  if (f) importText.value = await f.text()
+}
+async function loadExample() {
+  importText.value = await fetch('/cast-reference.json').then((r) => r.text())
+}
+function runImport() {
+  importError.value = ''
+  let entries: unknown
+  try {
+    const j = JSON.parse(importText.value)
+    entries = Array.isArray(j) ? j : j?.cast
+  } catch (e) {
+    importError.value = `Not valid JSON: ${(e as Error).message}`
+    return
+  }
+  if (!Array.isArray(entries) || !entries.length) {
+    importError.value = 'Expected a non-empty array of cast entries, or an object with a "cast" array.'
+    return
+  }
+  const bad = entries.findIndex((x) => typeof x?.id !== 'string' || typeof x?.name !== 'string')
+  if (bad >= 0) {
+    importError.value = `Entry #${bad + 1} needs a string "id" and "name".`
+    return
+  }
+  cast.splice(0, cast.length, ...cast.filter((r) => r.name.trim() || r.id.trim())) // drop empty rows
+  for (const x of entries as Obj[]) {
+    const { id, name, color, eyes, approved_at: _approved, ...look } = x
+    const top = (look.top ?? {}) as Obj
+    const row: Row = {
+      id: id as string, name: name as string, idEdited: true, eyes: (eyes as Eyes | undefined) ?? 'dots',
+      color: ((color ?? top.color) as string | undefined)?.toLowerCase() ?? nextColor(), look,
+    }
+    const at = cast.findIndex((r) => r.id === row.id) // same id: the import replaces that row
+    if (at >= 0) cast.splice(at, 1, row)
+    else cast.push(row)
+  }
+  toast(`Imported ${entries.length} cast ${entries.length === 1 ? 'member' : 'members'}`, 'ok')
+  importOpen.value = false
+  importText.value = ''
+}
+
+const saving = ref(false)
+const filled = computed(() => cast.filter((r) => r.name.trim() || r.id.trim()))
+const ready = computed(() => title.value.trim() && slug.value && filled.value.every((r) => r.name.trim() && r.id))
+
+async function create() {
+  saving.value = true
+  const body = {
+    slug: slug.value, title: title.value.trim(),
+    cast: filled.value.map((r) => ({ ...r.look, id: r.id, name: r.name.trim(), eyes: r.eyes, top: { ...(r.look.top as Obj), color: r.color } })),
+  }
+  const s = await act(() => api.createSeries(body), `Series “${body.title}” created`)
+  saving.value = false
+  if (s) router.push(`/series/${s.slug}/new-part`)
+}
+const field = 'inset mt-1 block h-11 w-full rounded-full px-4 text-sm text-ink outline-none'
+</script>
+
+<template>
+  <div class="mx-auto max-w-3xl space-y-6">
+    <RouterLink to="/series" class="btn btn-secondary"><ArrowLeft :size="16" aria-hidden="true" /> All series</RouterLink>
+
+    <form class="raised space-y-6 p-6" @submit.prevent="create">
+      <h2 class="font-display text-3xl font-semibold">New series</h2>
+
+      <div class="grid gap-4 sm:grid-cols-2">
+        <label class="block text-xs font-semibold text-muted">Title
+          <input v-model="title" required placeholder="Marathon 1904" :class="field" />
+        </label>
+        <label class="block text-xs font-semibold text-muted">Slug (folder name)
+          <input v-model="slug" required pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="marathon-1904" :class="field"
+            @input="slugEdited = true" />
+        </label>
+      </div>
+
+      <fieldset class="space-y-3">
+        <legend class="font-display text-lg font-semibold">Cast</legend>
+        <div class="flex flex-wrap items-start gap-3">
+          <p class="flex-1 text-xs text-muted">Hats, props, suits and bib numbers come in through a JSON import, or later with cast-edit.
+            Each new look needs approval on the cast sheet.</p>
+          <button type="button" class="btn btn-secondary" :aria-expanded="importOpen" aria-controls="cast-import" @click="importOpen = !importOpen">
+            <FileJson :size="16" aria-hidden="true" /> Import JSON
+          </button>
+        </div>
+
+        <div v-if="importOpen" id="cast-import" class="inset space-y-3 p-4">
+          <div class="flex flex-wrap items-center gap-2">
+            <label class="btn btn-secondary cursor-pointer">Choose file
+              <input type="file" accept=".json,application/json" class="sr-only" @change="loadFile" />
+            </label>
+            <button type="button" class="btn btn-secondary" @click="loadExample">Paste example</button>
+            <a href="/cast-reference.json" download class="btn btn-secondary ml-auto"><Download :size="16" aria-hidden="true" /> Reference JSON</a>
+          </div>
+          <label class="sr-only" for="cast-json">Cast JSON</label>
+          <textarea id="cast-json" v-model="importText" rows="8" spellcheck="false"
+            placeholder="[{ &quot;id&quot;: &quot;fred&quot;, &quot;name&quot;: &quot;Fred Lorz&quot;, &quot;color&quot;: &quot;#e53935&quot; }]"
+            class="paper block w-full resize-y rounded-md p-4 font-mono text-xs leading-6 text-ink outline-none" />
+          <p v-if="importError" class="text-sm text-red-ink" role="alert">{{ importError }}</p>
+          <p class="text-xs text-muted">An array of entries, <code>{"cast": [...]}</code>, or a whole series.json. An entry with the same id as a row below replaces it.
+            The server checks every field when you create the series.</p>
+          <div class="flex justify-end gap-2">
+            <button type="button" class="btn btn-secondary" @click="importOpen = false">Cancel</button>
+            <button type="button" class="btn btn-primary" :disabled="!importText.trim()" @click="runImport">Import</button>
+          </div>
+        </div>
+        <div v-for="(r, i) in cast" :key="i" class="grid items-end gap-3 sm:grid-cols-[1fr_1fr_auto_auto_auto]">
+          <label class="block text-xs font-semibold text-muted">Name
+            <input v-model="r.name" placeholder="Fred Lorz" :class="field" @input="onName(r)" />
+          </label>
+          <label class="block text-xs font-semibold text-muted">Id (used in @cast)
+            <input v-model="r.id" pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="fred" :class="field" @input="r.idEdited = true" />
+          </label>
+          <label class="block text-xs font-semibold text-muted">Outfit
+            <span class="inset mt-1 flex h-11 cursor-pointer items-center gap-2 rounded-full pr-4 pl-1.5 focus-within:outline-2 focus-within:outline-ink">
+              <!-- native picker, drawn as a round raised swatch -->
+              <input v-model="r.color" type="color" :aria-label="`Outfit colour for ${r.name || `character ${i + 1}`}`"
+                class="size-8 shrink-0 cursor-pointer appearance-none rounded-full border-0 bg-transparent p-0 shadow-[0_2px_4px_rgb(96_78_52/.3),inset_0_1px_0_rgb(255_255_255/.4)] outline-none
+                  [&::-moz-color-swatch]:rounded-full [&::-moz-color-swatch]:border-2 [&::-moz-color-swatch]:border-white
+                  [&::-webkit-color-swatch]:rounded-full [&::-webkit-color-swatch]:border-2 [&::-webkit-color-swatch]:border-white [&::-webkit-color-swatch-wrapper]:p-0" />
+              <span class="num font-mono text-sm text-ink uppercase">{{ r.color }}</span>
+            </span>
+          </label>
+          <label class="block text-xs font-semibold text-muted">Eyes
+            <select v-model="r.eyes" :class="field">
+              <option value="dots">dots</option>
+              <option value="half_closed">half closed</option>
+            </select>
+          </label>
+          <button type="button" class="btn btn-secondary size-11 justify-center p-0" :aria-label="`Remove cast row ${i + 1}`" @click="cast.splice(i, 1)">
+            <Trash2 :size="16" aria-hidden="true" />
+          </button>
+          <p v-if="lookSummary(r.look)" class="-mt-1 pl-4 text-xs text-muted sm:col-span-5">Imported look: {{ lookSummary(r.look) }}</p>
+        </div>
+        <button type="button" class="btn btn-secondary" @click="addCast"><Plus :size="16" aria-hidden="true" /> Add character</button>
+      </fieldset>
+
+      <div class="flex justify-end">
+        <button class="btn btn-primary" :disabled="!ready || saving">{{ saving ? 'Creating…' : 'Create series' }}</button>
+      </div>
+    </form>
+  </div>
+</template>
