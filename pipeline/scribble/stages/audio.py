@@ -22,6 +22,9 @@ MUSIC_UNDER_DB = -6  # music loudness relative to the voice
 SFX_UNDER_DB = -3    # SFX loudness relative to the voice
 TARGET_LUFS, TARGET_TP, LUFS_TOL = -14.0, -1.0, 0.5
 LOUDNORM_TP = -1.5   # aim under -1 dBTP: loudnorm's true peak lands a few tenths off its target
+# a mix whose peaks stop linear loudnorm short of the target (it then quietly falls back to its dynamic mode, which
+# undershoots on short parts) gets its peaks limited by these amounts in turn, until one lands on the target
+PEAK_ROOM_DB = (3.0, 6.0, 9.0)
 
 INPUTS = ["story.json", "voice.mp3"]
 OUTPUTS = ["audio/music.wav", "audio/sfx.wav", "audio/mix.wav"]
@@ -321,6 +324,17 @@ def loudnorm(x: np.ndarray, out: Path) -> None:
     _ffmpeg("-v", "error", "-y", *raw, "-af", second, "-ar", str(SR), "-c:a", "pcm_s16le", str(out), data=data)
 
 
+def limit_peaks(x: np.ndarray, db: float) -> np.ndarray:
+    """x with its peaks held db under where they were (ffmpeg alimiter, look-ahead, no make-up gain): room for
+    the linear loudnorm gain a peaky voice needs to reach the target"""
+    peak = float(np.abs(x).max()) or 1.0
+    lim = max(0.0625, min(1.0, peak * 10 ** (-db / 20)))  # alimiter's limit range
+    r = _ffmpeg("-v", "error", "-f", "f32le", "-ar", str(SR), "-ac", "2", "-i", "-",
+                "-af", f"volume={1 / peak:.6f},alimiter=limit={lim / peak:.6f}:level=false:attack=5:release=50,"
+                       f"volume={peak:.6f}", "-f", "f32le", "-", data=x.astype("<f4").tobytes())
+    return np.frombuffer(r.stdout, dtype="<f4").reshape(-1, 2)
+
+
 def run(part_dir: Path) -> None:
     story = StoryModel.model_validate_json((part_dir / "story.json").read_bytes())
     voice_mp3 = part_dir / "voice.mp3"
@@ -344,12 +358,24 @@ def run(part_dir: Path) -> None:
 
     tmp = d / ".mix.tmp.wav"  # ffmpeg writes it; replaced into mix.wav only once it measures in range
     try:
-        loudnorm(voice + g_m * music + g_s * sfx, tmp)
+        mix = voice + g_m * music + g_s * sfx
+        loudnorm(mix, tmp)
         lufs, tp = loudness(tmp)
         print(f"mix: {lufs:.1f} LUFS integrated, true peak {tp:.1f} dBTP")
+        if abs(lufs - TARGET_LUFS) > LUFS_TOL / 2 or tp > TARGET_TP:  # peaky voice: peak ceiling before the target
+            tries = [(lufs, tp, tmp.read_bytes())]
+            for room in PEAK_ROOM_DB:
+                loudnorm(limit_peaks(mix, room), tmp)
+                lufs, tp = loudness(tmp)
+                print(f"mix (peaks limited {room:.0f} dB): {lufs:.1f} LUFS integrated, true peak {tp:.1f} dBTP")
+                tries.append((lufs, tp, tmp.read_bytes()))
+            # the try nearest the target that keeps the peak ceiling (else simply the nearest)
+            lufs, tp, best = min(tries, key=lambda t: (t[1] > TARGET_TP, abs(t[0] - TARGET_LUFS)))
+            tmp.write_bytes(best)
+            print(f"mix: kept {lufs:.1f} LUFS, true peak {tp:.1f} dBTP")
         if abs(lufs - TARGET_LUFS) > LUFS_TOL or tp > TARGET_TP:
             raise StageError(f"mix missed the target: {lufs:.1f} LUFS, {tp:.1f} dBTP "
-                             f"(want {TARGET_LUFS:.0f} ±{LUFS_TOL} LUFS, ≤ {TARGET_TP:.0f} dBTP)")
+                             f"(want {TARGET_LUFS:.0f} +/-{LUFS_TOL} LUFS, <= {TARGET_TP:.0f} dBTP)")
         replace_file(tmp, d / "mix.wav")
     finally:
         Path(tmp).unlink(missing_ok=True)

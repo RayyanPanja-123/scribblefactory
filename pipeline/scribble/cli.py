@@ -581,6 +581,9 @@ def build_parser() -> Parser:
 
 
 def main(argv=None) -> int:
+    for stream in (sys.stdout, sys.stderr):  # a redirected Windows console is cp1252: never crash on a message
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="replace")
     args = build_parser().parse_args(argv)
     try:
         return args.func(args)

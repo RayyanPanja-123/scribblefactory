@@ -126,3 +126,15 @@ def test_mix_loudness(part):
 def test_skips_when_up_to_date(part, capsys):
     assert run(part.parents[1]) == 0
     assert "audio: skipped" in capsys.readouterr().out
+
+
+def test_peaky_voice_still_reaches_the_target(tmp_path):
+    """real speech with high peaks (the hello.wav fixture): linear loudnorm alone stops short of -14 LUFS at the
+    true-peak ceiling, so the stage falls back to loudnorm's dynamic mode (its limiter)"""
+    d = make_part(tmp_path)
+    fixture = __import__("pathlib").Path(__file__).parent / "fixtures" / "hello.wav"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(fixture), "-c:a", "libmp3lame", "-b:a", "128k",
+                    str(d / "voice.mp3")], check=True)
+    assert run(tmp_path) == 0, load_part(d / "part.json").stages.audio.error
+    lufs, tp = audio.loudness(d / "audio/mix.wav")
+    assert abs(lufs - audio.TARGET_LUFS) <= audio.LUFS_TOL and tp <= audio.TARGET_TP

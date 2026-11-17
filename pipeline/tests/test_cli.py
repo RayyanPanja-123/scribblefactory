@@ -344,3 +344,11 @@ def test_clean_frames_posted(lib, capsys):
     assert (lib / "cat" / "part-03" / "frames").exists()
     assert main(["clean-frames", "--posted", "cat", "part-02"]) == 1
     assert main(["clean-frames", "cat"]) == 1
+
+
+def test_cli_survives_a_cp1252_console(lib):
+    import subprocess, sys
+    main(["new-series", "cat", "--title", "Cat ≤ ✓"])
+    r = subprocess.run([sys.executable, "-m", "pipeline.scribble.cli", "status", "cat", "--library", str(lib)],
+                       capture_output=True, env={**__import__("os").environ, "PYTHONIOENCODING": "cp1252"})
+    assert r.returncode == 0 and b"Cat ? ?" in r.stdout
