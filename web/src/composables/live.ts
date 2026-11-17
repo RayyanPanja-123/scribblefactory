@@ -23,6 +23,11 @@ export const runningJob = computed(() => jobs.value.find((j) => j.status === 'ru
 export const queuedCount = computed(() => jobs.value.filter((j) => j.status === 'queued').length)
 export const jobFor = (slug: string, part: string) =>
   jobs.value.find((j) => j.slug === slug && j.part === part && (j.status === 'running' || j.status === 'queued'))
+/** a cast-sheet job queued or running for this series (it runs on any of its parts) */
+export const castSheetJob = (slug: string) =>
+  jobs.value.find((j) => j.slug === slug && j.steps.includes('cast-sheet') && (j.status === 'running' || j.status === 'queued'))
+/** any job running in this series: cast approvals wait (a render reads series.json) */
+export const seriesBusy = (slug: string) => jobs.value.some((j) => j.slug === slug && j.status === 'running')
 
 /** Subscribe for the lifetime of the calling component. */
 export function onLive(fn: (e: LiveEvent) => void) {

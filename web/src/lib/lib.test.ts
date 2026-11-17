@@ -3,6 +3,7 @@ import { backoff, connectStream, type EventSourceLike } from './events'
 import { nextSteps, type PipelineState } from './nextSteps'
 import { jobFraction, parseProgress } from './progress'
 import { buildPrompt, importProp } from './propPrompt'
+import { seriesNext, type SeriesState } from './seriesNext'
 
 const ALL = ['prep', 'import_check', 'timing', 'shots', 'validate', 'render', 'audio', 'finish', 'thumbnails']
 const NONE = { stills: false, test_render: false, final: false }
@@ -179,5 +180,30 @@ describe('build with AI', () => {
     expect(importProp('{"props": [{"name": "Flag", "shapes": [{"shape": "line", "pts": [[0,0],[0,-90]]}]}]}').prop?.id).toBe('flag')
     expect(importProp('no json here').error).toMatch(/Not valid JSON/)
     expect(importProp('{"shapes": [{"shape": "star", "pts": [[0,0]]}]}').error).toMatch(/Shape #1/)
+  })
+})
+
+describe('seriesNext', () => {
+  const part = (n: number, over = {}) => ({ id: `part-0${n}`, number: n, waiting: [], finished: false, started: false, ...over })
+  const s = (over: Partial<SeriesState> = {}): SeriesState =>
+    ({ cast: 3, castApproved: 3, castSheet: true, sheetRendering: false, parts: [part(1)], ...over })
+
+  it('walks the series pipeline in order', () => {
+    expect(seriesNext(s({ cast: 0 })).kind).toBe('add-cast')
+    expect(seriesNext(s({ castSheet: false, parts: [] })).kind).toBe('add-part') // the sheet needs a part
+    expect(seriesNext(s({ castSheet: false })).kind).toBe('render-sheet')
+    expect(seriesNext(s({ castSheet: false, sheetRendering: true })).kind).toBe('wait')
+    expect(seriesNext(s({ castApproved: 0 })).text).toMatch(/^None of the 3 cast are approved yet\./)
+    expect(seriesNext(s({ castApproved: 1 })).text).toMatch(/^2 of 3 cast still need approval/)
+    expect(seriesNext(s({ castApproved: 2 })).text).toMatch(/^1 of 3 cast still needs approval/)
+    expect(seriesNext(s({ parts: [] })).kind).toBe('add-part')
+  })
+
+  it('points at the first part that waits, else the first unfinished one', () => {
+    const parts = [part(1, { finished: true, started: true }), part(2, { started: true }), part(3, { waiting: ['stills', 'test_render'] })]
+    expect(seriesNext(s({ parts }))).toEqual({ kind: 'open-part', part: 'part-03', action: 'Review', text: 'Part 3 is waiting for you: stills, test render.' })
+    expect(seriesNext(s({ parts: parts.slice(0, 2) }))).toMatchObject({ part: 'part-02', action: 'Continue' })
+    expect(seriesNext(s({ parts: [part(1)] }))).toMatchObject({ action: 'Start' })
+    expect(seriesNext(s({ parts: [parts[0]] })).kind).toBe('done')
   })
 })
