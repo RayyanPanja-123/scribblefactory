@@ -1,4 +1,5 @@
-"""Step 5c-7: crowd and runner extras (@crowd, @runners), the dress / wide_hat costume and the mood actions."""
+"""Step 5c-7 (+ layout fix): crowd and runner extras (@crowd, @runners), the dress / wide_hat costume and the mood
+actions. The screen-space head-overlap rule lives in the engine (engine/test/extras.test.mjs)."""
 
 import pytest
 
@@ -6,7 +7,7 @@ from pipeline.scribble.cli import main
 from pipeline.scribble.io import load_series
 from pipeline.scribble.schemas import CastMember
 from pipeline.scribble.stages.runner import StageError
-from pipeline.scribble.stages.shots import CROWD_CLEAR, CROWD_DEFAULT
+from pipeline.scribble.stages.shots import CROWD_DEFAULT, CROWD_GAP, RUNNER_GAP
 from pipeline.scribble.validate import CROWD_Z, RUN_SPEED, validate
 
 from .test_actions import IDS, SERIES, who
@@ -63,16 +64,33 @@ def test_bad_extras_directives_name_the_line(line):
         plan(f"# T\n\n@cast fred\n{line}\nFred sat.\n", series=SERIES)
 
 
-# --- crowd ---
+# --- crowd layout ---
 
-def test_crowd_stands_behind_the_clearance_zone_and_never_over_the_subject():
-    md = "# T\n\n@set stadium\n@cast fred, amy, tom\n@crowd cheer 12\nFred walked left.\nAmy walked right.\n"
-    for s in planned(md).shots:
-        subj = next(a for a in s.actors if a.action != "idle")
-        xs = [subj.start_pos[0], (subj.end_pos or subj.start_pos)[0]]
-        for e in crowd(s):
-            assert CROWD_Z[0] <= e.start_pos[1] <= CROWD_Z[1] and e.end_pos is None and e.facing == "camera"
-            assert not min(xs) - CROWD_CLEAR < e.start_pos[0] < max(xs) + CROWD_CLEAR, (s.id, e.id, xs)
+def _rows(s):
+    es = sorted(crowd(s), key=lambda e: e.start_pos[0])
+    return [e for e in es if e.start_pos[1] > -2.2], [e for e in es if e.start_pos[1] <= -2.2]
+
+
+@pytest.mark.parametrize("n", [1, 5, 7, 8, 12])
+@pytest.mark.parametrize("set_", ["stadium", "office", "street"])
+def test_crowd_rows_spacing_and_depth(n, set_):
+    s = planned(f"# T\n\n@set {set_}\n@cast fred\n@crowd cheer {n}\nFred spoke.\n").shots[0]
+    front, back = _rows(s)
+    assert len(front) + len(back) == n
+    assert (len(back) > 0) == (n > 7) and len(front) >= len(back)            # a second row only above 7
+    for row in (front, back):
+        xs = [e.start_pos[0] for e in row]
+        assert all(b - a >= CROWD_GAP for a, b in zip(xs, xs[1:])), xs        # neighbours 0.55+ apart
+    for e in crowd(s):
+        assert CROWD_Z[0] <= e.start_pos[1] <= CROWD_Z[1] and e.end_pos is None and e.facing == "camera"
+    if set_ == "stadium":
+        assert all(e.start_pos[1] <= -1.8 for e in crowd(s))                  # behind the rail (z -1.6)
+    if set_ == "office":
+        assert all(e.start_pos[1] >= -2.5 for e in crowd(s))                  # in front of the back wall
+    assert all(-2.8 <= e.start_pos[1] <= -2.2 for e in back)
+    if back:  # offset half a step: each back extra stands between two front ones
+        fx = [e.start_pos[0] for e in front]
+        assert all(any(a < e.start_pos[0] < b for a, b in zip(fx, fx[1:])) for e in back)
 
 
 def test_crowd_is_deterministic_and_stays_put_across_cuts():
@@ -89,25 +107,42 @@ def test_no_crowd_in_travel_shots():
 
 # --- runners ---
 
-def test_runners_in_travel_shots_run_with_the_scroll_behind_the_actors():
-    story = planned("# T\n\n@set dirt_road\n@cast fred, amy\n@runners 4\nFred walked on and on and on.\n", 0.5)
+def _min_gap(a, b, c):
+    """smallest x distance between point c and the run a..b"""
+    lo, hi = min(a, b), max(a, b)
+    return c - hi if c > hi else lo - c if c < lo else 0.0
+
+
+@pytest.mark.parametrize("verb", ["walked", "ran"])  # walk travel: runners gain 1.4 u/s; run travel: 0.1 u/s
+def test_runners_in_travel_shots_keep_clear_of_the_cast_and_each_other(verb):
+    story = planned(f"# T\n\n@set dirt_road\n@cast fred, amy\n@runners 4\nFred {verb} on and on and on.\n", 0.5)
     for s in story.shots:
         assert s.travel is not None and len(runners(s)) == 4
         way = s.actors[0].facing
         secs = (s.end_frame - s.start_frame) / 30
+        cast_x = [x for a in s.actors for x in (a.start_pos[0], a.end_pos[0])]
         for e in runners(s):
             assert e.facing == way and e.start_pos[1] < -0.6
             speed = s.travel.speed + abs(e.end_pos[0] - e.start_pos[0]) / secs  # legs: scroll + own gain
             assert RUN_SPEED[0] <= speed <= RUN_SPEED[1]
-        rear = min(a.start_pos[0] for a in s.actors) if way == "right" else max(a.start_pos[0] for a in s.actors)
-        assert all((e.start_pos[0] < rear) == (way == "right") for e in runners(s))  # staggered behind
+            for c in cast_x:  # the whole run stays 0.6+ clear of the cast
+                assert _min_gap(e.start_pos[0], e.end_pos[0], c) >= RUNNER_GAP - 1e-9, (s.id, e.id, c)
+        for t in ("start_pos", "end_pos"):
+            xs = sorted(getattr(e, t)[0] for e in runners(s))
+            assert all(b - a >= RUNNER_GAP - 1e-9 for a, b in zip(xs, xs[1:])), xs
+    # placed near the frame centre first, so some are on screen (|x| < 1.8) when there is room
+    assert any(abs(e.start_pos[0]) < 1.8 for s in story.shots for e in runners(s))
 
 
-def test_runners_cross_the_background_in_normal_shots():
-    s = planned("# T\n\n@set office\n@cast fred\n@runners 2\nFred spoke.\n").shots[0]
+def test_runners_cross_the_background_in_normal_shots_all_one_way():
+    s = planned("# T\n\n@set office\n@cast fred\n@runners 4\nFred spoke.\n").shots[0]
+    assert len({e.facing for e in runners(s)}) == 1  # one way: they never pass each other
     for e in runners(s):
         dx = e.end_pos[0] - e.start_pos[0]
-        assert abs(e.start_pos[0]) >= 3.0 and e.facing == ("right" if dx > 0 else "left") and e.start_pos[1] <= -1.2
+        assert abs(e.start_pos[0]) >= 3.0 and e.facing == ("right" if dx > 0 else "left")
+        assert -2.5 <= e.start_pos[1] <= -2.0  # behind the crowd's front row, in front of the office wall
+    xs = sorted(e.start_pos[0] for e in runners(s))
+    assert all(b - a >= RUNNER_GAP for a, b in zip(xs, xs[1:]))
 
 
 # --- moods as cast actions ---
@@ -138,6 +173,7 @@ def test_validator_extras_rules():
     assert rules(_extras(_crowd(), _runner())) == set()
     assert "extras" in rules(_extras(_crowd(end_pos=[1, -1.8])))            # crowd never moves
     assert "extras_zone" in rules(_extras(_crowd(start_pos=[0, -0.5])))     # inside the clearance zone
+    assert "extras_zone" in rules(_extras(_crowd(start_pos=[0, -2.9])))     # past the back row
     assert "extras" in rules(_extras(_crowd(action="run")))                  # a crowd takes a mood
     assert "extra_id" in rules(_extras(_crowd(), _crowd()))
     assert "gliding" in rules(_extras(_runner(end_pos=[-2.0, -1.5])))       # 0.5 u/s: legs would slide

@@ -60,11 +60,17 @@ CAR_RUN_D = 5.0            # arrive / leave: distance driven (from / to off-scre
 CAR_TRAVEL_SPEED = 4.0     # ride: travel-shot scroll speed (units/s)
 # extras (@crowd <mood> [N], @runners N; both reset on a set change unless repeated)
 CROWD_DEFAULT, CROWD_MAX = 8, 12
-CROWD_W = 2.8              # crowd spread across x -2.8..2.8, two loose rows inside CROWD_Z
-CROWD_CLEAR = 0.55         # no crowd extra stands within this x of the subject's path: never behind / over it
+CROWD_W = 2.8              # crowd spread across x -2.8..2.8
+CROWD_GAP = 0.55           # min x between neighbours in a crowd row
+CROWD_ONE_ROW = 7          # more than this: a second row behind, offset half a step
+CROWD_FRONT = (-1.3, -1.7)  # front row z (stadium: STADIUM_FRONT, behind the rail at z -1.6)
+STADIUM_FRONT = (-1.85, -2.1)
+CROWD_BACK = (-2.2, -2.8)   # second row z (indoors: no further back than INDOOR_BACK, the wall is at -2.6)
+INDOOR_SETS, INDOOR_BACK = {"room", "office"}, -2.5
 MAX_RUNNERS = 6
 RUNNER_SPEED = 2.6         # background runners' leg speed, units/s (inside RUN_SPEED)
-RUNNER_Z = {"travel": (-1.6, -0.8), "cross": (-2.2, -1.2)}
+RUNNER_GAP = 0.6           # min x between runners, and (travel) from the cast
+RUNNER_Z = {"travel": (-1.6, -0.8), "cross": (-2.6, -2.0)}  # crossers run behind the crowd's front row
 DOG_EDGE_X = 1.8           # non-travel: dogs stand at |x| >= this ...
 DOG_EDGE_GAP = 0.9         # ... and at least this far (x) outside every actor's start/end, so cards never overlap
 
@@ -169,47 +175,69 @@ def parse_crowd(arg: str, line: int):
     return words[0], int(words[1]) if len(words) == 2 else CROWD_DEFAULT
 
 
-def crowd_extras(mood: str, n: int, seed: int, set_: str, subject: Actor | None) -> list[Extra]:
-    """n crowd extras in two loose rows behind the stage (z in CROWD_Z), facing the camera. Spots and looks are
-    seeded per part, set and crowd size, so the same people stand in the same places across cuts; anyone inside
-    CROWD_CLEAR of the subject's path steps out to the nearer side."""
+def crowd_extras(mood: str, n: int, seed: int, set_: str) -> list[Extra]:
+    """n crowd extras facing the camera: one row (n <= CROWD_ONE_ROW), else a front row of ceil(n/2) and a back row
+    offset half a step. Neighbours in a row stay CROWD_GAP+ apart in x. Spots and looks are seeded per part, set and
+    crowd size: the same people stand in the same places across cuts. (The engine then moves or drops, per shot,
+    any extra whose head would overlap a cast member's head on screen.)"""
     R = random.Random(f"{seed}:crowd:{set_}:{n}")
-    lo_z, hi_z = CROWD_Z
-    rows = ((lo_z + 0.2, (lo_z + hi_z) / 2), ((lo_z + hi_z) / 2, hi_z))  # back row, front row
-    if subject is not None:
-        sx = [subject.start_pos[0], (subject.end_pos or subject.start_pos)[0]]
-        lo, hi = min(sx) - CROWD_CLEAR, max(sx) + CROWD_CLEAR
+    # two rows: the front row takes one more than the back, so every back extra fits in a gap between two front ones
+    n1 = math.ceil((n + 1) / 2) if n > CROWD_ONE_ROW else n
+    n2 = n - n1
+    step = 2 * CROWD_W / n1
+    jit = max(0.0, min(0.1, (step - CROWD_GAP) / 2 - 0.001))
+    front = STADIUM_FRONT if set_ == "stadium" else CROWD_FRONT
+    back = (CROWD_BACK[0], max(CROWD_BACK[1], INDOOR_BACK) if set_ in INDOOR_SETS else CROWD_BACK[1])
+    gap0 = (n1 - 1 - n2) // 2  # the back row sits in the middle gaps
     out = []
-    for i in range(n):
-        x = -CROWD_W + 2 * CROWD_W * (i + 0.5) / n + R.uniform(-0.12, 0.12)
-        z = R.uniform(*rows[i % 2])
-        variant = R.randrange(1000)
-        if subject is not None and lo < x < hi:
-            x = lo - R.uniform(0.02, 0.12) if x - lo < hi - x else hi + R.uniform(0.02, 0.12)
-        out.append(Extra(id=f"crowd{i + 1}", kind="crowd", action=mood, start_pos=(round(x, 3), round(z, 2)),
-                         facing="camera", variant=variant))
+    for row, (count, zr, off) in enumerate(((n1, front, 0.5), (n2, back, 1.0 + gap0))):
+        for i in range(count):
+            x = -CROWD_W + step * (i + off) + R.uniform(-jit, jit)
+            out.append(Extra(id=f"crowd{len(out) + 1}", kind="crowd", action=mood,
+                             start_pos=(round(x, 3), round(R.uniform(*zr), 2)), facing="camera",
+                             variant=R.randrange(1000)))
     return out
 
 
-def runner_extras(n, seed, sid, seconds, actors, travel_dir=0, travel_speed=0.0) -> list[Extra]:
-    """n background runners. Travel shot: they run the travel way behind the actors (staggered in x behind the
-    rearmost actor and in z), legs at RUNNER_SPEED: the scroll plus their own gain. Otherwise they cross the
-    background from off-screen, each its own way."""
+def _clear(a: float, b: float, c: float, gap: float) -> bool:
+    """the run from x a to x b stays at least gap from x c the whole way"""
+    lo, hi = min(a, b), max(a, b)
+    return (c - hi if c > hi else lo - c if c < lo else 0.0) >= gap - 1e-9
+
+
+def _runner_spot(cast_x, taken, gain, way, jitter) -> float:
+    """travel: start x for the next runner. Nearest the frame centre first (so they're seen), over a 0.1 grid in
+    -2.2..2.2: the whole run (x0 .. x0 + gain) keeps RUNNER_GAP from every cast x, and from the runners already
+    placed (same gain, so their gap holds). Nothing fits: ahead of everyone, pulling away."""
+    grid = sorted((round(k / 10 + jitter, 3) for k in range(-22, 23)), key=lambda x: (abs(x), -way * x))
+    for x0 in grid:
+        if all(_clear(x0, x0 + gain, c, RUNNER_GAP) for c in cast_x) and all(abs(x0 - t) >= RUNNER_GAP for t in taken):
+            return x0
+    edge = max(cast_x + taken) if way > 0 else min(cast_x + taken)
+    return edge + way * RUNNER_GAP
+
+
+def runner_extras(n, seed, sid, seconds, actors, travel_dir=0, travel_speed=0.0, set_="") -> list[Extra]:
+    """n background runners, RUNNER_GAP+ apart in x. Travel shot: they run the travel way in the background, legs at
+    RUNNER_SPEED (the scroll plus their own gain), each on a spot whose whole run stays RUNNER_GAP+ clear of the cast
+    (see _runner_spot). Otherwise they cross the background from off-screen, all one way (seeded per shot), so they
+    never pass each other."""
     R, out = random.Random(f"{seed}:runners:{sid}"), []
+    d = R.choice((-1, 1))
+    lo, hi = RUNNER_Z["cross"]  # (-2.6, -2.0): indoors no further back than INDOOR_BACK (the wall)
+    cross_z = (max(lo, INDOOR_BACK) if set_ in INDOOR_SETS else lo, hi)
     for i in range(n):
         variant = R.randrange(1000)
         if travel_dir:
-            xs = [a.start_pos[0] for a in actors] or [0.0]
-            rear = min(xs) if travel_dir > 0 else max(xs)
-            gain = max(0.0, RUNNER_SPEED - travel_speed) * seconds
-            x0 = rear - travel_dir * (0.4 + 0.75 * i + R.uniform(0, 0.2))
+            xs = [x for a in actors for x in (a.start_pos[0], (a.end_pos or a.start_pos)[0])] or [0.0]
+            gain = travel_dir * max(0.0, RUNNER_SPEED - travel_speed) * seconds
+            x0 = _runner_spot(xs, [e.start_pos[0] for e in out], gain, travel_dir, R.uniform(0, 0.1))
             z = R.uniform(*RUNNER_Z["travel"])
             out.append(Extra(id=f"runner{i + 1}", kind="runner", action="run", start_pos=(round(x0, 3), round(z, 2)),
-                             end_pos=(round(x0 + travel_dir * gain, 3), round(z, 2)),
+                             end_pos=(round(x0 + gain, 3), round(z, 2)),
                              facing="right" if travel_dir > 0 else "left", variant=variant))
         else:
-            d = R.choice((-1, 1))
-            x0, z = -d * (3.0 + 0.9 * i + R.uniform(0, 0.3)), R.uniform(*RUNNER_Z["cross"])
+            x0, z = -d * (3.0 + 0.9 * i + R.uniform(0, 0.25)), R.uniform(*cross_z)
             out.append(Extra(id=f"runner{i + 1}", kind="runner", action="run", start_pos=(round(x0, 3), round(z, 2)),
                              end_pos=(round(x0 + d * RUNNER_SPEED * seconds, 3), round(z, 2)),
                              facing="right" if d > 0 else "left", variant=variant))
@@ -577,10 +605,9 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int) 
                 xs += [cx - CAR_HALF, cx + CAR_HALF]
             way = (1 if (vehicles[0].facing if vehicles else actors[0].facing) == "right" else -1) if travel else 0
             animals, bark = _dogs(dogs, xs, way, s0, s1, seed, sid, tspeed if travel else None)
-            subj = next((a for a in actors if a.cast_id == subject), None)
             # no crowd in a travel shot: the world scrolls past and a standing crowd would seem to keep pace
-            extras = (crowd_extras(*crowd, seed, set_, subj) if crowd and not travel else []) + runner_extras(
-                runners, seed, sid, seconds, [a for a in actors if not ride], way, tspeed if travel else 0.0)
+            extras = (crowd_extras(*crowd, seed, set_) if crowd and not travel else []) + runner_extras(
+                runners, seed, sid, seconds, [a for a in actors if not ride], way, tspeed if travel else 0.0, set_)
             if bark:
                 cues.append(bark)
             shots.append(Shot(id=sid, start_frame=s0, end_frame=s1, set=set_,

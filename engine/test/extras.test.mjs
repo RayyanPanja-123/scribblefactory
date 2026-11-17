@@ -4,9 +4,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { after, before, test } from "node:test";
-import { EXTRA_TOPS, MOOD_EXPRESSION, extraLook, moodAt } from "../page/extras.js";
-import { FEET_Y, drawStickman, skeleton } from "../page/stickman.js";
-import { fixturePart, frames, jobOk, png, renderNamed } from "./batch.mjs";
+import { EXTRA_SATURATION, EXTRA_TOPS, GAP, MOOD_EXPRESSION, desaturate, extraLook, moodAt, placeExtras } from "../page/extras.js";
+import { CW, FEET_Y, drawStickman, skeleton } from "../page/stickman.js";
+import { fixturePart, frames, jobOk, png, render, renderNamed } from "./batch.mjs";
 
 const temps = [];
 after(() => { for (const d of temps) fs.rmSync(d, { recursive: true, force: true }); });
@@ -18,8 +18,8 @@ function record(o) {
   const g = {
     setTransform() {}, clearRect() {}, translate() {}, rotate() {}, save() {}, restore() {}, clip() {}, closePath() {},
     beginPath() { pts = []; }, moveTo(x, y) { pts.push([x, y]); }, lineTo(x, y) { pts.push([x, y]); }, arc(x, y) { pts.push([x, y]); },
-    fill() { ops.push({ op: "fill", style: this.fillStyle, pts }); },
-    stroke() { ops.push({ op: "stroke", style: this.strokeStyle, pts }); },
+    fill() { ops.push({ op: "fill", style: this.fillStyle, pts, lw: this.lineWidth }); },
+    stroke() { ops.push({ op: "stroke", style: this.strokeStyle, pts, lw: this.lineWidth }); },
   };
   drawStickman({ getContext: () => g }, o);
   return ops;
@@ -31,7 +31,7 @@ test("extra looks are seeded and stable: muted crowd tops, numbered runners in t
   for (let v = 0; v < 50; v++) {
     const c = extraLook("s", { kind: "crowd", variant: v }), r = extraLook("s", { kind: "runner", variant: v });
     assert.deepEqual(c, extraLook("s", { kind: "crowd", variant: v }));
-    assert.ok(EXTRA_TOPS.includes(c.top.color) && ["plain", "shirt"].includes(c.top.style) && !c.top.number);
+    assert.ok(EXTRA_TOPS.map((x) => desaturate(x)).includes(c.top.color) && ["plain", "shirt"].includes(c.top.style) && !c.top.number);
     assert.ok(["none", "flat_cap", "bowler"].includes(c.headwear.kind));
     assert.equal(r.top.style, "tank");
     assert.match(r.top.number, /^[1-9][0-9]$/);
@@ -91,6 +91,83 @@ test("wide hat: brim and crown in the hat colour, ribbon and flower in the top's
   const brim = ops.find((x) => x.op === "fill" && x.style === "#eeeeee");
   const span = Math.max(...brim.pts.map((p) => p[0])) - Math.min(...brim.pts.map((p) => p[0]));
   assert.ok(span > 380 && span < 512, `brim span ${span}: wide, inside the card`);
+});
+
+// --- arm count: every pose draws exactly two arms (no rest pose underneath) ---
+/** arm strokes: width 9, three points (shoulder, elbow, hand), starting at a shoulder (x = CW/2 +- 66, jittered) */
+const armStrokes = (ops) => ops.filter((x) => x.op === "stroke" && x.pts.length === 3 && x.lw === 9
+  && x.pts[0][0] && Math.min(Math.abs(x.pts[0][0] - (CW / 2 - 66)), Math.abs(x.pts[0][0] - (CW / 2 + 66))) < 6);
+
+test("cheer / angry / gasp (and every other pose) draw exactly two arms, for extras and cast", () => {
+  const extra = { ...extraLook("s", { kind: "crowd", variant: 3 }) };
+  const cast = { top: { style: "tank", color: "#e53935", number: "31" }, legwear: { kind: "shorts", color: "#2b2b2b" },
+    props: [{ kind: "clipboard", hand: "right" }, { kind: "stopwatch", hand: "left" }] };
+  for (const look of [extra, cast]) {
+    for (const action of ["idle", "talk", "walk", "cheer", "angry", "gasp", "eat", "give", "carried", "stagger"]) {
+      for (const k of [0, 0.5, 1]) {
+        const ops = record({ ...BASE, ...look, color: look.top.color, action, mood: { k, shake: 0.4, bounce: 0 },
+          eat: { k, side: 1 }, reach: { side: 1, k } });
+        assert.equal(armStrokes(ops).length, 2, `${action} k=${k}: ${armStrokes(ops).length} arms`);
+      }
+    }
+  }
+});
+
+test("cheer pump keeps the arms high (no sweep into neighbours)", () => {
+  for (let t = 0; t < 2; t += 0.05) assert.ok(moodAt("cheer", t, "k").k >= 0.7);
+});
+
+// --- head-overlap rule (fake camera: screen x = world x, head rect from x and z depth) ---
+const fakeRect = (x, z) => { const s = 1 / (3 - z); return [x - 0.3 * s, 0.5, x + 0.3 * s, 0.9]; }; // farther: smaller
+const castAt = (xs) => ({ setCamera() {}, castRects: () => xs.map((x) => fakeRect(x, 0)),
+  headRect: (e, dx) => fakeRect(e.start_pos[0] + dx, e.start_pos[1]) });
+const crowdE = (id, x, z = -1.9) => ({ id, kind: "crowd", action: "cheer", start_pos: [x, z], facing: "camera", variant: 1 });
+
+test("an extra whose head would overlap a cast head moves along its row, keeping its gap; else it is dropped", () => {
+  const extras = [crowdE("crowd1", -1.2), crowdE("crowd2", 0.05), crowdE("crowd3", 1.2)];
+  const r = placeExtras(extras, castAt([0]));
+  assert.equal(r.get("crowd1"), 0);
+  assert.equal(r.get("crowd3"), 0);
+  const moved = 0.05 + r.get("crowd2");
+  assert.ok(r.get("crowd2") !== 0 && r.get("crowd2") !== null);
+  assert.ok(Math.abs(moved) >= 0.3 * (1 + 0.12) / 3 + 0.3 / 4.9, `still over the cast head at ${moved}`); // cleared
+  for (const x of [-1.2, 1.2]) assert.ok(Math.abs(moved - x) >= GAP.crowd - 1e-9);
+  // boxed in: cast heads everywhere along the row -> dropped for the shot
+  const all = placeExtras([crowdE("crowd1", 0)], castAt(Array.from({ length: 25 }, (_, i) => -1.8 + i * 0.15)));
+  assert.equal(all.get("crowd1"), null);
+  // deterministic
+  assert.deepEqual([...placeExtras(extras, castAt([0]))], [...r]);
+});
+
+test("runner heads are checked along their whole run; rows keep the runner gap", () => {
+  const runner = (id, x0, x1, z) => ({ id, kind: "runner", action: "run", start_pos: [x0, z], end_pos: [x1, z], facing: "right", variant: 2 });
+  const opts = { setCamera() {}, castRects: () => [fakeRect(0, 0)],
+    headRect: (e, dx, u) => fakeRect(e.start_pos[0] + (e.end_pos[0] - e.start_pos[0]) * u + dx, e.start_pos[1]) };
+  const r = placeExtras([runner("runner1", -3, 3, -2.2), runner("runner2", 2.4, 4, -2.2), runner("runner3", 2.5, 4, -2.2)], opts);
+  assert.equal(r.get("runner1"), null);            // crosses right behind the cast head: dropped
+  assert.equal(r.get("runner2"), 0);
+  assert.ok(Math.abs(2.5 + r.get("runner3") - 2.4) >= GAP.runner - 1e-9); // pushed 0.6 clear of runner2
+});
+
+test("extras draw at 85% saturation: the cast's own colours are untouched", () => {
+  assert.equal(EXTRA_SATURATION, 0.85);
+  assert.equal(desaturate("#ff0000", 1), "#ff0000");
+  assert.equal(desaturate("#808080"), "#808080");                 // greys stay grey
+  const sat = (hex) => { const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2; return (mx - mn) / (1 - Math.abs(2 * l - 1)); };
+  for (const c of EXTRA_TOPS) assert.ok(Math.abs(sat(desaturate(c)) - 0.85 * sat(c)) < 0.03, c);
+});
+
+// --- the stadium rail (geometry only) ---
+let loop;
+before(async () => { loop = await render("--loop-check"); });
+
+test("the stadium has a low painted rail between the track and the stands, in every variant", () => {
+  assert.equal(loop.status, 0, loop.stderr);
+  const res = JSON.parse(loop.stdout.slice(loop.stdout.indexOf("[")));
+  const stadium = res.filter((r) => r.set === "stadium");
+  assert.ok(stadium.length >= 2 && stadium.every((r) => r.named.includes("rail")));
+  assert.ok(res.filter((r) => r.set !== "stadium").every((r) => !r.named.includes("rail")));
 });
 
 // --- batch render: a crowd and runners, twice ---

@@ -2,13 +2,13 @@
 // render.mjs calls setup(data) once, then renderFrame(n) or renderCast(pose) per image (PNG data URL back).
 import * as THREE from "three";
 import { dolly, glide } from "./borrowed.js";
-import { CH, CW, FEET_Y, FIGURE_PX, drawStickman } from "./stickman.js";
+import { CH, CW, FEET_Y, FIGURE_PX, HAT_TOP, HEAD_R, drawStickman, skeleton } from "./stickman.js";
 import { DH, DOG_FEET, DW, barkAmount, drawDog, gallopPhase } from "./dog.js";
 import { gestureAmount, gesturePlan, mouthCurve, mouthCycles, pointAmount, stressBob, waveAmount } from "./motion.js";
 import { CARRIED_LIFT, HELD_Z, HOLD_GAP, LIE, collapseAt, eatAt, gaitPhase, giveAt, handOf, heldPlace, propsByShot, sideToward, staggerAt,
   withProp, zzzAt } from "./actions.js";
 import { CAR_CARD_W, CAR_GROUND, DRIVER_X, RIDER_X, VH, VW, carEase, carSpeedShare, drawCar, seatOffset } from "./car.js";
-import { MOOD_EXPRESSION, extraLook, moodAt } from "./extras.js";
+import { MOOD_EXPRESSION, extraLook, moodAt, placeExtras } from "./extras.js";
 import { rng, setVariant } from "./rng.js";
 import { SETS, VARIANTS, buildSet, loopExcess, scrollSet } from "./world.js";
 
@@ -54,7 +54,7 @@ const CAR_GEO = new THREE.PlaneGeometry(CAR_CARD_W, CAR_CARD_H).translate(0, CAR
 const DOG_GEO = new THREE.PlaneGeometry(DOG_CARD_W, DOG_CARD_H).translate(0, DOG_CARD_H / 2 - DOG_CARD_H * (1 - DOG_FEET / DH), 0);
 
 let data = null, scene = null;
-const sets = {}, cards = {}, hiddenByShot = new Map(), variantByShot = new Map();
+const sets = {}, cards = {}, hiddenByShot = new Map(), variantByShot = new Map(), extrasByShot = new Map();
 let ownedProps = new Map(); // shot id -> { cast id: props held at the shot's start } (give hands props on)
 const comp = Object.assign(document.createElement("canvas"), { width: W, height: H }); // wipe composite
 const cg = comp.getContext("2d");
@@ -182,7 +182,7 @@ function useSet(shot) {
 const png = () => renderer.domElement.toDataURL("image/png");
 
 window.setup = (d) => {
-  data = d; hiddenByShot.clear(); variantByShot.clear();
+  data = d; hiddenByShot.clear(); variantByShot.clear(); extrasByShot.clear();
   ownedProps = propsByShot(d.story.shots || [], Object.fromEntries((d.series.cast || []).map((c) => [c.id, castOf(c.id).props])));
   mouth = d.phrases ? mouthCurve(mouthCycles(d.phrases.words, d.phrases.phrases), d.story.duration_frames) : mouth;
   for (const k of Object.keys(sets)) delete sets[k];
@@ -320,6 +320,10 @@ function drawShot(shot, n) {
   const travelHidden = scrollSet(group, shift, !!shot.travel);
   const hidden = shot.travel ? travelHidden : hiddenFor(shot, subject, span, group);
   for (const [id, pc] of group.userData.pieces) for (const m of pc.meshes) m.visible = !hidden.has(id);
+  const camAt = (uu) => shotCamera(shot, subject ? placeAt2(subject, uu)[0] : 0, span, uu,
+    subject ? LIE.drop * lying(subject, shot.start_frame + uu * (shot.end_frame - shot.start_frame - 1), shot) : 0);
+  const placeAt2 = (a, uu) => seated.get(a.cast_id) || heldPlace(a, shot.actors, placeAt, uu) || placeAt(a, uu);
+  const extraShift = extrasFor(shot, camAt, placeAt2);
   shotCamera(shot, subject ? place(subject)[0] : 0, span, u, subject ? LIE.drop * lying(subject, kf, shot) : 0);
   const gestures = [], riders = new Map(); // riders: cast id -> drawStickman options, drawn inside the car card
   const ownMove = (a) => (a.end_pos ? Math.hypot(a.end_pos[0] - a.start_pos[0], a.end_pos[1] - a.start_pos[1]) : 0);
@@ -367,7 +371,7 @@ function drawShot(shot, n) {
     scene.add(mesh, shadow);
   }
   drawAnimals(shot, animals, n, kf, u);
-  const extras = drawExtras(shot, n, kf, u);
+  const extras = drawExtras(shot, n, kf, u, extraShift);
   const cars = drawVehicles(shot, vehicles, riders, n, u);
   renderer.render(scene, camera);
   const travel = shot.travel ? { travel: `${shot.travel.speed} u/s ${dir < 0 ? "left" : "right"}, shift ${shift.toFixed(2)}`
@@ -445,13 +449,42 @@ function drawAnimals(shot, animals, n, kf, u) {
 }
 
 const MOOD_HOP = 0.06; // world units a cheering figure bounces
+// head box on a card (world units over the feet): head outline plus the tallest hat and a brim's reach
+const HEAD_BOX = (() => {
+  const s = CARD_H / CH, [, hy] = skeleton({ action: "idle" }).head;
+  return { lo: (FEET_Y - hy - HEAD_R) * s, hi: (FEET_Y - hy + HAT_TOP) * s, hw: (HEAD_R + 40) * s };
+})();
+
+/** screen rect (NDC) of a head box at world (x, z) for the current camera, lifted by y */
+function headRect(x, z, y = 0) {
+  camera.updateMatrixWorld();
+  const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0).setY(0).normalize(), pts = [];
+  for (const sx of [-1, 1]) for (const h of [HEAD_BOX.lo, HEAD_BOX.hi]) {
+    pts.push(new THREE.Vector3(x, y + h, z).addScaledVector(right, sx * HEAD_BOX.hw));
+  }
+  return rect(pts);
+}
+
+/** per shot, once: Map extra id -> x shift, or null (dropped for this shot): no extra's head may overlap a cast
+ *  member's head or hat on screen (cast box + 6%) at any sampled moment; see extras.js placeExtras */
+function extrasFor(shot, camAt, placeAt2) {
+  if (extrasByShot.has(shot.id)) return extrasByShot.get(shot.id);
+  const heads = shot.actors.filter((a) => a.action !== "lie" && a.action !== "collapse");
+  const res = placeExtras(shot.extras || [], {
+    setCamera: camAt,
+    castRects: (uu) => heads.map((a) => { const [x, z] = placeAt2(a, uu); return headRect(x, z, a.action === "carried" ? CARRIED_LIFT : 0); }),
+    headRect: (e, dx, uu) => { const [x, z] = placeAt(e, uu); return headRect(x + dx, z); },
+  });
+  extrasByShot.set(shot.id, res);
+  return res;
+}
 
 /** extras: crowd rows in a mood (each with its own timing offset) and background runners (gait from distance:
  *  scroll + own move, like the cast). Looks are seeded per series and extra variant (extras.js). */
-function drawExtras(shot, n, kf, u) {
-  const t = n / FPS, secs = (shot.end_frame - shot.start_frame) / FPS, list = shot.extras || [];
+function drawExtras(shot, n, kf, u, shift) {
+  const t = n / FPS, secs = (shot.end_frame - shot.start_frame) / FPS, list = (shot.extras || []).filter((e) => shift.get(e.id) != null);
   for (const e of list) {
-    const [x, z] = placeAt(e, u), key = `${data.series.slug}:extra:${e.kind}:${e.variant}`, look = extraLook(data.series.slug, e);
+    const [x0, z] = placeAt(e, u), x = x0 + shift.get(e.id), key = `${data.series.slug}:extra:${e.kind}:${e.variant}`, look = extraLook(data.series.slug, e);
     const own = e.end_pos ? Math.hypot(e.end_pos[0] - e.start_pos[0], e.end_pos[1] - e.start_pos[1]) : 0;
     const phase = e.action === "run" ? gaitPhase("run", ((shot.travel ? shot.travel.speed * secs : 0) + own) * u, 0) : 0;
     const mood = e.kind === "crowd" ? moodAt(e.action, t, key) : null;
@@ -588,13 +621,14 @@ window.glInfo = () => {
 window.loopCheck = ({ seeds = [0, 687360865], steps = 120 } = {}) => {
   const out = [];
   for (const seed of seeds) for (const set of SETS) for (let variant = 0; variant < (VARIANTS[set] || 1); variant++) {
-    const g = buildSet(set, seed, variant);
+    const g = buildSet(set, seed, variant), named = [];
+    g.traverse((m) => { if (m.name && !named.includes(m.name)) named.push(m.name); });
     let worst = { excess: -Infinity, row: "none" };
     for (let k = 0; k < steps; k++) { // 0.237-unit steps: no layout period divides them, ~1.0 band sweep
       const r = loopExcess(g, 0.01 + k * 0.237);
       if (r.excess > worst.excess) worst = r;
     }
-    out.push({ set, variant, seed, ...worst });
+    out.push({ set, variant, seed, ...worst, named });
   }
   return out;
 };

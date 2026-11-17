@@ -159,5 +159,6 @@ library/<series-slug>/
 - Writes to JSON files must be atomic (temp file, then replace).
 - Never touch the real library/ in tests. Use a temp dir.
 - Run and show real verification output before reporting.
+- Never push while any test suite fails.
 - Flag risks. Disagree if something is a bad idea.
 - End every task with a report: files created, decisions, issues.

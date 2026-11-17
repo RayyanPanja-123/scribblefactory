@@ -114,8 +114,9 @@ class Builder {
   }
   /** centred primitive at pos; outline = inverted hull grown by HULL_T on every side; floor = exempt from clearance.
    *  Anything that is not floor or backdrop (walls, windows, posters, buildings) is a prop piece. */
-  add(geo, mat, pos, { outline = true, rot = null, floor = false, backdrop = false, travelHide = false } = {}) {
+  add(geo, mat, pos, { outline = true, rot = null, floor = false, backdrop = false, travelHide = false, name = "" } = {}) {
     const m = new THREE.Mesh(geo, mat);
+    m.name = name; // tests find named parts (e.g. the stadium rail) through window.loopCheck
     m.position.set(...pos);
     m.userData.kind = floor ? "floor" : backdrop ? "backdrop" : "prop";
     m.userData.travelHide = travelHide; // floor/backdrop mark that makes no sense scrolling past (finish line)
@@ -287,6 +288,10 @@ function stadium(b, R, v) {
     for (const z of [-2.4, 0.45]) b.cyl(0.05, 0.05, 1.3, null, [fx, 0.65, z], { mat: post });
     b.box(0.03, 0.07, 2.85, "#e63946", [fx, 1.15, -0.975]);
   });
+  // low painted rail between the track and the stands: crowd extras stand behind it (z <= -1.8); behind the stage
+  // clearance line (z < -1.0), so the stage itself is unchanged
+  b.box(140, 0.48, 0.06, "#f4efe4", [0, 0.24, -1.6], { backdrop: true, name: "rail", pattern: lines("v", 10, "#2d6fb3", 6), repeat: [20, 1] });
+  b.box(140, 0.06, 0.12, "#c4553b", [0, 0.5, -1.6], { backdrop: true, name: "rail" });
   b.box(140, 1.0, 0.2, "#2d6fb3", [0, 0.5, -4.2], { backdrop: true, pattern: lines("v", 4, "#f4efe4", 6), repeat: [12, 1] });
   for (let i = 0; i < 5; i++) { // stepped stands, a crowd strip on top of each step
     const z = -5 - i * 1.4, h = 1.1 + i * 0.8;

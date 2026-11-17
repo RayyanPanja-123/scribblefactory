@@ -6,7 +6,7 @@ import { rng } from "./rng.js";
 
 export const CW = 512, CH = 1024, FEET_Y = 1000;
 const INK = "#1c1a1a";
-const HEAD_R = 150;
+export const HEAD_R = 150;
 const HEAD_SQUASH = 0.97; // head height / width
 const LEG = 220;         // leg length; hip height follows the leg angle, so feet stay planted
 const IDLE_LEG = 6;      // degrees each leg splays when standing
