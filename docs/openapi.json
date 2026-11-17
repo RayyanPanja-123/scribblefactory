@@ -463,6 +463,10 @@
           "part": {
             "$ref": "#/components/schemas/PartModel"
           },
+          "part_bytes": {
+            "title": "Part Bytes",
+            "type": "integer"
+          },
           "qa": {
             "anyOf": [
               {
@@ -513,6 +517,7 @@
           "upload_md",
           "voice_duration",
           "frames_bytes",
+          "part_bytes",
           "busy"
         ],
         "title": "PartDetail",
@@ -1391,7 +1396,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
               }
             },
             "description": "Successful Response"
@@ -1428,7 +1435,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
               }
             },
             "description": "Successful Response"
@@ -1600,7 +1609,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesModel"
+                }
               }
             },
             "description": "Successful Response"
@@ -1708,7 +1719,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/PartModel"
+                }
               }
             },
             "description": "Successful Response"
@@ -1754,7 +1767,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/PartModel"
+                }
               }
             },
             "description": "Successful Response"
@@ -1810,7 +1825,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/PartModel"
+                }
               }
             },
             "description": "Successful Response"
@@ -1866,7 +1883,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/PartModel"
+                }
               }
             },
             "description": "Successful Response"
@@ -1922,7 +1941,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/PartDetail"
+                }
               }
             },
             "description": "Successful Response"

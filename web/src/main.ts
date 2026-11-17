@@ -14,6 +14,9 @@ const router = createRouter({
     { path: '/', name: 'overview', component: () => import('./pages/Overview.vue') },
     { path: '/series', name: 'series', component: () => import('./pages/SeriesList.vue') },
     { path: '/series/:slug', name: 'series-detail', component: () => import('./pages/SeriesDetail.vue'), props: true },
+    { path: '/series/:slug/:part', name: 'part', component: () => import('./pages/PartDetail.vue'), props: true },
+    { path: '/review', name: 'review', component: () => import('./pages/Review.vue') },
+    { path: '/posted', name: 'posted', component: () => import('./pages/Posted.vue') },
   ],
 })
 

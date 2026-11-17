@@ -2,7 +2,7 @@
 //   node scripts/screenshots.mjs           real library (read-only GETs)
 //   node scripts/screenshots.mjs --demo    temp demo library (scripts/make-demo-library.py), deleted afterwards
 // Starts its own API (:8766) and `vite preview` (:4174), so it never clashes with a running dev setup.
-// Output: ../library/_review/dashboard-v2-*.png
+// Output: ../library/_review/dashboard-v3-*.png. Real library: looks only. Demo: also clicks through actions.
 import { spawn, execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { existsSync, mkdirSync, rmSync } from 'node:fs'
@@ -61,20 +61,20 @@ function contrastCheck() {
     return layers.reverse().reduce((acc, c) => over(c, acc), [255, 255, 255, 1])
   }
   const fails = [], seen = new Set()
-  const tabbar = document.querySelector('nav[aria-label=Tabs]')
   let covered = 0
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
   for (let n; (n = walker.nextNode());) {
     const el = n.parentElement
-    if (!n.textContent.trim() || !el || seen.has(el) || el.closest('.sr-only')) continue
+    // disabled controls are exempt (WCAG 1.4.3 "inactive user interface components")
+    if (!n.textContent.trim() || !el || seen.has(el) || el.closest('.sr-only, :disabled, [aria-disabled="true"]')) continue
     const cs = getComputedStyle(el), r = el.getBoundingClientRect()
     if (!r.width || cs.visibility === 'hidden' || r.bottom < 0 || r.top > innerHeight) continue
     seen.add(el)
     const [cx, cy] = [r.left + r.width / 2, r.top + r.height / 2]
     const clip = el.closest('main')?.getBoundingClientRect() // scrolled out of the frame's visible area
-    if ((clip && (cy < clip.top || cy > clip.bottom)) ||
-        (!tabbar.contains(el) && tabbar.contains(document.elementFromPoint(cx, cy)))) {
-      covered++ // scrolled under the floating tab bar: checked again once scrolled clear
+    const hit = document.elementFromPoint(cx, cy) // something else on top: the tab bar, a modal's scrim
+    if ((clip && (cy < clip.top || cy > clip.bottom)) || (hit && !el.contains(hit) && !hit.contains(el))) {
+      covered++ // not visible right now (under the tab bar, behind a dialog): checked where it is visible
       continue
     }
     const bg = bgAt(cx, cy)
@@ -87,53 +87,114 @@ function contrastCheck() {
   return { checked: seen.size - covered, fails }
 }
 
-const shots = [
-  ['overview', '/'],
-  ['series', '/series'],
-  ['series-detail', demo ? '/series/great-emu-war' : '/series/marathon-1904'],
-]
+const results = []
 let browser
-try {
-  await Promise.all([waitUp(`http://127.0.0.1:${API_PORT}/api/health`), waitUp(BASE)])
-  browser = await chromium.launch()
-  for (const [name, path] of shots) {
-    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
-    const errors = []
-    page.on('pageerror', (e) => errors.push(e.message))
-    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()))
-    await page.goto(BASE + path, { waitUntil: 'networkidle' })
-    await page.waitForSelector('.raised')
-    await page.waitForTimeout(1800) // entrance, count-up and chart draw-in settle
-    const file = resolve(OUT, `dashboard-v2-${name}${tag}.png`)
-    await page.screenshot({ path: file })
-    const top = await page.evaluate(contrastCheck)
-    // scrolled to the end: the last content must clear the tab bar by >= 24 px; then check what was underneath
-    const clearance = await page.evaluate(async () => {
+
+async function open(path, opts = {}) {
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, ...opts })
+  page.errors = []
+  page.on('pageerror', (e) => page.errors.push(e.message))
+  page.on('console', (m) => m.type() === 'error' && !/Failed to load resource/.test(m.text()) && page.errors.push(m.text()))
+  await page.goto(BASE + path, { waitUntil: 'networkidle' })
+  await page.waitForSelector('main .raised')
+  await page.waitForTimeout(1600) // entrance, count-up and chart draw-in settle
+  return page
+}
+
+const scrollTo = (page, sel) => page.evaluate((s) => {
+  const el = document.querySelector(s), main = document.querySelector('main')
+  main.scrollTop += el.getBoundingClientRect().top - main.getBoundingClientRect().top - 8
+}, sel).then(() => page.waitForTimeout(500))
+
+/** screenshot + contrast check of what is on screen; `clearance` also scrolls to the end and checks the tab bar gap */
+async function shoot(page, name, { clearance = false } = {}) {
+  const file = resolve(OUT, `dashboard-v3-${name}${tag}.png`)
+  await page.screenshot({ path: file })
+  const { checked, fails } = await page.evaluate(contrastCheck)
+  let gap = null, total = checked
+  if (clearance) {
+    gap = await page.evaluate(async () => {
       const main = document.querySelector('main')
       main.scrollTop = main.scrollHeight
-      await new Promise((r) => setTimeout(r, 150))
+      await new Promise((r) => setTimeout(r, 200))
       const last = Math.max(...[...main.querySelectorAll('.raised, .inset')].map((e) => e.getBoundingClientRect().bottom))
       return Math.round(document.querySelector('nav[aria-label=Tabs]').getBoundingClientRect().top - last)
     })
     const end = await page.evaluate(contrastCheck)
-    const fails = [...new Set([...top.fails, ...end.fails])]
-    console.log(file, `contrast: ${top.checked} + ${end.checked} texts (top, scrolled to end), ${fails.length} below AA;`,
-      `tab bar clearance ${clearance}px${clearance >= 24 ? '' : ' (TOO SMALL)'}`, ...fails.map((f) => `\n  ${f}`),
-      errors.length ? `\n  ERRORS: ${errors.join(' | ')}` : '')
-    await page.evaluate(() => (document.querySelector('main').scrollTop = 0))
-    if (name === 'overview' && demo) { // hovered KPI card + chart tooltip
-      await page.locator('.raised.lift').first().hover()
-      await page.waitForTimeout(500)
-      const hover = resolve(OUT, `dashboard-v2-hover${tag}.png`)
-      await page.screenshot({ path: hover })
-      const svg = page.locator('svg[aria-label^="Posts per month"]')
-      const box = await svg.boundingBox()
-      await page.mouse.move(box.x + box.width * 0.86, box.y + box.height * 0.5)
-      await page.waitForTimeout(400)
-      const tip = resolve(OUT, `dashboard-v2-chart-hover${tag}.png`)
-      await page.screenshot({ path: tip })
-      console.log(hover, '\n' + tip)
+    total += end.checked
+    fails.push(...end.fails.filter((f) => !fails.includes(f)))
+  }
+  results.push({ file, total, fails, gap, errors: [...page.errors] })
+  console.log(file, `contrast: ${total} texts, ${fails.length} below AA` + (gap === null ? '' : `; tab bar clearance ${gap}px${gap >= 24 ? '' : ' (TOO SMALL)'}`),
+    ...fails.map((f) => `\n  ${f}`), page.errors.length ? `\n  ERRORS: ${page.errors.join(' | ')}` : '')
+}
+
+async function waitJob(id) {
+  for (let i = 0; i < 300; i++) {
+    const j = (await (await fetch(`http://127.0.0.1:${API_PORT}/api/jobs`)).json()).find((x) => x.id === id)
+    if (j && !['queued', 'running'].includes(j.status)) return j
+    await new Promise((r) => setTimeout(r, 200))
+  }
+  throw new Error(`job ${id} did not finish`)
+}
+
+try {
+  await Promise.all([waitUp(`http://127.0.0.1:${API_PORT}/api/health`), waitUp(BASE)])
+  browser = await chromium.launch()
+
+  if (!demo) {
+    // real library: look only. Nothing here clicks an action.
+    const page = await open('/series/marathon-1904/part-01')
+    await shoot(page, 'part-detail')
+    await scrollTo(page, '#review')
+    await shoot(page, 'part-detail-scrolled', { clearance: true })
+  } else {
+    // read-only pages first, before the clicks below change what is waiting
+    let page = await open('/review')
+    await shoot(page, 'review', { clearance: true })
+    await page.close()
+    page = await open('/posted')
+    await shoot(page, 'posted', { clearance: true })
+    await page.close()
+
+    page = await open('/series/great-emu-war/part-07')
+    await shoot(page, 'part-detail')
+    await scrollTo(page, '#review')
+    await shoot(page, 'part-detail-scrolled', { clearance: true })
+
+    // polaroid: pick #2 -> it straightens, lifts, gets the pin
+    await scrollTo(page, '#review')
+    await page.getByRole('button', { name: 'Pick thumbnail 2' }).click()
+    await page.waitForSelector('[aria-pressed="true"][aria-label="Pick thumbnail 2"]')
+    await page.waitForTimeout(900)
+    await shoot(page, 'polaroid-picked')
+    await page.close()
+
+    // approval switch: stills on moon-diner part-01 (its sheet is waiting)
+    page = await open('/series/moon-diner/part-01')
+    await scrollTo(page, '#approvals')
+    await page.getByRole('switch', { name: 'Stills' }).click()
+    await page.waitForSelector('[role=switch][aria-label="Stills"][aria-checked="true"]')
+    await page.waitForTimeout(800)
+    await shoot(page, 'approval-on')
+    await page.close()
+
+    // a fast real job through the UI: stage chip "prep" -> Re-run (force); then the drawer with its log
+    page = await open('/series/moon-diner/part-02')
+    const before = (await (await fetch(`http://127.0.0.1:${API_PORT}/api/jobs`)).json()).length
+    await page.getByRole('button', { name: /^prep/ }).first().click()
+    await page.getByRole('menuitem', { name: /Re-run/ }).click()
+    let jobs
+    for (let i = 0; i < 50 && !(jobs?.length > before); i++) {
+      await page.waitForTimeout(100)
+      jobs = await (await fetch(`http://127.0.0.1:${API_PORT}/api/jobs`)).json()
     }
+    const job = await waitJob(jobs.at(-1).id)
+    console.log(`job ${job.id}: ${job.status}, ${job.output.length} output lines`)
+    await page.waitForTimeout(600)
+    await page.getByRole('button', { name: /^Jobs/ }).click()
+    await page.waitForTimeout(900)
+    await shoot(page, 'job-drawer')
     await page.close()
   }
 } finally {
@@ -141,3 +202,6 @@ try {
   for (const p of procs) p.kill()
   if (demo && existsSync(library)) rmSync(library, { recursive: true, force: true })
 }
+const bad = results.filter((r) => r.fails.length || r.errors.length || (r.gap !== null && r.gap < 24))
+console.log(`\n${results.length} screenshots, ${results.reduce((a, r) => a + r.total, 0)} texts checked, ${bad.length} with problems`)
+process.exitCode = bad.length ? 1 : 0

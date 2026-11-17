@@ -139,9 +139,10 @@ library/<series-slug>/
   - Actions: lie, ride, wave, eat, stagger, carried, chase, give.
   - Extras: crowd and background runners (non-cast, generic look).
   - Directives: "@do <cast>: <action> [target]" overrides keyword guessing for that line.
-- Step 6: FastAPI + Vue web view.
+- Step 6: FastAPI + Vue web view. DONE.
   - 6.1: FastAPI backend: reads, media with Range, actions, one-worker jobs, SSE, docs/openapi.json. DONE.
   - 6.2a: Vue dashboard foundation: design system (docs/design.md), shell, overview and series pages. DONE.
+  - 6.2b: part detail, all actions, jobs drawer + live progress (SSE), Review and Posted tabs. DONE.
 - Step 7: Polish and QA.
 
 ## Working rules for you

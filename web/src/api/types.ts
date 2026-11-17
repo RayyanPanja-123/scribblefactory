@@ -434,6 +434,8 @@ export interface components {
             /** Frames Bytes */
             frames_bytes: number;
             part: components["schemas"]["PartModel"];
+            /** Part Bytes */
+            part_bytes: number;
             /** Qa */
             qa: {
                 [key: string]: unknown;
@@ -895,7 +897,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Job"];
                 };
             };
             /** @description Validation Error */
@@ -926,7 +928,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Job"];
                 };
             };
             /** @description Validation Error */
@@ -1064,7 +1066,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["SeriesModel"];
                 };
             };
             /** @description Validation Error */
@@ -1129,7 +1131,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["PartModel"];
                 };
             };
             /** @description Validation Error */
@@ -1161,7 +1163,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["PartModel"];
                 };
             };
             /** @description Validation Error */
@@ -1197,7 +1199,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["PartModel"];
                 };
             };
             /** @description Validation Error */
@@ -1233,7 +1235,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["PartModel"];
                 };
             };
             /** @description Validation Error */
@@ -1269,7 +1271,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["PartDetail"];
                 };
             };
             /** @description Validation Error */

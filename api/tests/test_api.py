@@ -102,6 +102,7 @@ def test_part_detail(client):
     assert r["files"]["story.md"] and r["files"]["final.mp4"] and not r["files"]["voice.mp3"]
     assert r["thumbs"] == ["thumb-1.png", "thumb-2.png", "thumb-3.png"]
     assert (r["qa"]["ok"], r["upload_md"], r["voice_duration"], r["frames_bytes"]) == (True, "Title\n", None, 100)
+    assert r["part_bytes"] > r["frames_bytes"]
     assert client.get("/api/series/demo/parts/part-09").status_code == 404
 
 

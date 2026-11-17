@@ -1,0 +1,144 @@
+import { describe, expect, it } from 'vitest'
+import { backoff, connectStream, type EventSourceLike } from './events'
+import { nextSteps, type PipelineState } from './nextSteps'
+import { jobFraction, parseProgress } from './progress'
+
+const ALL = ['prep', 'import_check', 'timing', 'shots', 'validate', 'render', 'audio', 'finish', 'thumbnails']
+const NONE = { stills: false, test_render: false, final: false }
+function state(doneUpto: number, over: Partial<PipelineState> = {}): PipelineState {
+  return {
+    stages: Object.fromEntries(ALL.map((s, i) => [s, i < doneUpto ? 'done' : 'pending'])),
+    approvals: NONE,
+    files: { voice: true, stillsSheet: false, testRender: false },
+    castApproved: true,
+    ...over,
+  }
+}
+
+describe('nextSteps', () => {
+  it('fresh part with voice: prep stretch, then stills, stops at the stills gate', () => {
+    expect(nextSteps(state(0))).toEqual({
+      steps: ['run --stage prep', 'run --stage import_check', 'run --stage timing', 'run --stage shots',
+        'run --stage validate', 'render-stills'],
+      stop: 'stills approval',
+    })
+  })
+  it('no voice yet: only prep, then stops for the voice', () => {
+    const p = nextSteps(state(0, { files: { voice: false, stillsSheet: false, testRender: false } }))
+    expect(p.steps).toEqual(['run --stage prep'])
+    expect(p.stop).toMatch(/voice\.mp3/)
+  })
+  it('a failed stage restarts there and re-plans everything after it', () => {
+    const s = state(5)
+    s.stages.timing = 'failed'
+    expect(nextSteps(s).steps.slice(0, 3)).toEqual(['run --stage timing', 'run --stage shots', 'run --stage validate'])
+  })
+  it('unapproved cast stops before the stills render', () => {
+    expect(nextSteps(state(5, { castApproved: false }))).toEqual({ steps: [], stop: 'cast approval: check the cast sheet' })
+  })
+  it('stills sheet waiting: nothing to run, stops at the gate', () => {
+    const files = { voice: true, stillsSheet: true, testRender: false }
+    expect(nextSteps(state(5, { files }))).toEqual({ steps: [], stop: 'stills approval' })
+  })
+  it('stills approved: test render, stops at its gate', () => {
+    const p = nextSteps(state(5, { approvals: { ...NONE, stills: true } }))
+    expect(p).toEqual({ steps: ['test-render'], stop: 'test render approval' })
+  })
+  it('both approved: full render to thumbnails, stops at final approval', () => {
+    const p = nextSteps(state(5, { approvals: { ...NONE, stills: true, test_render: true } }))
+    expect(p).toEqual({
+      steps: ['render', 'run --stage audio', 'run --stage finish', 'run --stage thumbnails'], stop: 'final approval',
+    })
+  })
+  it('render done, audio failed: resumes at audio', () => {
+    const s = state(6, { approvals: { ...NONE, stills: true, test_render: true } })
+    s.stages.audio = 'failed'
+    expect(nextSteps(s).steps).toEqual(['run --stage audio', 'run --stage finish', 'run --stage thumbnails'])
+  })
+  it('everything done and approved: nothing left', () => {
+    expect(nextSteps(state(9, { approvals: { stills: true, test_render: true, final: true } }))).toEqual({ steps: [], stop: null })
+  })
+  it('a running stage blocks planning', () => {
+    const s = state(3)
+    s.stages.shots = 'running'
+    expect(nextSteps(s).steps).toEqual([])
+  })
+})
+
+describe('parseProgress', () => {
+  it('reads the last chunk line', () => {
+    expect(parseProgress(['webgl: x', 'chunk 1/4 done (frames 0-149, 30 fps)', 'chunk 3/4 done (frames 300-449)'])).toBe(0.75)
+  })
+  it('reads resume and frame counters', () => {
+    expect(parseProgress(['resuming: 2/8 chunk(s) already done'])).toBe(0.25)
+    expect(parseProgress(['frame 45/90'])).toBe(0.5)
+  })
+  it('null without countable progress, and ignores zero totals', () => {
+    expect(parseProgress(['prep: running', 'prep: done'])).toBeNull()
+    expect(parseProgress(['chunk 0/0'])).toBeNull()
+    expect(parseProgress([])).toBeNull()
+  })
+  it('job fraction combines finished steps and the current one', () => {
+    expect(jobFraction(1, 4, 0.5)).toBe(0.375)
+    expect(jobFraction(0, 2, null)).toBe(0)
+    expect(jobFraction(null, 2, 0.5)).toBe(0)
+  })
+})
+
+class FakeES implements EventSourceLike {
+  static all: FakeES[] = []
+  onopen: ((e: Event) => void) | null = null
+  onerror: ((e: Event) => void) | null = null
+  listeners: Record<string, (e: MessageEvent) => void> = {}
+  closed = false
+  constructor(public url: string) {
+    FakeES.all.push(this)
+  }
+  addEventListener(t: string, fn: (e: MessageEvent) => void) {
+    this.listeners[t] = fn
+  }
+  close() {
+    this.closed = true
+  }
+  emit(t: string, data: string) {
+    this.listeners[t]?.({ data } as MessageEvent)
+  }
+}
+
+describe('connectStream', () => {
+  it('backoff doubles from 1 s and caps at 30 s', () => {
+    expect([0, 1, 2, 3, 4, 5, 10].map(backoff)).toEqual([1000, 2000, 4000, 8000, 16000, 30000, 30000])
+  })
+  it('delivers parsed events, reconnects with backoff, resets after a good open', () => {
+    FakeES.all = []
+    const timers: [() => void, number][] = []
+    const got: unknown[] = []
+    const opens: boolean[] = []
+    const stop = connectStream({
+      url: '/api/events', types: ['job-output'], create: (u) => new FakeES(u),
+      setTimer: (fn, ms) => timers.push([fn, ms]),
+      onEvent: (t, d) => got.push([t, d]), onOpen: (r) => opens.push(r),
+    })
+    const first = FakeES.all[0]
+    first.onopen!(new Event('open'))
+    first.emit('job-output', '{"line":"hi"}')
+    first.emit('job-output', 'not json')
+    expect(got).toEqual([['job-output', { line: 'hi' }]])
+
+    first.onerror!(new Event('error'))
+    expect(first.closed).toBe(true)
+    expect(timers.map((t) => t[1])).toEqual([1000])
+    timers[0][0]() // retry 1 fails too
+    FakeES.all[1].onerror!(new Event('error'))
+    expect(timers.map((t) => t[1])).toEqual([1000, 2000])
+    timers[1][0]() // retry 2 opens: reported as a reconnect, backoff resets
+    FakeES.all[2].onopen!(new Event('open'))
+    expect(opens).toEqual([false, true])
+    FakeES.all[2].onerror!(new Event('error'))
+    expect(timers.at(-1)![1]).toBe(1000)
+
+    stop()
+    timers.at(-1)![0]() // a retry due after stop does nothing
+    expect(FakeES.all).toHaveLength(3)
+  })
+})

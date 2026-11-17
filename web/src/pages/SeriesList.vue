@@ -5,10 +5,12 @@ import { api } from '../api/client'
 import Card from '../components/Card.vue'
 import EmptyState from '../components/EmptyState.vue'
 import ErrorCard from '../components/ErrorCard.vue'
+import { refetchOn } from '../composables/live'
 import { useApi } from '../composables/useApi'
 import { bytes, search, statusChip } from '../composables/ui'
 
-const { data, error, loading, reload } = useApi(api.series)
+const { data, error, loading, reload, refresh } = useApi(api.series)
+refetchOn(() => null, () => null, refresh)
 const shown = computed(() => {
   const q = search.value.trim().toLowerCase()
   return (data.value ?? []).filter((s) => !q || s.title.toLowerCase().includes(q) || s.slug.includes(q))

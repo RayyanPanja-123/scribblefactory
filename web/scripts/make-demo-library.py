@@ -22,7 +22,8 @@ from pipeline.scribble.io import atomic_write_text, save_part, save_series  # no
 from pipeline.scribble.schemas import (CastMember, PartModel, Post, SeriesModel, Style, Voice,  # noqa: E402
                                        utcnow)
 
-STILLS = ROOT / "library" / "marathon-1904" / "part-01" / "frames" / "stills"
+REAL = ROOT / "library" / "marathon-1904"  # read only: media for the demo, when present
+STILLS = REAL / "part-01" / "frames" / "stills"
 THUMB = (270, 480)  # 9:16, small: the dashboard shows covers at ~220 px wide
 STAGES = ["prep", "import_check", "timing", "shots", "validate", "render", "audio", "finish", "thumbnails"]
 NOW = utcnow()
@@ -56,6 +57,17 @@ def write_thumbs(pdir: Path, sources: list[Path], tint: str, rng: random.Random)
         img.save(pdir / "thumbs" / f"thumb-{n}.png", optimize=True)
 
 
+def copy_real(rel: str, dest: Path, fallback: bytes = b"") -> None:
+    """copy a file from the real marathon library (read only), else write `fallback`"""
+    src = REAL / rel
+    dest.write_bytes(src.read_bytes() if src.is_file() else fallback)
+
+
+def upload_text(title: str, n: int) -> str:
+    return (f"# {title} - Part {n}\n\n## YouTube\n\nTitle: {title} | Part {n}\n\n"
+            f"Description: Part {n} of {title}. #shorts #stickman\n\n## Instagram\n\nCaption: {title}, part {n}.\n")
+
+
 def stage_states(p: PartModel, done_upto: int, last: str | None = None, error: str | None = None) -> None:
     """stages [0, done_upto) done; the next one gets `last` (running / failed)"""
     for i, name in enumerate(STAGES):
@@ -80,6 +92,8 @@ def build(out: Path) -> None:
                              approved_at=NOW - timedelta(days=30) if ok else None) for i, nm, c, ok in cast],
             parts=[f"part-{n:02d}" for n in range(1, n_parts + 1)])
         save_series(d / "series.json", series)
+        if all(ok for *_, ok in cast):  # a sheet with unapproved cast would add a 4th approval waiting
+            copy_real("cast-sheet.png", d / "cast-sheet.png")
         for n in range(1, n_parts + 1):
             pid = f"part-{n:02d}"
             pdir = d / pid
@@ -98,6 +112,9 @@ def build(out: Path) -> None:
                                                  posted_at=yt + timedelta(days=rng.randint(0, 3)))
             write_thumbs(pdir, sources, tint, rng)
             (pdir / "story.md").write_text(f"# Part {n}\n\nDemo story.\n", encoding="utf-8")
+            if finished:
+                copy_real("part-01/qa.json", pdir / "qa.json", b'{"ok": true, "checks": {}}')
+                atomic_write_text(pdir / "upload.md", upload_text(title, n))
             (pdir / "frames").mkdir()
             with open(pdir / "frames" / "frames.bin", "wb") as f:
                 f.truncate(frame_bytes)  # disk usage without writing the bytes
@@ -124,13 +141,18 @@ def build(out: Path) -> None:
     def wait_test(p, pdir):
         stage_states(p, 5)
         p.approvals.stills.approved_at = NOW - timedelta(days=2)
-        (pdir / "stills-sheet.png").write_bytes((pdir / "thumbs" / "thumb-1.png").read_bytes())
-        (pdir / "test-render.mp4").write_bytes(b"\0" * 1024)
+        copy_real("part-01/stills-sheet.png", pdir / "stills-sheet.png")
+        copy_real("part-01/test-render.mp4", pdir / "test-render.mp4", b"\0" * 1024)
 
-    def wait_final(p, pdir):
+    def wait_final(p, pdir):  # the showcase part: real clip as test render, preview and final; QA; upload text
         stage_states(p, len(STAGES))
         p.approvals.stills.approved_at = p.approvals.test_render.approved_at = NOW - timedelta(days=3)
-        (pdir / "final.mp4").write_bytes(b"\0" * 1024)
+        p.thumbnail_choice = None
+        copy_real("part-01/stills-sheet.png", pdir / "stills-sheet.png")
+        for name in ("test-render.mp4", "preview.mp4", "final.mp4"):
+            copy_real("part-01/test-render.mp4", pdir / name, b"\0" * 1024)
+        copy_real("part-01/qa.json", pdir / "qa.json", b'{"ok": true, "checks": {}}')
+        atomic_write_text(pdir / "upload.md", upload_text("The Great Emu War", p.number))
 
     edit("great-emu-war", "part-07", wait_final)
     edit("great-emu-war", "part-08", running)

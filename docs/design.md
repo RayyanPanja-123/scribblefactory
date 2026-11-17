@@ -73,6 +73,31 @@ trimmed by one cap width so caps never overlap), a pressed-in track and a raised
 - Thin scrollbar inside the frame: 6 px, rounded, `#b3ab9d` thumb, transparent track; the thumb shows only while
   scrolling (`.scrolling` for 800 ms after a scroll event). Firefox falls back to `scrollbar-width: thin`.
 
+## Part detail and live controls (6.2b)
+- **Shared-element expand**: a part card records its rect on click; the part header animates from it with a FLIP
+  (translate + scale only, spring), skipped under reduced motion.
+- **Player**: raised round play button, inset scrub track (native range input) with a raised thumb, Fredoka time
+  readout, source tabs (Test render / Preview / Final, only those that exist) with a sliding raised segment.
+  Space plays, ←/→ seek 5 s. Media comes through `/api/media` (Range, so seeking works).
+- **Switches** (approvals, cast): inset track, raised knob that springs across; on = green track. Approvals are
+  one-way, so an "on" switch is locked; disabled switches say why (title + caption). Final asks for confirmation.
+- **Light table**: an inset panel with a warm centre glow; sheets are raised white mounts that zoom (scale spring,
+  dimmed backdrop). Thumbnail candidates are tilted polaroids; the picked one straightens, lifts and gets a green pin.
+- **VU meter**: analogue dial −30…0 LUFS, green target band at −14, red-orange above −6; the needle springs in.
+- **upload.md**: inset "paper" (grain + faint ruled lines), autosized with `field-sizing: content`, amber
+  unsaved dot, Ctrl+S.
+- **Danger zone**: pale red panel, red-ink text; destructive buttons always go through the confirm dialog.
+- **Job drawer**: slides in from the right (transform). Progress fill is `scaleX` (transform only); unknown
+  progress shimmers (translateX), a fade under reduced motion. Log: inset monospace, auto-scrolls, last 200 lines.
+- **Top-bar reel**: spins while a job runs (opacity pulse under reduced motion), amber badge = queued jobs, grey dot
+  while live updates are reconnecting.
+- **Toasts**: raised cards sliding up bottom right (left of the drawer while it is open); errors stay 8 s and show
+  the API's message verbatim.
+- **Bottom fade**: the scroll area fades out under the tab bar (`mask-image`, decorative only).
+- **Status colours**: the Posted-this-month badge follows the sign (green up, red-orange `#e8603c` tint with
+  `#a8401f` ink down, neutral grey equal). Amber KPI icon gradient ends at `#c97a0a` (white icon 3.35:1).
+- **Donut**: one series (or one at ≥ 99.5%) is a single seamless ring: butt caps, no gap.
+
 ## States
 - Loading: skeleton blocks with a shimmer (translateX), shaped like the content.
 - Error: a raised card with the API message and a Retry button.

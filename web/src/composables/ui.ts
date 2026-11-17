@@ -29,3 +29,10 @@ const CHIP: Record<string, string> = {
 }
 /** chip class for a series status or a stage status (draft / archived / pending stay grey) */
 export const statusChip = (s: string) => CHIP[s] ?? ''
+
+/** FLIP origin for the part card -> part detail expand: the card's rect when it was clicked. */
+export const expandFrom = { rect: null as DOMRect | null, key: '' }
+
+export const shortDate = (iso?: string | null) =>
+  iso ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'
+export const today = () => new Date().toISOString().slice(0, 10)

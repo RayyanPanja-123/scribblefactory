@@ -5,8 +5,14 @@ type S = components['schemas']
 export type Overview = S['Overview']
 export type SeriesCard = S['SeriesCard']
 export type SeriesDetail = S['SeriesDetail']
+export type SeriesModel = S['SeriesModel']
 export type PartSummary = S['PartSummary']
+export type PartDetail = S['PartDetail']
+export type PartModel = S['PartModel']
 export type CastMember = S['CastMember']
+export type Job = S['Job']
+export type Approval = 'stills' | 'test_render' | 'final'
+export type Platform = 'youtube' | 'instagram'
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -14,22 +20,45 @@ export class ApiError extends Error {
   }
 }
 
-async function get<T>(path: string): Promise<T> {
+async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
   let r: Response
   try {
-    r = await fetch(path)
+    r = await fetch(path, {
+      method,
+      headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    })
   } catch {
     throw new ApiError(0, 'The API is not reachable. Is uvicorn running on port 8765?')
   }
   if (!r.ok) {
     const detail = await r.json().then((b) => b?.detail, () => null)
-    throw new ApiError(r.status, typeof detail === 'string' ? detail : `${r.status} ${r.statusText}`)
+    // 409s carry the CLI's own message: show it verbatim
+    const msg = typeof detail === 'string' ? detail : Array.isArray(detail) ? detail.map((d) => d.msg).join('; ') : null
+    throw new ApiError(r.status, msg ?? `${r.status} ${r.statusText}`)
   }
   return r.json() as Promise<T>
 }
 
+const e = encodeURIComponent
+const part = (slug: string, p: string) => `/api/series/${e(slug)}/parts/${e(p)}`
+
+export const media = (slug: string, rel: string) => `/api/media/${e(slug)}/${rel.split('/').map(e).join('/')}`
+
 export const api = {
-  overview: () => get<Overview>('/api/overview'),
-  series: () => get<SeriesCard[]>('/api/series'),
-  seriesDetail: (slug: string) => get<SeriesDetail>(`/api/series/${encodeURIComponent(slug)}`),
+  overview: () => call<Overview>('GET', '/api/overview'),
+  series: () => call<SeriesCard[]>('GET', '/api/series'),
+  seriesDetail: (slug: string) => call<SeriesDetail>('GET', `/api/series/${e(slug)}`),
+  part: (slug: string, p: string) => call<PartDetail>('GET', part(slug, p)),
+  approve: (slug: string, p: string, what: Approval) => call<PartModel>('POST', `${part(slug, p)}/approve/${what}`),
+  approveCast: (slug: string, castId: string) =>
+    call<SeriesModel>('POST', `/api/series/${e(slug)}/approve-cast`, { cast_id: castId }),
+  pickThumbnail: (slug: string, p: string, n: 1 | 2 | 3) => call<PartModel>('POST', `${part(slug, p)}/pick-thumbnail`, { n }),
+  markPosted: (slug: string, p: string, body: { platform: Platform; url: string; date?: string; force?: boolean }) =>
+    call<PartModel>('POST', `${part(slug, p)}/mark-posted`, body),
+  saveUpload: (slug: string, p: string, text: string) => call<PartDetail>('PUT', `${part(slug, p)}/upload.md`, { text }),
+  cleanFrames: (slug: string, p: string) => call<PartModel>('POST', `${part(slug, p)}/clean-frames`),
+  jobs: () => call<Job[]>('GET', '/api/jobs'),
+  submitJob: (slug: string, p: string, steps: string[]) => call<Job>('POST', '/api/jobs', { slug, part: p, steps }),
+  cancelJob: (id: number) => call<Job>('DELETE', `/api/jobs/${id}`),
 }

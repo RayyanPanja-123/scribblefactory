@@ -9,12 +9,15 @@ const R = 70, STROKE = 20
 const CAP = STROKE / (2 * Math.PI * R) // a round cap adds half the stroke at each end, in pathLength units
 const GAP = 0.012
 const segments = computed(() => {
+  // one series (or one at >= 99.5%): a single seamless ring, no caps, no gap
+  const whole = p.items.findIndex((i) => total.value > 0 && i.value / total.value >= 0.995)
+  if (whole >= 0) return [{ ...p.items[whole], color: PALETTE[whole % PALETTE.length], offset: 0, len: 1, cap: 'butt' as const }]
   let start = 0
   const many = p.items.filter((i) => i.value > 0).length > 1
   return p.items.map((it, i) => {
     const frac = total.value ? it.value / total.value : 0
     const trim = many ? CAP + GAP : 0 // keep rounded caps from overlapping the next segment
-    const seg = { ...it, color: PALETTE[i % PALETTE.length], offset: start + trim / 2, len: Math.max(0.001, frac - trim) }
+    const seg = { ...it, color: PALETTE[i % PALETTE.length], offset: start + trim / 2, len: Math.max(0.001, frac - trim), cap: 'round' as const }
     start += frac
     return seg
   })
@@ -29,7 +32,7 @@ const still = reducedMotion()
       <div class="absolute inset-[5%] rounded-full bg-well shadow-[var(--shadow-inset)]" aria-hidden="true" />
       <svg viewBox="0 0 180 180" class="relative size-full" role="img" :aria-label="`Disk usage, ${bytes(total)} total`">
         <motion.circle v-for="(s, i) in segments" :key="s.label" cx="90" cy="90" :r="R" fill="none"
-          :stroke="s.color" :stroke-width="STROKE" stroke-linecap="round"
+          :stroke="s.color" :stroke-width="STROKE" :stroke-linecap="s.cap"
           :transform="`rotate(${-90 + s.offset * 360} 90 90)`"
           :initial="still ? false : { pathLength: 0 }" :animate="{ pathLength: s.len }"
           :transition="{ duration: 0.9, delay: 0.15 + i * 0.12, ease: [0.3, 0.7, 0.2, 1] }" />

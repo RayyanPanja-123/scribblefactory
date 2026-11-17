@@ -212,6 +212,7 @@ class PartDetail(BaseModel):
     upload_md: str | None
     voice_duration: float | None
     frames_bytes: int
+    part_bytes: int  # the whole part folder, frames included
     busy: str | None
 
 
@@ -294,7 +295,7 @@ def part_detail(slug: str, part: str):
             "thumbs": sorted(f.name for f in (pdir / "thumbs").glob("thumb-*.png")),
             "qa": json.loads(qa.read_bytes()) if qa.is_file() else None,
             "upload_md": upload.read_text(encoding="utf-8") if upload.is_file() else None,
-            "voice_duration": voice, "frames_bytes": du(pdir / "frames"),
+            "voice_duration": voice, "frames_bytes": du(pdir / "frames"), "part_bytes": du(pdir),
             "busy": busy(slug, part)}
 
 
@@ -349,7 +350,7 @@ def part_action(slug: str, part: str, *argv: str) -> dict:
     return part_json(pdir)
 
 
-@app.post("/api/series/{slug}/parts/{part}/approve/{what}")
+@app.post("/api/series/{slug}/parts/{part}/approve/{what}", response_model=PartModel)
 def approve(slug: str, part: str, what: Literal["stills", "test_render", "final"]):
     pdir = part_path(slug, part)
     if what not in waiting_approvals(pdir, load_part(pdir / "part.json")) \
@@ -363,7 +364,7 @@ class CastApproval(BaseModel):
     cast_id: str
 
 
-@app.post("/api/series/{slug}/approve-cast")
+@app.post("/api/series/{slug}/approve-cast", response_model=SeriesModel)
 def approve_cast(slug: str, body: CastApproval):
     d = series_path(slug)
     check_free(slug)
@@ -378,7 +379,7 @@ class Thumbnail(BaseModel):
     n: Literal[1, 2, 3]
 
 
-@app.post("/api/series/{slug}/parts/{part}/pick-thumbnail")
+@app.post("/api/series/{slug}/parts/{part}/pick-thumbnail", response_model=PartModel)
 def pick_thumbnail(slug: str, part: str, body: Thumbnail):
     return part_action(slug, part, "pick-thumbnail", slug, part, str(body.n))
 
@@ -390,7 +391,7 @@ class Posting(BaseModel):
     force: bool = False
 
 
-@app.post("/api/series/{slug}/parts/{part}/mark-posted")
+@app.post("/api/series/{slug}/parts/{part}/mark-posted", response_model=PartModel)
 def mark_posted(slug: str, part: str, body: Posting):
     argv = ["mark-posted", slug, part, body.platform, f"--url={body.url}"]
     argv += [f"--date={body.date}"] * bool(body.date) + ["--force"] * body.force
@@ -401,7 +402,7 @@ class UploadText(BaseModel):
     text: str
 
 
-@app.put("/api/series/{slug}/parts/{part}/upload.md")
+@app.put("/api/series/{slug}/parts/{part}/upload.md", response_model=PartDetail)
 def put_upload_md(slug: str, part: str, body: UploadText):
     pdir = part_path(slug, part)
     check_free(slug, part)
@@ -410,7 +411,7 @@ def put_upload_md(slug: str, part: str, body: UploadText):
     return part_detail(slug, part)
 
 
-@app.post("/api/series/{slug}/parts/{part}/clean-frames")
+@app.post("/api/series/{slug}/parts/{part}/clean-frames", response_model=PartModel)
 def clean_frames(slug: str, part: str):
     return part_action(slug, part, "clean-frames", slug, part)
 
@@ -452,7 +453,7 @@ def public(job: dict) -> dict:
     return {**{k: v for k, v in job.items() if k != "argv"}, "output": list(job["output"])}
 
 
-@app.post("/api/jobs")
+@app.post("/api/jobs", response_model=Job)
 def submit_job(body: JobRequest):
     part_path(body.slug, body.part)
     if not body.steps:
@@ -477,7 +478,7 @@ def list_jobs():
     return [public(j) for j in list(JOBS)]
 
 
-@app.delete("/api/jobs/{job_id}")
+@app.delete("/api/jobs/{job_id}", response_model=Job)
 def cancel_job(job_id: int):
     with _cv:
         job = next((j for j in JOBS if j["id"] == job_id), None)

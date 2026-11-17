@@ -8,10 +8,12 @@ import CountUp from '../components/CountUp.vue'
 import Donut from '../components/Donut.vue'
 import EmptyState from '../components/EmptyState.vue'
 import ErrorCard from '../components/ErrorCard.vue'
+import { refetchOn } from '../composables/live'
 import { useApi } from '../composables/useApi'
 import { label } from '../composables/ui'
 
-const { data, error, loading, reload } = useApi(() => Promise.all([api.overview(), api.series()]))
+const { data, error, loading, reload, refresh } = useApi(() => Promise.all([api.overview(), api.series()]))
+refetchOn(() => null, () => null, refresh)
 
 const kpis = computed(() => {
   if (!data.value) return []
@@ -29,7 +31,8 @@ const kpis = computed(() => {
     { name: 'Waiting for you', value: k.waiting_for_approval, icon: Clock, accent: ACCENTS.amber,
       badge: k.waiting_for_approval ? 'needs you' : 'all clear' },
     { name: 'Posted this month', value: k.posted_this_month, icon: Sparkles, accent: ACCENTS.green,
-      badge: delta > 0 ? `+${delta} vs last month` : delta < 0 ? `${delta} vs last month` : 'same as last month' },
+      badge: delta > 0 ? `+${delta} vs last month` : delta < 0 ? `${delta} vs last month` : 'same as last month',
+      tint: delta > 0 ? ACCENTS.green : delta < 0 ? DOWN : NEUTRAL }, // this badge follows the sign
   ]
 })
 
@@ -37,9 +40,12 @@ const kpis = computed(() => {
 const ACCENTS = {
   indigo: { a1: '#5b6cf0', a2: '#4453d6', bg: '#e8e8f4', ink: '#3a47c4' },
   blue: { a1: '#4f9cf7', a2: '#2f7be0', bg: '#e6eef5', ink: '#1d5fb5' },
-  amber: { a1: '#f5b544', a2: '#e0901a', bg: '#faf1e0', ink: '#875400' },
+  amber: { a1: '#f5b544', a2: '#c97a0a', bg: '#faf1e0', ink: '#875400' }, // white icon 3.35:1 on the dark stop
   green: { a1: '#3fbf7f', a2: '#23a063', bg: '#e4f2e7', ink: '#147045' },
 }
+
+const DOWN = { bg: '#f9e7df', ink: '#a8401f' } // red-orange #e8603c at 12%, ink 5.1:1
+const NEUTRAL = { bg: '#edebe6', ink: '#5c584f' }
 
 const titles = computed(() => new Map(data.value?.[1].map((s) => [s.slug, s.title])))
 const disk = computed(() =>
@@ -67,7 +73,7 @@ const waitLabel = (w: string) => (w.startsWith('cast:') ? `cast: ${w.slice(5)}` 
           </span>
         </div>
         <p class="mt-1 text-5xl"><CountUp :value="k.value" /></p>
-        <span class="chip mt-3" :style="{ background: k.accent.bg, color: k.accent.ink }">{{ k.badge }}</span>
+        <span class="chip mt-3" :style="{ background: (k.tint ?? k.accent).bg, color: (k.tint ?? k.accent).ink }">{{ k.badge }}</span>
       </Card>
     </section>
 
