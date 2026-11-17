@@ -15,7 +15,7 @@ from .io import load_series, prop_kinds, unknown_cast_props
 from .stages.prep import (DO_CAR, FX_MODES, MAX_SECONDS, TWIST_PREFIX, WPM, clean_markdown, estimate_seconds,
                           parse_do, strip_directives)
 from .stages.runner import StageError
-from .stages.shots import CAR_MODES, CAR_SEATS, DEFAULT_CAST_SIZE, MAX_DOGS, MAX_RUNNERS, parse_crowd
+from .stages.shots import CAR_MODES, CAR_SEATS, DEFAULT_CAST_SIZE, MAX_CAST, MAX_DOGS, MAX_ON_STAGE, MAX_RUNNERS, parse_crowd
 
 WORLD_JS = Path(__file__).resolve().parents[2] / "engine" / "page" / "world.js"
 DIRECTIVES = ("set", "cast", "dogs", "car", "fx", "do", "crowd", "runners")
@@ -87,6 +87,9 @@ def check_story(part_dir: Path) -> dict:
                         bad(no, "@cast needs at least one cast id")
                     elif unknown:
                         bad(no, f"unknown cast id {', '.join(unknown)} (series cast: {', '.join(ids) or '-'})")
+                    elif len(new) > MAX_CAST:
+                        bad(no, f"@cast: {len(new)} on stage, at most {MAX_CAST} fit ({MAX_ON_STAGE} in front, "
+                                f"{MAX_ON_STAGE} behind; split the scene, or use @crowd for a group in the background)")
                     else:
                         cast = new
                 elif name == "dogs" and not (arg.isdigit() and int(arg) <= MAX_DOGS):

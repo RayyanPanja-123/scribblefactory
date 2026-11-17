@@ -90,3 +90,13 @@ def test_missing_story_and_empty_body(tmp_path):
     assert [p["message"] for p in check_story(pdir)["problems"]] == ["story.md has no body text (only a title?)"]
     (pdir / "story.md").unlink()
     assert check_story(pdir)["problems"] == [{"line": None, "message": "story.md not found"}]
+
+
+def test_too_many_on_stage(tmp_path):
+    pdir = setup(tmp_path, "# T\n\nBob sat.\n")
+    extra = [f"c{i}" for i in range(4, 14)]
+    for cid in extra:
+        assert cli(["cast-add", "demo", cid, "--name", cid, "--color", "#00ff00", "--library", str(tmp_path)]) == 0
+    (pdir / "story.md").write_text("# T\n\n@cast bob, amy, fred, " + ", ".join(extra) + "\nThey met.\n", encoding="utf-8")
+    msgs = [(p["line"], p["message"].split(" (")[0]) for p in check_story(pdir)["problems"]]
+    assert (3, "@cast: 13 on stage, at most 12 fit") in msgs

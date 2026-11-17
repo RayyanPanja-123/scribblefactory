@@ -32,7 +32,7 @@ One per line. A directive holds until it is changed, except `@do` and `!!`, whic
 | Directive | What it does | Example |
 |---|---|---|
 | `@set <name>` | Set for the following lines: room, office, street, dirt_road, countryside, orchard, stadium. Default room. A set change resets `@crowd` and `@runners`. | `@set stadium` |
-| `@cast a, b` | Cast on stage (ids from series.json). Default: the first two cast members. | `@cast fred, daughter` |
+| `@cast a, b` | Cast on stage (ids from series.json). Default: the first two cast members. Up to 6 stand in one row; with more (up to 12), whoever the scene's lines name or `@do` directs stands in front and the rest stand behind in the gaps, smaller and idle. For a big group, use `@crowd`. | `@cast fred, daughter` |
 | `@dogs N` | Dog pack (0-6). Travel shots: they chase. Otherwise they idle or bark at the edges. | `@dogs 3` |
 | `@car <mode>` | `arrive` (drives in, parks beside the subject), `ride` (the @cast ride, max 3; travel shot outdoors), `leave` (drives off), `off`. | `@car ride` |
 | `@do <cast>: <action> ...` | Overrides the guessed action for every shot of the next line. Actions: idle, talk, walk, run, point, react, wave, stagger, lie, collapse, eat [prop], give &lt;prop&gt; &lt;target&gt;, carry &lt;target&gt; (2 carriers), support &lt;target&gt; (1-2), cheer, angry, gasp; and `car: broken`. Several clauses: comma-separated. | `@do trainer1, trainer2: carry thomas` |

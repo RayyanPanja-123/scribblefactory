@@ -608,3 +608,67 @@ def test_prep_strips_car_directive():
     plain = "# T\n\nUntil his manager pulled up. Fred hopped in.\n"
     marked = "# T\n\n@car arrive\nUntil his manager pulled up.\n@car ride\nFred hopped in.\n"
     assert clean_markdown(strip_directives(marked)) == clean_markdown(strip_directives(plain))
+
+
+# --- how many fit on stage ---
+
+CROWD9 = SeriesModel.model_validate({**SERIES.model_dump(mode="json"), "cast": [
+    {"id": f"p{i}", "name": n, "top": {"color": "#3a7bd5"}, "eyes": "dots"}
+    for i, n in enumerate(["Ann", "Ben", "Cal", "Dot", "Eve", "Fay", "Gus", "Hal", "Ivy"], 1)]})
+
+
+def test_too_many_on_stage_fails_with_the_line():
+    big = SeriesModel.model_validate({**CROWD9.model_dump(mode="json"), "cast": [
+        {"id": f"q{i}", "name": f"Q{i}", "top": {"color": "#3a7bd5"}, "eyes": "dots"} for i in range(13)]})
+    md = "# X\n\n@cast " + ", ".join(f"q{i}" for i in range(13)) + "\nThey all talked.\n"
+    with pytest.raises(StageError, match=r"line 3: @cast: 13 on stage, at most 12 fit \(6 in front, 6 behind\)"):
+        shots.plan(md, phrases_for(md), big, 1)
+
+
+def test_crowded_scene_puts_the_unfeatured_in_a_back_row():
+    md = ("# X\n\n@cast p1, p2, p3, p4, p5, p6, p7, p8, p9\nAnn danced. Ben begged her to stop.\n"
+          "@do p9: wave\nThe music played on and on.\n")
+    ph = phrases_for(md)
+    story = shots.plan(md, ph, CROWD9, 1)
+    assert validate(story, ph, {c.id for c in CROWD9.cast}) == []
+    first = story.shots[0]
+    front = {a.cast_id for a in first.actors if a.start_pos[1] == 0}
+    back = {a.cast_id: a for a in first.actors if a.start_pos[1] == shots.BACK_Z}
+    # featured (named: Ann, Ben; @do: p9) in front, the other 6 fill the back row
+    assert front == {"p1", "p2", "p9"} and set(back) == {"p3", "p4", "p5", "p6", "p7", "p8"}
+    assert all(a.action == "idle" for a in back.values())
+    bx = sorted(a.start_pos[0] for a in back.values())
+    assert all(y - x >= shots.MIN_GAP - 1e-9 for x, y in zip(bx, bx[1:])) and all(-2 <= x <= 2 for x in bx)
+    fx = [a.start_pos[0] for a in first.actors if a.cast_id in front]
+    assert all(abs(x - f) > 0.1 for x in bx for f in fx)  # in the gaps, not hidden behind a front actor
+    for sh in story.shots:  # the back row stands still for the whole scene
+        assert {a.cast_id: a.start_pos for a in sh.actors if a.cast_id in back} == {c: a.start_pos for c, a in back.items()}
+
+
+def test_full_back_row_sends_the_first_listed_forward():
+    assert shots.split_rows(tuple(f"q{i}" for i in range(1, 11)), {"q5"}) == (
+        ("q1", "q2", "q3", "q5"), ("q4", "q6", "q7", "q8", "q9", "q10"))
+    assert shots.split_rows(("a", "b", "c"), set()) == (("a", "b", "c"), ())
+    assert shots.split_rows(tuple("abcdefg"), set())[0] == ("a",)  # nobody featured: the first listed leads
+
+
+def test_too_many_featured_in_one_scene_fails():
+    md = "# X\n\n@cast p1, p2, p3, p4, p5, p6, p7\nAnn, Ben, Cal, Dot, Eve, Fay and Gus all danced.\n"
+    with pytest.raises(StageError, match=r"7 of them are named or directed in one scene, at most 6 fit in front"):
+        shots.plan(md, phrases_for(md), CROWD9, 1)
+
+
+def test_six_or_fewer_stay_in_one_row():
+    md = "# X\n\n@cast p1, p2, p3, p4, p5, p6\nAnn danced.\n"
+    story = shots.plan(md, phrases_for(md), CROWD9, 1)
+    assert all(a.start_pos[1] == 0 for sh in story.shots for a in sh.actors)
+
+
+def test_six_fit_even_after_walks_left_odd_spots():
+    md = ("# X\n\n@cast p1, p2, p3\nAnn walked right. Ben walked left. Cal ran.\n"
+          "@cast p1, p2, p3, p4, p5, p6\nThey all talked.\n")
+    story = shots.plan(md, phrases_for(md), CROWD9, 1)
+    last = story.shots[-1]
+    xs = sorted(a.start_pos[0] for a in last.actors)
+    assert len(xs) == 6 and all(b - a >= shots.MIN_GAP - 1e-9 for a, b in zip(xs, xs[1:]))
+    assert validate(story, phrases_for(md), {c.id for c in CROWD9.cast}) == []

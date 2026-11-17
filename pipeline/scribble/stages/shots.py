@@ -39,6 +39,11 @@ MIN_SPEED = {a: SPEEDS[a][0] for a in MOVE_SPEED}  # shortened moves never go sl
 GROUP_SPEED = {"carry": 0.9, "support": 0.8}  # @do carry / support: the group walks toward the stage centre
 HOLD_GAP = 0.42            # carry / support: a holder stands this far (x) beside the held actor (engine actions.js)
 MIN_GAP = 0.8              # actors at least this far apart in x at the start and end of every shot
+MAX_ON_STAGE = round((BOUNDS[1] - BOUNDS[0]) / MIN_GAP) + 1  # 6: that many fit side by side MIN_GAP apart
+# A crowded scene (more @cast than MAX_ON_STAGE) gets a second row: whoever the scene features (named in its lines
+# or in an @do) stands in front, the rest stand behind in the gaps between them, idle, smaller by perspective.
+BACK_Z = -0.9              # just inside the stage clearance line (set props sit behind z -1.0)
+MAX_CAST = 2 * MAX_ON_STAGE  # front row + back row
 TRAVEL_Z = 0.3             # travel shots: each actor seeded in z -0.3..0.3 so a pack reads as a group
 # dogs (@dogs N): ids dog1..dogN; colours from a seeded order of the variants, unique until all are used
 MAX_DOGS = 6
@@ -143,6 +148,10 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
                 if unknown:
                     raise StageError(f"story.md line {line}: @cast: unknown cast id {', '.join(unknown)} "
                                      f"(series cast: {', '.join(cast_ids)}; add with cast-add)")
+                if len(ids) > MAX_CAST:
+                    raise StageError(f"story.md line {line}: @cast: {len(ids)} on stage, at most {MAX_CAST} fit "
+                                     f"({MAX_ON_STAGE} in front, {MAX_ON_STAGE} behind); split the scene, or use "
+                                     f"@crowd for a group in the background")
                 cast = tuple(ids)
             elif name == "dogs" and arg.isdigit() and int(arg) <= MAX_DOGS:
                 dogs = int(arg)
@@ -249,6 +258,35 @@ def spread(cast) -> dict[str, float]:
     n = len(cast)
     gap = max(2 * STAGE_X / (n - 1), MIN_GAP) if n > 1 else 0
     return {cid: round((i - (n - 1) / 2) * gap, 3) for i, cid in enumerate(cast)}
+
+
+def split_rows(cast: tuple, featured: set) -> tuple[tuple, tuple]:
+    """(front, back) for one scene, each in @cast order. Up to MAX_ON_STAGE everyone stands in front. Beyond that the
+    featured stand in front and the rest behind; a full back row sends its first listed forward."""
+    if len(cast) <= MAX_ON_STAGE:
+        return tuple(cast), ()
+    front = {c for c in cast if c in featured} or {cast[0]}
+    if len(front) > MAX_ON_STAGE:
+        raise StageError(f"@cast {', '.join(cast)}: {len(front)} of them are named or directed in one scene, at most "
+                         f"{MAX_ON_STAGE} fit in front; split the scene")
+    back = [c for c in cast if c not in front]
+    while len(back) > MAX_ON_STAGE:
+        front.add(back.pop(0))
+    return tuple(c for c in cast if c in front), tuple(back)
+
+
+def back_spots(back: tuple, front_xs: list[float]) -> dict[str, float]:
+    """x for each back-row actor: in the widest gaps of the front row (heads show between front heads), MIN_GAP
+    apart, inside the bounds; nearer the centre on ties. Greedy, so it can paint itself into a corner: then the even
+    spread (always fits MAX_ON_STAGE)."""
+    grid = [round(k / 10, 1) for k in range(int(BOUNDS[0] * 10), int(BOUNDS[1] * 10) + 1)]
+    out: dict[str, float] = {}
+    for cid in back:
+        free = [x for x in grid if all(abs(x - t) >= MIN_GAP - 1e-9 for t in out.values())]
+        if not free:
+            return spread(back)
+        out[cid] = max(free, key=lambda x: (min((abs(x - f) for f in front_xs), default=0.0), -abs(x)))
+    return out
 
 
 def _free(x: float, others) -> bool:
@@ -513,14 +551,35 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
         names[token(c.id)] = c.id
         names.setdefault(token(c.id) + "s", c.id)  # plural: "the runners" -> runner
 
+    # scenes: runs of phrases on one set with one @cast. Each scene's rows are fixed for all its shots.
+    rows, scene, featured, key = {}, [], set(), None
+    for i, p in enumerate(phrases.phrases + [None]):
+        t = tags[p.word_start] if p else None
+        if scene and (p is None or (t[0], t[1]) != key):
+            for j in scene:
+                rows[j] = split_rows(key[1], featured)
+            scene, featured = [], set()
+        if p is None:
+            break
+        key = (t[0], t[1])
+        scene.append(i)
+        featured |= {names[w] for w in (token(x) for x in heard[p.word_start:p.word_end + 1]) if names.get(w) in key[1]}
+        if t[5]:  # @do: everyone named in it, actors and targets
+            featured |= {w for c in t[5][1] for w in c.who + ((c.target,) if c.target else ()) if w in key[1]}
+
     shots, cues = [], [Cue(frame=0, kind="music_start")]
     prev_angle = prev_set = subject = None
+    back_pos: dict[str, float] = {}  # back row of the current scene (a scene's first shot places it)
+    scene_key = None
     car_mode, car_left, park = "off", False, None  # park: (x, facing) where an arrived car stands
     prev_cast, travel_run = (), None  # travel_run: first shot id of the current run of travel shots on one set
     pos: dict[str, float] = {}  # where each actor stands now; reset on a set change
     fallen: set = set()  # (@do line, cast id) that already collapsed
     for i, p in enumerate(phrases.phrases):
         set_, cast, _, dogs, mode, do, crowd, runners = tags[p.word_start]
+        if (set_, cast) != scene_key:
+            scene_key, back_pos = (set_, cast), {}
+        cast, back = rows[i]  # from here on, cast is the front row
         if set_ != prev_set:
             pos, park = {}, None
         if mode != car_mode:
@@ -532,10 +591,15 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
         home, placed = spread(cast), []
         # actors on stage last shot stay put; newcomers (start, set change, @cast change) and returners take the
         # free spot nearest their even-spread one, MIN_GAP from everyone already placed
-        for cid in sorted(cast, key=lambda c: c not in prev_cast or c not in pos):
-            if cid not in pos or cid not in prev_cast or not _free(pos[cid], placed):
-                pos[cid] = place(home[cid], placed)
-            placed.append(pos[cid])
+        try:
+            for cid in sorted(cast, key=lambda c: c not in prev_cast or c not in pos):
+                if cid not in pos or cid not in prev_cast or not _free(pos[cid], placed):
+                    pos[cid] = place(home[cid], placed)
+                placed.append(pos[cid])
+        except StageError:  # where earlier moves left people splits the free room into gaps too small for a
+            pos.update(home)  # newcomer: everyone takes their even-spread spot (fits up to MAX_ON_STAGE)
+        if back and not back_pos:
+            back_pos = back_spots(back, [pos[c] for c in cast])
         prev_cast = cast
         twist = any(t[2] for t in tags[p.word_start:p.word_end + 1])
         pw = [token(w) for w in heard[p.word_start:p.word_end + 1]]
@@ -605,6 +669,12 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
                     for v in vehicles:
                         if v.action == "broken":  # it stays where it broke down
                             park, car_left = (v.start_pos[0], v.facing), False
+            if back and not travel and not ride:  # the back row: idle, looking at the subject (not in travel shots:
+                sx = next(ac.start_pos[0] for ac in actors if ac.cast_id == subject)  # the world scrolls past them)
+                actors = list(actors) + [
+                    Actor(cast_id=c, action="idle", start_pos=(back_pos[c], BACK_Z), expression="neutral",
+                          facing="camera" if back_pos[c] == sx else "left" if sx < back_pos[c] else "right")
+                    for c in back]
             xs = [x for ac in actors for x in (ac.start_pos[0], (ac.end_pos or ac.start_pos)[0])]
             for v in vehicles:  # where the car stands (arrive: its stop, leave: its start), both ends of the body
                 cx = (v.end_pos or v.start_pos)[0] if v.action == "arrive" else v.start_pos[0]
