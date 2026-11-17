@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { Clapperboard, Clock, HardDrive, Inbox, Layers, Sparkles } from 'lucide-vue-next'
-import { computed } from 'vue'
+import { Check, Clapperboard, Clock, Copy, HardDrive, Inbox, Layers, NotebookPen, Sparkles } from 'lucide-vue-next'
+import { computed, ref } from 'vue'
 import { api } from '../api/client'
 import AreaChart from '../components/AreaChart.vue'
 import Card from '../components/Card.vue'
@@ -8,11 +8,26 @@ import CountUp from '../components/CountUp.vue'
 import Donut from '../components/Donut.vue'
 import EmptyState from '../components/EmptyState.vue'
 import ErrorCard from '../components/ErrorCard.vue'
+import { toast } from '../composables/feedback'
 import { refetchOn } from '../composables/live'
 import { useApi } from '../composables/useApi'
 import { label } from '../composables/ui'
 
 const { data, error, loading, reload, refresh } = useApi(() => Promise.all([api.overview(), api.series()]))
+
+// docs/STORY_GUIDE.md, bundled at build time and loaded on the first click (the one copy lives in docs/)
+const copied = ref(false)
+async function copyGuide() {
+  try {
+    const { default: guide } = await import('../../../docs/STORY_GUIDE.md?raw')
+    await navigator.clipboard.writeText(guide)
+    copied.value = true
+    toast('Story guide copied: paste it into any AI, then fill in your cast at the end', 'ok')
+    setTimeout(() => (copied.value = false), 2500)
+  } catch {
+    toast('Could not copy to the clipboard. Open docs/STORY_GUIDE.md and copy it from there.', 'error')
+  }
+}
 refetchOn(() => null, () => null, refresh)
 
 const kpis = computed(() => {
@@ -64,6 +79,17 @@ const waitLabel = (w: string) => (w.startsWith('cast:') ? `cast: ${w.slice(5)}` 
   </div>
 
   <div v-else-if="data" class="space-y-6">
+    <section class="raised flex flex-wrap items-center gap-4 px-5 py-4" aria-labelledby="guide-title">
+      <NotebookPen :size="22" class="shrink-0 text-muted" aria-hidden="true" />
+      <div class="min-w-0 flex-1">
+        <h2 id="guide-title" class="font-semibold">Write stories with any AI</h2>
+        <p class="text-sm text-muted">Copy the story guide, paste it into Claude, ChatGPT or any assistant, fill in your cast at the end and ask for a part.</p>
+      </div>
+      <button class="btn btn-primary" :aria-label="copied ? 'Story guide copied' : 'Copy the story guide'" @click="copyGuide">
+        <component :is="copied ? Check : Copy" :size="16" aria-hidden="true" /> {{ copied ? 'Copied' : 'Copy story guide' }}
+      </button>
+    </section>
+
     <section class="grid grid-cols-2 gap-6 xl:grid-cols-4" aria-label="Key numbers">
       <Card v-for="(k, i) in kpis" :key="k.name" :index="i" lift class="p-5">
         <div class="flex items-start justify-between">

@@ -16,6 +16,9 @@ bash scripts/serve.sh      # http://127.0.0.1:8765
    CLI: `cli new-series <slug> --title "..."`, `cli cast-add <slug> <id> --name Fred --color "#3a7bd5"`,
    then `cli cast-edit <slug> <id> --top suit --headwear flat_cap --props "medal:right" ...`.
 2. Custom props (anything beyond clipboard, stopwatch, bottle, syringe, apple, medal): **Props** page.
+   Custom sets (places beyond the seven built in, e.g. a kitchen or a beach): **Sets** page. A set is a floor, a back
+   wall or sky, and simple pieces (boxes, cylinders, balls, mounds) with a live preview; *Build with AI* drafts one.
+   Saved in library/sets.json, shared by every series; stories use it by id (`@set kitchen`).
 3. **Cast sheet**: part detail → Run → *Cast sheet* (`cli cast-sheet <slug>`). Look at every row, then approve each
    cast member on the series page (`cli approve-cast <slug> <id>`). Changing a look later clears its approval.
 
@@ -31,7 +34,7 @@ One per line. A directive holds until it is changed, except `@do` and `!!`, whic
 
 | Directive | What it does | Example |
 |---|---|---|
-| `@set <name>` | Set for the following lines: room, office, street, dirt_road, countryside, orchard, stadium. Default room. A set change resets `@crowd` and `@runners`. | `@set stadium` |
+| `@set <name>` | Set for the following lines: room, office, street, dirt_road, countryside, orchard, stadium, or a custom set from the Sets page. Default room. A set change resets `@crowd` and `@runners`. | `@set stadium` |
 | `@cast a, b` | Cast on stage (ids from series.json). Default: the first two cast members. Up to 6 stand in one row; with more (up to 12), whoever the scene's lines name or `@do` directs stands in front and the rest stand behind in the gaps, smaller and idle. For a big group, use `@crowd`. | `@cast fred, daughter` |
 | `@dogs N` | Dog pack (0-6). Travel shots: they chase. Otherwise they idle or bark at the edges. | `@dogs 3` |
 | `@car <mode>` | `arrive` (drives in, parks beside the subject), `ride` (the @cast ride, max 3; travel shot outdoors), `leave` (drives off), `off`. | `@car ride` |
@@ -63,6 +66,8 @@ He jogged across the line and accepted a gold medal.
 ```
 
 Without `@do`, actions and expressions are guessed from the words (walked, ran, waved, laughed, shocked...).
+
+Having an AI draft the story: give it [STORY_GUIDE.md](STORY_GUIDE.md) with your cast filled in.
 
 ## 3. Check the story
 
@@ -119,7 +124,7 @@ A later re-render needs the frames again (it re-renders them all).
 - A part: part page → Disk → **Delete part** (`cli delete-part <slug> <part> --yes`; without `--yes` it only
   lists what would go). Its whole folder goes: story.md, voice.mp3, videos, frames. Other parts keep their numbers.
 - A series: series page → **Delete series** (`cli delete-series <slug> --yes`). Every part, the cast and its sheet.
-  Custom props (library/props.json) are kept.
+  Custom props (library/props.json) and sets (library/sets.json) are kept.
 - Both are refused while a job is queued or running on it. Neither can be undone.
 
 ## When something goes wrong

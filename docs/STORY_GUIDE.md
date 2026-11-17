@@ -1,0 +1,259 @@
+# Writing stories for scribblefactory: a guide for AI assistants
+
+Share this whole file with an AI (paste it, or attach it), fill in **Your series** at the end, and ask for a part.
+Every rule below is what the software actually enforces; a story that follows it renders without edits.
+
+---
+
+## 1. What you are writing for
+
+scribblefactory turns one text file, `story.md`, into a finished vertical video (1080x1920, 30 fps) for YouTube Shorts
+and Instagram Reels:
+
+1. The narration lines of `story.md` become a script that a text-to-speech voice reads aloud.
+2. The voice is aligned to the script word by word (speech recognition), so captions and shots follow the words.
+3. A rule-based planner (no AI) turns each phrase into one or more shots: who stands where, what they do, the
+   camera angle, the set. Lines starting with `@` steer it and are never read aloud.
+4. The video is rendered with marker-drawn stickman characters in a colourful 3D world, with music, sound effects
+   and burned-in captions.
+
+A story is a **series** split into **parts** (part 1, part 2...). Each part is one video and one `story.md`.
+The characters (the **cast**) belong to the series and are designed beforehand; you can only use cast members
+that already exist, by their **id**.
+
+## 2. What to return
+
+- One fenced `md` code block containing only the complete `story.md`.
+- After the block, three short lines: word count, estimated length in seconds (words / 150 x 60), and the cast
+  ids used.
+- Nothing else inside the block: no explanations, no comments.
+
+## 3. File format
+
+```md
+# Part title
+
+@set street
+@cast alice, bob
+First narration line.
+Second narration line.
+```
+
+- **Line 1** is `# <title>`, then a blank line. Headings are not read aloud.
+- Every other line is either **narration** (read aloud) or a **directive** (starts with `@`, silent).
+- **One directive per line, alone on its line.** Never put narration on a directive's line:
+  `@set streetIn July...` swallows the whole sentence (it is never read aloud) and fails as an unknown set.
+- Directives stay in effect until changed, except `@do` and `@fx`, which cover only the next narration line.
+- Narration is plain text: no bold, italics, lists, links, emoji, tables or HTML. Markdown is stripped before
+  the voice reads it, and anything stripped is silently lost.
+- Blank lines between paragraphs are fine.
+
+## 4. Narration: length and style
+
+- **Length:** aim for 45 to 70 seconds, about **110 to 175 words** (the voice reads about 150 words a minute).
+  Never more than 90 seconds (225 words).
+- **Short sentences, one idea per line.** Every line becomes at least one shot; long lines are split into
+  several shots automatically.
+- **Write numbers as words:** "fifteen eighteen", "four hundred", "the third day". Digits break the word-by-word
+  alignment between the voice and the text, and they make poor captions.
+- **No symbols or abbreviations:** no %, &, $, "Dr.", "St.", "e.g.", no parentheses, no quotes inside quotes.
+  Write what the voice should say.
+- **Name characters by their name** as given in the cast list. The planner recognises names (and ids) to decide
+  who the shot is about.
+- Captions show at most five words at a time; plain wording reads best.
+- **Hook early, twist late.** First line: a strong hook. Near the end: one twist line (see `!!`).
+- **Multi-part stories:** each part should stand alone; end parts with a cliffhanger such as "To be continued."
+
+## 5. Directives
+
+### `@set <name>`: where the scene is
+
+One of: `room`, `office`, `street`, `dirt_road`, `countryside`, `orchard`, `stadium`, or the id of a custom set
+from the dashboard's **Sets** page (e.g. `@set kitchen`). Default: `room`.
+Put a `@set` before the first narration line. `room` and `office` are indoors; the other five are outdoors and
+allow travelling shots (see section 6). A custom set is indoor or outdoor as it was made. Changing the set adds a
+wipe transition and an establishing wide shot.
+
+### `@cast a, b, c`: who is on stage
+
+Comma-separated cast ids. Default: the first two cast members of the series.
+
+- Up to **6** stand side by side in one row.
+- **7 to 12:** the characters *named in that scene's lines* (or used in an `@do`) stand in front and everyone else
+  stands further back, smaller, idle. At most 6 may be named in one scene.
+- Never more than **12**. For a large group of people, use `@crowd` instead (extras, not cast).
+
+### `@do <cast>: <action> [target | prop]`: force an action
+
+Overrides the guessed action for every shot of the **next narration line only**. The narration line must follow
+directly; a second `@do` before it replaces the first. Everyone named must be in the current `@cast`.
+Several clauses are comma-separated: `@do fred: lie, amy: wave`.
+
+| Action | Form | Notes |
+|---|---|---|
+| idle, talk, point, react, wave | `@do amy: wave` | |
+| walk, run | `@do amy: run` | walks or runs across the stage |
+| stagger | `@do thomas: stagger` | wobbly walk |
+| lie | `@do fred: lie` | lies down, eyes closed (sleeping) |
+| collapse | `@do fred: collapse` | falls once, then lies for the rest of the line |
+| eat | `@do bob: eat apple` | prop optional, default apple |
+| give | `@do daughter: give medal fred` | needs one prop and one target; the prop changes hands |
+| carry | `@do trainer1, trainer2: carry thomas` | exactly **2** carriers |
+| support | `@do trainer1: support thomas` | **1 or 2** helpers hold someone up |
+| cheer, angry, gasp | `@do amy: cheer` | crowd-style reactions |
+| car: broken | `@do car: broken` | only when a car is on stage |
+
+The target of give / carry / support cannot have its own action in the same `@do`.
+
+### `@car arrive | ride | leave | off`
+
+- `arrive`: a car drives in and parks beside the main character.
+- `ride`: the current `@cast` (at most **3**) sit in the car. Outdoors it is a travelling shot.
+  During `@car ride` the only allowed `@do` is `@do car: broken` (it stalls with everyone seated).
+- `leave`: the parked car drives off. `off`: no car (default).
+
+### `@dogs N`
+
+0 to 6 dogs. In travelling shots they chase; otherwise they idle or bark at the edges. `@dogs 0` removes them.
+
+### `@crowd <cheer | angry | gasp | neutral> [N]`
+
+Background crowd extras (not cast): N from 1 to 12, default 8. `@crowd off` removes them. Not shown in
+travelling shots. A `@set` change resets the crowd.
+
+### `@runners N`
+
+0 to 6 background runners. A `@set` change resets them.
+
+### `@fx drop | shake | pop | none`
+
+Caption effect for the next narration line (for emphasis). Use sparingly.
+
+### `!! <text>`: the twist
+
+Starts a narration line (the text is read aloud). That moment gets a dramatic push-in, the music stops and a
+low hit sounds. Use it **at most once per part**, on the single biggest reveal, usually near the end.
+
+### Props
+
+Built in: `clipboard`, `stopwatch`, `bottle`, `syringe`, `apple`, `medal`. A series may define more (listed under
+**Your series**). Only these can be used with `eat` and `give`.
+
+## 6. How plain narration is interpreted
+
+You do not need `@do` on every line. The planner reads the words:
+
+- **Subject:** the first cast member *named* in a line is the subject; the others on stage turn to watch.
+  If nobody is named, the previous subject stays.
+- **Actions from verbs:** walked, went, came, left → walk; ran, rushed, chased, sprinted, sprinting → run;
+  pointed, shows → point; waved, waving → wave; gasped, froze, shocked, collapsed, dizzy, cramps → react;
+  staggered, stumbled, wobbled → stagger; lay, lying, napped → lie; fainted → collapse; ate, eating → eat.
+  Anything else → talk.
+- **Faces from mood words:** happy, smiled, laughed, grinned, joy → happy; sad, cried, sighed, tears, upset →
+  sad; angry, mad, furious, yelled, shouted → angry; surprised, shocked, gasped, stunned, wow → surprised;
+  sleepy, tired, yawned, asleep, exhausted → sleepy.
+- **Travelling shots:** on an outdoor set, a line with a walk or run verb (and no `@do`, no car) becomes a shot
+  where everyone moves and the world scrolls past.
+- **Camera:** chosen automatically; never write camera instructions.
+
+Use `@do` where the guess would be wrong, or for actions with no keyword (give, carry, support, cheer, a collapse
+at an exact moment).
+
+## 7. Common mistakes (each one fails or looks wrong)
+
+| Mistake | Why it matters |
+|---|---|
+| Narration on a directive's line | The text is never read aloud; the directive is invalid |
+| Cast id not in the series list | The shot planner stops |
+| Unknown set, action or prop | The shot planner stops |
+| `@do` with no narration line right after it | It is ignored (reported as an error) |
+| `@do` naming someone not in the current `@cast` | The shot planner stops |
+| More than 12 in `@cast`, or more than 6 named in one scene | Not enough room on stage |
+| `@car ride` with more than 3 in `@cast` | The car seats 3 |
+| `@do car: broken` with no car on stage | Nothing to break down |
+| Digits, symbols, abbreviations in narration | The voice and captions drift apart |
+| Over 225 words | Too long for a Short |
+| More than one `!!` | Only one twist per part |
+
+## 8. Checklist before answering
+
+1. Line 1 is `# Title`; every directive is alone on its line.
+2. A `@set` comes before the first narration line.
+3. Only cast ids, sets, actions and props from this guide and **Your series**.
+4. Every `@do` is directly followed by a narration line, and everyone in it is in the current `@cast`.
+5. Each `@cast` has at most 12 ids, at most 6 of them named in that scene; `@car ride` at most 3.
+6. No digits, symbols or markdown formatting in narration.
+7. 110 to 175 words; at most one `!!` line.
+
+## 9. Examples
+
+### A complete part
+
+```md
+# The Fake Finish
+
+@set dirt_road
+@cast fred
+@car ride
+After riding eleven miles in a car, Fred rejoined the marathon.
+
+@do car: broken
+His car broke down just outside the stadium.
+@set stadium
+@car off
+@cast fred, daughter, sullivan
+@crowd cheer
+So Fred calmly stepped out and jogged across the finish line.
+@do daughter: give medal fred
+He accepted a gold medal from the president's daughter.
+@crowd angry
+The crowd was furious, and Fred was banned for life.
+
+@set dirt_road
+@crowd off
+@cast thomas, trainer1, trainer2
+@do thomas: stagger
+That left the real race to Thomas, who was staggering miles behind.
+@do trainer1, trainer2: support thomas
+His trainers dragged him upright and kept him moving.
+
+@set stadium
+@cast thomas, trainer1, trainer2
+@crowd cheer
+@do trainer1, trainer2: carry thomas
+!! Two men carried Thomas across the line, and officials crowned him champion.
+```
+
+### A crowded scene (front and back rows)
+
+```md
+@set street
+@cast troffea, husband, physician, councillor, musician, priest, dancer-1, dancer-2, dancer-3
+Frau Troffea danced in the middle of the street.
+Her husband begged her to stop.
+The whole town watched in silence.
+```
+
+Troffea and her husband are named, so they stand in front; the other seven stand smaller in the back row.
+
+### Wrong, then right
+
+```md
+@set streetIn July of fifteen eighteen, a woman began to dance.   <- wrong: narration on a directive line
+```
+
+```md
+@set street
+In July of fifteen eighteen, a woman began to dance.
+```
+
+---
+
+## Your series (fill this in before asking)
+
+- **Series title:**
+- **Part number and what happens in it:**
+- **Cast** (`id: Name`, one per line; only these ids may be used):
+  - `id: Name`
+- **Extra props** (beyond the built-ins), if any:
+- **Tone** (funny, eerie, dramatic...) and anything to avoid:
