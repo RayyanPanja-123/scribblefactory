@@ -148,7 +148,7 @@ library/<series-slug>/
   - 6.1: FastAPI backend: reads, media with Range, actions, one-worker jobs, SSE, docs/openapi.json. DONE.
   - 6.2a: Vue dashboard foundation: design system (docs/design.md), shell, overview and series pages. DONE.
   - 6.2b: part detail, all actions, jobs drawer + live progress (SSE), Review and Posted tabs. DONE.
-- Step 7: Polish and QA.
+- Step 7: Polish and QA (one-command app, restart safety, check-story, housekeeping, docs, fresh-clone test). DONE.
 
 ## Working rules for you
 - Do only the task given. No extra features.
