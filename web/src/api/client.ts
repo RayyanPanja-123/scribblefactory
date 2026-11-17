@@ -1,4 +1,5 @@
 // Thin typed client over fetch. Types come from docs/openapi.json (npm run gen:api).
+import type { CustomSet, SetCatalog } from '../lib/sets'
 import type { components } from './types'
 
 type S = components['schemas']
@@ -75,4 +76,7 @@ export const api = {
   props: () => call<PropCatalog>('GET', '/api/props'),
   saveProp: (p: CustomProp) => call<PropCatalog>('PUT', `/api/props/${e(p.id)}`, p),
   deleteProp: (id: string) => call<PropCatalog>('DELETE', `/api/props/${e(id)}`),
+  sets: () => call<SetCatalog>('GET', '/api/sets'),
+  saveSet: (s: CustomSet) => call<SetCatalog>('PUT', `/api/sets/${e(s.id)}`, s),
+  deleteSet: (id: string) => call<SetCatalog>('DELETE', `/api/sets/${e(id)}`),
 }

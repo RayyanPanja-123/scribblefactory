@@ -12,7 +12,7 @@ import re
 import zlib
 from pathlib import Path
 
-from ..io import atomic_write_json, prop_kinds, unknown_cast_props
+from ..io import atomic_write_json, outdoor_sets, prop_kinds, unknown_cast_props
 from ..schemas import Actor, Animal, Camera, Cue, Extra, PhrasesModel, SeriesModel, Shot, StoryModel, Travel, Vehicle
 from ..validate import (CAR_SPEED, CROWD_Z, DOG_RUN_SPEED, MAX_SHOT_FRAMES, MOODS, OUTDOOR_SETS, SPEEDS,
                         duration_frames, validate)
@@ -71,7 +71,7 @@ CROWD_ONE_ROW = 7          # more than this: a second row behind, offset half a 
 CROWD_FRONT = (-1.3, -1.7)  # front row z (stadium: STADIUM_FRONT, behind the rail at z -1.6)
 STADIUM_FRONT = (-1.85, -2.1)
 CROWD_BACK = (-2.2, -2.8)   # second row z (indoors: no further back than INDOOR_BACK, the wall is at -2.6)
-INDOOR_SETS, INDOOR_BACK = {"room", "office"}, -2.5
+INDOOR_BACK = -2.5
 MAX_RUNNERS = 6
 RUNNER_SPEED = 2.6         # background runners' leg speed, units/s (inside RUN_SPEED)
 RUNNER_GAP = 0.6           # min x between runners, and (travel) from the cast
@@ -184,7 +184,7 @@ def parse_crowd(arg: str, line: int):
     return words[0], int(words[1]) if len(words) == 2 else CROWD_DEFAULT
 
 
-def crowd_extras(mood: str, n: int, seed: int, set_: str) -> list[Extra]:
+def crowd_extras(mood: str, n: int, seed: int, set_: str, indoor: bool = False) -> list[Extra]:
     """n crowd extras facing the camera: one row (n <= CROWD_ONE_ROW), else a front row of ceil(n/2) and a back row
     offset half a step. Neighbours in a row stay CROWD_GAP+ apart in x. Spots and looks are seeded per part, set and
     crowd size: the same people stand in the same places across cuts. (The engine then moves or drops, per shot,
@@ -196,7 +196,7 @@ def crowd_extras(mood: str, n: int, seed: int, set_: str) -> list[Extra]:
     step = 2 * CROWD_W / n1
     jit = max(0.0, min(0.1, (step - CROWD_GAP) / 2 - 0.001))
     front = STADIUM_FRONT if set_ == "stadium" else CROWD_FRONT
-    back = (CROWD_BACK[0], max(CROWD_BACK[1], INDOOR_BACK) if set_ in INDOOR_SETS else CROWD_BACK[1])
+    back = (CROWD_BACK[0], max(CROWD_BACK[1], INDOOR_BACK) if indoor else CROWD_BACK[1])
     gap0 = (n1 - 1 - n2) // 2  # the back row sits in the middle gaps
     out = []
     for row, (count, zr, off) in enumerate(((n1, front, 0.5), (n2, back, 1.0 + gap0))):
@@ -226,7 +226,7 @@ def _runner_spot(cast_x, taken, gain, way, jitter) -> float:
     return edge + way * RUNNER_GAP
 
 
-def runner_extras(n, seed, sid, seconds, actors, travel_dir=0, travel_speed=0.0, set_="") -> list[Extra]:
+def runner_extras(n, seed, sid, seconds, actors, travel_dir=0, travel_speed=0.0, indoor=False) -> list[Extra]:
     """n background runners, RUNNER_GAP+ apart in x. Travel shot: they run the travel way in the background, legs at
     RUNNER_SPEED (the scroll plus their own gain), each on a spot whose whole run stays RUNNER_GAP+ clear of the cast
     (see _runner_spot). Otherwise they cross the background from off-screen, all one way (seeded per shot), so they
@@ -234,7 +234,7 @@ def runner_extras(n, seed, sid, seconds, actors, travel_dir=0, travel_speed=0.0,
     R, out = random.Random(f"{seed}:runners:{sid}"), []
     d = R.choice((-1, 1))
     lo, hi = RUNNER_Z["cross"]  # (-2.6, -2.0): indoors no further back than INDOOR_BACK (the wall)
-    cross_z = (max(lo, INDOOR_BACK) if set_ in INDOOR_SETS else lo, hi)
+    cross_z = (max(lo, INDOOR_BACK) if indoor else lo, hi)
     for i in range(n):
         variant = R.randrange(1000)
         if travel_dir:
@@ -524,7 +524,8 @@ def _car_move(mode, park, actors, subject, seconds, seed) -> Vehicle:
                    facing=facing)
 
 
-def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, props=BUILTIN_PROPS) -> StoryModel:
+def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, props=BUILTIN_PROPS,
+         outdoor=OUTDOOR_SETS) -> StoryModel:
     if not series.cast:
         raise StageError("series.json has no cast: add some with cast-add")
     ids = [c.id for c in series.cast]
@@ -630,7 +631,7 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
                 raise StageError(f"story.md line {do[0]}: @do: not while @car ride, except \"car: broken\" "
                                  "(the cast is seated in the car)")
             car_here = ride or car_mode == "arrive" or (car_mode == "leave" and not car_left)
-            travel = set_ in OUTDOOR_SETS and ((ride and not stalled) or (action in MOVE_SPEED and not car_here and not do))
+            travel = set_ in outdoor and ((ride and not stalled) or (action in MOVE_SPEED and not car_here and not do))
             tspeed = CAR_TRAVEL_SPEED if ride else MOVE_SPEED.get(action)
             if travel:  # direction and z stagger seeded once per run of travel shots, so the run keeps them
                 if travel_run is None or set_ != prev_set:
@@ -682,8 +683,8 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
             way = (1 if (vehicles[0].facing if vehicles else actors[0].facing) == "right" else -1) if travel else 0
             animals, bark = _dogs(dogs, xs, way, s0, s1, seed, sid, tspeed if travel else None)
             # no crowd in a travel shot: the world scrolls past and a standing crowd would seem to keep pace
-            extras = (crowd_extras(*crowd, seed, set_) if crowd and not travel else []) + runner_extras(
-                runners, seed, sid, seconds, [a for a in actors if not ride], way, tspeed if travel else 0.0, set_)
+            extras = (crowd_extras(*crowd, seed, set_, set_ not in outdoor) if crowd and not travel else []) + runner_extras(
+                runners, seed, sid, seconds, [a for a in actors if not ride], way, tspeed if travel else 0.0, set_ not in outdoor)
             if bark:
                 cues.append(bark)
             shots.append(Shot(id=sid, start_frame=s0, end_frame=s1, set=set_,
@@ -704,8 +705,8 @@ def run(part_dir: Path) -> None:
     if unknown := unknown_cast_props(series.cast, library):
         raise StageError(f"cast holds a prop that is not in library/props.json: {', '.join(unknown)}")
     story = plan(story_md.read_text(encoding="utf-8"), phrases, series, int(part_dir.name.split("-")[1]),
-                 prop_kinds(library))
-    errors = validate(story, phrases, {c.id for c in series.cast})
+                 prop_kinds(library), outdoor_sets(library))
+    errors = validate(story, phrases, {c.id for c in series.cast}, outdoor_sets(library))
     for e in errors:
         print(f"  {e.shot_id or '-'}  {e.rule}: {e.message}")
     if errors:

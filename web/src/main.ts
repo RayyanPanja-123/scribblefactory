@@ -20,6 +20,8 @@ const router = createRouter({
     { path: '/review', name: 'review', component: () => import('./pages/Review.vue') },
     { path: '/props', name: 'props', component: () => import('./pages/Props.vue') },
     { path: '/props/:id', name: 'prop-edit', component: () => import('./pages/PropEditor.vue'), props: true },
+    { path: '/sets', name: 'sets', component: () => import('./pages/Sets.vue') },
+    { path: '/sets/:id', name: 'set-edit', component: () => import('./pages/SetEditor.vue'), props: true },
     { path: '/posted', name: 'posted', component: () => import('./pages/Posted.vue') },
   ],
 })

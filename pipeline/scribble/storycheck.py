@@ -11,21 +11,14 @@ import difflib
 import re
 from pathlib import Path
 
-from .io import load_series, prop_kinds, unknown_cast_props
+from .io import load_series, prop_kinds, set_kinds, unknown_cast_props
 from .stages.prep import (DO_CAR, FX_MODES, MAX_SECONDS, TWIST_PREFIX, WPM, clean_markdown, estimate_seconds,
                           parse_do, strip_directives)
 from .stages.runner import StageError
 from .stages.shots import CAR_MODES, CAR_SEATS, DEFAULT_CAST_SIZE, MAX_CAST, MAX_DOGS, MAX_ON_STAGE, MAX_RUNNERS, parse_crowd
 
-WORLD_JS = Path(__file__).resolve().parents[2] / "engine" / "page" / "world.js"
 DIRECTIVES = ("set", "cast", "dogs", "car", "fx", "do", "crowd", "runners")
 LINE_PREFIX = re.compile(r"^story\.md line [0-9]+: ")
-
-
-def engine_sets() -> list[str]:
-    """the set names the engine can build (engine/page/world.js SETS: one list, read, never copied)"""
-    m = re.search(r"export const SETS = \[([^\]]*)\]", WORLD_JS.read_text(encoding="utf-8"))
-    return re.findall(r'"([a-z_]+)"', m[1])
 
 
 def _words_by_line(md: str) -> list[int]:
@@ -60,7 +53,7 @@ def check_story(part_dir: Path) -> dict:
     md = story.read_text(encoding="utf-8")
     series = load_series(part_dir.parent / "series.json")
     library = part_dir.parent.parent
-    props, sets = prop_kinds(library), engine_sets()
+    props, sets = prop_kinds(library), list(set_kinds(library))
     ids = [c.id for c in series.cast]
     if not ids:
         bad(None, f"series {series.slug} has no cast: add some with cast-add")

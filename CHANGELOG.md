@@ -1,6 +1,10 @@
 # Changelog
 
 ## Unreleased
+- Sets page: custom `@set` locations (library/sets.json, shared by every series). Indoor or outdoor, floor and
+  wall/sky colours, box/cylinder/ball/mound pieces, a live preview built by the engine, and Build with AI.
+  Stage clearance and travel shots work as for the built-in sets; a set in use by a story can't be deleted.
+- Part page: a Next step card names the one thing to do and does it in place (replaces Run next).
 - Approving a final cleans the part up: frames, audio stems, preview, test render and captions.ass are deleted
   (final.mp4, voice, story, thumbnails and upload text kept); `cleanup <slug> <part>` does it by hand.
 

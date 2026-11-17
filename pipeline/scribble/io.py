@@ -1,4 +1,4 @@
-"""Load/save series.json, part.json and library/props.json. Writes are atomic; saves never drop an existing approval."""
+"""Load/save series.json, part.json, library/props.json and library/sets.json. Writes are atomic; saves never drop an existing approval."""
 
 import json
 import os
@@ -8,7 +8,7 @@ from pathlib import Path
 
 from typing import get_args
 
-from .schemas import BuiltinProp, CustomProp, PartModel, PropLibrary, SeriesModel
+from .schemas import BUILTIN_SETS, BuiltinProp, CustomProp, CustomSet, PartModel, PropLibrary, SeriesModel, SetLibrary
 
 # User-owned files a save must never write to.
 PROTECTED = {"story.md", "voice.mp3"}
@@ -111,6 +111,47 @@ def delete_prop(library, prop_id: str) -> None:
         raise ValueError(f"{prop_id} is still held by " + ", ".join(f"{f.parent.name}/{cid}" for f, cid in held))
     lib.props = [p for p in lib.props if p.id != prop_id]
     atomic_write_json(Path(library) / "props.json", lib.model_dump(mode="json"))
+
+
+def load_sets(library) -> SetLibrary:
+    """library/sets.json (custom sets, shared by every series); none yet: an empty library"""
+    f = Path(library) / "sets.json"
+    return SetLibrary.model_validate_json(f.read_bytes()) if f.exists() else SetLibrary()
+
+
+def set_kinds(library) -> dict[str, str]:
+    """every name @set can use -> "indoor" | "outdoor": the built-ins, then the library's custom sets"""
+    return {**BUILTIN_SETS, **{s.id: s.kind for s in load_sets(library).sets}}
+
+
+def outdoor_sets(library) -> set[str]:
+    """the sets that can scroll (travel shots)"""
+    return {k for k, v in set_kinds(library).items() if v == "outdoor"}
+
+
+def set_users(library, set_id: str) -> list[str]:
+    """"<slug>/<part id>" for every story.md in the library with an @set <set_id> line"""
+    want = f"@set {set_id}"
+    return [f"{f.parent.parent.name}/{f.parent.name}" for f in sorted(Path(library).glob("*/part-*/story.md"))
+            if any(line.strip() == want for line in f.read_text(encoding="utf-8").splitlines())]
+
+
+def save_set(library, custom: CustomSet) -> None:
+    """add or replace a custom set"""
+    lib = load_sets(library)
+    lib.sets = [custom if s.id == custom.id else s for s in lib.sets] if any(s.id == custom.id for s in lib.sets)         else [*lib.sets, custom]
+    atomic_write_json(Path(library) / "sets.json", lib.model_dump(mode="json"))
+
+
+def delete_set(library, set_id: str) -> None:
+    """remove a custom set; refused (ValueError) while any story uses it"""
+    lib = load_sets(library)
+    if not any(s.id == set_id for s in lib.sets):
+        raise KeyError(set_id)
+    if used := set_users(library, set_id):
+        raise ValueError(f"{set_id} is still used by " + ", ".join(used))
+    lib.sets = [s for s in lib.sets if s.id != set_id]
+    atomic_write_json(Path(library) / "sets.json", lib.model_dump(mode="json"))
 
 
 def load_part(path) -> PartModel:

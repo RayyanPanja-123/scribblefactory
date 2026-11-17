@@ -1,5 +1,13 @@
 from pipeline.scribble.cli import main as cli
-from pipeline.scribble.storycheck import check_story, engine_sets
+import re
+from pathlib import Path
+
+import pytest
+from pydantic import ValidationError
+
+from pipeline.scribble.io import delete_set, outdoor_sets, save_set, set_kinds
+from pipeline.scribble.schemas import BUILTIN_SETS, CustomSet, SetLibrary
+from pipeline.scribble.storycheck import check_story
 
 STORY = """# Test
 
@@ -40,8 +48,36 @@ def setup(tmp_path, story, approve=("bob", "amy")):
     return pdir
 
 
-def test_engine_sets_read_from_world_js():
-    assert {"room", "office", "dirt_road", "stadium"} <= set(engine_sets())
+def test_builtin_sets_match_world_js():
+    js = (Path(__file__).resolve().parents[2] / "engine" / "page" / "world.js").read_text(encoding="utf-8")
+    assert re.findall(r'"([a-z_]+)"', re.search(r"export const SETS = \[([^\]]*)\]", js)[1]) == list(BUILTIN_SETS)
+
+
+KITCHEN = {"id": "kitchen", "name": "Kitchen", "kind": "indoor", "floor": "#d9c7a3", "back": "#f6e7c8",
+           "pieces": [{"shape": "box", "at": [-1.8, 0.45, -2.2], "size": [1.6, 0.9, 0.6], "color": "#8a5a32"}]}
+
+
+def test_custom_set_schema():
+    CustomSet.model_validate(KITCHEN)
+    for bad in ({"id": "room"}, {"pieces": [{**KITCHEN["pieces"][0], "size": [1, 2]}]},
+                {"pieces": [{**KITCHEN["pieces"][0], "at": [0, 0, -99]}]}, {"kind": "space"}):
+        with pytest.raises(ValidationError):
+            CustomSet.model_validate({**KITCHEN, **bad})
+    with pytest.raises(ValidationError, match="unique"):
+        SetLibrary.model_validate({"sets": [KITCHEN, KITCHEN]})
+
+
+def test_custom_set_in_a_story(tmp_path):
+    pdir = setup(tmp_path, "# T\n\n@set beach\nBob walked in.\n")
+    assert any("unknown set 'beach'" in p["message"] for p in check_story(pdir)["problems"])
+    save_set(tmp_path, CustomSet.model_validate({**KITCHEN, "id": "beach", "kind": "outdoor"}))
+    assert set_kinds(tmp_path)["beach"] == "outdoor" and "beach" in outdoor_sets(tmp_path)
+    assert not any("set" in p["message"] for p in check_story(pdir)["problems"])
+    with pytest.raises(ValueError, match="demo/part-01"):
+        delete_set(tmp_path, "beach")
+    (pdir / "story.md").write_text("# T\n\nBob walked in.\n", encoding="utf-8")
+    delete_set(tmp_path, "beach")
+    assert "beach" not in set_kinds(tmp_path)
 
 
 def test_problems_with_line_numbers(tmp_path, capsys):

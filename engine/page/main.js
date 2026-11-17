@@ -11,7 +11,7 @@ import { CAR_CARD_W, CAR_GROUND, DRIVER_X, RIDER_X, VH, VW, carEase, carSpeedSha
 import { HEAD_GROW, MOOD_EXPRESSION, extraLook, fitCrowd, moodAt, placeExtras } from "./extras.js";
 const growRect = (r, k) => { const mx = (r[2] - r[0]) * k, my = (r[3] - r[1]) * k; return [r[0] - mx, r[1] - my, r[2] + mx, r[3] + my]; };
 import { rng, setVariant } from "./rng.js";
-import { SETS, VARIANTS, buildSet, loopExcess, scrollSet } from "./world.js";
+import { SETS, VARIANTS, buildSet, loopExcess, scrollSet, setCustomSets } from "./world.js";
 
 const FPS = 30, W = 1080, H = 1920;
 const CARD_H = 1.6, CARD_W = CARD_H * (CW / CH);
@@ -185,6 +185,7 @@ const png = () => renderer.domElement.toDataURL("image/png");
 window.setup = (d) => {
   data = d; hiddenByShot.clear(); variantByShot.clear(); extrasByShot.clear();
   setCustomProps(d.props); // library/props.json
+  setCustomSets(d.sets); // library/sets.json
   ownedProps = propsByShot(d.story.shots || [], Object.fromEntries((d.series.cast || []).map((c) => [c.id, castOf(c.id).props])));
   mouth = d.phrases ? mouthCurve(mouthCycles(d.phrases.words, d.phrases.phrases), d.story.duration_frames) : mouth;
   for (const k of Object.keys(sets)) delete sets[k];

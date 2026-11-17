@@ -231,6 +231,23 @@ def test_custom_props(client, lib):
     assert client.delete("/api/props/flag").status_code == 404
 
 
+
+def test_custom_sets(client, lib):
+    kitchen = {"id": "kitchen", "name": "Kitchen", "kind": "indoor", "floor": "#d9c7a3", "back": "#f6e7c8",
+               "pieces": [{"shape": "ball", "at": [2.5, 1.2, -2.3], "size": [0.3], "color": "#43aa8b"}]}
+    r = client.get("/api/sets").json()
+    assert {"id": "street", "kind": "outdoor"} in r["builtin"] and r["custom"] == []
+    assert client.put("/api/sets/kitchen", json={**kitchen, "id": "other"}).status_code == 409
+    assert client.put("/api/sets/room", json={**kitchen, "id": "room"}).status_code == 422  # built-in name
+    assert client.put("/api/sets/kitchen", json=kitchen).json()["custom"][0]["id"] == "kitchen"
+    story = lib / "demo" / "part-01" / "story.md"
+    story.write_text("# T\n\n@set kitchen\nHi.\n", encoding="utf-8")
+    r = client.delete("/api/sets/kitchen")
+    assert r.status_code == 409 and "demo/part-01" in r.json()["detail"]
+    story.write_text("# T\n\nHi.\n", encoding="utf-8")
+    assert client.delete("/api/sets/kitchen").json()["custom"] == []
+    assert client.delete("/api/sets/kitchen").status_code == 404
+
 def test_voice_upload(client, lib):
     f = lib / "demo" / "part-01" / "voice.mp3"
     assert client.put(f"{P}/voice.mp3", content=b"not audio").status_code == 415 and not f.exists()

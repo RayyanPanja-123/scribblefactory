@@ -17,8 +17,8 @@ Known gaps and ideas, one line each. Not planned work.
 
 ## Ideas
 
-- Data-driven sets: describe sets in JSON (ground, sky, props, colours) instead of code in engine/page/world.js.
-- More sets: beach, kitchen, classroom, forest.
+- More built-in sets: beach, kitchen, classroom, forest (or build them on the Sets page).
+- Custom sets: prop-placement variants and painted patterns (planks, windows) like the built-ins.
 - More animals (cat, horse) and vehicles (bike, bus).
 - Several cars at once (`@car` takes an id).
 - Per-line camera override (`@cam close`, `@cam low`).

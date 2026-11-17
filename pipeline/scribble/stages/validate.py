@@ -5,6 +5,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from ..schemas import PhrasesModel, SeriesModel, StoryModel
+from ..io import outdoor_sets
 from ..validate import validate
 from .runner import StageError
 
@@ -25,7 +26,7 @@ def run(part_dir: Path) -> None:
     story = load_model(part_dir / "story.json", StoryModel)
     phrases = load_model(part_dir / "phrases.json", PhrasesModel)
     series = load_model(part_dir.parent / "series.json", SeriesModel)
-    errors = validate(story, phrases, {c.id for c in series.cast})
+    errors = validate(story, phrases, {c.id for c in series.cast}, outdoor_sets(part_dir.parent.parent))
     for e in errors:
         print(f"  {e.shot_id or '-'}  {e.rule}: {e.message}")
     if errors:

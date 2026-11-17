@@ -47,6 +47,30 @@ const smoke = makePart((s) => {
   return s;
 });
 
+// custom sets (library/sets.json): a part in its own library. s01 on an indoor custom set, s02 a travel shot on an
+// outdoor one; `blocked` puts a piece on the stage (clearance break)
+const KITCHEN = { id: "kitchen", name: "Kitchen", kind: "indoor", floor: "#d9c7a3", back: "#f6e7c8", pieces: [
+  { shape: "box", at: [-1.8, 0.45, -2.2], size: [1.6, 0.9, 0.6], color: "#8a5a32" },
+  { shape: "ball", at: [2.5, 1.2, -2.3], size: [0.3], color: "#43aa8b", backdrop: true }] };
+const BEACH = { id: "beach", name: "Beach", kind: "outdoor", floor: "#f2d8a0", back: "#8fd0f0", pieces: [
+  { shape: "cyl", at: [-3, 1.5, -3], size: [0.1, 0.15, 3], color: "#7b5132" },
+  { shape: "mound", at: [6, -1, -40], size: [12, 0.3], color: "#3a8fb7", backdrop: true }] };
+function inLibrary(sets, mutate) {
+  const lib = fs.mkdtempSync(path.join(path.dirname(path.dirname(base)), "scribble-lib-"));
+  temps.push(lib);
+  fs.cpSync(path.dirname(makePart(mutate)), path.join(lib, "demo"), { recursive: true });
+  fs.writeFileSync(path.join(lib, "sets.json"), JSON.stringify({ schema_version: 1, sets }));
+  return path.join(lib, "demo", "part-01");
+}
+const custom = inLibrary([KITCHEN, BEACH], (s) => {
+  s.shots[0].set = "kitchen";
+  Object.assign(s.shots[1], { set: "beach", travel: { speed: 1.2 } });
+  Object.assign(s.shots[1].actors[0], { start_pos: [0, 0.1], end_pos: [0, 0.1], facing: "left" });
+  return s;
+});
+const blocked = inLibrary([{ ...KITCHEN, pieces: [{ shape: "box", at: [0, 0.5, 0], size: [1, 1, 1], color: "#ff0000" }] }],
+  (s) => { s.shots[0].set = "kitchen"; return s; });
+
 const JOBS = {
   talk: ["--part", base, "--frame", "66", "--out", path.join(base, "a.png")], // s02 bob talks, mouth cycle open
   room: frames(base, "9-10", "range"),                                          // also the 6-digit range check
@@ -59,6 +83,7 @@ const JOBS = {
   travel54: frames(travel, "54-54", "a"), travel57: frames(travel, "57-57", "a"), travel54b: frames(travel, "54-54", "b"),
   still54: frames(still, "54-54", "a"),
   smoke: ["--part", smoke, "--stills"],
+  kitchen: frames(custom, "10-10", "a"), beach: frames(custom, "90-90", "a"), blocked: frames(blocked, "10-10", "a"),
 };
 let R, plain, loop;
 before(async () => {
@@ -95,6 +120,15 @@ test("unknown set falls back to room with a warning", () => {
   ok("moon"); ok("room");
   assert.match(R.stderr, /unknown set "moon", using "room"/);
   assert.ok(png(path.join(moon, "a"), 10).equals(png(path.join(base, "range"), 10)));
+});
+
+test("custom sets (library/sets.json): indoor and outdoor build and travel; a piece on the stage fails", () => {
+  ok("kitchen"); ok("beach");
+  assert.doesNotMatch(R.stderr, /unknown set "(kitchen|beach)"/);
+  assert.ok(!png(path.join(custom, "a"), 10).equals(png(path.join(base, "range"), 10)), "kitchen drew the room");
+  assert.match(R.beach.out, /frame 90: .*\[travel 1\.2 u\/s left/);
+  assert.equal(R.blocked.ok, false);
+  assert.match(R.blocked.error, /breaks stage clearance/);
 });
 
 test("bad frame number fails that job with the range in the message", () => {

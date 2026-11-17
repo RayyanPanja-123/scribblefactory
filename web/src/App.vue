@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Backpack, ClipboardCheck, Film, Layers, LayoutDashboard, Search, Send } from 'lucide-vue-next'
+import { Backpack, ClipboardCheck, Film, Layers, LayoutDashboard, Mountain, Search, Send } from 'lucide-vue-next'
 import { AnimatePresence, motion, MotionConfig } from 'motion-v'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -16,6 +16,7 @@ const tabs = [
   { to: '/series', name: 'Series', icon: Layers, match: (n: string) => n.startsWith('series') || n === 'part' },
   { to: '/review', name: 'Review', icon: ClipboardCheck, match: (n: string) => n === 'review' },
   { to: '/props', name: 'Props', icon: Backpack, match: (n: string) => n.startsWith('prop') },
+  { to: '/sets', name: 'Sets', icon: Mountain, match: (n: string) => n === 'sets' || n === 'set-edit' },
   { to: '/posted', name: 'Posted', icon: Send, match: (n: string) => n === 'posted' },
 ]
 onMounted(startLive)

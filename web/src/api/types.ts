@@ -358,6 +358,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/sets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Sets */
+        get: operations["get_sets_api_sets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sets/{set_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put Set */
+        put: operations["put_set_api_sets__set_id__put"];
+        post?: never;
+        /** Remove Set */
+        delete: operations["remove_set_api_sets__set_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -375,6 +410,16 @@ export interface components {
             stills: components["schemas"]["Approval"];
             /** @default {} */
             test_render: components["schemas"]["Approval"];
+        };
+        /** BuiltinSet */
+        BuiltinSet: {
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "indoor" | "outdoor";
         };
         /** CastApproval */
         CastApproval: {
@@ -434,6 +479,35 @@ export interface components {
              * @description drawn in order: later ones on top
              */
             shapes: components["schemas"]["PropShape"][];
+        };
+        /** CustomSet */
+        CustomSet: {
+            /**
+             * Back
+             * @description indoor: the back wall; outdoor: the sky
+             */
+            back: string;
+            /** Floor */
+            floor: string;
+            /**
+             * Id
+             * @description the name used in @set
+             */
+            id: string;
+            /**
+             * Kind
+             * @description indoor: floor and back wall; outdoor: wide floor and sky, allows travel shots
+             * @enum {string}
+             */
+            kind: "indoor" | "outdoor";
+            /** Name */
+            name: string;
+            /**
+             * Pieces
+             * @description drawn in order
+             * @default []
+             */
+            pieces: components["schemas"]["SetPiece"][];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -829,6 +903,53 @@ export interface components {
             /** Title */
             title: string;
             voice: components["schemas"]["Voice"];
+        };
+        /** SetCatalog */
+        SetCatalog: {
+            /** Builtin */
+            builtin: components["schemas"]["BuiltinSet"][];
+            /** Custom */
+            custom: components["schemas"]["CustomSet"][];
+        };
+        /**
+         * SetPiece
+         * @description one primitive of a custom set, in world units: actors stand on y = 0, z = 0, x in -2..2; the back wall of an
+         *     indoor set is at z -2.6. Anything across the stage (|x| < 2.2) must sit behind z -1, nothing forward of z 0.6
+         *     (the engine checks this stage clearance when it builds the set).
+         */
+        SetPiece: {
+            /**
+             * At
+             * @description the centre
+             */
+            at: [
+                number,
+                number,
+                number
+            ];
+            /**
+             * Backdrop
+             * @description scenery that is never hidden behind an actor (walls, far hills)
+             * @default false
+             */
+            backdrop: boolean;
+            /** Color */
+            color: string;
+            /**
+             * Outline
+             * @default true
+             */
+            outline: boolean;
+            /**
+             * Shape
+             * @enum {string}
+             */
+            shape: "box" | "cyl" | "ball" | "mound";
+            /**
+             * Size
+             * @description box: width, height, depth; cyl: top radius, bottom radius, height; ball: radius; mound: radius, height factor
+             */
+            size: number[];
         };
         /** Stage */
         Stage: {
@@ -1761,6 +1882,92 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PartDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_sets_api_sets_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetCatalog"];
+                };
+            };
+        };
+    };
+    put_set_api_sets__set_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                set_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomSet"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetCatalog"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_set_api_sets__set_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                set_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetCatalog"];
                 };
             };
             /** @description Validation Error */

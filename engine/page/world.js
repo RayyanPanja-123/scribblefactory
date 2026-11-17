@@ -383,8 +383,39 @@ const BACKGROUND = { room: "#f2d6a2", office: "#f2bd85", street: "#9fd3f5",
 const STRENGTH = { office: 2.2, dirt_road: 1.6, countryside: 1.6, orchard: 1.6, stadium: 1.4 }; // paint visibility
 const FOG = { dirt_road: [16, 80], countryside: [20, 90], orchard: [18, 80], stadium: [25, 100] }; // near, far
 
+// --- custom sets (library/sets.json, schema CustomSet): floor, back wall or sky, and primitive pieces. Indoor: the
+// room's floor and wall; outdoor: a floor wide enough to scroll (travel shots) and a sky. Set once per page.
+let customSets = new Map();
+export function setCustomSets(list) { customSets = new Map((list || []).map((s) => [s.id, s])); }
+export const isCustomSet = (name) => customSets.has(name);
+
+function custom(b, spec) {
+  if (spec.kind === "indoor") {
+    b.box(14, 0.1, 12, spec.floor, [0, -0.05, 2.5], { outline: false, floor: true, repeat: [4, 3] });
+    b.box(14, 6, 0.2, spec.back, [0, 3, -2.7], { outline: false, backdrop: true, repeat: [5, 2] });
+  } else {
+    b.box(140, 0.1, 100, spec.floor, [0, -0.07, -38], { outline: false, floor: true, repeat: [28, 20] });
+    sky(b, spec.back, "#f7f1e1");
+  }
+  for (const p of spec.pieces || []) {
+    const opts = { backdrop: p.backdrop, outline: p.outline ?? true };
+    b.piece(() => {
+      if (p.shape === "box") b.box(...p.size, p.color, p.at, opts);
+      else if (p.shape === "cyl") b.cyl(...p.size, p.color, p.at, opts);
+      else if (p.shape === "ball") b.ball(p.size[0], p.color, p.at, opts);
+      else b.mound(p.size[0], p.size[1], p.color, p.at, opts);
+    });
+  }
+}
+
 /** build one set (one of its prop variants) into a new group; unknown names fall back to "room" with a warning */
 export function buildSet(name, seed, variant = 0) {
+  const spec = customSets.get(name);
+  if (spec) {
+    const group = new THREE.Group();
+    custom(new Builder(group, `${seed}:${name}`), spec);
+    return finish(group, spec.back, spec.kind === "outdoor" ? [18, 80] : null);
+  }
   if (!SETS.includes(name)) {
     console.warn(`unknown set "${name}", using "room"`);
     name = "room";
@@ -394,11 +425,16 @@ export function buildSet(name, seed, variant = 0) {
   const v = VARIANTS[name] ? variant % VARIANTS[name] : 0;
   const R = VARIANTS[name] ? rng(seed, "set", name, v) : rng(seed, "set", name); // old sets: unchanged output
   ({ room, office, street, dirt_road, countryside, orchard, stadium })[name](b, R, v);
+  return finish(group, BACKGROUND[name], FOG[name]);
+}
+
+/** lights, background, fog and travel movers: the same for every set */
+function finish(group, background, fog) {
   const sun = new THREE.DirectionalLight(0xffffff, 2.2);
   sun.position.set(3, 6, 5);
   group.add(sun, new THREE.AmbientLight(0xffffff, 1.1));
-  group.userData.background = new THREE.Color(BACKGROUND[name]);
-  if (FOG[name]) group.userData.fog = new THREE.Fog(BACKGROUND[name], ...FOG[name]);
+  group.userData.background = new THREE.Color(background);
+  if (fog) group.userData.fog = new THREE.Fog(background, ...fog);
   group.updateMatrixWorld(true);
   group.userData.movers = movers(group);
   return group;

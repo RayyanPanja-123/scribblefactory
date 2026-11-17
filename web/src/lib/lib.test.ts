@@ -233,3 +233,24 @@ describe('partNext', () => {
     expect(partNext(s)).toMatchObject({ kind: 'run', text: expect.stringMatching(/^timing failed: no phrases\./) })
   })
 })
+
+import { buildSetPrompt, importSet } from './setPrompt'
+
+describe('build a set with AI', () => {
+  it('prompt names the thing, a suggested id, the taken ids and the stage rule', () => {
+    const p = buildSetPrompt('Beach Bar', ['room', 'kitchen'])
+    expect(p).toContain('**Beach Bar**')
+    expect(p).toContain('"id": "beach-bar"')
+    expect(p).toContain('NOT be one of: room, kitchen')
+    expect(p).toContain('STAGE CLEARANCE')
+  })
+  it('imports a fenced reply, a sets file, and rejects junk', () => {
+    const reply = 'Here:\n```json\n{"id": "Beach!", "name": "Beach", "kind": "outdoor", "floor": "#f2d8a0", "back": "nope", "pieces": [{"shape": "ball", "at": [3, 1, -3], "size": [0.5], "color": "#43aa8b", "backdrop": true}]}\n```'
+    const { set } = importSet(reply)
+    expect(set).toEqual({ id: 'beach', name: 'Beach', kind: 'outdoor', floor: '#f2d8a0', back: '#f6e7c8',
+      pieces: [{ shape: 'ball', at: [3, 1, -3], size: [0.5], color: '#43aa8b', backdrop: true }] })
+    expect(importSet('{"sets": [{"name": "Den", "pieces": []}]}').set).toMatchObject({ id: 'den', kind: 'indoor' })
+    expect(importSet('no json here').error).toMatch(/Not valid JSON/)
+    expect(importSet('{"pieces": [{"shape": "box", "at": [0, 0, -2], "size": [1, 1]}]}').error).toMatch(/Piece #1/)
+  })
+})

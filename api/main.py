@@ -29,9 +29,10 @@ from pydantic import BaseModel, TypeAdapter, ValidationError
 from sse_starlette import EventSourceResponse
 
 from pipeline.scribble import cli, storycheck
-from pipeline.scribble.io import (atomic_write_bytes, atomic_write_json, atomic_write_text, delete_prop, load_part, load_props, load_series, prop_kinds,
-                                  save_prop, save_series, unknown_cast_props)
-from pipeline.scribble.schemas import (BuiltinProp, CastMember, CustomProp, PartModel, Posted, SeriesModel, Slug, Stage, Stages,
+from pipeline.scribble.io import (atomic_write_bytes, atomic_write_json, atomic_write_text, delete_prop, delete_set, load_part, load_props,
+                                  load_series, load_sets, prop_kinds, save_prop, save_series, save_set, unknown_cast_props)
+from pipeline.scribble.schemas import (BUILTIN_SETS, BuiltinProp, CastMember, CustomProp, CustomSet, PartModel, Posted, SeriesModel, SetKind, Slug,
+                                       Stage, Stages,
                                        utcnow)
 from pipeline.scribble.stages import render as render_stage
 from pipeline.scribble.stages.import_check import probe_duration
@@ -547,6 +548,51 @@ def remove_prop(prop_id: Slug):
     publish("props-changed", {"id": prop_id})
     return prop_catalog()
 
+
+
+# ---------------- sets (library/sets.json, shared by every series) ----------------
+
+class BuiltinSet(BaseModel):
+    id: str
+    kind: SetKind
+
+
+class SetCatalog(BaseModel):
+    builtin: list[BuiltinSet]
+    custom: list[CustomSet]
+
+
+def set_catalog() -> SetCatalog:
+    return SetCatalog(builtin=[BuiltinSet(id=k, kind=v) for k, v in BUILTIN_SETS.items()], custom=load_sets(lib()).sets)
+
+
+@app.get("/api/sets", response_model=SetCatalog)
+def get_sets():
+    return set_catalog()
+
+
+@app.put("/api/sets/{set_id}", response_model=SetCatalog)
+def put_set(set_id: Slug, body: CustomSet):
+    if body.id != set_id:
+        raise HTTPException(409, f"body id {body.id!r} does not match {set_id!r}")
+    check_no_jobs()  # sets.json feeds every render, like props.json
+    lib().mkdir(parents=True, exist_ok=True)
+    save_set(lib(), body)
+    publish("sets-changed", {"id": set_id})
+    return set_catalog()
+
+
+@app.delete("/api/sets/{set_id}", response_model=SetCatalog)
+def remove_set(set_id: Slug):
+    check_no_jobs()
+    try:
+        delete_set(lib(), set_id)
+    except KeyError:
+        raise HTTPException(404, f"no custom set {set_id!r}")
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+    publish("sets-changed", {"id": set_id})
+    return set_catalog()
 
 class NewPart(BaseModel):
     title: str | None = None

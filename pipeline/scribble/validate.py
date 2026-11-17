@@ -9,7 +9,7 @@ import math
 from itertools import groupby
 from typing import NamedTuple
 
-from .schemas import PhrasesModel, StoryModel
+from .schemas import BUILTIN_SETS, PhrasesModel, StoryModel
 
 MAX_SHOT_FRAMES = 90
 WALK_SPEED = (0.6, 1.8)   # units/s, inclusive
@@ -30,7 +30,7 @@ MOODS = {"cheer", "angry", "gasp", "neutral"}  # crowd extras' actions
 CROWD_Z = (-2.8, -1.2)     # crowd rows: behind the stage clearance zone (props in |x| < 2.2 sit behind z -1.0)
 RUNNER_MAX_Z = -0.6        # background runners stay behind the actors' line
 RIDING = {"ride", "wave", "talk"}  # what a seated rider may do
-OUTDOOR_SETS = {"street", "dirt_road", "countryside", "orchard", "stadium"}  # sets that can scroll (travel shots)
+OUTDOOR_SETS = frozenset(k for k, v in BUILTIN_SETS.items() if v == "outdoor")  # built-ins that can scroll; custom ones come from the library
 
 
 class Error(NamedTuple):
@@ -43,7 +43,7 @@ def duration_frames(seconds: float, fps: int) -> int:
     return math.ceil(round(seconds * fps, 6))  # round() guards float noise like 2.0000000001 * 30
 
 
-def validate(story: StoryModel, phrases: PhrasesModel, cast_ids: set[str]) -> list[Error]:
+def validate(story: StoryModel, phrases: PhrasesModel, cast_ids: set[str], outdoor=OUTDOOR_SETS) -> list[Error]:
     errs: list[Error] = []
     err = lambda sid, rule, msg: errs.append(Error(sid, rule, msg))
     fps = story.fps
@@ -77,7 +77,7 @@ def validate(story: StoryModel, phrases: PhrasesModel, cast_ids: set[str]) -> li
             err(s.id, "phrase_range", f"{[first, last]} goes back before {prev.id} {list(prev.phrase_range)}")
 
         if s.travel:
-            _check_travel(s, n / fps, err)
+            _check_travel(s, n / fps, err, outdoor)
         for a in s.actors:
             _check_actor(s.id, a, n / fps, cast_ids, err, s.travel)
         _check_partners(s, err)
@@ -123,11 +123,11 @@ def travel_way(s) -> str | None:
     return s.vehicles[0].facing if s.vehicles else s.actors[0].facing if s.actors else None
 
 
-def _check_travel(s, seconds, err) -> None:
+def _check_travel(s, seconds, err, outdoor=OUTDOOR_SETS) -> None:
     """Travel shot: outdoor set, every actor walks or runs, all facing one left/right direction.
     With a car: the car drives and keeps its x, the world scrolls at the car's speed, no actor walks or runs."""
-    if s.set not in OUTDOOR_SETS:
-        err(s.id, "travel_set", f"travel on set {s.set!r}: only {', '.join(sorted(OUTDOOR_SETS))}")
+    if s.set not in outdoor:
+        err(s.id, "travel_set", f"travel on set {s.set!r}: only {', '.join(sorted(outdoor))}")
     if not s.actors:
         err(s.id, "travel_actors", "travel shot has no actors")
     if s.vehicles:

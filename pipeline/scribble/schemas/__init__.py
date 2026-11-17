@@ -1,4 +1,4 @@
-"""series.json / part.json / phrases.json / story.json / props.json models. These are the source of truth; docs/schemas/ is generated."""
+"""series.json / part.json / phrases.json / story.json / props.json / sets.json models. These are the source of truth; docs/schemas/ is generated."""
 
 from datetime import datetime, timezone
 from typing import Annotated, Literal, get_args
@@ -209,6 +209,69 @@ class PropLibrary(Strict):
     def _unique(cls, v):
         if dupes := sorted({p.id for p in v if sum(q.id == p.id for q in v) > 1}):
             raise ValueError(f"prop ids must be unique: {', '.join(dupes)}")
+        return v
+
+
+# --- library/sets.json (custom sets, shared by every series) ---
+
+# the engine's hand-built sets (engine/page/world.js SETS) and whether they are indoor (back wall) or outdoor (can
+# scroll: travel shots). The one Python list of them; a test keeps it in step with world.js.
+BUILTIN_SETS = {"room": "indoor", "office": "indoor", "street": "outdoor", "dirt_road": "outdoor",
+                "countryside": "outdoor", "orchard": "outdoor", "stadium": "outdoor"}
+SetKind = Literal["indoor", "outdoor"]
+Point3 = tuple[float, float, float]
+
+
+class SetPiece(Strict):
+    """one primitive of a custom set, in world units: actors stand on y = 0, z = 0, x in -2..2; the back wall of an
+    indoor set is at z -2.6. Anything across the stage (|x| < 2.2) must sit behind z -1, nothing forward of z 0.6
+    (the engine checks this stage clearance when it builds the set)."""
+    shape: Literal["box", "cyl", "ball", "mound"]
+    at: Point3 = Field(description="the centre")
+    size: list[float] = Field(min_length=1, max_length=3, description="box: width, height, depth; cyl: top radius, "
+                                                                      "bottom radius, height; ball: radius; "
+                                                                      "mound: radius, height factor")
+    color: HexColor
+    backdrop: bool = Field(default=False, description="scenery that is never hidden behind an actor (walls, far hills)")
+    outline: bool = True
+
+    @model_validator(mode="after")
+    def _fits(self):
+        need = {"box": 3, "cyl": 3, "ball": 1, "mound": 2}[self.shape]
+        if len(self.size) != need:
+            raise ValueError(f"{self.shape} takes {need} size value{'s' if need > 1 else ''}")
+        if any(not 0 <= v <= 80 for v in self.size) or not any(self.size):
+            raise ValueError("sizes must be 0..80 and not all 0")
+        if any(abs(v) > 80 for v in self.at):
+            raise ValueError("pieces must stay within 80 units of the stage")
+        return self
+
+
+class CustomSet(Strict):
+    id: Slug = Field(description="the name used in @set")  # checked: _not_builtin
+    name: str = Field(min_length=1, max_length=40)
+    kind: SetKind = Field(description="indoor: floor and back wall; outdoor: wide floor and sky, allows travel shots")
+    floor: HexColor
+    back: HexColor = Field(description="indoor: the back wall; outdoor: the sky")
+    pieces: list[SetPiece] = Field(default=[], max_length=60, description="drawn in order")
+
+    @field_validator("id")
+    @classmethod
+    def _not_builtin(cls, v):
+        if v in BUILTIN_SETS:
+            raise ValueError(f"{v} is a built-in set")
+        return v
+
+
+class SetLibrary(Strict):
+    schema_version: Literal[1] = 1
+    sets: list[CustomSet] = []
+
+    @field_validator("sets")
+    @classmethod
+    def _unique(cls, v):
+        if dupes := sorted({p.id for p in v if sum(q.id == p.id for q in v) > 1}):
+            raise ValueError(f"set ids must be unique: {', '.join(dupes)}")
         return v
 
 
