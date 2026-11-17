@@ -386,3 +386,33 @@ def test_cleanup_refused_before_final_approval(lib, capsys):
     assert main(["cleanup", "cat", "part-01"]) == 1
     assert "final not approved yet" in capsys.readouterr().out
     assert (lib / "cat" / "part-01" / "frames").exists()
+
+
+def test_delete_part(lib, capsys):
+    main(["new-series", "cat", "--title", "Cat"])
+    for _ in range(3):
+        main(["new-part", "cat"])
+    d = lib / "cat" / "part-02"
+    (d / "voice.mp3").write_bytes(b"x" * 1000)
+    capsys.readouterr()
+    assert main(["delete-part", "cat", "part-02"]) == 0  # dry run
+    assert "would delete" in capsys.readouterr().out and d.exists()
+    assert main(["delete-part", "cat", "part-02", "--yes"]) == 0
+    assert not d.exists() and not list((lib / "cat").glob(".deleted-*"))
+    assert load_series(lib / "cat" / "series.json").parts == ["part-01", "part-03"]
+    assert main(["new-part", "cat"]) == 0  # numbering continues after the highest left
+    assert load_series(lib / "cat" / "series.json").parts == ["part-01", "part-03", "part-04"]
+    assert main(["delete-part", "cat", "part-02", "--yes"]) == 1  # gone already
+
+
+def test_delete_series(lib, capsys):
+    main(["new-series", "cat", "--title", "Cat"])
+    main(["new-series", "dog", "--title", "Dog"])
+    main(["new-part", "cat"])
+    (lib / "props.json").write_text('{"schema_version": 1, "props": []}', encoding="utf-8")
+    capsys.readouterr()
+    assert main(["delete-series", "cat"]) == 0  # dry run
+    assert "would delete" in capsys.readouterr().out and (lib / "cat").exists()
+    assert main(["delete-series", "cat", "--yes"]) == 0
+    assert sorted(x.name for x in lib.iterdir()) == ["dog", "props.json"]  # other series and props kept
+    assert main(["delete-series", "cat", "--yes"]) == 1

@@ -572,6 +572,31 @@ def create_part(slug: str, body: NewPart):
     return part_detail(slug, part)
 
 
+@app.delete("/api/series/{slug}", response_model=Health)
+def delete_series(slug: str):
+    """the whole series folder; refused while a job is queued or running on any of its parts, or a render runs"""
+    series_path(slug)
+    check_free(slug)
+    if any(j["status"] == "queued" and j["slug"] == slug for j in list(JOBS)):
+        raise HTTPException(409, f"a job is queued on {slug}; cancel it first")
+    cli_call("delete-series", slug, "--yes")
+    publish("series-changed", {"slug": slug})
+    return {"ok": True}
+
+
+@app.delete("/api/series/{slug}/parts/{part}", response_model=SeriesModel)
+def delete_part(slug: str, part: str):
+    """the whole part folder and its series.json entry; refused while a job or render runs on it"""
+    d = series_path(slug)
+    part_path(slug, part)
+    check_free(slug, part)
+    if any(j["status"] == "queued" and j["slug"] == slug and j["part"] == part for j in list(JOBS)):
+        raise HTTPException(409, f"a job is queued on {slug} {part}; cancel it first")
+    cli_call("delete-part", slug, part, "--yes")
+    publish("series-changed", {"slug": slug})
+    return series_json(d)
+
+
 MAX_VOICE_BYTES = 100 * 2**20
 
 

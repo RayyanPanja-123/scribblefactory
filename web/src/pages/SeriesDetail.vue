@@ -1,14 +1,16 @@
 <script setup lang="ts">
 // Series page: loads the series and lays it out. The cast workflow lives in CastPanel, each part in PartCard,
 // and what to do next is lib/seriesNext (pure, tested).
-import { ArrowLeft, ArrowRight, CircleCheck, FileQuestion, Plus } from 'lucide-vue-next'
+import { ArrowLeft, ArrowRight, CircleCheck, FileQuestion, Plus, Trash2 } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { api } from '../api/client'
 import CastPanel from '../components/CastPanel.vue'
 import EmptyState from '../components/EmptyState.vue'
 import ErrorCard from '../components/ErrorCard.vue'
 import PartCard from '../components/PartCard.vue'
-import { castSheetJob, refetchOn } from '../composables/live'
+import { act, confirm } from '../composables/feedback'
+import { castSheetJob, jobs, refetchOn } from '../composables/live'
 import { useApi } from '../composables/useApi'
 import { statusChip } from '../composables/ui'
 import { seriesNext } from '../lib/seriesNext'
@@ -34,6 +36,20 @@ const next = computed(() => {
     })),
   })
 })
+
+const router = useRouter()
+const deleteReason = computed(() => jobs.value.some((j) => j.slug === props.slug && ['queued', 'running'].includes(j.status))
+  ? 'a job is queued or running in this series' : null)
+async function deleteSeries() {
+  const s = series.value!
+  const ok = await confirm({
+    title: `Delete “${s.title}”?`,
+    body: `Deletes the whole series for good: all ${s.parts.length} part(s) with their stories, voices and videos, the cast `
+      + 'and the cast sheet. Custom props are kept.',
+    confirm: 'Delete series', danger: true,
+  })
+  if (ok && (await act(() => api.deleteSeries(props.slug), `${s.title} deleted`))) router.push('/series')
+}
 
 // the series facts, one compact line under the title
 const facts = computed(() => {
@@ -111,6 +127,16 @@ const facts = computed(() => {
       <EmptyState v-if="!data.parts.length" :icon="FileQuestion" title="No parts yet"
         text="A part is one short: write its story, record the voice, and the factory does the rest." />
       <PartCard v-for="(p, i) in data.parts" :key="p.id" :slug="slug" :part="p" :index="i" />
+    </section>
+
+    <section class="flex flex-wrap items-center gap-4 rounded-lg border border-[#f0c9bd] bg-[#fbeee9] p-5" aria-label="Danger zone">
+      <div class="min-w-0 flex-1">
+        <p class="text-sm font-semibold text-red-ink">Delete this series</p>
+        <p class="text-xs text-muted">Every part, story, voice and video, the cast and its sheet. Cannot be undone.</p>
+      </div>
+      <button class="btn btn-secondary text-red-ink" :disabled="!!deleteReason" :title="deleteReason ?? undefined" @click="deleteSeries">
+        <Trash2 :size="16" aria-hidden="true" /> Delete series
+      </button>
     </section>
   </div>
 </template>

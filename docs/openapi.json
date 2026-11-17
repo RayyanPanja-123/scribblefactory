@@ -1973,6 +1973,44 @@
       }
     },
     "/api/series/{slug}": {
+      "delete": {
+        "description": "the whole series folder; refused while a job is queued or running on any of its parts, or a render runs",
+        "operationId": "delete_series_api_series__slug__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Series"
+      },
       "get": {
         "operationId": "series_detail_api_series__slug__get",
         "parameters": [
@@ -2110,6 +2148,53 @@
       }
     },
     "/api/series/{slug}/parts/{part}": {
+      "delete": {
+        "description": "the whole part folder and its series.json entry; refused while a job or render runs on it",
+        "operationId": "delete_part_api_series__slug__parts__part__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "part",
+            "required": true,
+            "schema": {
+              "title": "Part",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesModel"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Part"
+      },
       "get": {
         "operationId": "part_detail_api_series__slug__parts__part__get",
         "parameters": [

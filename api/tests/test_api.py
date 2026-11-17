@@ -477,3 +477,25 @@ def test_approving_final_cleans_up(client, lib):
     assert not (d / "frames").exists() and not (d / "preview.mp4").exists()
     assert (d / "final.mp4").exists() and (d / "thumbs" / "thumb-1.png").exists()
     assert client.get(P).json()["frames_bytes"] == 0
+
+
+def test_delete_part(client, lib):
+    assert cli(["new-part", "demo", "--title", "Two"]) == 0
+    r = client.delete("/api/series/demo/parts/part-02")
+    assert r.status_code == 200 and r.json()["parts"] == ["part-01"]
+    assert not (lib / "demo" / "part-02").exists()
+    assert client.delete("/api/series/demo/parts/part-02").status_code == 404
+    (lib / "demo" / "part-01" / "frames" / ".render.lock").write_text(str(os.getpid()), encoding="utf-8")
+    r = client.delete(P)
+    assert r.status_code == 409 and "render is running" in r.json()["detail"]
+    assert (lib / "demo" / "part-01").exists()
+
+
+def test_delete_series(client, lib):
+    (lib / "demo" / "part-01" / "frames" / ".render.lock").write_text(str(os.getpid()), encoding="utf-8")
+    r = client.delete("/api/series/demo")
+    assert r.status_code == 409 and "render is running" in r.json()["detail"]
+    (lib / "demo" / "part-01" / "frames" / ".render.lock").unlink()
+    assert client.delete("/api/series/demo").json() == {"ok": True}
+    assert not (lib / "demo").exists() and client.get("/api/series").json() == []
+    assert client.delete("/api/series/demo").status_code == 404

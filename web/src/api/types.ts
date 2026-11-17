@@ -171,7 +171,11 @@ export interface paths {
         get: operations["series_detail_api_series__slug__get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete Series
+         * @description the whole series folder; refused while a job is queued or running on any of its parts, or a render runs
+         */
+        delete: operations["delete_series_api_series__slug__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -222,7 +226,11 @@ export interface paths {
         get: operations["part_detail_api_series__slug__parts__part__get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete Part
+         * @description the whole part folder and its series.json entry; refused while a job or render runs on it
+         */
+        delete: operations["delete_part_api_series__slug__parts__part__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1362,6 +1370,37 @@ export interface operations {
             };
         };
     };
+    delete_series_api_series__slug__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Health"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     approve_cast_api_series__slug__approve_cast_post: {
         parameters: {
             query?: never;
@@ -1451,6 +1490,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PartDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_part_api_series__slug__parts__part__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                part: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesModel"];
                 };
             };
             /** @description Validation Error */

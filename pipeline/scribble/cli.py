@@ -179,6 +179,57 @@ def cmd_new_part(args) -> int:
     return 0
 
 
+def cmd_delete_part(args) -> int:
+    """Delete a part: its folder (story.md, voice.mp3, videos, frames: everything) and its entry in series.json.
+    Dry run unless --yes. Other parts keep their numbers."""
+    pdir = part_dir(args)
+    if render_stage.lock_owner(pdir):
+        raise UserError(f"a render is running on {args.slug} {args.part}; wait for it or stop it")
+    f, series = load_existing_series(args)
+    size = sum(x.stat().st_size for x in pdir.rglob("*") if x.is_file())
+    files = sorted(x.name for x in pdir.iterdir())
+    if not args.yes:
+        print(f"would delete {pdir} ({size / 1e6:.1f} MB: {', '.join(files)}) and remove {args.part} from "
+              f"series.json; add --yes to delete")
+        return 0
+    # rename aside first (atomic), then series.json, then the files: never a listed part with half its files gone
+    trash = pdir.with_name(f".deleted-{args.part}-{utcnow():%Y%m%d%H%M%S}")
+    os.replace(pdir, trash)
+    try:
+        series.parts = [x for x in series.parts if x != args.part]
+        save_series(f, series)
+    except BaseException:
+        os.replace(trash, pdir)
+        raise
+    shutil.rmtree(trash, ignore_errors=True)
+    if trash.exists():
+        print(f"note: could not delete every file of {trash.name} (in use?); it is no longer a part, delete it later")
+    print(f"deleted {args.slug} {args.part} ({size / 1e6:.1f} MB freed)")
+    return 0
+
+
+def cmd_delete_series(args) -> int:
+    """Delete a series: its whole folder (every part, story, voice, video, the cast sheet). Dry run unless --yes.
+    Custom props live in library/props.json and are kept."""
+    f, series = load_existing_series(args)
+    d = f.parent
+    running = [p for p in part_folders(d) if render_stage.lock_owner(d / p)]
+    if running:
+        raise UserError(f"a render is running on {args.slug} {running[0]}; wait for it or stop it")
+    size = sum(x.stat().st_size for x in d.rglob("*") if x.is_file())
+    if not args.yes:
+        print(f"would delete {d} ({size / 1e6:.1f} MB: {len(series.parts)} part(s), cast of {len(series.cast)}); "
+              f"add --yes to delete")
+        return 0
+    trash = d.with_name(f".deleted-{args.slug}-{utcnow():%Y%m%d%H%M%S}")
+    os.replace(d, trash)  # one atomic step: from here the series is gone from the library
+    shutil.rmtree(trash, ignore_errors=True)
+    if trash.exists():
+        print(f"note: could not delete every file of {trash.name} (in use?); delete it later")
+    print(f"deleted series {args.slug} ({size / 1e6:.1f} MB freed)")
+    return 0
+
+
 def _date(dt) -> str:
     return dt.strftime("%Y-%m-%d") if dt else "-"
 
@@ -498,6 +549,19 @@ def build_parser() -> Parser:
     c.add_argument("slug")
     c.add_argument("--title")
     c.set_defaults(func=cmd_new_part)
+
+    c = sub.add_parser("delete-series", parents=[common],
+                       help="delete a series: its whole folder, every part included (dry run unless --yes)")
+    c.add_argument("slug")
+    c.add_argument("--yes", action="store_true", help="really delete")
+    c.set_defaults(func=cmd_delete_series)
+
+    c = sub.add_parser("delete-part", parents=[common],
+                       help="delete a part: its whole folder and its series.json entry (dry run unless --yes)")
+    c.add_argument("slug")
+    c.add_argument("part")
+    c.add_argument("--yes", action="store_true", help="really delete")
+    c.set_defaults(func=cmd_delete_part)
 
     c = sub.add_parser("cast-add", parents=[common], help="add a character to a series cast")
     c.add_argument("slug")

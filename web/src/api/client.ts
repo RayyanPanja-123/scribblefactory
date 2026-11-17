@@ -66,6 +66,8 @@ export const api = {
   uploadVoice: (slug: string, p: string, file: File, replace = false) =>
     call<PartDetail>('PUT', `${part(slug, p)}/voice.mp3${replace ? '?replace=true' : ''}`, file),
   checkStory: (slug: string, p: string) => call<StoryCheck>('GET', `${part(slug, p)}/check-story`),
+  deletePart: (slug: string, p: string) => call<SeriesModel>('DELETE', part(slug, p)),
+  deleteSeries: (slug: string) => call<{ ok: boolean }>('DELETE', `/api/series/${e(slug)}`),
   cleanFrames: (slug: string, p: string) => call<PartModel>('POST', `${part(slug, p)}/clean-frames`),
   jobs: () => call<Job[]>('GET', '/api/jobs'),
   submitJob: (slug: string, p: string, steps: string[]) => call<Job>('POST', '/api/jobs', { slug, part: p, steps }),

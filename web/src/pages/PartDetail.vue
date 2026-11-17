@@ -2,7 +2,7 @@
 import { ArrowLeft, Check, CircleAlert, CircleCheck, CircleX, Clock, ExternalLink, HardDrive, Instagram, Minus, Play, Plus, Save, Trash2, Upload, Youtube } from 'lucide-vue-next'
 import { animate, motion } from 'motion-v'
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { api, media, type Approval, type Platform, type StoryCheck } from '../api/client'
 import EmptyState from '../components/EmptyState.vue'
 import ErrorCard from '../components/ErrorCard.vue'
@@ -18,6 +18,7 @@ import { nextSteps } from '../lib/nextSteps'
 
 const props = defineProps<{ slug: string; part: string }>()
 const route = useRoute()
+const router = useRouter()
 const { data, error, loading, reload, refresh } = useApi(() =>
   Promise.all([api.part(props.slug, props.part), api.seriesDetail(props.slug)]))
 refetchOn(() => props.slug, () => props.part, refresh)
@@ -192,6 +193,17 @@ const cleanReason = computed(() =>
 async function clean() {
   const ok = await confirm({ title: 'Delete the frames?', body: `Frees ${bytes(d.value!.frames_bytes)}. final.mp4 is kept; re-rendering needs the frames again.`, confirm: 'Delete frames', danger: true })
   if (ok && (await act(() => api.cleanFrames(props.slug, props.part), 'Frames deleted'))) refresh()
+}
+
+async function deletePart() {
+  const posted = p.value?.posted.youtube || p.value?.posted.instagram
+  const ok = await confirm({
+    title: `Delete part ${p.value?.number}: ${p.value?.title}?`,
+    body: `Deletes the whole part folder for good: story.md, voice.mp3, every video, the frames and the thumbnails `
+      + `(${bytes(d.value!.part_bytes)}). Other parts keep their numbers.${posted ? ' It is marked posted: the posted links are lost too.' : ''}`,
+    confirm: 'Delete part', danger: true,
+  })
+  if (ok && (await act(() => api.deletePart(props.slug, props.part), `Part ${p.value?.number} deleted`))) router.push(`/series/${props.slug}`)
 }
 
 // ---- shared-element expand from the part card (FLIP: transforms only) + #section deep links ----
@@ -463,6 +475,12 @@ watch(data, async (v, old) => {
               <Trash2 :size="16" aria-hidden="true" /> Clean frames
             </button>
             <p v-if="cleanReason" class="mt-1 text-xs text-muted">{{ cleanReason }}</p>
+            <div class="mt-4 border-t border-[#f0c9bd] pt-4">
+              <p class="text-xs text-muted">Delete this part: story, voice, videos, everything. Cannot be undone.</p>
+              <button class="btn btn-secondary mt-3 text-red-ink" :disabled="!!busy" :title="busy ?? undefined" @click="deletePart">
+                <Trash2 :size="16" aria-hidden="true" /> Delete part
+              </button>
+            </div>
           </div>
         </section>
       </div>

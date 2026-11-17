@@ -14,7 +14,8 @@ Library: `$SCRIBBLE_LIBRARY`, else `./library` (same as the CLI). CORS allows on
   `/api/series/{slug}/parts/{part}/check-story` (same checks as the `check-story` CLI command),
   `/api/media/{slug}/{path}` (mp4/png/jpg/mp3/md/json inside the series folder, Range requests for seeking).
 - Actions (409 with `detail` when a gate refuses or a job is running on the part): `approve/{what}`, `approve-cast`,
-  `pick-thumbnail`, `mark-posted`, `PUT upload.md`, `clean-frames`. They call the CLI commands in-process.
+  `pick-thumbnail`, `mark-posted`, `PUT upload.md`, `clean-frames`, `DELETE /api/series/{slug}/parts/{part}`,
+  `DELETE /api/series/{slug}`. They call the CLI commands in-process.
 - Jobs: `POST /api/jobs {slug, part, steps}` with steps like `"run --stage audio"`, `"render-stills"`,
   `"test-render"`, `"render"`, `"cast-sheet"`. One worker thread runs them in order as CLI subprocesses and
   stops at the first failure. `GET /api/jobs`, `DELETE /api/jobs/{id}` (cancel, kills the process tree).

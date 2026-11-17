@@ -114,6 +114,14 @@ Rendered frames are large (about 1-2 GB a part). final.mp4 does not need them.
 
 A later re-render needs the frames again (it re-renders them all).
 
+## Deleting
+
+- A part: part page → Disk → **Delete part** (`cli delete-part <slug> <part> --yes`; without `--yes` it only
+  lists what would go). Its whole folder goes: story.md, voice.mp3, videos, frames. Other parts keep their numbers.
+- A series: series page → **Delete series** (`cli delete-series <slug> --yes`). Every part, the cast and its sheet.
+  Custom props (library/props.json) are kept.
+- Both are refused while a job is queued or running on it. Neither can be undone.
+
 ## When something goes wrong
 
 - A stage failed: its chip turns red; hover for the error, fix, re-run.
