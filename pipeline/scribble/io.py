@@ -18,29 +18,39 @@ def atomic_write_json(path, data) -> None:
 
 
 def atomic_write_text(path, text: str) -> None:
+    atomic_write_bytes(path, text.encode("utf-8"))
+
+
+def atomic_write_bytes(path, data: bytes) -> None:
     """Write via temp file in the same dir + fsync + os.replace (atomic on Windows and POSIX)."""
     path = Path(path)
     if path.name in PROTECTED:
         raise ValueError(f"refusing to write protected file {path.name}")
     fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
     try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
-            f.write(text)
+        with os.fdopen(fd, "wb") as f:
+            f.write(data)
             f.flush()
             os.fsync(f.fileno())
-        # Windows: replace fails with PermissionError while another process
-        # (editor, antivirus, indexer) has the target open. Retry briefly.
-        for attempt in range(REPLACE_RETRIES + 1):
-            try:
-                os.replace(tmp, path)
-                break
-            except PermissionError:
-                if attempt == REPLACE_RETRIES:
-                    raise
-                time.sleep(0.1)
+        replace_file(tmp, path)
     except BaseException:
         Path(tmp).unlink(missing_ok=True)
         raise
+
+
+def replace_file(tmp, path) -> None:
+    """os.replace, retried: on Windows it fails with PermissionError while another process
+    (editor, antivirus, indexer) has the target open."""
+    if Path(path).name in PROTECTED:
+        raise ValueError(f"refusing to write protected file {Path(path).name}")
+    for attempt in range(REPLACE_RETRIES + 1):
+        try:
+            os.replace(tmp, path)
+            return
+        except PermissionError:
+            if attempt == REPLACE_RETRIES:
+                raise
+            time.sleep(0.1)
 
 
 def load_series(path) -> SeriesModel:

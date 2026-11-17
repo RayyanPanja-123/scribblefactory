@@ -127,6 +127,7 @@ library/<series-slug>/
   - 5.1: engine core (sets, stickman cards, camera), stills + cast sheets, approvals. DONE.
   - 5.2: test render + chunked, parallel, resumable full render (GPU default, SwiftShader fallback). DONE.
 - Step 5b: audio (synth music + SFX), mix, finish + QA.
+  - 5b-1: audio stage: synth music + SFX from cues, mix under voice to -14 LUFS / -1 dBTP. DONE.
 - Step 5c: Content library (per-story characters, same art style).
   - Cast v2 schema: top style (plain, suit, tank, shirt) + colour, accents (tie, chest number), headwear (none, flat_cap, postman_cap), legwear over stick legs (none, shorts, ragged_shorts, trousers), held prop, default expression, eyes. Bump schema_version.
   - New expressions: cheeky, exhausted.
