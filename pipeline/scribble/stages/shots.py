@@ -1,7 +1,7 @@
 """shots: story.md directives + phrases.json + series cast -> story.json. Rule-based and seeded, no AI.
 
 Each phrase gets a shot starting at its first word (pauses stay with the earlier shot); shots over
-MAX_SHOT_FRAMES split into equal parts. Directive state (@set, @cast, !!) is read at a phrase's first word.
+MAX_SHOT_FRAMES split into equal parts. Directive state (@set, @cast, @dogs, !!) is read at a phrase's first word.
 The output must pass the validator, otherwise nothing is written.
 """
 
@@ -12,8 +12,8 @@ import zlib
 from pathlib import Path
 
 from ..io import atomic_write_json
-from ..schemas import Actor, Camera, Cue, PhrasesModel, SeriesModel, Shot, StoryModel, Travel
-from ..validate import MAX_SHOT_FRAMES, OUTDOOR_SETS, RUN_SPEED, WALK_SPEED, duration_frames, validate
+from ..schemas import Actor, Animal, Camera, Cue, PhrasesModel, SeriesModel, Shot, StoryModel, Travel
+from ..validate import DOG_RUN_SPEED, MAX_SHOT_FRAMES, OUTDOOR_SETS, RUN_SPEED, WALK_SPEED, duration_frames, validate
 from .prep import MARKER_RE, clean_markdown, mark_directives
 from .runner import StageError
 from .validate import load_model
@@ -36,6 +36,15 @@ MOVE_SPEED = {"walk": 1.2, "run": 2.5}  # units/s
 MIN_SPEED = {"walk": WALK_SPEED[0], "run": RUN_SPEED[0]}  # shortened moves never go slower than the validator allows
 MIN_GAP = 0.8              # actors at least this far apart in x at the start and end of every shot
 TRAVEL_Z = 0.3             # travel shots: each actor seeded in z -0.3..0.3 so a pack reads as a group
+# dogs (@dogs N): ids dog1..dogN, colour variant seeded per id (stable for the whole part)
+MAX_DOGS = 6
+DOG_VARIANTS = ["brown", "black", "tan", "white_patches"]
+DOG_GAP = 0.6              # travel: a dog never gets closer than this to the rearmost actor (x, so also 2D)
+DOG_STEP = 0.35            # x stagger between dogs in a pack / on one stage edge
+DOG_Z = 0.45               # travel: dogs seeded in z -0.45..0.45
+DOG_CLOSE = (0.15, 0.35)   # travel: units/s a dog gains on the actors (on top of the scroll)
+DOG_EDGE_X = 1.8           # non-travel: dogs stand at |x| >= this ...
+DOG_EDGE_GAP = 0.9         # ... and at least this far (x) outside every actor's start/end, so cards never overlap
 
 # Lexicons match lowercase words with punctuation and a trailing 's stripped. First match in the phrase wins.
 ACTIONS = {
@@ -68,15 +77,15 @@ def seed_for(slug: str, part_number: int) -> int:
 
 
 def tag_words(md: str, cast_ids: list[str], default_cast: list[str]):
-    """Return (words, [(set, cast tuple, twist starts here)]) from story.md, words as prep's script has them."""
+    """Return (words, [(set, cast tuple, twist starts here, dogs)]) from story.md, words as prep's script has them."""
     text, directives = mark_directives(md)
-    set_, cast, twist_next = DEFAULT_SET, tuple(default_cast), False
+    set_, cast, twist_next, dogs = DEFAULT_SET, tuple(default_cast), False, 0
     words, tags = [], []
     for tok in clean_markdown(text).split():
         m = MARKER_RE.match(tok)
         if not m:
             words.append(tok)
-            tags.append((set_, cast, twist_next))
+            tags.append((set_, cast, twist_next, dogs))
             twist_next = False
         elif m[1] == "!":
             twist_next = True
@@ -95,8 +104,11 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str]):
                     raise StageError(f"story.md line {line}: @cast: unknown cast id {', '.join(unknown)} "
                                      f"(series cast: {', '.join(cast_ids)}; add with cast-add)")
                 cast = tuple(ids)
+            elif name == "dogs" and arg.isdigit() and int(arg) <= MAX_DOGS:
+                dogs = int(arg)
             else:
-                raise StageError(f"story.md line {line}: bad directive @{d.strip()} (use @set <name> or @cast a, b)")
+                raise StageError(f"story.md line {line}: bad directive @{d.strip()} "
+                                 f"(use @set <name>, @cast a, b or @dogs 0-{MAX_DOGS})")
     return words, tags
 
 
@@ -179,6 +191,44 @@ def _actors(cast, pos, subject, words, seconds, travel_dir=0, zs=None):
     return out
 
 
+def dog_variant(seed: int, dog_id: str) -> str:
+    return random.Random(f"{seed}:dog:{dog_id}").choice(DOG_VARIANTS)
+
+
+def _dogs(n, actors, s0, s1, seed, sid, travel_speed=None):
+    """(animals, bark cue or None) for a shot with n dogs.
+    Travel: the pack runs behind the actors (the side they run away from), staggered in x and z, each dog closing
+    in at a seeded DOG_CLOSE rate and ending >= DOG_GAP behind the rearmost actor.
+    Otherwise: dogs idle or bark at the stage edges, alternating sides, outside every actor's path; one bark cue."""
+    R, seconds = random.Random(f"{seed}:dogs:{sid}"), (s1 - s0) / FPS
+    ids = [f"dog{j + 1}" for j in range(n)]
+    out = []
+    if travel_speed:
+        d = 1 if actors[0].facing == "right" else -1
+        rear = min(a.start_pos[0] for a in actors) if d > 0 else max(a.start_pos[0] for a in actors)
+        min_close = DOG_RUN_SPEED[0] - travel_speed + 0.01  # a walk-speed scroll alone is too slow for a gallop
+        for j, did in enumerate(ids):
+            close = math.ceil(max(R.uniform(*DOG_CLOSE), min_close) * seconds * 1000) / 1000
+            end = round(rear - d * (DOG_GAP + 0.15 + j * DOG_STEP + R.uniform(0, 0.1)), 3)
+            z = round(R.uniform(-DOG_Z, DOG_Z), 2)
+            out.append(Animal(id=did, kind="dog", action="run", start_pos=(round(end - d * close, 3), z),
+                              end_pos=(end, z), facing=actors[0].facing, variant=dog_variant(seed, did)))
+        return out, None
+    xs = [x for a in actors for x in (a.start_pos[0], (a.end_pos or a.start_pos)[0])] or [0.0]
+    side, used = R.choice((-1, 1)), {1: 0, -1: 0}
+    for j, did in enumerate(ids):
+        sd = side if j % 2 == 0 else -side
+        edge = max(DOG_EDGE_X, (max(xs) if sd > 0 else -min(xs)) + DOG_EDGE_GAP)
+        x = round(sd * (edge + used[sd] * DOG_STEP), 3)
+        used[sd] += 1
+        out.append(Animal(id=did, kind="dog", action=R.choice(("idle", "bark")),
+                          start_pos=(x, round(R.uniform(-0.4, 0.2), 2)),
+                          facing="left" if sd > 0 else "right", variant=dog_variant(seed, did)))
+    if out and all(a.action != "bark" for a in out):
+        out[0].action = "bark"
+    return out, Cue(frame=s0 + R.randrange(max(1, (s1 - s0) * 2 // 3)), kind="bark") if out else None
+
+
 def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int) -> StoryModel:
     if not series.cast:
         raise StageError("series.json has no cast: add some with cast-add")
@@ -211,7 +261,7 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int) 
     prev_cast, travel_run = (), None  # travel_run: first shot id of the current run of travel shots on one set
     pos: dict[str, float] = {}  # where each actor stands now; reset on a set change
     for i, p in enumerate(phrases.phrases):
-        set_, cast, _ = tags[p.word_start]
+        set_, cast, _, dogs = tags[p.word_start]
         if set_ != prev_set:
             pos = {}
         home, placed = spread(cast), []
@@ -252,9 +302,13 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int) 
                       for c in cast}
             else:
                 travel_run = None
+            actors = _actors(cast, pos, subject, pw, (s1 - s0) / FPS, tdir, zs)
+            animals, bark = _dogs(dogs, actors, s0, s1, seed, sid, MOVE_SPEED[action] if travel else None)
+            if bark:
+                cues.append(bark)
             shots.append(Shot(id=sid, start_frame=s0, end_frame=s1, set=set_,
                               phrase_range=(i, i), camera=Camera(angle=angle, move=move, speed=speed, roll_deg=roll),
-                              actors=_actors(cast, pos, subject, pw, (s1 - s0) / FPS, tdir, zs), twist=is_twist,
+                              actors=actors, animals=animals, twist=is_twist,
                               travel=Travel(speed=MOVE_SPEED[action]) if travel else None))
             prev_angle, prev_set = angle, set_
     return StoryModel(duration_frames=total, seed=seed, shots=shots, cues=cues)

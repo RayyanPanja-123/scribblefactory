@@ -3,6 +3,7 @@
 import * as THREE from "three";
 import { dolly, glide } from "./borrowed.js";
 import { CH, CW, FEET_Y, FIGURE_PX, drawStickman } from "./stickman.js";
+import { DH, DOG_FEET, DW, barkAmount, drawDog, gallopPhase } from "./dog.js";
 import { gestureAmount, gesturePlan, mouthCurve, mouthCycles, pointAmount, stressBob } from "./motion.js";
 import { rng, setVariant } from "./rng.js";
 import { SETS, VARIANTS, buildSet, loopExcess, scrollSet } from "./world.js";
@@ -21,6 +22,7 @@ const lerp = (a, b, u) => a + (b - a) * u;
 const WIDE = { margin: 0.8, maxFill: 0.30, camY: 2.1, lookY: 0.75 };
 const SUBJECT_MARGIN = 0.05; // props must clear the subject's on-screen card bounds grown by 5% per side
 const SHADOW = { w: 0.75, d: 0.3, opacity: 0.32, bounce: 0.08, y: 0.025 }; // y clears the room rug
+const DOG_CARD_W = 1.3, DOG_CARD_H = DOG_CARD_W * (DH / DW), DOG_SHADOW = { w: 0.9, d: 0.26 };
 // set change: a marker stroke sweeps left to right over the last HALF frames of the old shot and the first HALF of
 // the new one, revealing the new set. band = stroke width px, tilt = how far the bottom trails the top px.
 const WIPE = { half: 5, band: 110, tilt: 260, color: "#f2c14e", streak: "#d99a2b", ink: "#1c1a1a" };
@@ -42,6 +44,7 @@ renderer.setPixelRatio(1);
 renderer.setSize(W, H, false);
 const camera = new THREE.PerspectiveCamera(45, W / H, 0.05, 100);
 const CARD_GEO = new THREE.PlaneGeometry(CARD_W, CARD_H).translate(0, CARD_H / 2 - CARD_H * (1 - FEET_Y / CH), 0);
+const DOG_GEO = new THREE.PlaneGeometry(DOG_CARD_W, DOG_CARD_H).translate(0, DOG_CARD_H / 2 - DOG_CARD_H * (1 - DOG_FEET / DH), 0);
 
 let data = null, scene = null;
 const sets = {}, cards = {}, hiddenByShot = new Map(), variantByShot = new Map();
@@ -59,13 +62,13 @@ const SHADOW_TEX = (() => {
 })();
 const SHADOW_GEO = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
 
-function card(id) {
+function card(id, geo = CARD_GEO, w = CW, h = CH) {
   if (!cards[id]) {
     const cv = document.createElement("canvas");
-    cv.width = CW; cv.height = CH;
+    cv.width = w; cv.height = h;
     const tex = new THREE.CanvasTexture(cv);
     tex.colorSpace = THREE.SRGBColorSpace;
-    const mesh = new THREE.Mesh(CARD_GEO, new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.05, depthWrite: false }));
+    const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.05, depthWrite: false }));
     mesh.renderOrder = 1; // after its shadow
     const shadow = new THREE.Mesh(SHADOW_GEO, new THREE.MeshBasicMaterial({
       map: SHADOW_TEX, transparent: true, opacity: SHADOW.opacity, depthWrite: false }));
@@ -106,14 +109,16 @@ function drawCard(id, o) {
 function shotCamera(shot, sx, xs, u) {
   const A = ANGLES[shot.camera.angle] || ANGLES.medium;
   let pos, look;
-  if (shot.camera.angle === "wide" && xs.length) {
+  // chase (travel shot with dogs): every angle fits actors + pack like wide, at the angle's own camera height
+  const wide = shot.camera.angle === "wide", chase = !!(shot.travel && shot.animals?.length);
+  if ((wide || chase) && xs.length) {
     const lo = Math.min(...xs), hi = Math.max(...xs), cx = (lo + hi) / 2;
     const end = shot.camera.speed, tan = Math.tan(rad(A.fov / 2)); // end = move size at u = 1
     const width = hi - lo + WIDE.margin + (shot.camera.move.startsWith("truck") ? 2 * 1.4 * end : 0);
     const reach = shot.camera.move === "push_in" ? 1 - 0.5 * end : 1;
     const fit = width / (2 * tan * (W / H)) / reach;   // whole cast inside the frame edges all shot long
     const notCloser = FIG_H / (2 * tan * WIDE.maxFill); // heads and feet win over size: only ever back off
-    pos = [cx, WIDE.camY, Math.max(fit, notCloser)]; look = [cx, WIDE.lookY, 0];
+    pos = [cx, wide ? WIDE.camY : A.pos[1], Math.max(fit, notCloser)]; look = [cx, wide ? WIDE.lookY : A.look[1], 0];
   } else {
     const fx = sx * A.follow;
     pos = [fx + A.pos[0], A.pos[1], A.pos[2]]; look = [fx + A.look[0], A.look[1], A.look[2]];
@@ -264,7 +269,8 @@ function drawShot(shot, n) {
   const group = useSet(shot);
   const place = (a) => placeAt(a, u);
   const subject = shot.actors.find((a) => a.action !== "idle") || shot.actors[0];
-  const span = shot.actors.flatMap((a) => [a.start_pos[0], (a.end_pos || a.start_pos)[0]]);
+  const animals = shot.animals || [];
+  const span = [...shot.actors, ...animals].flatMap((a) => [a.start_pos[0], (a.end_pos || a.start_pos)[0]]);
   // travel shot: the world scrolls against the actors' facing at travel.speed; props wrap around the band and the
   // near ones are hidden (not hidden-behind-subject: everything moves, so that per-shot choice would be stale)
   const dir = shot.travel ? (shot.actors[0]?.facing === "left" ? -1 : 1) : 0;
@@ -303,10 +309,37 @@ function drawShot(shot, n) {
     shadow.scale.set(SHADOW.w * k, 1, SHADOW.d * k);
     scene.add(mesh, shadow);
   }
+  drawAnimals(shot, animals, n, kf, u);
   renderer.render(scene, camera);
   const travel = shot.travel ? { travel: `${shot.travel.speed} u/s ${dir < 0 ? "left" : "right"}, shift ${shift.toFixed(2)}`
     + `, loop excess ${(({ excess, row }) => `${excess.toFixed(3)} (row z ${row})`)(loopExcess(group, shift))}` } : {};
-  return { angle: shot.camera.angle, hidden: hidden.size, gestures, ...travel, ...measure(shot.actors.map(place)) };
+  return { angle: shot.camera.angle, hidden: hidden.size, gestures, dogs: animals.length, ...travel, ...measure(shot.actors.map(place)) };
+}
+
+/** dog cards: gallop phase from distance travelled (scroll + own move), barks start at the shot's bark cue */
+function drawAnimals(shot, animals, n, kf, u) {
+  const t = n / FPS, secs = (shot.end_frame - shot.start_frame) / FPS;
+  const cue = (data.story.cues || []).find((c) => c.kind === "bark" && c.frame >= shot.start_frame && c.frame < shot.end_frame);
+  const barkers = animals.filter((d) => d.action === "bark");
+  for (const d of animals) {
+    const [x, z] = placeAt(d, u), key = charSeed(`dog:${d.id}`), id = `animal:${d.id}`;
+    const own = d.end_pos ? Math.hypot(d.end_pos[0] - d.start_pos[0], d.end_pos[1] - d.start_pos[1]) : 0;
+    const phase = d.action === "run" ? gallopPhase(((shot.travel ? shot.travel.speed * secs : 0) + own) * u) : 0;
+    const c = card(id, DOG_GEO, DW, DH);
+    drawDog(c.cv, {
+      seed: key, variant: d.variant, facing: d.facing, action: d.action, phase, t,
+      boil: Math.floor(n / BOIL_FRAMES), lid: lidAt(n, key),
+      breath: Math.sin((2 * Math.PI * t) / 1.1 + 2 * Math.PI * rng(key, "breath")()), // dogs pant faster
+      yap: d.action === "bark" && n === kf ? barkAmount(n, cue ? cue.frame : shot.start_frame, barkers.indexOf(d)) : 0,
+    });
+    c.tex.needsUpdate = true;
+    c.mesh.position.set(x, 0, z);
+    c.mesh.rotation.set(0, Math.atan2(camera.position.x - x, camera.position.z - z), 0);
+    const k = 1 + SHADOW.bounce * Math.abs(Math.sin(2 * Math.PI * phase));
+    c.shadow.position.set(x, SHADOW.y, z);
+    c.shadow.scale.set(DOG_SHADOW.w * k, 1, DOG_SHADOW.d * k);
+    scene.add(c.mesh, c.shadow);
+  }
 }
 
 /** smallest figure height as a fraction of frame height, and whether every head, foot and card edge is in frame */

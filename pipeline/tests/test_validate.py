@@ -277,3 +277,83 @@ def test_schema_travel_speed_positive():
     shot(d, 0)["travel"] = {"speed": 0}
     with pytest.raises(ValidationError):
         StoryModel.model_validate(d)
+
+
+
+# --- dogs ---
+
+def _dog(action="run", start=(0.0, 0.3), end=(6.0, 0.3), facing="right", travel=None):
+    """s01 (2 s) gets one dog; travel=speed makes s01 a travel shot (bob and amy run right in place)."""
+    def m(d):
+        if travel:
+            _travel(travel, action="run")(d)
+        shot(d, 0)["animals"] = [{"id": "dog1", "kind": "dog", "action": action, "start_pos": list(start),
+                                  "end_pos": list(end) if end else None, "facing": facing, "variant": "tan"}]
+    return m
+
+
+def test_dogs_pass():
+    assert rules(_dog()) == set()                                       # 6 units in 2 s = 3.0 u/s
+    assert rules(_dog("bark", end=None, facing="left")) == set()
+    assert rules(_dog(travel=2.5, start=(-2, 0.3), end=(-1.5, 0.3))) == set()  # 2.5 scroll + 0.25 = 2.75
+    def cue(d):
+        _dog("idle", end=None)(d)
+        d["cues"].append({"frame": 10, "kind": "bark"})
+    assert rules(cue) == set()
+
+
+@pytest.mark.parametrize("kw", [
+    dict(end=(3.0, 0.3)),                         # 1.5 u/s < 2.0
+    dict(end=(10.4, 0.3)),                        # 5.2 u/s > 5.0
+    dict(travel=1.2, start=(-2, 0), end=(-2, 0)),  # walk-speed scroll alone: 1.2 < 2.0
+    dict(travel=2.5, start=(-8, 0), end=(-2, 0)),  # 2.5 + 3.0 = 5.5 > 5.0
+])
+def test_dog_run_speed(kw):
+    assert rules(_dog(**kw)) == {"gliding"}
+
+
+def test_dog_constants():
+    from pipeline.scribble.validate import DOG_RUN_SPEED
+    assert DOG_RUN_SPEED == (2.0, 5.0)
+
+
+@pytest.mark.parametrize("kw,rule", [
+    (dict(facing="left"), "facing"),                         # runs right, faces left
+    (dict(end=(0.0, 0.3)), "end_pos"),                       # a run must move (outside travel)
+    (dict(action="idle"), "end_pos"),                        # idle with an end_pos
+    (dict(action="bark"), "end_pos"),
+])
+def test_dog_motion_rules(kw, rule):
+    assert rules(_dog(**kw)) == {rule}
+
+
+@pytest.mark.parametrize("kw", [
+    dict(action="idle", end=None),                                       # must run
+    dict(action="bark", end=None),
+    dict(facing="left", start=(2, 0), end=(1.5, 0)),                     # runs against the travel way
+])
+def test_travel_dogs_run_the_travel_way(kw):
+    assert "travel_animals" in rules(_dog(travel=2.5, **kw))
+
+
+def test_dog_ids_unique_per_shot():
+    def m(d):
+        _dog()(d)
+        shot(d, 0)["animals"].append(dict(shot(d, 0)["animals"][0]))
+    assert rules(m) == {"animal_id"}
+
+
+@pytest.mark.parametrize("mutate", [
+    lambda a: a.update(kind="cat"), lambda a: a.update(variant="purple"), lambda a: a.update(facing="camera"),
+    lambda a: a.update(action="sit"),
+])
+def test_schema_rejects_bad_animal(mutate):
+    d = load("story.json")
+    _dog()(d)
+    mutate(shot(d, 0)["animals"][0])
+    with pytest.raises(ValidationError):
+        StoryModel.model_validate(d)
+
+
+def test_animals_default_empty():
+    assert StoryModel.model_validate(load("story.json")).shots[0].animals == []

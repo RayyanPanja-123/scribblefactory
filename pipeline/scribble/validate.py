@@ -14,6 +14,7 @@ from .schemas import PhrasesModel, StoryModel
 MAX_SHOT_FRAMES = 90
 WALK_SPEED = (0.6, 1.8)   # units/s, inclusive
 RUN_SPEED = (1.8, 4.0)
+DOG_RUN_SPEED = (2.0, 5.0)
 TWIST_CUE_WINDOW = 3      # frames either side of the twist shot's start
 PHRASE_TOLERANCE = 3      # frames either side of a shot's phrase time span
 MOVING = {"walk", "run"}
@@ -67,6 +68,11 @@ def validate(story: StoryModel, phrases: PhrasesModel, cast_ids: set[str]) -> li
             _check_travel(s, n / fps, err)
         for a in s.actors:
             _check_actor(s.id, a, n / fps, cast_ids, err, s.travel)
+        ids = [d.id for d in s.animals]
+        if len(set(ids)) != len(ids):
+            err(s.id, "animal_id", f"animal ids repeat: {ids}")
+        for d in s.animals:
+            _check_animal(s, d, n / fps, err)
 
         if s.twist:
             _check_twist(s, story, err)
@@ -112,10 +118,23 @@ def _check_travel(s, seconds, err) -> None:
 
 
 def _check_actor(sid, a, seconds, cast_ids, err, travel=None) -> None:
-    who = a.cast_id
-    if who not in cast_ids:
-        err(sid, "cast_id", f"{who!r} is not in series.json cast")
-    if a.action not in MOVING:
+    if a.cast_id not in cast_ids:
+        err(sid, "cast_id", f"{a.cast_id!r} is not in series.json cast")
+    lo_hi = WALK_SPEED if a.action == "walk" else RUN_SPEED
+    _check_move(sid, a.cast_id, a, a.action in MOVING, lo_hi, seconds, err, travel)
+
+
+def _check_animal(s, d, seconds, err) -> None:
+    """Dogs: same facing / no-gliding rules as actors at DOG_RUN_SPEED; in travel shots every dog runs the travel way."""
+    if s.travel:
+        way = s.actors[0].facing if s.actors else None
+        if d.action != "run" or d.facing != way:
+            err(s.id, "travel_animals", f"{d.id} {d.action} facing {d.facing}: dogs in a travel shot must run {way}")
+    _check_move(s.id, d.id, d, d.action == "run", DOG_RUN_SPEED, seconds, err, s.travel)
+
+
+def _check_move(sid, who, a, moving, lo_hi, seconds, err, travel) -> None:
+    if not moving:
         if a.end_pos is not None:
             err(sid, "end_pos", f"{who} {a.action}: end_pos must be null")
         return
@@ -128,7 +147,7 @@ def _check_actor(sid, a, seconds, cast_ids, err, travel=None) -> None:
     if want and a.facing != want:
         err(sid, "facing", f"{who} {a.action}s {want} but faces {a.facing}")
     if seconds > 0:
-        lo, hi = WALK_SPEED if a.action == "walk" else RUN_SPEED
+        lo, hi = lo_hi
         # travel: legs cover the scroll plus the actor's own x move (effective stride speed)
         speed = travel.speed + abs(dx) / seconds if travel else math.dist(a.start_pos, end) / seconds
         if not lo <= speed <= hi:

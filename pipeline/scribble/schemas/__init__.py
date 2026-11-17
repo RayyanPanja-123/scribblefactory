@@ -208,6 +208,16 @@ class Travel(Strict):
     speed: float = Field(gt=0, description="world scroll speed, units/s; actors run in place against it")
 
 
+class Animal(Strict):
+    id: str = Field(pattern=r"^[a-z0-9_-]+$")
+    kind: Literal["dog"]
+    action: Literal["run", "idle", "bark"]
+    start_pos: Pos
+    end_pos: Pos | None = None
+    facing: Literal["left", "right"]  # side-view card: no camera facing
+    variant: Literal["brown", "black", "tan", "white_patches"]
+
+
 class Shot(Strict):
     id: str = Field(pattern=r"^s[0-9]{2,}$")
     start_frame: int = Field(ge=0)
@@ -216,13 +226,14 @@ class Shot(Strict):
     phrase_range: tuple[int, int] = Field(description="[first, last] phrase indices into phrases.json, inclusive")
     camera: Camera
     actors: list[Actor] = []
+    animals: list[Animal] = []
     twist: bool = False
     travel: Travel | None = Field(default=None, description="travel shot: the world scrolls past the actors")
 
 
 class Cue(Strict):
     frame: int
-    kind: Literal["music_stop", "music_start", "low_hit", "whoosh", "pop"]
+    kind: Literal["music_stop", "music_start", "low_hit", "whoosh", "pop", "bark"]
 
 
 class StoryModel(Strict):

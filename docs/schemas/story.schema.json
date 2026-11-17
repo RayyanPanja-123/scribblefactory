@@ -87,6 +87,94 @@
       "title": "Actor",
       "type": "object"
     },
+    "Animal": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "enum": [
+            "run",
+            "idle",
+            "bark"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "end_pos": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End Pos"
+        },
+        "facing": {
+          "enum": [
+            "left",
+            "right"
+          ],
+          "title": "Facing",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[a-z0-9_-]+$",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "dog",
+          "title": "Kind",
+          "type": "string"
+        },
+        "start_pos": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Start Pos",
+          "type": "array"
+        },
+        "variant": {
+          "enum": [
+            "brown",
+            "black",
+            "tan",
+            "white_patches"
+          ],
+          "title": "Variant",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "action",
+        "start_pos",
+        "facing",
+        "variant"
+      ],
+      "title": "Animal",
+      "type": "object"
+    },
     "Camera": {
       "additionalProperties": false,
       "properties": {
@@ -147,7 +235,8 @@
             "music_start",
             "low_hit",
             "whoosh",
-            "pop"
+            "pop",
+            "bark"
           ],
           "title": "Kind",
           "type": "string"
@@ -169,6 +258,14 @@
             "$ref": "#/$defs/Actor"
           },
           "title": "Actors",
+          "type": "array"
+        },
+        "animals": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Animal"
+          },
+          "title": "Animals",
           "type": "array"
         },
         "camera": {

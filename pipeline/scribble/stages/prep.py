@@ -3,6 +3,7 @@
 story.md directives (one per line) are stripped from the script:
   @set office        set for the following lines
   @cast bob, karen   cast on stage for the following lines
+  @dogs 4            dog pack size (0-6) for the following lines
   !! text            this line is the twist (prefix stripped, text kept)
 """
 

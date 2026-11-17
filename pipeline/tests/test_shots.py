@@ -425,3 +425,90 @@ def test_travel_direction_seeded_per_run():
 def test_no_travel_indoors():
     story, _ = plan(TRAVEL.replace("@set dirt_road", "@set office"))
     assert all(s.travel is None for s in story.shots)
+
+
+# --- dogs ---
+
+CHASE = "# T\n\n@set dirt_road\n@cast bob, amy\n@dogs 4\nAmy ran away. Bob ran on.\n@dogs 0\nAmy smiled.\n"
+EDGES = "# T\n\n@set office\n@cast bob, amy\n@dogs 3\nBob walked in. Amy smiled. Bob walked out.\n"
+
+
+def test_dogs_directive_sets_pack_until_changed():
+    story, ph = plan(CHASE)
+    assert [len(s.animals) for s in story.shots] == [4, 4, 0]
+    assert [d.id for d in story.shots[0].animals] == ["dog1", "dog2", "dog3", "dog4"]
+    assert all(d.kind == "dog" for s in story.shots for d in s.animals)
+    assert validate(story, ph, {c.id for c in SERIES.cast}) == []
+    assert all(not s.animals for s in plan(SHORT)[0].shots)  # default: no dogs
+
+
+@pytest.mark.parametrize("line", ["@dogs 7", "@dogs", "@dogs x", "@dogs -1"])
+def test_bad_dogs_directive_fails(line):
+    with pytest.raises(StageError, match="@dogs 0-6"):
+        plan(f"# T\n\n{line}\nBob sat.\n")
+
+
+def test_prep_strips_dogs_directive_and_line_breaks_keep_the_script():
+    plain = "# T\n\nThe dogs came. Another runner got dizzy.\n"
+    marked = "# T\n\n@dogs 4\nThe dogs came.\n@dogs 0\nAnother runner got dizzy.\n"
+    assert clean_markdown(strip_directives(marked)) == clean_markdown(strip_directives(plain))
+
+
+def _dist(a, b):
+    return ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5
+
+
+def test_travel_pack_runs_behind_closing_in_never_touching():
+    seen = set()
+    for part in range(1, 12):
+        story = shots.plan(CHASE, phrases_for(CHASE), SERIES, part)
+        for s in story.shots:
+            if not s.animals:
+                continue
+            assert s.travel
+            way = 1 if s.actors[0].facing == "right" else -1
+            seen.add(way)
+            rear = min(a.start_pos[0] * way for a in s.actors) * way
+            for d in s.animals:
+                assert d.action == "run" and d.facing == s.actors[0].facing
+                assert (rear - d.end_pos[0]) * way >= shots.DOG_GAP          # behind, never past the gap
+                assert abs(d.end_pos[0] - rear) < abs(d.start_pos[0] - rear)  # closing in
+                for a in s.actors:                                           # closest at the end: >= 0.6 in 2D
+                    assert _dist(d.end_pos, a.start_pos) >= shots.DOG_GAP
+            assert len({d.end_pos[0] for d in s.animals}) == 4 and len({d.end_pos[1] for d in s.animals}) > 1
+        assert validate(story, phrases_for(CHASE), {c.id for c in SERIES.cast}) == []
+    assert seen == {1, -1}
+
+
+def test_walk_travel_pack_still_gallops_fast_enough():
+    md = CHASE.replace("ran away. Bob ran on.", "walked away. Bob walked on.")
+    story, ph = plan(md)
+    assert story.shots[0].travel.speed == 1.2 and story.shots[0].animals
+    assert validate(story, ph, {c.id for c in SERIES.cast}) == []
+
+
+def test_edge_dogs_idle_or_bark_clear_of_actors_one_bark_cue_per_shot():
+    story, ph = plan(EDGES)
+    assert validate(story, ph, {c.id for c in SERIES.cast}) == []
+    barks = [c.frame for c in story.cues if c.kind == "bark"]
+    assert len(barks) == len(story.shots)
+    for s, f in zip(story.shots, barks):
+        assert s.start_frame <= f < s.end_frame
+        assert {d.action for d in s.animals} <= {"idle", "bark"} and any(d.action == "bark" for d in s.animals)
+        xs = [x for a in s.actors for x in (a.start_pos[0], (a.end_pos or a.start_pos)[0])]
+        for d in s.animals:
+            assert d.end_pos is None and abs(d.start_pos[0]) >= shots.DOG_EDGE_X
+            assert min(abs(d.start_pos[0] - x) for x in xs) >= shots.DOG_EDGE_GAP - 1e-9
+            assert d.facing == ("left" if d.start_pos[0] > 0 else "right")       # toward the stage centre
+        assert {d.start_pos[0] > 0 for d in s.animals} == {True, False}          # both edges
+
+
+def test_dog_variants_seeded_and_stable_for_the_part():
+    story, _ = plan(EDGES)
+    by_id = {}
+    for s in story.shots:
+        for d in s.animals:
+            assert by_id.setdefault(d.id, d.variant) == d.variant
+    seen = {shots.dog_variant(seed, f"dog{j}") for seed in range(20) for j in range(1, 7)}
+    assert seen == set(shots.DOG_VARIANTS)
+    assert plan(EDGES)[0] == story

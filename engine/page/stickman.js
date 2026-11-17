@@ -50,7 +50,7 @@ const BROWS = {
 };
 
 /** closed wobbly loop: stable per-character lumps (shape) + small per-boil jitter (boil) */
-function wobble(cx, cy, rx, ry, shape, boil, lump = LUMP, jit = JIT, n = 44) {
+export function wobble(cx, cy, rx, ry, shape, boil, lump = LUMP, jit = JIT, n = 44) {
   const ph = [shape() * TAU, shape() * TAU, shape() * TAU];
   const pts = [];
   for (let i = 0; i < n; i++) {
@@ -63,7 +63,7 @@ function wobble(cx, cy, rx, ry, shape, boil, lump = LUMP, jit = JIT, n = 44) {
 }
 
 /** marker wobble: the stroke drifts smoothly from one random offset at its start to another at its end */
-const jitter = (pts, boil, amp = 2.5) => {
+export const jitter = (pts, boil, amp = 2.5) => {
   const d = [boil(), boil(), boil(), boil()].map((v) => amp * (v * 2 - 1)), n = Math.max(1, pts.length - 1);
   return pts.map(([x, y], i) => [x + d[0] + ((d[2] - d[0]) * i) / n, y + d[1] + ((d[3] - d[1]) * i) / n]);
 };
