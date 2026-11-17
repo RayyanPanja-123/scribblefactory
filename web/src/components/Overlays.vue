@@ -63,10 +63,10 @@ window.addEventListener('keydown', onKey, true)
 
   <!-- zoom -->
   <AnimatePresence>
-    <motion.div v-if="zoomed" key="zoom" class="fixed inset-0 z-40 grid cursor-zoom-out place-items-center bg-ink/70 p-10 backdrop-blur-sm"
+    <motion.div v-if="zoomed" key="zoom" class="fixed inset-0 z-40 flex cursor-zoom-out overflow-auto overscroll-contain bg-ink/70 p-10 backdrop-blur-sm"
       :initial="{ opacity: 0 }" :animate="{ opacity: 1 }" :exit="{ opacity: 0 }" role="dialog" aria-modal="true"
       :aria-label="zoomed.alt" @click="zoomed = null">
-      <motion.img :src="zoomed.src" :alt="zoomed.alt" class="max-h-full max-w-full rounded-md shadow-2xl"
+      <motion.img :src="zoomed.src" :alt="zoomed.alt" class="m-auto h-auto max-w-full shrink-0 rounded-md shadow-2xl"
         :initial="{ scale: 0.88 }" :animate="{ scale: 1 }" :exit="{ scale: 0.92 }" :transition="SPRING" />
     </motion.div>
   </AnimatePresence>
