@@ -5,6 +5,7 @@
 //   node engine/render.mjs --part <dir> --stills          -> <part>/frames/stills/<shot>.png + manifest.json
 //   node engine/render.mjs --series <dir> --cast-sheet    -> <series>/cast-frames/<id>-<pose>.png + manifest.json
 //   node engine/render.mjs --probe                        -> print the renderer it would use
+//   node engine/render.mjs --loop-check                   -> JSON: every set/variant built, travel loop excess
 //   node engine/render.mjs --part <dir> --worker --out-dir <dir>
 //       long-lived worker: one browser, page built once. Prints "READY <renderer info json>", then reads
 //       "A B" lines on stdin and answers "DONE A B" once frames A..B are written. Exits when stdin closes.
@@ -187,15 +188,16 @@ async function main() {
       stills: { type: "boolean" }, "cast-sheet": { type: "boolean" },
       frames: { type: "string" }, "out-dir": { type: "string" },
       swiftshader: { type: "boolean" }, probe: { type: "boolean" }, "info-out": { type: "string" },
-      worker: { type: "boolean" },
+      worker: { type: "boolean" }, "loop-check": { type: "boolean" },
     },
   });
   if (a.worker) return runWorker(a);
-  const { data, jobs, manifestDir = null } = a.probe ? { jobs: [] }
+  const check = a.probe || a["loop-check"];
+  const { data, jobs, manifestDir = null } = check ? { jobs: [] }
     : a.part ? frameJobs(a) : a.series && a["cast-sheet"] ? castJobs(a) : { jobs: [] };
-  if (!jobs.length && !a.probe) {
+  if (!jobs.length && !check) {
     throw new Error("usage: --part <dir> (--frame N --out file.png | --frames A-B --out-dir <dir> | --stills) "
-      + "| --series <dir> --cast-sheet | --probe   [--swiftshader] [--info-out file.json]");
+      + "| --series <dir> --cast-sheet | --probe | --loop-check   [--swiftshader] [--info-out file.json]");
   }
   if (manifestDir) freshDir(manifestDir);
 
@@ -208,6 +210,12 @@ async function main() {
     console.log(`webgl: ${info.renderer} (${info.gpu_name})`);
     if (a["info-out"]) writeFileAtomic(path.resolve(a["info-out"]), JSON.stringify(info, null, 2) + "\n");
     if (a.probe) return;
+    if (a["loop-check"]) {
+      const res = await page.evaluate(() => window.loopCheck());
+      if (opened.getError()) throw opened.getError();
+      console.log(JSON.stringify(res));
+      return;
+    }
     await page.evaluate((d) => window.setup(d), data);
     const times = [];
     for (const j of jobs) {

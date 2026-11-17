@@ -3,9 +3,9 @@
 import * as THREE from "three";
 import { dolly, glide } from "./borrowed.js";
 import { CH, CW, FEET_Y, FIGURE_PX, drawStickman } from "./stickman.js";
-import { gestureAmount, gesturePlan, pointAmount, stressBob } from "./motion.js";
+import { gestureAmount, gesturePlan, mouthCurve, mouthCycles, pointAmount, stressBob } from "./motion.js";
 import { rng, setVariant } from "./rng.js";
-import { VARIANTS, buildSet, loopExcess, scrollSet } from "./world.js";
+import { SETS, VARIANTS, buildSet, loopExcess, scrollSet } from "./world.js";
 
 const FPS = 30, W = 1080, H = 1920;
 const CARD_H = 1.6, CARD_W = CARD_H * (CW / CH);
@@ -92,12 +92,7 @@ function shotWords(shot) {
   return data.phrases.words.slice(ph[a].word_start, ph[b].word_end + 1);
 }
 
-function mouthAt(t, shot) {
-  for (const w of shotWords(shot)) {
-    if (t >= w.start && t < w.end) return 0.5 - 0.5 * Math.cos(2 * Math.PI * 5 * (t - w.start)); // ~5 flaps/s
-  }
-  return 0;
-}
+let mouth = new Float32Array(0); // per-frame mouth opening for the whole part (motion.js), built in setup
 
 function drawCard(id, o) {
   const c = card(id), cast = castOf(id), seed = charSeed(id);
@@ -155,6 +150,7 @@ const png = () => renderer.domElement.toDataURL("image/png");
 
 window.setup = (d) => {
   data = d; hiddenByShot.clear(); variantByShot.clear();
+  mouth = d.phrases ? mouthCurve(mouthCycles(d.phrases.words, d.phrases.phrases), d.story.duration_frames) : mouth;
   for (const k of Object.keys(sets)) delete sets[k];
   let runStart = null; // variant = hash(set, first shot id of the run): props never jump between cuts on one set
   (d.story.shots || []).forEach((s, i, all) => {
@@ -295,7 +291,7 @@ function drawShot(shot, n) {
       boil: Math.floor(n / BOIL_FRAMES), action: a.action, expression: a.expression, facing: a.facing, t, phase, px,
       lid: lidAt(n, key),
       breath: Math.sin((2 * Math.PI * t) / 3.4 + 2 * Math.PI * rng(key, "breath")()),
-      mouth: a.action === "talk" ? mouthAt(t, shot) : 0,
+      mouth: a.action === "talk" && n === kf ? mouth[n] : 0, // shut while drawn outside its shot (wipe)
       bob: a.action === "talk" ? stressBob(t, shotWords(shot)) : 0,
       gesture, pointK: a.action === "point" ? pointAmount(ts) : 1,
     });
@@ -353,6 +349,22 @@ window.glInfo = () => {
     renderer: ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER),
     version: gl.getParameter(gl.VERSION),
   };
+};
+
+/** geometry-only check, no rendering: build every set and variant (buildSet throws on a stage-clearance break) and
+ *  sweep the world shift across the whole band; per set/variant/seed the worst loop excess (see world.loopExcess) */
+window.loopCheck = ({ seeds = [0, 687360865], steps = 120 } = {}) => {
+  const out = [];
+  for (const seed of seeds) for (const set of SETS) for (let variant = 0; variant < (VARIANTS[set] || 1); variant++) {
+    const g = buildSet(set, seed, variant);
+    let worst = { excess: -Infinity, row: "none" };
+    for (let k = 0; k < steps; k++) { // 0.237-unit steps: no layout period divides them, ~1.0 band sweep
+      const r = loopExcess(g, 0.01 + k * 0.237);
+      if (r.excess > worst.excess) worst = r;
+    }
+    out.push({ set, variant, seed, ...worst });
+  }
+  return out;
 };
 
 window.engineReady = true;

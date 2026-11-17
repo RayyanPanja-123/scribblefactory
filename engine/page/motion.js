@@ -43,3 +43,57 @@ export function stressBob(t, words) {
   }
   return 0;
 }
+
+// Talk mouth: one open-close cycle per syllable group (merged words, about two syllables each), scheduled in frames.
+export const MOUTH_MAX_HZ = 4;        // at most this many open-close cycles per second
+export const MOUTH_MIN_OPEN_F = 4;    // frames a cycle stays open (at least)
+export const MOUTH_MIN_CLOSED_F = 3;  // frames it then stays closed (at least)
+const MOUTH_FPS = 30, SHORT_WORD = 3; // words of <= 3 letters merge into a neighbour's cycle
+const MOUTH_LONG_F = 15; // a drawn-out syllable group gets one more cycle per ~15 frames instead of one long open
+const MOUTH_MIN_PERIOD_F = Math.max(Math.ceil(MOUTH_FPS / MOUTH_MAX_HZ), MOUTH_MIN_OPEN_F + MOUTH_MIN_CLOSED_F);
+
+const letters = (w) => w.text.replace(/[^A-Za-z]/g, "");
+const syllables = (s) => Math.max(1, (s.toLowerCase().replace(/e$/, "").match(/[aeiouy]+/g) || []).length);
+
+/** open-close cycles [{ start, open, len }] (frames) from phrases.json words/phrases. Cycles never overlap, never
+ *  run faster than MOUTH_MAX_HZ and stay inside their phrase: a cycle whose open part would spill past the phrase's
+ *  last word is dropped, so the mouth is shut between phrases. */
+export function mouthCycles(words, phrases) {
+  const cycles = [];
+  let free = 0; // first frame the next cycle may start on
+  for (const p of phrases) {
+    const ws = words.slice(p.word_start, p.word_end + 1);
+    const groups = [];
+    let pend = null; // short words before the phrase's first long word wait for it
+    for (const w of ws) {
+      const L = letters(w), short = L.length <= SHORT_WORD;
+      if (short && groups.length) groups.at(-1).end = w.end;
+      else if (short) pend = { start: pend ? pend.start : w.start, end: w.end, syl: 1 };
+      else { groups.push({ start: pend ? pend.start : w.start, end: w.end, syl: syllables(L) }); pend = null; }
+    }
+    if (pend) groups.push(pend); // a phrase of only short words: one cycle
+    const pEnd = Math.round(ws.at(-1).end * MOUTH_FPS);
+    for (const g of groups) {
+      const n = Math.max(Math.ceil(g.syl / 2), Math.round(((g.end - g.start) * MOUTH_FPS) / MOUTH_LONG_F)), a = g.start * MOUTH_FPS, step = ((g.end - g.start) * MOUTH_FPS) / n;
+      for (let j = 0; j < n; j++) {
+        const start = Math.max(Math.round(a + j * step), free);
+        const len = Math.max(MOUTH_MIN_PERIOD_F, Math.round(step));
+        const open = Math.min(Math.max(Math.round(len / 2), MOUTH_MIN_OPEN_F), len - MOUTH_MIN_CLOSED_F);
+        if (start + open > pEnd) break; // no room left in this phrase
+        cycles.push({ start, open, len });
+        free = start + len;
+      }
+    }
+  }
+  return cycles;
+}
+
+/** per-frame mouth opening 0..1 for frames 0..total-1. A cycle's open frames ease in and out inside the open
+ *  part (0.5, 1, .., 1, 0.5), so the mouth never snaps 0 <-> 1 and open/closed frame counts stay exact. */
+export function mouthCurve(cycles, total) {
+  const out = new Float32Array(total);
+  for (const c of cycles) {
+    for (let k = 0; k < c.open && c.start + k < total; k++) out[c.start + k] = k === 0 || k === c.open - 1 ? 0.5 : 1;
+  }
+  return out;
+}

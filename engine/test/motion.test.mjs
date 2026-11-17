@@ -7,7 +7,8 @@ import os from "node:os";
 import path from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { GESTURE, gestureAmount, gesturePlan, pointAmount, stressBob } from "../page/motion.js";
+import { GESTURE, MOUTH_MAX_HZ, MOUTH_MIN_CLOSED_F, MOUTH_MIN_OPEN_F, gestureAmount, gesturePlan, mouthCurve, mouthCycles,
+  pointAmount, stressBob } from "../page/motion.js";
 
 const ENGINE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const FIX = path.join(ENGINE, "..", "pipeline", "tests", "fixtures", "story");
@@ -86,4 +87,64 @@ test("render: a talk shot under 1.5 s shows no gesture; a seeded 2 s one does", 
   const r2 = render(long, `${mid}-${mid}`);
   assert.equal(r2.status, 0, r2.stderr);
   assert.match(r2.stdout, new RegExp(`gesture: bob ${plan.kind}`));
+});
+
+// --- talk mouth ---
+/** phrases.json-like timing: sentences of words (word_s each, 0.05 s apart), 0.6 s pause between sentences */
+function timing(sentences, word_s) {
+  const words = [], phrases = [];
+  let t = 0.2;
+  for (const s of sentences) {
+    const first = words.length;
+    for (const text of s.split(" ")) { words.push({ text, start: t, end: t + word_s }); t += word_s + 0.05; }
+    phrases.push({ word_start: first, word_end: words.length - 1 });
+    t += 0.6;
+  }
+  return { words, phrases, total: Math.ceil((t + 0.3) * 30) };
+}
+const SPEECH = [
+  timing(["The nineteen-oh-four Olympic marathon in Saint Louis was so badly organized", "that almost nobody finished it"], 0.3),
+  timing(["a dog and a cat sat on it", "Unbelievably extraordinary organizational difficulties", "go"], 0.12), // fast
+  timing(["So he placed only one single water well along the entire course"], 0.45),                      // slow
+];
+
+test("mouth: no cycle shorter than the minimums, never faster than MOUTH_MAX_HZ, eased, deterministic", () => {
+  for (const { words, phrases, total } of SPEECH) {
+    const cycles = mouthCycles(words, phrases);
+    assert.ok(cycles.length > 0);
+    for (const c of cycles) assert.ok(c.open >= MOUTH_MIN_OPEN_F && c.len - c.open >= MOUTH_MIN_CLOSED_F, JSON.stringify(c));
+    for (const [a, b] of cycles.slice(0, -1).map((c, i) => [c, cycles[i + 1]])) {
+      assert.ok(b.start >= a.start + a.len, "cycles overlap");
+      assert.ok(b.start - a.start >= 30 / MOUTH_MAX_HZ, `${b.start - a.start} frames between opens`);
+    }
+    const curve = mouthCurve(cycles, total);
+    let run = 0, open = curve[0] > 0, first = true;
+    for (let f = 0; f <= total; f++) { // the drawn curve: open runs >= MIN_OPEN, closed gaps >= MIN_CLOSED
+      const o = f < total && curve[f] > 0;
+      if (o !== open || f === total) {
+        if (open) assert.ok(run >= MOUTH_MIN_OPEN_F, `open for ${run} frames at ${f}`);
+        else if (!first && f < total) assert.ok(run >= MOUTH_MIN_CLOSED_F, `closed for ${run} frames at ${f}`);
+        if (!open) first = false;
+        open = o; run = 0;
+      }
+      run++;
+      if (f > 0 && f < total) assert.ok(Math.abs(curve[f] - curve[f - 1]) <= 0.5, `mouth snaps at frame ${f}`);
+    }
+    assert.deepEqual(mouthCycles(words, phrases), cycles);
+  }
+});
+
+test("mouth: short words share a neighbour's cycle; flaps stop between phrases", () => {
+  const count = (s, w = 0.12) => { const t = timing([s], w); return mouthCycles(t.words, t.phrases).length; };
+  assert.equal(count("elephants to a giraffes", 0.3), count("elephants giraffes", 0.3)); // short words add no cycle
+  assert.equal(count("a dog and a cat sat on it"), 3); // 8 short words, ~1.3 s: one group, not 8 opens
+  const { words, phrases, total } = timing(["a dog and a cat sat on it"], 0.3);
+  for (const { words: w, phrases: ps, total: n } of [...SPEECH, { words, phrases, total }]) {
+    const curve = mouthCurve(mouthCycles(w, ps), n);
+    const spans = ps.map((p) => [Math.round(w[p.word_start].start * 30), Math.round(w[p.word_end].end * 30)]);
+    for (let f = 0; f < n; f++) {
+      const inside = spans.some(([a, b]) => f >= a && f < b);
+      if (!inside) assert.equal(curve[f], 0, `mouth open at frame ${f}, between phrases`);
+    }
+  }
 });
