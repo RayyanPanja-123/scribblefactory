@@ -6,8 +6,9 @@ utility: `--color-ink` → `text-ink`, `bg-ink`). Components there: `.raised`, `
 `.round-btn`, `.skeleton`, `.grain`, `.num`.
 
 ## Frame and surfaces
-- Page `#111113`, bezel `#1c1c1e` (radius 36, 12 px padding, faint inner rim highlight), app surface `#e8e3d9`
-  (radius 24, recessed: 1 px light rim + soft inner shadow).
+- One dark layer: the bezel `#1c1c1e` is the outer frame (8 px margin, 6 px under 1280 px wide, radius 32,
+  10 px inner padding, faint inner rim highlight) on a page of the same colour. App surface `#e8e3d9`
+  (radius 22, recessed: 1 px light rim + soft inner shadow).
 - Panels / cards `#fbf9f5` with a top-to-bottom light gradient (2-3% lighter at the top); wells `#efebe3`.
 - Brand: a stickman head (white wobbly circle, dot eyes, brows, thick outline; SVG in `BrandMark.vue`) in a raised
   dark disc, plus the "Scribble Factory" wordmark in Fredoka beside the welcome text.
@@ -87,8 +88,17 @@ trimmed by one cap width so caps never overlap), a pressed-in track and a raised
 - **upload.md**: inset "paper" (grain + faint ruled lines), autosized with `field-sizing: content`, amber
   unsaved dot, Ctrl+S.
 - **Danger zone**: pale red panel, red-ink text; destructive buttons always go through the confirm dialog.
-- **Job drawer**: slides in from the right (transform). Progress fill is `scaleX` (transform only); unknown
-  progress shimmers (translateX), a fade under reduced motion. Log: inset monospace, auto-scrolls, last 200 lines.
+- **Job drawer**: inside the screen (12 px from its top, right and bottom; 440 px; radius 28; raised + grain).
+  Only the screen dims (ink 18%, 6 px blur); click outside or Esc closes. Spring in from x 40 with opacity and
+  scale 0.98, rows 30 ms apart (fade only under reduced motion). Header: reel in a raised dark disc (spins while
+  running), running/queued pills. Now / History segmented control.
+  - **Console** (running job): `#24221f` with a warm inner shadow, pulsing green LED, step list (done `#7fd8a6`,
+    current spinning, upcoming `#9a9388`), dark inset track with a glowing blue `scaleX` fill or a moving sheen,
+    Fredoka elapsed time. Text on the console: `#f3efe6` 12.9:1, muted `#a8a195` 5.8:1 (on its lightest stop).
+  - **Terminal**: `#1a1917` inset, 12 px mono `#ece6da` (14:1), fades at the top edge, copy button, auto-scroll.
+  - **History**: status dot, steps summary, duration, relative time; a row opens its log by clip-path while the
+    rows below slide by transform (`layout="position"`).
+  - **Empty**: a marker-drawn stickman asleep against a film reel.
 - **Top-bar reel**: spins while a job runs (opacity pulse under reduced motion), amber badge = queued jobs, grey dot
   while live updates are reconnecting.
 - **Toasts**: raised cards sliding up bottom right (left of the drawer while it is open); errors stay 8 s and show

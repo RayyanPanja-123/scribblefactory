@@ -40,9 +40,10 @@ function onScroll() {
 
 <template>
   <MotionConfig :transition="SPRING" reduced-motion="user">
-    <div class="h-full p-4">
-      <div class="bezel h-full rounded-frame bg-bezel p-3">
-        <div class="screen grain flex h-full overflow-hidden rounded-lg bg-surface">
+    <!-- one dark layer: the bezel is the outer frame (8 px margin, 6 px under 1280 px), same colour as the page -->
+    <div class="h-full p-1.5 xl:p-2">
+      <div class="bezel h-full rounded-frame bg-bezel p-2.5">
+        <div class="screen grain relative flex h-full overflow-hidden rounded-[22px] bg-surface">
           <!-- icon rail -->
           <nav class="flex w-[88px] shrink-0 flex-col items-center gap-4 py-6" aria-label="Main">
             <BrandMark class="mb-4" />
@@ -101,17 +102,12 @@ function onScroll() {
               </RouterLink>
             </nav>
           </div>
+          <!-- the jobs drawer lives inside the screen: it dims the screen only, never the bezel -->
+          <JobDrawer />
         </div>
       </div>
     </div>
-    <JobDrawer />
     <Overlays />
   </MotionConfig>
 </template>
 
-<style scoped>
-.reel { animation: spin 1.6s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .reel { animation: pulse-o 1.6s ease-in-out infinite; } }
-@keyframes pulse-o { 50% { opacity: 0.5; } }
-</style>

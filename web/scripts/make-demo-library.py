@@ -18,7 +18,7 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-from pipeline.scribble.io import atomic_write_text, save_part, save_series  # noqa: E402
+from pipeline.scribble.io import atomic_write_text, load_series, save_part, save_series  # noqa: E402
 from pipeline.scribble.schemas import (CastMember, PartModel, Post, SeriesModel, Style, Voice,  # noqa: E402
                                        utcnow)
 
@@ -91,6 +91,9 @@ def build(out: Path) -> None:
             cast=[CastMember(id=i, name=nm, top={"color": c}, eyes="dots",
                              approved_at=NOW - timedelta(days=30) if ok else None) for i, nm, c, ok in cast],
             parts=[f"part-{n:02d}" for n in range(1, n_parts + 1)])
+        if slug == "great-emu-war" and (REAL / "series.json").is_file():
+            # the marathon cast (approved), so the showcase part's real story can render stills for the jobs demo
+            series.cast = load_series(REAL / "series.json").cast
         save_series(d / "series.json", series)
         if all(ok for *_, ok in cast):  # a sheet with unapproved cast would add a 4th approval waiting
             copy_real("cast-sheet.png", d / "cast-sheet.png")
@@ -153,6 +156,10 @@ def build(out: Path) -> None:
             copy_real("part-01/test-render.mp4", pdir / name, b"\0" * 1024)
         copy_real("part-01/qa.json", pdir / "qa.json", b'{"ok": true, "checks": {}}')
         atomic_write_text(pdir / "upload.md", upload_text("The Great Emu War", p.number))
+        # the real shot plan, timing and voice: render-stills / test-render really run here (a slow job to watch)
+        for name in ("story.json", "phrases.json", "voice.mp3", "script-for-tts.txt"):
+            if (REAL / "part-01" / name).is_file():
+                copy_real(f"part-01/{name}", pdir / name)
 
     edit("great-emu-war", "part-07", wait_final)
     edit("great-emu-war", "part-08", running)

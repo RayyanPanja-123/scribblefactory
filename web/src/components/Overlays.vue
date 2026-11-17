@@ -26,7 +26,7 @@ window.addEventListener('keydown', onKey)
 <template>
   <!-- toasts -->
   <!-- toasts move left of the job drawer while it is open, so they never cover its log -->
-  <div class="pointer-events-none fixed bottom-28 z-50 flex w-96 flex-col items-end gap-3" :class="drawerOpen ? 'right-[500px]' : 'right-8'"
+  <div class="pointer-events-none fixed bottom-28 z-50 flex w-96 flex-col items-end gap-3" :class="drawerOpen ? 'right-[480px]' : 'right-8'"
     aria-live="polite">
     <AnimatePresence>
       <motion.div v-for="t in toasts" :key="t.id" layout

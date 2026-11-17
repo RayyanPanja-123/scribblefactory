@@ -2,7 +2,7 @@
 //   node scripts/screenshots.mjs           real library (read-only GETs)
 //   node scripts/screenshots.mjs --demo    temp demo library (scripts/make-demo-library.py), deleted afterwards
 // Starts its own API (:8766) and `vite preview` (:4174), so it never clashes with a running dev setup.
-// Output: ../library/_review/dashboard-v3-*.png. Real library: looks only. Demo: also clicks through actions.
+// Output: ../library/_review/dashboard-v4-*.png (real: dashboard-v4-real-*). Real library: looks only. Demo: also runs jobs.
 import { spawn, execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { existsSync, mkdirSync, rmSync } from 'node:fs'
@@ -89,6 +89,8 @@ function contrastCheck() {
 
 const results = []
 let browser
+const API = `http://127.0.0.1:${API_PORT}`
+const getJobs = async () => (await fetch(`${API}/api/jobs`)).json()
 
 async function open(path, opts = {}) {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, ...opts })
@@ -108,7 +110,7 @@ const scrollTo = (page, sel) => page.evaluate((s) => {
 
 /** screenshot + contrast check of what is on screen; `clearance` also scrolls to the end and checks the tab bar gap */
 async function shoot(page, name, { clearance = false } = {}) {
-  const file = resolve(OUT, `dashboard-v3-${name}${tag}.png`)
+  const file = resolve(OUT, `dashboard-v4-${demo ? '' : 'real-'}${name}.png`)
   await page.screenshot({ path: file })
   const { checked, fails } = await page.evaluate(contrastCheck)
   let gap = null, total = checked
@@ -129,72 +131,70 @@ async function shoot(page, name, { clearance = false } = {}) {
     ...fails.map((f) => `\n  ${f}`), page.errors.length ? `\n  ERRORS: ${page.errors.join(' | ')}` : '')
 }
 
-async function waitJob(id) {
-  for (let i = 0; i < 300; i++) {
-    const j = (await (await fetch(`http://127.0.0.1:${API_PORT}/api/jobs`)).json()).find((x) => x.id === id)
-    if (j && !['queued', 'running'].includes(j.status)) return j
-    await new Promise((r) => setTimeout(r, 200))
+async function until(pred, what, ms = 90_000) {
+  for (const end = Date.now() + ms; Date.now() < end;) {
+    const v = await pred()
+    if (v) return v
+    await new Promise((r) => setTimeout(r, 150))
   }
-  throw new Error(`job ${id} did not finish`)
+  throw new Error(`timed out waiting for ${what}`)
+}
+
+const openDrawer = async (page) => {
+  await page.getByRole('button', { name: /^Jobs/ }).click()
+  await page.waitForTimeout(900)
 }
 
 try {
-  await Promise.all([waitUp(`http://127.0.0.1:${API_PORT}/api/health`), waitUp(BASE)])
+  await Promise.all([waitUp(`${API}/api/health`), waitUp(BASE)])
   browser = await chromium.launch()
 
   if (!demo) {
-    // real library: look only. Nothing here clicks an action.
-    const page = await open('/series/marathon-1904/part-01')
+    // real library: look only. Nothing here clicks an action or starts a job.
+    let page = await open('/')
+    await shoot(page, 'frame', { clearance: true })
+    await page.close()
+    page = await open('/series/marathon-1904/part-01')
     await shoot(page, 'part-detail')
-    await scrollTo(page, '#review')
-    await shoot(page, 'part-detail-scrolled', { clearance: true })
+    await page.close()
   } else {
-    // read-only pages first, before the clicks below change what is waiting
-    let page = await open('/review')
-    await shoot(page, 'review', { clearance: true })
-    await page.close()
-    page = await open('/posted')
-    await shoot(page, 'posted', { clearance: true })
-    await page.close()
+    // 1. the single bezel frame
+    const page = await open('/')
+    await shoot(page, 'frame', { clearance: true })
 
-    page = await open('/series/great-emu-war/part-07')
-    await shoot(page, 'part-detail')
-    await scrollTo(page, '#review')
-    await shoot(page, 'part-detail-scrolled', { clearance: true })
+    // 2. empty drawer (fresh API: no jobs yet)
+    await openDrawer(page)
+    await shoot(page, 'drawer-empty')
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(500)
 
-    // polaroid: pick #2 -> it straightens, lifts, gets the pin
-    await scrollTo(page, '#review')
-    await page.getByRole('button', { name: 'Pick thumbnail 2' }).click()
-    await page.waitForSelector('[aria-pressed="true"][aria-label="Pick thumbnail 2"]')
-    await page.waitForTimeout(900)
-    await shoot(page, 'polaroid-picked')
-    await page.close()
+    // 3. a slow real job (stills + 5 s test render of the showcase part), and one queued behind it
+    const post = (slug, part, steps) => fetch(`${API}/api/jobs`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slug, part, steps }),
+    }).then((r) => r.json())
+    const slow = await post('great-emu-war', 'part-07', ['render-stills', 'test-render'])
+    await post('moon-diner', 'part-02', ['run --stage prep'])
+    await until(async () => {
+      const j = (await getJobs()).find((x) => x.id === slow.id)
+      if (j && !['queued', 'running'].includes(j.status)) throw new Error(`slow job ended early: ${j.status}\n${j.output.join('\n')}`)
+      return j?.status === 'running' && j.current_step === 1 && j.output.length >= 2 // stills done, test render under way
+    }, 'the test-render step to start')
+    await openDrawer(page)
+    await page.waitForTimeout(1200)
+    await shoot(page, 'drawer-running')
+    await page.keyboard.press('Escape')
 
-    // approval switch: stills on moon-diner part-01 (its sheet is waiting)
-    page = await open('/series/moon-diner/part-01')
-    await scrollTo(page, '#approvals')
-    await page.getByRole('switch', { name: 'Stills' }).click()
-    await page.waitForSelector('[role=switch][aria-label="Stills"][aria-checked="true"]')
-    await page.waitForTimeout(800)
-    await shoot(page, 'approval-on')
-    await page.close()
-
-    // a fast real job through the UI: stage chip "prep" -> Re-run (force); then the drawer with its log
-    page = await open('/series/moon-diner/part-02')
-    const before = (await (await fetch(`http://127.0.0.1:${API_PORT}/api/jobs`)).json()).length
-    await page.getByRole('button', { name: /^prep/ }).first().click()
-    await page.getByRole('menuitem', { name: /Re-run/ }).click()
-    let jobs
-    for (let i = 0; i < 50 && !(jobs?.length > before); i++) {
-      await page.waitForTimeout(100)
-      jobs = await (await fetch(`http://127.0.0.1:${API_PORT}/api/jobs`)).json()
-    }
-    const job = await waitJob(jobs.at(-1).id)
-    console.log(`job ${job.id}: ${job.status}, ${job.output.length} output lines`)
+    // 4. history, one row expanded
+    await until(async () => (await getJobs()).every((j) => !['queued', 'running'].includes(j.status)), 'all jobs to finish', 240_000)
+    const done = await getJobs()
+    console.log(done.map((j) => `job ${j.id}: ${j.status} (${j.output.length} lines)`).join('\n'))
     await page.waitForTimeout(600)
-    await page.getByRole('button', { name: /^Jobs/ }).click()
+    await openDrawer(page)
+    await page.getByRole('tab', { name: /History/ }).click()
+    await page.waitForTimeout(700)
+    await page.locator('aside[aria-label=Jobs] [aria-expanded]').first().click()
     await page.waitForTimeout(900)
-    await shoot(page, 'job-drawer')
+    await shoot(page, 'drawer-history')
     await page.close()
   }
 } finally {
