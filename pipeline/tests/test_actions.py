@@ -98,6 +98,16 @@ def test_do_car_broken_stops_the_arrived_car():
     assert story.shots[-1].vehicles[0].start_pos == broken[0].start_pos  # still parked where it broke
 
 
+def test_do_car_broken_during_ride_stalls_with_riders_seated():
+    md = "# T\n\n@set dirt_road\n@cast fred\n@car ride\nFred rode along.\n@do car: broken\nIt broke down.\n"
+    story = planned(md)
+    drive, stall = story.shots[0].vehicles[0], story.shots[-1].vehicles[0]
+    assert drive.action == "drive" and stall.action == "broken" and stall.riders == ["fred"]
+    assert story.shots[-1].travel is None and stall.facing == drive.facing
+    with pytest.raises(StageError, match="story.md line 7: @do: not while @car ride"):
+        planned(md.replace("@do car: broken", "@do fred: wave"))
+
+
 def test_do_suppresses_travel_outdoors():
     story = planned("# T\n\n@set dirt_road\n@cast fred, amy\n@do fred: lie\nAmy ran on.\n")
     assert story.shots[0].travel is None and who(story.shots[0], "fred").action == "lie"

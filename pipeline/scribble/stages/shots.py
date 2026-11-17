@@ -560,8 +560,13 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int) 
                 cues.append(Cue(frame=s0, kind="whoosh"))
             sid, tdir, zs = f"s{len(shots) + 1:02d}", 0, None
             ride = car_mode == "ride"
+            # a ride takes one @do: "car: broken" (stops with the cast still seated); people's actions need them out
+            stalled = ride and bool(do) and all(c.who == (DO_CAR,) for c in do[1])
+            if ride and do and not stalled:
+                raise StageError(f"story.md line {do[0]}: @do: not while @car ride, except \"car: broken\" "
+                                 "(the cast is seated in the car)")
             car_here = ride or car_mode == "arrive" or (car_mode == "leave" and not car_left)
-            travel = set_ in OUTDOOR_SETS and (ride or (action in MOVE_SPEED and not car_here and not do))
+            travel = set_ in OUTDOOR_SETS and ((ride and not stalled) or (action in MOVE_SPEED and not car_here and not do))
             tspeed = CAR_TRAVEL_SPEED if ride else MOVE_SPEED.get(action)
             if travel:  # direction and z stagger seeded once per run of travel shots, so the run keeps them
                 if travel_run is None or set_ != prev_set:
@@ -572,14 +577,15 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int) 
             else:
                 travel_run = None
             seconds, vehicles = (s1 - s0) / FPS, []
-            if ride and do:
-                raise StageError(f"story.md line {do[0]}: @do: not while @car ride (the cast is seated in the car)")
             if ride:  # the whole @cast sits in the car; a travel shot outdoors, parked indoors
                 facing = "left" if tdir < 0 else "right"
+                if stalled and shots and shots[-1].vehicles:  # breaks down facing the way it was driving
+                    facing = shots[-1].vehicles[0].facing
                 act = "wave" if any(ACTIONS.get(w) == "wave" for w in pw) else "ride"
                 actors = [Actor(cast_id=c, action=act, start_pos=(0.0, 0.0), facing=facing,
                                 expression=expression if c == subject else "neutral") for c in cast]
-                vehicles = [Vehicle(id="car1", kind="car", action="drive" if travel else "idle", start_pos=(0.0, 0.0),
+                vehicles = [Vehicle(id="car1", kind="car", action="broken" if stalled else "drive" if travel else "idle",
+                                    start_pos=(0.0, 0.0),
                                     end_pos=(0.0, 0.0) if travel else None, facing=facing, riders=list(cast),
                                     variant=car_variant(seed, "car1"))]
             else:
