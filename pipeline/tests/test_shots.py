@@ -329,3 +329,31 @@ def test_starting_spread_is_plus_minus_one():
     story, ph = plan("# S\n\n@cast bob, amy, karen\nBob sat. Amy smiled.\n")
     assert [a.start_pos for a in story.shots[0].actors] == [(-1.0, 0.0), (0.0, 0.0), (1.0, 0.0)]
     assert validate(story, ph, {c.id for c in SERIES.cast}) == []
+
+
+# --- lexicon additions (map onto existing actions / expressions) ---
+
+@pytest.mark.parametrize("line,action,expression", [
+    ("Amy sprinted off.", "run", "neutral"),
+    ("Amy kept dodging.", "run", "neutral"),
+    ("Amy was chased.", "run", "surprised"),
+    ("Bob collapsed.", "react", "sad"),
+    ("Bob got dizzy.", "react", "sleepy"),
+    ("Bob had cramps.", "react", "sad"),
+    ("Bob hopped in.", "react", "neutral"),
+    ("Bob waved cheerfully.", "point", "happy"),
+    ("Bob kept waving.", "point", "neutral"),
+    ("Amy showed up late.", "talk", "neutral"),        # "showed" no longer points
+    ("Bob rode comfortably.", "talk", "happy"),
+    ("Bob fought exhaustion.", "talk", "sleepy"),
+    ("Bob was exhausted, laughing.", "talk", "sleepy"),  # first expression word wins
+    ("Bob was furious.", "talk", "angry"),
+])
+def test_lexicon_additions(line, action, expression):
+    a, _ = _subject(line)
+    assert (a.action, a.expression) == (action, expression)
+
+
+def test_plural_cast_id_matches_subject():
+    story, _ = plan("# P\n\n@cast bob, amy\nThen the amys had to leave.\n")
+    assert next(a for a in story.shots[0].actors if a.action != "idle").cast_id == "amy"

@@ -38,16 +38,21 @@ MIN_SPEED = {"walk": WALK_SPEED[0], "run": RUN_SPEED[0]}  # shortened moves neve
 # Lexicons match lowercase words with punctuation and a trailing 's stripped. First match in the phrase wins.
 ACTIONS = {
     **dict.fromkeys(["walk", "walks", "walked", "walking", "went", "came", "left"], "walk"),
-    **dict.fromkeys(["run", "runs", "ran", "running", "rushed", "chased"], "run"),
-    **dict.fromkeys(["point", "points", "pointed", "pointing", "showed", "shows"], "point"),
-    **dict.fromkeys(["gasped", "froze", "frozen", "shocked"], "react"),
+    **dict.fromkeys(["run", "runs", "ran", "running", "rushed", "chased", "sprint", "sprinted", "sprinting", "dodging"],
+                    "run"),
+    # no "showed": it fires on "showed up". waved/waving stand in until a wave action exists (Step 5c)
+    **dict.fromkeys(["point", "points", "pointed", "pointing", "shows", "waved", "waving"], "point"),
+    **dict.fromkeys(["gasped", "froze", "frozen", "shocked", "collapsed", "collapse", "dizzy", "cramps", "hopped"],
+                    "react"),
 }
 EXPRESSIONS = {
-    **dict.fromkeys(["happy", "glad", "smiled", "smiles", "laughed", "laughs", "grinned", "joy"], "happy"),
-    **dict.fromkeys(["sad", "cried", "cries", "sighed", "tears", "lonely", "upset"], "sad"),
+    **dict.fromkeys(["happy", "glad", "smiled", "smiles", "laughed", "laughs", "laughing", "grinned", "joy",
+                     "cheerfully", "comfortably"], "happy"),
+    **dict.fromkeys(["sad", "cried", "cries", "sighed", "tears", "lonely", "upset", "cramps", "collapsed"], "sad"),
     **dict.fromkeys(["angry", "mad", "furious", "yelled", "shouted", "screamed"], "angry"),
-    **dict.fromkeys(["surprised", "shocked", "gasped", "wow", "stunned"], "surprised"),
-    **dict.fromkeys(["sleepy", "tired", "yawned", "yawns", "asleep", "nap", "napped", "slept"], "sleepy"),
+    **dict.fromkeys(["surprised", "shocked", "gasped", "wow", "stunned", "chased"], "surprised"),
+    **dict.fromkeys(["sleepy", "tired", "yawned", "yawns", "asleep", "nap", "napped", "slept", "dizzy", "exhaustion",
+                     "exhausted"], "sleepy"),
 }
 DIRECTIONS = {"left": -1, "right": 1}
 
@@ -167,6 +172,7 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int) 
     for c in series.cast:
         names.setdefault(token(c.name), c.id)
         names[token(c.id)] = c.id
+        names.setdefault(token(c.id) + "s", c.id)  # plural: "the runners" -> runner
 
     shots, cues = [], [Cue(frame=0, kind="music_start")]
     prev_angle = prev_set = subject = None

@@ -220,3 +220,46 @@ def test_set_style_refuses_when_locked(lib):
     save_series(f, s)
     assert main(["set-style", "cat", "--preset", "other"]) == 1
     assert load_series(f).style.preset == "default"
+
+
+# --- cast-edit ---
+
+def _approved_cat(lib):
+    main(["new-series", "cat", "--title", "Cat"])
+    main(["cast-add", "cat", "bob", "--name", "Bob", "--color", "#3a7bd5"])
+    main(["approve-cast", "cat", "bob"])
+    return lib / "cat" / "series.json"
+
+
+def test_cast_edit_name_keeps_approval(lib, capsys):
+    f = _approved_cat(lib)
+    approved = load_series(f).cast[0].approved_at
+    assert main(["cast-edit", "cat", "bob", "--name", "Robert"]) == 0
+    c = load_series(f).cast[0]
+    assert (c.name, c.outfit_color, c.approved_at) == ("Robert", "#3a7bd5", approved)
+    assert "approval was cleared" not in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("change", [["--color", "#c9d6e3"], ["--eyes", "half_closed"]])
+def test_cast_edit_new_look_clears_approval(lib, capsys, change):
+    f = _approved_cat(lib)
+    assert main(["cast-edit", "cat", "bob", *change]) == 0
+    assert load_series(f).cast[0].approved_at is None
+    assert "bob's look changed, so its approval was cleared" in capsys.readouterr().out
+
+
+def test_cast_edit_same_colour_keeps_approval(lib):
+    f = _approved_cat(lib)
+    approved = load_series(f).cast[0].approved_at
+    assert main(["cast-edit", "cat", "bob", "--color", "#3A7BD5", "--eyes", "dots"]) == 0
+    assert load_series(f).cast[0].approved_at == approved
+
+
+def test_cast_edit_bad_input(lib, capsys):
+    f = _approved_cat(lib)
+    before = f.read_bytes()
+    assert main(["cast-edit", "cat", "zed", "--name", "Z"]) == 1
+    assert main(["cast-edit", "cat", "bob"]) == 1
+    assert main(["cast-edit", "cat", "bob", "--color", "blue"]) == 1
+    assert "nothing to change" in capsys.readouterr().err
+    assert f.read_bytes() == before

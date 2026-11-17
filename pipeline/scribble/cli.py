@@ -15,7 +15,7 @@ from pathlib import Path
 from pydantic import TypeAdapter, ValidationError
 
 from . import sheet
-from .io import load_part, load_series, save_part, save_series
+from .io import atomic_write_json, load_part, load_series, save_part, save_series
 from .schemas import CastMember, PartId, PartModel, SeriesModel, Slug, Stages, StoryModel, Style, Voice, utcnow
 from .stages import STAGES
 from .stages import render as render_stage
@@ -75,6 +75,28 @@ def cmd_cast_add(args) -> int:
     series.cast.append(CastMember(id=args.id, name=args.name, outfit_color=args.color, eyes=args.eyes))
     save_series(f, series)
     print(f"added {args.id} to {args.slug} cast")
+    return 0
+
+
+def cmd_cast_edit(args) -> int:
+    f, series = load_existing_series(args)
+    i = next((i for i, c in enumerate(series.cast) if c.id == args.id), None)
+    if i is None:
+        raise UserError(f"cast id {args.id!r} not in {args.slug} (cast: {', '.join(c.id for c in series.cast) or '-'})")
+    changes = {k: v for k, v in (("name", args.name), ("outfit_color", args.color), ("eyes", args.eyes)) if v is not None}
+    if not changes:
+        raise UserError("nothing to change: give --name, --color and/or --eyes")
+    old = series.cast[i]
+    new = CastMember.model_validate({**old.model_dump(), **changes})  # validates the colour / eyes
+    look_changed = new.outfit_color.lower() != old.outfit_color.lower() or new.eyes != old.eyes
+    if look_changed and old.approved_at:
+        new.approved_at = None
+        print(f"note: {args.id}'s look changed, so its approval was cleared: check cast-sheet {args.slug}, "
+              f"then approve-cast {args.slug} {args.id}")
+    series.cast[i] = new
+    # write directly: save_series would restore the approval cleared above (it only ever adds approvals)
+    atomic_write_json(f, series.model_dump(mode="json"))
+    print(f"updated {args.id}: {', '.join(f'{k}={v}' for k, v in changes.items())}")
     return 0
 
 
@@ -302,6 +324,14 @@ def build_parser() -> Parser:
     c.add_argument("--color", required=True, help="outfit colour #rrggbb")
     c.add_argument("--eyes", choices=["dots", "half_closed"], default="dots")
     c.set_defaults(func=cmd_cast_add)
+
+    c = sub.add_parser("cast-edit", parents=[common], help="change a cast member (a new look clears its approval)")
+    c.add_argument("slug")
+    c.add_argument("id")
+    c.add_argument("--name")
+    c.add_argument("--color", help="outfit colour #rrggbb")
+    c.add_argument("--eyes", choices=["dots", "half_closed"])
+    c.set_defaults(func=cmd_cast_edit)
 
     c = sub.add_parser("set-voice", parents=[common], help="set the series voice name")
     c.add_argument("slug")
