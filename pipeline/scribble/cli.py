@@ -17,7 +17,8 @@ from pathlib import Path
 from pydantic import TypeAdapter, ValidationError
 
 from . import sheet, storycheck
-from .io import atomic_write_json, load_part, load_series, prop_kinds, save_part, save_series, unknown_cast_props
+from .io import (atomic_write_json, load_part, load_series, prop_kinds, replace_file, save_part, save_series,
+                 unknown_cast_props)
 from .schemas import CastMember, Expression, PartId, PartModel, Post, SeriesModel, Slug, Stages, StoryModel, Style, Voice, utcnow
 from .stages import STAGES
 from .stages import render as render_stage
@@ -179,6 +180,15 @@ def cmd_new_part(args) -> int:
     return 0
 
 
+def move_aside(src: Path, dst: Path) -> None:
+    """rename a folder away (retried); on Windows it fails while any program has it or a file in it open"""
+    try:
+        replace_file(src, dst)
+    except PermissionError:
+        raise UserError(f"{src.name} is in use by another program (a File Explorer window open on it, a video "
+                        "playing it, an editor?); close it and try again")
+
+
 def cmd_delete_part(args) -> int:
     """Delete a part: its folder (story.md, voice.mp3, videos, frames: everything) and its entry in series.json.
     Dry run unless --yes. Other parts keep their numbers."""
@@ -194,7 +204,7 @@ def cmd_delete_part(args) -> int:
         return 0
     # rename aside first (atomic), then series.json, then the files: never a listed part with half its files gone
     trash = pdir.with_name(f".deleted-{args.part}-{utcnow():%Y%m%d%H%M%S}")
-    os.replace(pdir, trash)
+    move_aside(pdir, trash)
     try:
         series.parts = [x for x in series.parts if x != args.part]
         save_series(f, series)
@@ -222,7 +232,7 @@ def cmd_delete_series(args) -> int:
               f"add --yes to delete")
         return 0
     trash = d.with_name(f".deleted-{args.slug}-{utcnow():%Y%m%d%H%M%S}")
-    os.replace(d, trash)  # one atomic step: from here the series is gone from the library
+    move_aside(d, trash)  # one atomic step: from here the series is gone from the library
     shutil.rmtree(trash, ignore_errors=True)
     if trash.exists():
         print(f"note: could not delete every file of {trash.name} (in use?); delete it later")

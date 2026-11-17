@@ -513,6 +513,17 @@ def test_delete_series(client, lib):
     r = client.delete("/api/series/demo")
     assert r.status_code == 409 and "render is running" in r.json()["detail"]
     (lib / "demo" / "part-01" / "frames" / ".render.lock").unlink()
+    # Windows: a folder held open by another program (an Explorer window) can't be renamed aside: 409, nothing lost
+    real = os.replace
+    def held(src, dst):
+        if os.path.isdir(src):
+            raise PermissionError(5, "Access is denied")
+        real(src, dst)
+    m_replace = pytest.MonkeyPatch()
+    m_replace.setattr(os, "replace", held)
+    r = client.delete("/api/series/demo")
+    m_replace.undo()
+    assert r.status_code == 409 and "in use by another program" in r.json()["detail"] and (lib / "demo").exists()
     assert client.delete("/api/series/demo").json() == {"ok": True}
     assert not (lib / "demo").exists() and client.get("/api/series").json() == []
     assert client.delete("/api/series/demo").status_code == 404
