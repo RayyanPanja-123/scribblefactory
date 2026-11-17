@@ -327,18 +327,61 @@ def test_pid_alive():
     assert not render.pid_alive(0) and not render.pid_alive(-5)
 
 
-def test_stale_lock_stops_leftover_workers(part, capsys, monkeypatch):
+def _stale_lock_with(part, worker_cmd):
     dead = subprocess.Popen([sys.executable, "-c", "pass"])
     dead.wait()
-    orphan = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"], **render.GROUP)
+    proc = subprocess.Popen(worker_cmd, **render.GROUP)
     lock = render.lock_path(part)
     lock.parent.mkdir(parents=True, exist_ok=True)
-    lock.write_text(f"{dead.pid}\n{orphan.pid}")
+    lock.write_text(f"{dead.pid}\n{proc.pid}")
+    return proc
+
+
+@pytest.mark.skipif(not shutil.which("node"), reason="node not on PATH")
+def test_stale_lock_stops_leftover_node_worker(part, capsys):
+    orphan = _stale_lock_with(part, [shutil.which("node"), "-e", "setTimeout(() => {}, 60000)"])
     try:
         assert cli_render() == 0
-        out = capsys.readouterr().out
-        assert f"stopping leftover render worker {orphan.pid}" in out
+        assert f"stopping leftover render worker {orphan.pid} (node" in capsys.readouterr().out
         orphan.wait(timeout=10)
         assert not render.pid_alive(orphan.pid)
     finally:
         render.kill_tree(orphan)
+
+
+def test_stale_lock_never_kills_a_reused_pid(part, capsys):
+    other = _stale_lock_with(part, [sys.executable, "-c", "import time; time.sleep(60)"])  # PID now some python
+    try:
+        assert cli_render() == 0
+        out = capsys.readouterr().out
+        assert f"not stopping pid {other.pid} from the stale lock: it is python" in out
+        assert render.pid_alive(other.pid)
+    finally:
+        render.kill_tree(other)
+
+
+def test_process_name():
+    assert "python" in render.process_name(os.getpid()).lower()
+    assert render.RENDER_PROCESS.match("node.exe") and render.RENDER_PROCESS.match("chrome-headless-shell.exe")
+    assert render.RENDER_PROCESS.match("chrome") and not render.RENDER_PROCESS.match("python.exe")
+
+
+# ---------------- worker count ----------------
+
+def test_workers_capped_to_remaining_chunks(part):
+    part.state["fail"] = {(150, 179)}
+    assert cli_render() == 1  # chunk 0 done, chunk 1 left
+    part.state.update(fail=set(), starts=0, calls=[])
+    assert cli_render("--workers", "5") == 0
+    assert (part.state["starts"], part.state["calls"]) == (1, [(150, 179)])
+
+
+def test_nothing_left_still_checks_renderer_with_one_worker(part, capsys):
+    assert cli_render() == 0
+    part.state.update(starts=0, calls=[])
+    render.run(part, workers=4)  # all chunks done, same renderer
+    assert (part.state["starts"], part.state["calls"]) == (1, [])
+    part.state.update(starts=0, info={**GPU, "driver": "9.9"})
+    render.run(part, workers=4)  # renderer changed: everything again, pool grows to the work
+    assert part.state["starts"] == 2 and part.state["calls"] == [(0, 149), (150, 179)]
+    assert "renderer changed (driver: 1.0 -> 9.9)" in capsys.readouterr().out

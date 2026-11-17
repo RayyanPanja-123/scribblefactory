@@ -15,6 +15,7 @@ import hashlib
 import json
 import os
 import queue
+import re
 import shutil
 import signal
 import subprocess
@@ -116,6 +117,19 @@ def kill_pid_tree(pid: int) -> None:
             os.killpg(pid, signal.SIGKILL)
         except (ProcessLookupError, PermissionError):
             pass
+
+
+RENDER_PROCESS = re.compile(r"^(node|chrome|chromium|chromium-browser|chrome-headless-shell|headless_shell)(\.exe)?$", re.I)
+
+
+def process_name(pid: int) -> str | None:
+    """Executable name of a running PID (Windows: tasklist; others: ps), or None."""
+    if os.name == "nt":
+        r = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"], capture_output=True, text=True)
+        m = re.match(r'"([^"]+)","(\d+)"', r.stdout.strip())
+        return m[1] if m and int(m[2]) == pid else None
+    r = subprocess.run(["ps", "-p", str(pid), "-o", "comm="], capture_output=True, text=True)
+    return Path(r.stdout.strip()).name or None
 
 
 def kill_tree(proc: subprocess.Popen) -> None:
@@ -258,8 +272,12 @@ def render_lock(part_dir: Path):
         pids = _lock_pids(part_dir)
         print(f"note: removing stale render lock ({pids[0] if pids else '?'} is not running)")
         for w in [p for p in pids[1:] if pid_alive(p)]:  # its workers outlived it: stop them before we start
-            print(f"note: stopping leftover render worker {w}")
-            kill_pid_tree(w)
+            name = process_name(w)
+            if name and RENDER_PROCESS.match(name):
+                print(f"note: stopping leftover render worker {w} ({name})")
+                kill_pid_tree(w)
+            else:  # the PID was reused by something else: never kill that
+                print(f"note: not stopping pid {w} from the stale lock: it is {name or 'unknown'}, not a render worker")
         f.unlink(missing_ok=True)
     try:
         fd = os.open(f, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
@@ -301,27 +319,37 @@ def render_chunks(part_dir: Path, total: int, workers: int, swiftshader: bool, f
     digest, ranges = frames_hash(part_dir), chunk_ranges(total)
     events: queue.Queue = queue.Queue()
     pool: list = []
-    try:
-        pool = [start_worker(part_dir, k, swiftshader, events) for k in range(max(1, min(workers, len(ranges))))]
-        if lock_path(part_dir).exists():
-            lock_add_workers(part_dir, [w.proc.pid for w in pool if hasattr(w, "proc")])
-        info = None
-        for _ in pool:  # every worker reports its renderer once its browser and page are up
+
+    def grow(n: int) -> None:
+        """Start workers until there are n, and wait until each has reported its renderer."""
+        new = [start_worker(part_dir, k, swiftshader, events) for k in range(len(pool), n)]
+        pool.extend(new)
+        if new and lock_path(part_dir).exists():
+            lock_add_workers(part_dir, [w.proc.pid for w in new if hasattr(w, "proc")])
+        for _ in new:
             ev = next_event(events, READY_TIMEOUT_S)
             if ev[0] == "exit":
                 raise StageError(f"render worker failed to start (exit {ev[2]}): {ev[1].log_tail()}")
             ev[1].info = ev[2]
-            if info is None:
-                info = ev[2]
-                print(f"webgl: {info['renderer']} ({info['gpu_name']})")
-            elif ev[2] != info:
-                raise StageError(f"render workers disagree on the renderer: {info} vs {ev[2]}")
+        infos = [w.info for w in pool]
+        if any(i != infos[0] for i in infos):
+            raise StageError(f"render workers disagree on the renderer: {infos}")
+
+    def remaining() -> list[tuple[int, int, int]]:
+        return [(i, a, b) for i, (a, b) in enumerate(ranges) if not _chunk_ok(frames, i, a, b, digest)]
+
+    try:
+        # never more workers than chunks left; one always starts, to learn the renderer (a change resets all)
+        grow(max(1, min(workers, len(ranges) if force else len(remaining()))))
+        info = pool[0].info
+        print(f"webgl: {info['renderer']} ({info['gpu_name']})")
         reason = "--force" if force else reset_reason(frames, digest, info)
         if reason:
             print(f"re-rendering all frames: {reason}")
             wipe_frames(frames)
             (frames / "chunks").mkdir(parents=True, exist_ok=True)
-        todo = [(i, a, b) for i, (a, b) in enumerate(ranges) if not _chunk_ok(frames, i, a, b, digest)]
+        todo = remaining()
+        grow(max(len(pool), min(workers, len(todo))))  # a reset can mean more work than first counted
         done = len(ranges) - len(todo)
         if done:
             print(f"resuming: {done}/{len(ranges)} chunk(s) already done")
