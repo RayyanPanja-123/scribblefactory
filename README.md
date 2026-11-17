@@ -19,6 +19,12 @@ Personal use. No external AI APIs; voice is recorded manually.
 Needs Python 3.12+, Node 20.19+, npm, ffmpeg, ffprobe.
 
 ```sh
+bash start.sh   # one command: runs setup if needed, then API + web; Ctrl+C stops both
+```
+
+Or by hand:
+
+```sh
 bash setup.sh
 .venv/bin/uvicorn api.main:app --host 127.0.0.1 --port 8765       # macOS/Linux
 .venv/Scripts/uvicorn api.main:app --host 127.0.0.1 --port 8765   # Windows (Git Bash)
