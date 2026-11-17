@@ -43,14 +43,14 @@ const shown = computed(() => {
               <h3 class="min-w-0 flex-1 font-display text-lg leading-tight font-semibold">{{ s.title }}</h3>
               <span class="chip" :class="statusChip(s.status)">{{ s.status }}</span>
             </div>
-            <div class="mt-3 flex items-center gap-3 text-sm text-muted">
+            <div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm whitespace-nowrap text-muted">
               <span>{{ s.part_count }} {{ s.part_count === 1 ? 'part' : 'parts' }}</span>
               <span class="flex items-center gap-1" :title="`${s.posted.youtube} on YouTube`">
-                <Youtube :size="16" :class="s.posted.youtube ? 'text-red' : 'text-faint'" aria-hidden="true" />
+                <Youtube :size="16" :class="s.posted.youtube ? 'text-youtube' : 'text-faint'" aria-hidden="true" />
                 <span class="sr-only">YouTube</span>{{ s.posted.youtube }}
               </span>
               <span class="flex items-center gap-1" :title="`${s.posted.instagram} on Instagram`">
-                <Instagram :size="16" :class="s.posted.instagram ? 'text-[#9a6ff0]' : 'text-faint'" aria-hidden="true" />
+                <Instagram :size="16" :class="s.posted.instagram ? 'text-instagram' : 'text-faint'" aria-hidden="true" />
                 <span class="sr-only">Instagram</span>{{ s.posted.instagram }}
               </span>
               <span class="ml-auto flex items-center gap-1"><HardDrive :size="14" aria-hidden="true" />{{ bytes(s.disk_usage) }}</span>

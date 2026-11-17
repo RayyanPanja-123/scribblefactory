@@ -6,14 +6,18 @@ utility: `--color-ink` → `text-ink`, `bg-ink`). Components there: `.raised`, `
 `.round-btn`, `.skeleton`, `.grain`, `.num`.
 
 ## Frame and surfaces
-- Page `#111113`, bezel `#1c1c1e` (radius 36, 12 px padding), app surface `#f2efe9` (radius 24).
-- Panels / cards `#f8f6f1`; wells `#ebe7df`.
+- Page `#111113`, bezel `#1c1c1e` (radius 36, 12 px padding, faint inner rim highlight), app surface `#e8e3d9`
+  (radius 24, recessed: 1 px light rim + soft inner shadow).
+- Panels / cards `#fbf9f5` with a top-to-bottom light gradient (2-3% lighter at the top); wells `#efebe3`.
+- Brand: a stickman head (white wobbly circle, dot eyes, brows, thick outline; SVG in `BrandMark.vue`) in a raised
+  dark disc, plus the "Scribble Factory" wordmark in Fredoka beside the welcome text.
 - Paper grain: SVG `feTurbulence` noise at 3% opacity on the surface and every raised card (`::before`).
 
 ## Depth
-- **Raised** (`.raised`, radius 24): white highlight top-left, warm-grey shadow bottom-right, 1 px inner top highlight.
-  Hover deepens the shadow by fading in a second shadow layer (`::after` opacity), so only opacity animates.
-- **Inset** (`.inset`, radius 16): inner shadows, for search, stat/chart wells, cast chips, stage strips.
+- **Raised** (`.raised`, radius 24): `inset 0 1px 0 #fff, -6 -6 14 white/.85, 10 14 28 rgb(96 78 52/.18),
+  2 3 6 rgb(96 78 52/.10)`. Hover fades in a second layer with offsets and blur x1.4 (`::after` opacity only).
+- **Inset** (`.inset`, radius 16): `inset 3 3 8 rgb(96 78 52/.16), inset -3 -3 8 white/.9`; search, chart wells,
+  cast chips, stage strips, the donut track.
 - **Chips** (`.chip`): pill, soft inset, tinted background + dark ink text.
 - **Buttons**: `.btn-primary` dark pill, white text, raised; `.btn-secondary` raised light pill. `:active` swaps
   the shadow for an inset one (sinks). Round icon buttons (`.round-btn`) are inset when active (`aria-current`).
@@ -22,14 +26,27 @@ utility: `--color-ink` → `text-ink`, `bg-ink`). Components there: `.raised`, `
 | Token | Hex | Use |
 |---|---|---|
 | ink | `#1f1d1a` | text (15:1) |
-| muted | `#6b665d` | secondary **text** (5.0:1 on surface) |
-| faint | `#8a857c` | icons, rules, large decorative numerals only (3.2:1: never body text) |
+| muted | `#5f5a51` | secondary **text** (5.3:1 on surface, 5.8:1 in wells, 6.5:1 on cards) |
+| faint | `#8a857c` | icons and rules only (2.9:1 on surface: never text) |
 | green / red / amber / blue | `#2fa36b` `#e35b4f` `#f2b84b` `#4f7cf7` | fills, dots, lines: done-up / failed-down / waiting / running |
 | *-ink | `#1b6b45` `#a8352b` `#7f5a10` `#2c4fb8` `#5c584f` | text on the matching tinted chip (all ≥ 4.9:1) |
 
-The brief's muted `#8a857c` and the four accents fail WCAG AA as text on these surfaces, so text uses the darker
-inks above and the original hues stay for non-text. Charts: YouTube `#4f7cf7`, Instagram `#9a6ff0`; series in
-the donut cycle through `PALETTE` (`web/src/composables/ui.ts`). Cast swatches use each cast member's top colour.
+The brief's muted `#8a857c` and the accents fail WCAG AA as text on these surfaces, so text uses the darker
+inks above and the original hues stay for non-text. Cast swatches use each cast member's top colour.
+
+**KPI identities** (icon: raised round chip, gradient fill, white icon; badge: 12% tint + ink; number stays ink):
+
+| Card | Gradient | Badge bg / ink |
+|---|---|---|
+| Series | indigo `#5b6cf0 → #4453d6` | `#e8e8f4` / `#3a47c4` (6.0:1) |
+| Parts in progress | blue `#4f9cf7 → #2f7be0` | `#e6eef5` / `#1d5fb5` (5.3:1) |
+| Waiting for you | amber `#f5b544 → #e0901a` | `#faf1e0` / `#875400` (5.7:1) |
+| Posted this month | green `#3fbf7f → #23a063` | `#e4f2e7` / `#147045` (5.3:1) |
+
+**Charts**: YouTube red-orange `#ff6b4a`, Instagram magenta-violet `#b44cf0` (red means "failed" only on status
+chips). Area fill accent 35% → 0%, 2.5 px lines, glowing dots on hover. Donut series cycle through `PALETTE`
+(`web/src/composables/ui.ts`): `#5b6cf0 #ff6b4a #3fbf7f #f5b544 #b44cf0 #2bb3c0`; rounded caps (each segment is
+trimmed by one cap width so caps never overlap), a pressed-in track and a raised centre disc with the total.
 
 ## Type
 - Inter (400/500/600) for UI, Fredoka (500/600) for headings and numbers (echoes the Fredoka One captions).
@@ -50,6 +67,11 @@ the donut cycle through `PALETTE` (`web/src/composables/ui.ts`). Cast swatches u
 - `prefers-reduced-motion`: `MotionConfig reducedMotion="user"` makes every transform instant; cards drop hover
   and press movement, numbers and the donut appear at their final value, the skeleton shimmer and the running
   pulse become opacity fades.
+
+## Scrolling
+- Content gets bottom padding of tab bar height + 20 px offset + 24 px, so the floating tab bar never covers the end.
+- Thin scrollbar inside the frame: 6 px, rounded, `#b3ab9d` thumb, transparent track; the thumb shows only while
+  scrolling (`.scrolling` for 800 ms after a scroll event). Firefox falls back to `scrollbar-width: thin`.
 
 ## States
 - Loading: skeleton blocks with a shimmer (translateX), shaped like the content.

@@ -78,12 +78,12 @@ function approval(p: PartSummary, a: string): [string, string] {
         <p v-if="p.missing" class="text-sm text-muted">{{ p.id }}: part.json is missing</p>
         <template v-else>
           <div class="flex flex-wrap items-center gap-3">
-            <span class="num text-2xl text-faint">{{ String(p.number).padStart(2, '0') }}</span>
+            <span class="num text-2xl text-muted">{{ String(p.number).padStart(2, '0') }}</span>
             <h4 class="font-display text-lg font-semibold">{{ p.title }}</h4>
             <span class="ml-auto flex items-center gap-3 text-faint">
-              <Youtube :size="18" :class="{ 'text-red': p.posted?.youtube }"
+              <Youtube :size="18" :class="{ 'text-youtube': p.posted?.youtube }"
                 :aria-label="p.posted?.youtube ? 'posted on YouTube' : 'not on YouTube'" />
-              <Instagram :size="18" :class="{ 'text-[#9a6ff0]': p.posted?.instagram }"
+              <Instagram :size="18" :class="{ 'text-instagram': p.posted?.instagram }"
                 :aria-label="p.posted?.instagram ? 'posted on Instagram' : 'not on Instagram'" />
             </span>
           </div>

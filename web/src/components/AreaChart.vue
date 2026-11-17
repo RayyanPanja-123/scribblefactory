@@ -7,8 +7,8 @@ type Month = { month: string; youtube: number; instagram: number }
 const p = defineProps<{ months: Month[] }>()
 
 const SERIES = [
-  { key: 'youtube', name: 'YouTube', color: '#4f7cf7' },
-  { key: 'instagram', name: 'Instagram', color: '#9a6ff0' },
+  { key: 'youtube', name: 'YouTube', color: '#ff6b4a' },
+  { key: 'instagram', name: 'Instagram', color: '#b44cf0' },
 ] as const
 const W = 640, H = 220, L = 32, R = 12, T = 14, B = 28
 
@@ -54,7 +54,7 @@ function onMove(e: PointerEvent) {
       @pointermove="onMove" @pointerleave="hover = null">
       <defs>
         <linearGradient v-for="s in SERIES" :id="`fill-${s.key}`" :key="s.key" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0" :stop-color="s.color" stop-opacity="0.32" />
+          <stop offset="0" :stop-color="s.color" stop-opacity="0.35" />
           <stop offset="1" :stop-color="s.color" stop-opacity="0" />
         </linearGradient>
         <clipPath id="reveal">
@@ -62,7 +62,7 @@ function onMove(e: PointerEvent) {
             :initial="{ scaleX: 0 }" :animate="{ scaleX: 1 }" :transition="{ duration: 1.1, ease: [0.3, 0.7, 0.2, 1] }" />
         </clipPath>
       </defs>
-      <g class="text-[10px]" fill="#6b665d">
+      <g class="text-[10px]" fill="#5f5a51">
         <template v-for="t in ticks" :key="t">
           <line :x1="L" :x2="W - R" :y1="y(t)" :y2="y(t)" stroke="#d9d3c8" stroke-dasharray="3 5" />
           <text :x="L - 8" :y="y(t) + 3" text-anchor="end">{{ t }}</text>
@@ -78,8 +78,11 @@ function onMove(e: PointerEvent) {
       </g>
       <g v-if="hover !== null">
         <line :x1="x(hover)" :x2="x(hover)" :y1="T" :y2="H - B" stroke="#8a857c" stroke-dasharray="2 4" />
-        <circle v-for="s in SERIES" :key="s.key" :cx="x(hover)" :cy="y(months[hover][s.key])" r="4.5"
-          :fill="s.color" stroke="#f8f6f1" stroke-width="2" />
+        <g v-for="s in SERIES" :key="s.key">
+          <circle :cx="x(hover)" :cy="y(months[hover][s.key])" r="11" :fill="s.color" opacity="0.18" />
+          <circle :cx="x(hover)" :cy="y(months[hover][s.key])" r="7" :fill="s.color" opacity="0.28" />
+          <circle :cx="x(hover)" :cy="y(months[hover][s.key])" r="4.5" :fill="s.color" stroke="#fff" stroke-width="2" />
+        </g>
       </g>
     </svg>
 

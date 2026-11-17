@@ -22,16 +22,24 @@ const kpis = computed(() => {
   const delta = sum(months.at(-1)) - sum(months.at(-2))
   const active = series.filter((s) => s.status === 'active').length
   return [
-    { name: 'Series', value: k.series, icon: Layers,
-      badge: [`${active} active`, active ? 'chip-green' : ''] },
-    { name: 'Parts in progress', value: k.parts_in_progress, icon: Clapperboard,
-      badge: k.parts_in_progress ? ['in the works', 'chip-blue'] : ['all finished', 'chip-green'] },
-    { name: 'Waiting for you', value: k.waiting_for_approval, icon: Clock,
-      badge: k.waiting_for_approval ? ['needs you', 'chip-amber'] : ['all clear', 'chip-green'] },
-    { name: 'Posted this month', value: k.posted_this_month, icon: Sparkles,
-      badge: delta > 0 ? [`+${delta} vs last month`, 'chip-green'] : delta < 0 ? [`${delta} vs last month`, 'chip-red'] : ['same as last month', ''] },
+    { name: 'Series', value: k.series, icon: Layers, accent: ACCENTS.indigo,
+      badge: `${active} active` },
+    { name: 'Parts in progress', value: k.parts_in_progress, icon: Clapperboard, accent: ACCENTS.blue,
+      badge: k.parts_in_progress ? 'in the works' : 'all finished' },
+    { name: 'Waiting for you', value: k.waiting_for_approval, icon: Clock, accent: ACCENTS.amber,
+      badge: k.waiting_for_approval ? 'needs you' : 'all clear' },
+    { name: 'Posted this month', value: k.posted_this_month, icon: Sparkles, accent: ACCENTS.green,
+      badge: delta > 0 ? `+${delta} vs last month` : delta < 0 ? `${delta} vs last month` : 'same as last month' },
   ]
 })
+
+// per-card identity: icon gradient a1 -> a2, badge = 12% tint + AA ink (docs/design.md)
+const ACCENTS = {
+  indigo: { a1: '#5b6cf0', a2: '#4453d6', bg: '#e8e8f4', ink: '#3a47c4' },
+  blue: { a1: '#4f9cf7', a2: '#2f7be0', bg: '#e6eef5', ink: '#1d5fb5' },
+  amber: { a1: '#f5b544', a2: '#e0901a', bg: '#faf1e0', ink: '#875400' },
+  green: { a1: '#3fbf7f', a2: '#23a063', bg: '#e4f2e7', ink: '#147045' },
+}
 
 const titles = computed(() => new Map(data.value?.[1].map((s) => [s.slug, s.title])))
 const disk = computed(() =>
@@ -54,10 +62,12 @@ const waitLabel = (w: string) => (w.startsWith('cast:') ? `cast: ${w.slice(5)}` 
       <Card v-for="(k, i) in kpis" :key="k.name" :index="i" lift class="p-5">
         <div class="flex items-start justify-between">
           <p class="text-sm font-medium text-muted">{{ k.name }}</p>
-          <span class="round-btn size-9! text-faint"><component :is="k.icon" :size="16" aria-hidden="true" /></span>
+          <span class="accent-icon" :style="{ '--a1': k.accent.a1, '--a2': k.accent.a2 }">
+            <component :is="k.icon" :size="18" :stroke-width="2.25" aria-hidden="true" />
+          </span>
         </div>
         <p class="mt-1 text-5xl"><CountUp :value="k.value" /></p>
-        <span class="chip mt-3" :class="k.badge[1]">{{ k.badge[0] }}</span>
+        <span class="chip mt-3" :style="{ background: k.accent.bg, color: k.accent.ink }">{{ k.badge }}</span>
       </Card>
     </section>
 
@@ -82,7 +92,7 @@ const waitLabel = (w: string) => (w.startsWith('cast:') ? `cast: ${w.slice(5)}` 
       <p class="text-sm text-muted">Approvals with something ready to look at</p>
       <ul v-if="data[0].waiting.length" class="mt-4 space-y-3">
         <li v-for="w in data[0].waiting" :key="`${w.slug}/${w.part}`">
-          <RouterLink :to="`/series/${w.slug}`" class="inset flex items-center gap-4 px-4 py-3 transition-colors hover:bg-[#e6e1d7]">
+          <RouterLink :to="`/series/${w.slug}`" class="inset flex items-center gap-4 px-4 py-3 transition-colors hover:bg-[#e9e4da]">
             <span class="font-semibold">{{ titles.get(w.slug) ?? w.slug }}</span>
             <span class="text-sm text-muted">{{ w.part ? `Part ${Number(w.part.slice(5))}` : 'Cast' }}</span>
             <span class="ml-auto flex flex-wrap justify-end gap-2">
