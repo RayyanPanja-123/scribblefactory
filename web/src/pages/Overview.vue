@@ -15,12 +15,36 @@ import { label } from '../composables/ui'
 
 const { data, error, loading, reload, refresh } = useApi(() => Promise.all([api.overview(), api.series()]))
 
-// docs/STORY_GUIDE.md, bundled at build time and loaded on the first click (the one copy lives in docs/)
+// docs/STORY_GUIDE.md, bundled at build time and loaded on the first click (the one copy lives in docs/),
+// plus what this library has right now: every set and prop the AI may use
 const copied = ref(false)
+const ids = (xs: { id: string; name: string }[]) => xs.map((x) => `\`${x.id}\` (${x.name})`).join(', ')
+async function records() {
+  try {
+    const [sets, props] = await Promise.all([api.sets(), api.props()])
+    const indoor = sets.custom.filter((s) => s.kind === 'indoor')
+    const outdoor = sets.custom.filter((s) => s.kind === 'outdoor')
+    return [
+      '## Available in this library right now',
+      '',
+      `- **Sets** (${sets.builtin.length + sets.custom.length}): built in ${sets.builtin.map((s) => `\`${s.id}\``).join(', ')}` +
+        (indoor.length ? `; custom indoor ${ids(indoor)}` : '') +
+        (outdoor.length ? `; custom outdoor ${ids(outdoor)}` : ''),
+      `- **Props** (${props.builtin.length + props.custom.length}): built in ${props.builtin.map((p) => `\`${p}\``).join(', ')}` +
+        (props.custom.length ? `; custom ${ids(props.custom)}` : ''),
+      '',
+      'Use only these sets and props.',
+      '',
+      '',
+    ].join('\n')
+  } catch {
+    return '' // offline or API error: the static guide still works on its own
+  }
+}
 async function copyGuide() {
   try {
-    const { default: guide } = await import('../../../docs/STORY_GUIDE.md?raw')
-    await navigator.clipboard.writeText(guide)
+    const [{ default: guide }, live] = await Promise.all([import('../../../docs/STORY_GUIDE.md?raw'), records()])
+    await navigator.clipboard.writeText(guide.replace('## Your series', `${live}## Your series`))
     copied.value = true
     toast('Story guide copied: paste it into any AI, then fill in your cast at the end', 'ok')
     setTimeout(() => (copied.value = false), 2500)
