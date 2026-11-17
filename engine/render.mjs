@@ -213,7 +213,9 @@ async function renderJobs(opened, a) {
       : fi?.hidden ? ` [${fi.hidden} prop(s) hidden behind the subject]` : "";
     const gest = fi?.gestures?.length ? ` [gesture: ${fi.gestures.join(", ")}]` : "";
     const wipe = (fi?.wipe ? ` [wipe ${fi.wipe}]` : "") + (fi?.travel ? ` [travel ${fi.travel}]` : "")
-      + (fi?.dogs ? ` [dogs ${fi.dogs}]` : "") + (fi?.cars ? ` [car ${fi.cars}]` : "");
+      + (fi?.dogs ? ` [dogs ${fi.dogs}]` : "") + (fi?.cars ? ` [car ${fi.cars}]` : "")
+      + (fi?.extrasDropped != null ? ` [extras dropped: ${fi.extrasDropped}]` : "")
+      + (fi?.extrasOut ? ` [extras OUT OF FRAME: ${fi.extrasOut}]` : "");
     console.log(`${j.label}: ${times.at(-1).toFixed(0)} ms -> ${j.file}${note}${gest}${wipe}`);
   }
   if (opened.getError()) throw opened.getError();

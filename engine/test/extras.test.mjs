@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { after, before, test } from "node:test";
-import { EXTRA_SATURATION, EXTRA_TOPS, GAP, MOOD_EXPRESSION, desaturate, extraLook, moodAt, placeExtras } from "../page/extras.js";
+import { EXTRA_SATURATION, EXTRA_TOPS, GAP, MOOD_EXPRESSION, desaturate, extraLook, fitCrowd, moodAt, placeExtras } from "../page/extras.js";
 import { CW, FEET_Y, drawStickman, skeleton } from "../page/stickman.js";
 import { fixturePart, frames, jobOk, png, render, renderNamed } from "./batch.mjs";
 
@@ -158,6 +158,41 @@ test("extras draw at 85% saturation: the cast's own colours are untouched", () =
   for (const c of EXTRA_TOPS) assert.ok(Math.abs(sat(desaturate(c)) - 0.85 * sat(c)) < 0.03, c);
 });
 
+// --- crowd fits the visible frame ---
+test("fitCrowd: rows span only the visible width (minus margin), extra rows absorb the rest, the rest drop", () => {
+  const crowd = Array.from({ length: 12 }, (_, i) => crowdE(`crowd${i + 1}`, -2.8 + 0.5 * i, i % 2 ? -2.5 : -1.9));
+  const narrow = (z) => [-0.9 + 0.1 * z, 0.9 - 0.1 * z];             // ~1.8 wide, a little wider further back
+  const r = fitCrowd(crowd, narrow, { zBack: -2.8 });
+  const placed = [...r.values()].filter(Boolean);
+  const rows = new Map();
+  for (const p of placed) rows.set(p.pos[1], [...(rows.get(p.pos[1]) || []), p.pos[0]]);
+  assert.ok(rows.size >= 3, `only ${rows.size} rows`);                           // rows absorb what one cannot hold
+  for (const [z, xs] of rows) {
+    const [lo, hi] = narrow(z);
+    for (const x of xs) assert.ok(x >= lo + 0.2 - 1e-9 && x <= hi - 0.2 + 1e-9, `x ${x} outside the frame at z ${z}`);
+    xs.sort((a, b) => a - b);
+    assert.ok(xs.every((x, i) => !i || x - xs[i - 1] >= GAP.crowd - 1e-9), `row ${z} too tight: ${xs}`);
+    assert.ok(z <= -1.9 + 1e-9 && z >= -2.8 - 1e-9);
+  }
+  assert.equal(placed.length + [...r.values()].filter((v) => v === null).length, 12);
+  assert.deepEqual([...fitCrowd(crowd, narrow, { zBack: -2.8 })], [...r]);      // deterministic
+  const wide = fitCrowd(crowd, () => [-3, 3], { zBack: -2.8 });
+  assert.ok([...wide.values()].every(Boolean));                                  // room for everyone: nobody dropped
+  const none = fitCrowd(crowd, () => [0, 0.3], { zBack: -2.8 });                 // no room at all: all dropped
+  assert.ok([...none.values()].every((v) => v === null));
+});
+
+test("fitCrowd skips spots over a cast head (free = false) and uses deeper rows instead of dropping", () => {
+  // rows 1-2 (z -1.9, -2.2) keep only the sides free: 4 spots each; the other 2 go one row deeper
+  const crowd = Array.from({ length: 10 }, (_, i) => crowdE(`crowd${i + 1}`, 0, -1.9));
+  const blocked = (x, z) => !(Math.abs(x) < 0.7 && z > -2.3);                    // a head covers the middle of rows 1-2
+  const r = fitCrowd(crowd, () => [-1.6, 1.6], { zBack: -2.8, free: blocked });
+  const placed = [...r.values()].filter(Boolean);
+  assert.equal(placed.length, 10, "nobody needs dropping: deeper rows are free in the middle");
+  for (const p of placed) assert.ok(blocked(...p.pos), `extra on a blocked spot ${p.pos}`);
+  assert.ok(placed.some((p) => p.pos[1] < -2.3), "a deeper row was used");
+});
+
 // --- the stadium rail (geometry only) ---
 let loop;
 before(async () => { loop = await render("--loop-check"); });
@@ -171,7 +206,7 @@ test("the stadium has a low painted rail between the track and the stands, in ev
 });
 
 // --- batch render: a crowd and runners, twice ---
-let R, part;
+let R, part, fit;
 before(async () => {
   part = fixturePart(temps, (s) => {
     s.shots[0].set = "stadium";
@@ -181,8 +216,37 @@ before(async () => {
       start_pos: [-3 - i, -1.5 - 0.2 * i], end_pos: [2.2 - i, -1.5 - 0.2 * i], facing: "right", variant: 5 + i }));
     return s;
   });
+  // 12 cheering extras on the stadium (as the planner lays them: two rows), s01 wide, s02 medium on bob at x 2.4
+  fit = fixturePart(temps, (s) => {
+    const crowd = Array.from({ length: 12 }, (_, i) => ({ id: `crowd${i + 1}`, kind: "crowd", action: "cheer",
+      start_pos: [-2.4 + 0.8 * (i % 7) + (i >= 7 ? 0.4 : 0), i >= 7 ? -2.5 : -1.95], facing: "camera", variant: i * 7 }));
+    for (const [k, angle] of [[0, "wide"], [1, "medium"]]) {
+      Object.assign(s.shots[k], { set: "stadium", extras: crowd });
+      s.shots[k].camera.angle = angle;
+    }
+    s.shots[2].set = "stadium";
+    return s;
+  });
   R = await renderNamed({ a: frames(part, "30-30", "a"), b: frames(part, "30-30", "b"), a2: frames(part, "90-90", "a"),
-    b2: frames(part, "90-90", "b") });
+    b2: frames(part, "90-90", "b"), wide: frames(fit, "0-59", "w"), wide2: frames(fit, "0-59", "v"),
+    medium: frames(fit, "60-119", "m") });
+});
+
+test("a 12-extra stadium crowd lands wholly in frame in wide and medium shots; dropped extras are logged", () => {
+  for (const n of ["wide", "medium"]) {
+    jobOk(R, n);
+    const lines = R[n].out.split("\n").filter((l) => l.includes(" ms -> ")); // one per rendered frame
+    assert.equal(lines.length, 60, `${n}: ${lines.length} frame lines`);
+    for (const l of lines) {
+      assert.match(l, /\[extras dropped: \d+\]/, `${n}: no dropped count in: ${l}`);
+      assert.doesNotMatch(l, /OUT OF FRAME/, `${n}: ${l}`);
+    }
+  }
+  // the same frames twice: same bytes, same log
+  jobOk(R, "wide2");
+  for (const f of [0, 29, 59]) assert.ok(png(path.join(fit, "w"), f).equals(png(path.join(fit, "v"), f)), `frame ${f}`);
+  const counts = (o) => o.split("\n").map((l) => l.match(/extras dropped: (\d+)/)?.[1]).filter(Boolean);
+  assert.deepEqual(counts(R.wide.out), counts(R.wide2.out));
 });
 
 test("crowd and runner extras render, and the same frame renders to the same bytes", () => {

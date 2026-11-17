@@ -23,6 +23,41 @@ export function desaturate(hex, k = EXTRA_SATURATION) {
   return "#" + [r1, g1, b1].map((v) => Math.round(Math.min(1, Math.max(0, v + m)) * 255).toString(16).padStart(2, "0")).join("");
 }
 
+export const CROWD_FIT = { margin: 0.2, rowStep: 0.3 }; // world units: frame margin per side, row depth spacing
+
+/** Crowd re-laid for one shot so every extra is in frame and clear of the cast: rows from the front-most planned z
+ *  back to zBack, CROWD_FIT.rowStep apart. In each row the free spots are found first: a FIT_STEP grid across the
+ *  visible x range at that depth (rangeAt(z) -> [lo, hi]) minus the margin, keeping only spots where free(x, z) (no
+ *  head overlap with the cast), packed left to right GAP.crowd+ apart. Rows then fill front to back in list order,
+ *  each row's extras spread evenly over its free spots; whoever is left when every row is full is dropped.
+ *  Map id -> { pos: [x, z], bounds: [lo, hi] } or null. */
+export const FIT_STEP = 0.05;
+export function fitCrowd(crowd, rangeAt, { zBack = -2.8, gap = GAP.crowd, margin = CROWD_FIT.margin, rowStep = CROWD_FIT.rowStep,
+  free = () => true } = {}) {
+  const out = new Map();
+  if (!crowd.length) return out;
+  const front = Math.max(...crowd.map((e) => e.start_pos[1])), rows = [];
+  for (let z = front; z >= zBack - 1e-9; z -= rowStep) rows.push(Math.round(z * 1000) / 1000);
+  if (!rows.length) rows.push(front);
+  let next = 0;
+  for (const z of rows) {
+    if (next >= crowd.length) break;
+    const [lo, hi] = rangeAt(z), a = lo + margin, b = hi - margin, slots = [];
+    for (let x = a; x <= b + 1e-9; x += FIT_STEP) {
+      const xr = Math.round(x * 1000) / 1000;
+      if ((!slots.length || xr - slots.at(-1) >= gap - 1e-9) && free(xr, z)) slots.push(xr);
+    }
+    const n = Math.min(slots.length, crowd.length - next);
+    for (let k = 0; k < n; k++) { // spread over the free slots: first and last used when there are two or more
+      const s = slots[n === 1 ? Math.floor((slots.length - 1) / 2) : Math.round((k * (slots.length - 1)) / (n - 1))];
+      out.set(crowd[next + k].id, { pos: [s, z], bounds: [a, b] });
+    }
+    next += n;
+  }
+  for (const e of crowd.slice(next)) out.set(e.id, null);
+  return out;
+}
+
 const overlaps = (a, b) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
 const grow = (r, k) => { const mx = (r[2] - r[0]) * k, my = (r[3] - r[1]) * k; return [r[0] - mx, r[1] - my, r[2] + mx, r[3] + my]; };
 
@@ -30,8 +65,9 @@ const grow = (r, k) => { const mx = (r[2] - r[0]) * k, my = (r[3] - r[1]) * k; r
  *  An extra whose head box would overlap any cast member's head box (grown HEAD_GROW) at a sampled moment is moved
  *  along its row (0.1 steps, nearest first, right before left, up to 1.5) keeping GAP from the extras of its kind
  *  and row already placed, or dropped when nothing fits. Deterministic: extras in list order, fixed samples.
- *  setCamera(u): camera at shot fraction u; castRects(u): cast head rects; headRect(e, dx, u): the extra's. */
-export function placeExtras(extras, { setCamera, castRects, headRect }) {
+ *  setCamera(u): camera at shot fraction u; castRects(u): cast head rects; headRect(e, dx, u): the extra's;
+ *  bounds(e) -> [lo, hi] or null: where the extra's x may go (crowd: its row's visible range). */
+export function placeExtras(extras, { setCamera, castRects, headRect, bounds = () => null }) {
   const out = new Map(), placed = new Map(); // row key -> x of extras already placed there
   const samples = (e) => (e.kind === "runner" ? Array.from({ length: 11 }, (_, i) => i / 10) : [0, 0.5, 1]);
   const us = [...new Set(extras.flatMap(samples))].sort();
@@ -49,7 +85,8 @@ export function placeExtras(extras, { setCamera, castRects, headRect }) {
       const r = e.kind === "runner" ? swept(dx, i, ss) : box(dx, u);
       return !cast.get(u).some((c) => overlaps(r, c)) && (i + 1 >= ss.length || !cast.get(ss[i + 1]).some((c) => overlaps(r, c)));
     });
-    const fits = (dx) => xs.every((x) => Math.abs(e.start_pos[0] + dx - x) >= gap - 1e-9) && clear(dx);
+    const lim = bounds(e), inside = (dx) => !lim || (e.start_pos[0] + dx >= lim[0] - 1e-9 && e.start_pos[0] + dx <= lim[1] + 1e-9);
+    const fits = (dx) => inside(dx) && xs.every((x) => Math.abs(e.start_pos[0] + dx - x) >= gap - 1e-9) && clear(dx);
     const dx = shifts.find(fits);
     out.set(e.id, dx ?? null);
     if (dx != null) placed.set(row, [...xs, e.start_pos[0] + dx]);

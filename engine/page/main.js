@@ -8,7 +8,8 @@ import { gestureAmount, gesturePlan, mouthCurve, mouthCycles, pointAmount, stres
 import { CARRIED_LIFT, HELD_Z, HOLD_GAP, LIE, collapseAt, eatAt, gaitPhase, giveAt, handOf, heldPlace, propsByShot, sideToward, staggerAt,
   withProp, zzzAt } from "./actions.js";
 import { CAR_CARD_W, CAR_GROUND, DRIVER_X, RIDER_X, VH, VW, carEase, carSpeedShare, drawCar, seatOffset } from "./car.js";
-import { MOOD_EXPRESSION, extraLook, moodAt, placeExtras } from "./extras.js";
+import { HEAD_GROW, MOOD_EXPRESSION, extraLook, fitCrowd, moodAt, placeExtras } from "./extras.js";
+const growRect = (r, k) => { const mx = (r[2] - r[0]) * k, my = (r[3] - r[1]) * k; return [r[0] - mx, r[1] - my, r[2] + mx, r[3] + my]; };
 import { rng, setVariant } from "./rng.js";
 import { SETS, VARIANTS, buildSet, loopExcess, scrollSet } from "./world.js";
 
@@ -465,31 +466,68 @@ function headRect(x, z, y = 0) {
   return rect(pts);
 }
 
-/** per shot, once: Map extra id -> x shift, or null (dropped for this shot): no extra's head may overlap a cast
- *  member's head or hat on screen (cast box + 6%) at any sampled moment; see extras.js placeExtras */
+const INDOOR = new Set(["room", "office"]), INDOOR_BACK = -2.5; // the back wall stands at -2.6
+
+/** x range at depth z where a figure's feet and head both stay in frame, for the whole shot (camera at u 0, .5, 1) */
+function visibleRange(z, camAt) {
+  let lo = -Infinity, hi = Infinity;
+  const ndcX = (x, y) => new THREE.Vector3(x, y, z).project(camera).x;
+  const solve = (y, target) => { // projected x rises with world x: bisect for ndc x = target
+    let a = -30, b = 30;
+    for (let i = 0; i < 40; i++) { const m = (a + b) / 2; if (ndcX(m, y) < target) a = m; else b = m; }
+    return (a + b) / 2;
+  };
+  for (const u of [0, 0.5, 1]) {
+    camAt(u);
+    camera.updateMatrixWorld();
+    for (const y of [0.05, FIG_H]) { lo = Math.max(lo, solve(y, -1)); hi = Math.min(hi, solve(y, 1)); }
+  }
+  return [lo, hi];
+}
+
+/** per shot, once: Map extra id -> { start, dx } (where it stands, or its run's shift) or null (dropped for this
+ *  shot), plus .dropped. The crowd is first re-laid across the visible width (extras.js fitCrowd); then no extra's
+ *  head may overlap a cast member's head or hat on screen (cast box + 6%): see extras.js placeExtras. */
 function extrasFor(shot, camAt, placeAt2) {
   if (extrasByShot.has(shot.id)) return extrasByShot.get(shot.id);
-  const heads = shot.actors.filter((a) => a.action !== "lie" && a.action !== "collapse");
-  const res = placeExtras(shot.extras || [], {
+  const list = shot.extras || [], heads = shot.actors.filter((a) => a.action !== "lie" && a.action !== "collapse");
+  const castRects = (uu) => heads.map((a) => { const [x, z] = placeAt2(a, uu); return headRect(x, z, a.action === "carried" ? CARRIED_LIFT : 0); });
+  const castAt = new Map([0, 0.5, 1].map((uu) => { camAt(uu); return [uu, castRects(uu).map((r) => growRect(r, HEAD_GROW))]; }));
+  const free = (x, z) => [0, 0.5, 1].every((uu) => { camAt(uu); const r = headRect(x, z); return !castAt.get(uu).some((c) => overlap(r, c)); });
+  const fit = fitCrowd(list.filter((e) => e.kind === "crowd"), (z) => visibleRange(z, camAt),
+    { zBack: INDOOR.has(shot.set) ? INDOOR_BACK : -2.8, free });
+  const laid = list.filter((e) => e.kind !== "crowd" || fit.get(e.id))
+    .map((e) => (e.kind === "crowd" ? { ...e, start_pos: fit.get(e.id).pos } : e));
+  const res = placeExtras(laid, {
     setCamera: camAt,
-    castRects: (uu) => heads.map((a) => { const [x, z] = placeAt2(a, uu); return headRect(x, z, a.action === "carried" ? CARRIED_LIFT : 0); }),
+    castRects,
     headRect: (e, dx, uu) => { const [x, z] = placeAt(e, uu); return headRect(x + dx, z); },
+    bounds: (e) => (e.kind === "crowd" ? fit.get(e.id).bounds : null),
   });
-  extrasByShot.set(shot.id, res);
-  return res;
+  const out = new Map();
+  for (const e of list) {
+    const l = laid.find((x) => x.id === e.id), dx = l ? res.get(e.id) : null;
+    out.set(e.id, dx == null ? null : { start: l.start_pos, dx });
+  }
+  out.dropped = [...out.values()].filter((v) => v === null).length;
+  extrasByShot.set(shot.id, out);
+  return out;
 }
 
 /** extras: crowd rows in a mood (each with its own timing offset) and background runners (gait from distance:
  *  scroll + own move, like the cast). Looks are seeded per series and extra variant (extras.js). */
 function drawExtras(shot, n, kf, u, shift) {
-  const t = n / FPS, secs = (shot.end_frame - shot.start_frame) / FPS, list = (shot.extras || []).filter((e) => shift.get(e.id) != null);
+  const t = n / FPS, secs = (shot.end_frame - shot.start_frame) / FPS;
+  const list = (shot.extras || []).filter((e) => shift.get(e.id)).map((e) => ({ ...e, start_pos: shift.get(e.id).start, dx: shift.get(e.id).dx }));
+  let out = 0; // drawn extras whose feet or head fall outside the frame
   for (const e of list) {
-    const [x0, z] = placeAt(e, u), x = x0 + shift.get(e.id), key = `${data.series.slug}:extra:${e.kind}:${e.variant}`, look = extraLook(data.series.slug, e);
+    const [x0, z] = placeAt(e, u), x = x0 + e.dx, key = `${data.series.slug}:extra:${e.kind}:${e.variant}`, look = extraLook(data.series.slug, e);
     const own = e.end_pos ? Math.hypot(e.end_pos[0] - e.start_pos[0], e.end_pos[1] - e.start_pos[1]) : 0;
     const phase = e.action === "run" ? gaitPhase("run", ((shot.travel ? shot.travel.speed * secs : 0) + own) * u, 0) : 0;
     const mood = e.kind === "crowd" ? moodAt(e.action, t, key) : null;
     camera.updateMatrixWorld();
     const feet = new THREE.Vector3(x, 0, z).project(camera), head = new THREE.Vector3(x, FIG_H, z).project(camera);
+    if (e.kind === "crowd" && [feet, head].some((p) => Math.abs(p.x) > 1 || Math.abs(p.y) > 1)) out++;
     const c = card(`extra:${e.id}`);
     drawStickman(c.cv, { seed: key, ...look, color: look.top.color, boil: Math.floor(n / BOIL_FRAMES), lid: lidAt(n, key),
       breath: Math.sin((2 * Math.PI * t) / 3.4 + 2 * Math.PI * rng(key, "breath")()), mouth: 0, t, phase, mood,
@@ -503,8 +541,7 @@ function drawExtras(shot, n, kf, u, shift) {
     c.shadow.scale.set(SHADOW.w * k, 1, SHADOW.d * k);
     scene.add(c.mesh, c.shadow);
   }
-  return list.length ? { extras: `${list.filter((e) => e.kind === "crowd").length} crowd ${list.find((e) => e.kind === "crowd")?.action ?? ""}`.trim()
-    + `, ${list.filter((e) => e.kind === "runner").length} runners` } : {};
+  return (shot.extras || []).length ? { extrasDropped: shift.dropped, extrasOut: out } : {};
 }
 
 /** car position at shot fraction u: arrive eases to a stop, leave eases out from one, idle stays */
