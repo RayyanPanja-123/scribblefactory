@@ -11,12 +11,17 @@ Library: `$SCRIBBLE_LIBRARY`, else `./library` (same as the CLI). CORS allows on
 (`http://localhost:5173`). Schema: `docs/openapi.json`, regenerate with `python -m api.main` (a test fails when it drifts).
 
 - Reads: `/api/health`, `/api/overview`, `/api/series`, `/api/series/{slug}`, `/api/series/{slug}/parts/{part}`,
-  `/api/media/{slug}/{path}` (mp4/png/mp3/md/json inside the series folder, Range requests for seeking).
+  `/api/series/{slug}/parts/{part}/check-story` (same checks as the `check-story` CLI command),
+  `/api/media/{slug}/{path}` (mp4/png/jpg/mp3/md/json inside the series folder, Range requests for seeking).
 - Actions (409 with `detail` when a gate refuses or a job is running on the part): `approve/{what}`, `approve-cast`,
   `pick-thumbnail`, `mark-posted`, `PUT upload.md`, `clean-frames`. They call the CLI commands in-process.
 - Jobs: `POST /api/jobs {slug, part, steps}` with steps like `"run --stage audio"`, `"render-stills"`,
   `"test-render"`, `"render"`, `"cast-sheet"`. One worker thread runs them in order as CLI subprocesses and
   stops at the first failure. `GET /api/jobs`, `DELETE /api/jobs/{id}` (cancel, kills the process tree).
-  Jobs live in memory only: a restart forgets them (their output files stay).
+  Jobs persist to `library/.jobs.json`: on start, queued jobs resume and a job left running fails
+  ("interrupted by restart"; its orphaned process is stopped).
+- On start the API also marks every stage stuck at `running` with no live process as failed ("interrupted") and
+  stops leftover render workers of stale render locks.
+- Web app: with `SCRIBBLE_SERVE_WEB=1` (set by `scripts/serve.sh`) every non-`/api` path serves `web/dist`.
 - Live: `GET /api/events` (SSE): `hello`, `job-queued`, `job-started`, `job-step`, `job-output`, `job-finished`,
   `part-changed`, `series-changed`; a ping every 15 s.

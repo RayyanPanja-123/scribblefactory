@@ -26,7 +26,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, TypeAdapter, ValidationError
 from sse_starlette import EventSourceResponse
 
-from pipeline.scribble import cli
+from pipeline.scribble import cli, storycheck
 from pipeline.scribble.io import (atomic_write_json, atomic_write_text, delete_prop, load_part, load_props, load_series, prop_kinds,
                                   save_prop, save_series, unknown_cast_props)
 from pipeline.scribble.schemas import (BuiltinProp, CastMember, CustomProp, PartModel, Posted, SeriesModel, Slug, Stage, Stages,
@@ -306,6 +306,24 @@ def part_detail(slug: str, part: str):
             "upload_md": upload.read_text(encoding="utf-8") if upload.is_file() else None,
             "voice_duration": voice, "frames_bytes": du(pdir / "frames"), "part_bytes": du(pdir),
             "busy": busy(slug, part)}
+
+
+class StoryIssue(BaseModel):
+    line: int | None  # story.md line, None: the whole story
+    message: str
+
+
+class StoryCheck(BaseModel):
+    ok: bool  # no problems: ready for voice and the pipeline
+    problems: list[StoryIssue]
+    warnings: list[StoryIssue]
+    words: int
+    seconds: float  # estimated spoken duration
+
+
+@app.get("/api/series/{slug}/parts/{part}/check-story", response_model=StoryCheck)
+def check_story(slug: str, part: str):
+    return storycheck.check_story(part_path(slug, part))
 
 
 @app.get("/api/media/{slug}/{path:path}")

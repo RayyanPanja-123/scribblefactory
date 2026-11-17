@@ -13,6 +13,7 @@ export type CastMember = S['CastMember']
 export type Job = S['Job']
 export type PropCatalog = S['PropCatalog']
 export type CustomProp = S['CustomProp']
+export type StoryCheck = S['StoryCheck']
 export type Approval = 'stills' | 'test_render' | 'final'
 export type Platform = 'youtube' | 'instagram'
 
@@ -64,6 +65,7 @@ export const api = {
   createPart: (slug: string, body: S['NewPart']) => call<PartDetail>('POST', `/api/series/${e(slug)}/parts`, body),
   uploadVoice: (slug: string, p: string, file: File, replace = false) =>
     call<PartDetail>('PUT', `${part(slug, p)}/voice.mp3${replace ? '?replace=true' : ''}`, file),
+  checkStory: (slug: string, p: string) => call<StoryCheck>('GET', `${part(slug, p)}/check-story`),
   cleanFrames: (slug: string, p: string) => call<PartModel>('POST', `${part(slug, p)}/clean-frames`),
   jobs: () => call<Job[]>('GET', '/api/jobs'),
   submitJob: (slug: string, p: string, steps: string[]) => call<Job>('POST', '/api/jobs', { slug, part: p, steps }),

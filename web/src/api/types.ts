@@ -245,6 +245,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/series/{slug}/parts/{part}/check-story": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Check Story */
+        get: operations["check_story_api_series__slug__parts__part__check_story_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/series/{slug}/parts/{part}/clean-frames": {
         parameters: {
             query?: never;
@@ -884,6 +901,26 @@ export interface components {
              */
             validate: components["schemas"]["Stage"];
         };
+        /** StoryCheck */
+        StoryCheck: {
+            /** Ok */
+            ok: boolean;
+            /** Problems */
+            problems: components["schemas"]["StoryIssue"][];
+            /** Seconds */
+            seconds: number;
+            /** Warnings */
+            warnings: components["schemas"]["StoryIssue"][];
+            /** Words */
+            words: number;
+        };
+        /** StoryIssue */
+        StoryIssue: {
+            /** Line */
+            line: number | null;
+            /** Message */
+            message: string;
+        };
         /** Style */
         Style: {
             /**
@@ -1447,6 +1484,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PartModel"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    check_story_api_series__slug__parts__part__check_story_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                part: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoryCheck"];
                 };
             };
             /** @description Validation Error */

@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ArrowLeft, Check, CircleCheck, CircleX, Clock, ExternalLink, HardDrive, Instagram, Minus, Play, Plus, Save, Trash2, Upload, Youtube } from 'lucide-vue-next'
+import { ArrowLeft, Check, CircleAlert, CircleCheck, CircleX, Clock, ExternalLink, HardDrive, Instagram, Minus, Play, Plus, Save, Trash2, Upload, Youtube } from 'lucide-vue-next'
 import { animate, motion } from 'motion-v'
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { api, media, type Approval, type Platform } from '../api/client'
+import { api, media, type Approval, type Platform, type StoryCheck } from '../api/client'
 import EmptyState from '../components/EmptyState.vue'
 import ErrorCard from '../components/ErrorCard.vue'
 import StageChips from '../components/StageChips.vue'
@@ -64,6 +64,21 @@ async function rerun(stage: string) {
   }
   return run([`run --stage ${stage} --force`])
 }
+
+// ---- check story (story.md against the series: no voice or timing needed) ----
+const story = ref<StoryCheck | null>(null)
+const checking = ref(false)
+async function checkStory() {
+  checking.value = true
+  try {
+    const r = await act(() => api.checkStory(props.slug, props.part), 'Story checked')
+    if (r) story.value = r
+  } finally {
+    checking.value = false
+  }
+}
+watch(() => props.part, () => { story.value = null })
+const at = (line: number | null) => (line ? `line ${line}` : 'story')
 
 // ---- voice ----
 const uploading = ref(false)
@@ -213,7 +228,10 @@ watch(data, async (v, old) => {
         <span class="num text-3xl text-muted">{{ String(p.number).padStart(2, '0') }}</span>
         <h2 class="font-display text-3xl font-semibold">{{ p.title }}</h2>
         <span v-if="busy" class="chip chip-blue"><span class="pulse size-1.5 rounded-full bg-current" />{{ busy }}</span>
-        <div class="relative ml-auto">
+        <button class="btn btn-secondary ml-auto" :disabled="checking" @click="checkStory">
+          <CircleCheck :size="16" aria-hidden="true" /> {{ checking ? 'Checking…' : 'Check story' }}
+        </button>
+        <div class="relative">
           <button class="btn btn-primary" :aria-expanded="planOpen" @click="planOpen = !planOpen">
             <Play :size="16" aria-hidden="true" /> Run next
           </button>
@@ -234,6 +252,25 @@ watch(data, async (v, old) => {
             </div>
           </div>
         </div>
+      </div>
+      <div v-if="story" class="inset mt-4 p-4 text-sm" role="status" aria-label="Story check">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="chip" :class="story.ok ? 'chip-green' : 'chip-red'">
+            {{ story.ok ? 'story ready' : `${story.problems.length} problem${story.problems.length === 1 ? '' : 's'}` }}
+          </span>
+          <span class="text-muted">{{ story.words }} words · about {{ story.seconds }} s spoken</span>
+          <button class="btn btn-secondary ml-auto" @click="story = null">Close</button>
+        </div>
+        <ul v-if="story.problems.length || story.warnings.length" class="mt-3 space-y-1.5">
+          <li v-for="(x, i) in story.problems" :key="`p${i}`" class="flex items-start gap-2">
+            <CircleX :size="16" class="mt-0.5 shrink-0 text-red-ink" aria-label="problem" />
+            <span><span class="num font-semibold">{{ at(x.line) }}</span> {{ x.message }}</span>
+          </li>
+          <li v-for="(x, i) in story.warnings" :key="`w${i}`" class="flex items-start gap-2">
+            <CircleAlert :size="16" class="mt-0.5 shrink-0 text-amber-ink" aria-label="warning" />
+            <span><span class="num font-semibold">{{ at(x.line) }}</span> {{ x.message }}</span>
+          </li>
+        </ul>
       </div>
       <StageChips class="mt-4" :stages="stages" :errors="errors" menu :disabled="busy" @rerun="rerun" />
       <div class="mt-3 flex flex-wrap items-center gap-2 text-sm">

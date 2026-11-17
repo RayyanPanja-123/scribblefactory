@@ -441,3 +441,12 @@ def test_startup_stops_orphan_render_workers(client, lib):
         assert not (pdir / "frames" / ".render.lock").exists()
     finally:
         render_stage.kill_tree(worker)
+
+
+def test_check_story(client, lib):
+    (lib / "demo" / "part-01" / "story.md").write_text("# Pilot\n\n@set moon\nBob waved.\n", encoding="utf-8")
+    r = client.get(f"{P}/check-story").json()
+    assert r["ok"] is False and r["words"] == 2
+    assert [(p["line"], p["message"].split(" (")[0]) for p in r["problems"]] == [
+        (3, "unknown set 'moon'"), (4, "cast bob is not approved yet")]
+    assert client.get("/api/series/demo/parts/part-09/check-story").status_code == 404

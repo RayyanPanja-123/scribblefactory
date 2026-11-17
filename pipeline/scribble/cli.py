@@ -16,7 +16,7 @@ from pathlib import Path
 
 from pydantic import TypeAdapter, ValidationError
 
-from . import sheet
+from . import sheet, storycheck
 from .io import atomic_write_json, load_part, load_series, prop_kinds, save_part, save_series, unknown_cast_props
 from .schemas import CastMember, Expression, PartId, PartModel, Post, SeriesModel, Slug, Stages, StoryModel, Style, Voice, utcnow
 from .stages import STAGES
@@ -255,6 +255,13 @@ def gate(pdir: Path, needs: tuple[str, ...]) -> None:
         raise UserError(str(e))
 
 
+def cmd_check_story(args) -> int:
+    pdir = part_dir(args)
+    result = storycheck.check_story(pdir)
+    print(storycheck.report(result))
+    return 0 if result["ok"] else 1
+
+
 def cmd_render(args) -> int:
     pdir = part_dir(args)
     gate(pdir, ("stills", "test_render"))
@@ -458,6 +465,13 @@ def build_parser() -> Parser:
     c.add_argument("--stage", required=True, choices=list(STAGES))
     c.add_argument("--force", action="store_true", help="re-run even if up to date")
     c.set_defaults(func=cmd_run)
+
+    c = sub.add_parser("check-story", parents=[common],
+                       help="check story.md (directives, cast, sets, actions, props, approvals, changed words) "
+                            "without voice or timing; exit 0 ready, 1 problems")
+    c.add_argument("slug")
+    c.add_argument("part")
+    c.set_defaults(func=cmd_check_story)
 
     c = sub.add_parser("render", parents=[common], help="full render in parallel chunks (resumable) -> preview.mp4")
     c.add_argument("slug")
