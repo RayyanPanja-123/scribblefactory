@@ -389,6 +389,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/series/{slug}/cast": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Cast
+         * @description append cast members to a series; never replaces one (an id already in the series is a 409)
+         */
+        post: operations["add_cast_api_series__slug__cast_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/series/{slug}/parts": {
         parameters: {
             query?: never;
@@ -1240,6 +1260,13 @@ export interface components {
             month: string;
             /** Youtube */
             youtube: number;
+        };
+        /** NewCast */
+        NewCast: {
+            /** Cast */
+            cast: {
+                [key: string]: unknown;
+            }[];
         };
         /** NewPart */
         NewPart: {
@@ -2598,6 +2625,41 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["CastApproval"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesModel"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_cast_api_series__slug__cast_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewCast"];
             };
         };
         responses: {

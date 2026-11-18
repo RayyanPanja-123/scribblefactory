@@ -69,6 +69,7 @@ export const api = {
   saveUpload: (slug: string, p: string, text: string) => call<PartDetail>('PUT', `${part(slug, p)}/upload.md`, { text }),
   saveStory: (slug: string, p: string, text: string) => call<PartDetail>('PUT', `${part(slug, p)}/story.md`, { text }),
   createSeries: (body: S['NewSeries']) => call<SeriesModel>('POST', '/api/series', body),
+  addCast: (slug: string, cast: Record<string, unknown>[]) => call<SeriesModel>('POST', `/api/series/${e(slug)}/cast`, { cast }),
   createPart: (slug: string, body: S['NewPart']) => call<PartDetail>('POST', `/api/series/${e(slug)}/parts`, body),
   uploadVoice: (slug: string, p: string, file: File, replace = false) =>
     call<PartDetail>('PUT', `${part(slug, p)}/voice.mp3${replace ? '?replace=true' : ''}`, file),
@@ -95,7 +96,6 @@ export const api = {
   settings: () => call<AiSettings>('GET', '/api/settings'),
   saveSettings: (body: S['AiSettingsIn']) => call<AiSettings>('PUT', '/api/settings', body),
   aiComplete: (prompt: string) => call<S['AiReply']>('POST', '/api/ai/complete', { prompt }),
-  storyWriter: (prompt: string) => call<S['AiReply']>('POST', '/api/ai/story-writer', { prompt }),
   geminiModels: (api_key?: string | null) => call<S['GeminiModels']>('POST', '/api/ai/gemini-models', { api_key }),
   gateway: () => call<S['Gateway']>('GET', '/api/gateway'),
   setGateway: (on: boolean) => call<S['Gateway']>('PUT', '/api/gateway', { on }),

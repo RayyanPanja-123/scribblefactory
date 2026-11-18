@@ -20,7 +20,7 @@ type Tab = { to: string; name: string; icon: typeof Layers; match: (n: string) =
 const groups: { title: string; tabs: Tab[] }[] = [
   { title: 'Studio', tabs: [
     { to: '/', name: 'Overview', icon: LayoutDashboard, match: (n) => n === 'overview' },
-    { to: '/story-writer', name: 'Story Writer', icon: WandSparkles, match: (n) => n === 'story-writer' },
+    { to: '/ai-creations', name: 'AI Creations', icon: WandSparkles, match: (n) => n === 'ai-creations' },
     { to: '/series', name: 'Series', icon: Layers, match: (n) => n.startsWith('series') || n === 'part' || n === 'new-series' || n === 'new-part' },
     { to: '/review', name: 'Review', icon: ClipboardCheck, match: (n) => n === 'review' },
   ] },

@@ -153,6 +153,17 @@ def test_approve_cast(client, lib):
     assert r.json()["cast"][0]["approved_at"]
 
 
+def test_add_cast(client, lib):
+    r = client.post("/api/series/demo/cast", json={"cast": [{"id": "ann", "name": "Ann", "color": "#00ff00"}]})
+    assert r.status_code == 200 and [c["id"] for c in r.json()["cast"]] == ["bob", "ann"]
+    r = client.post("/api/series/demo/cast", json={"cast": [{"id": "bob", "name": "Other Bob", "color": "#0000ff"}]})
+    assert r.status_code == 409 and "unique: bob" in r.json()["detail"]
+    assert client.get("/api/series/demo").json()["series"]["cast"][0]["name"] == "Bob"  # never overwritten
+    bad = {"cast": [{"id": "cy", "name": "Cy", "color": "green"}]}
+    assert client.post("/api/series/demo/cast", json=bad).status_code == 409
+    assert client.post("/api/series/nope/cast", json={"cast": []}).status_code == 404
+
+
 def test_pick_thumbnail(client, lib):
     assert client.post(f"{P}/pick-thumbnail", json={"n": 3}).json()["thumbnail_choice"] == "thumbs/thumb-3.png"
     (lib / "demo" / "part-01" / "thumbs" / "thumb-2.png").unlink()

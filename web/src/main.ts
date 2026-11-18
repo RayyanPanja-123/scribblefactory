@@ -12,7 +12,8 @@ const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/', name: 'overview', component: () => import('./pages/Overview.vue') },
-    { path: '/story-writer', name: 'story-writer', component: () => import('./pages/StoryWriter.vue') },
+    { path: '/ai-creations', name: 'ai-creations', component: () => import('./pages/AiCreations.vue') },
+    { path: '/story-writer', redirect: { path: '/ai-creations', query: { type: 'series' } } },
     { path: '/series', name: 'series', component: () => import('./pages/SeriesList.vue') },
     { path: '/new-series', name: 'new-series', component: () => import('./pages/NewSeries.vue') },
     { path: '/series/:slug/new-part', name: 'new-part', component: () => import('./pages/NewPart.vue'), props: true },

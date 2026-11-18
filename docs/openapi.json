@@ -1480,6 +1480,23 @@
         "title": "MonthPosts",
         "type": "object"
       },
+      "NewCast": {
+        "properties": {
+          "cast": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Cast",
+            "type": "array"
+          }
+        },
+        "required": [
+          "cast"
+        ],
+        "title": "NewCast",
+        "type": "object"
+      },
       "NewPart": {
         "properties": {
           "story": {
@@ -3835,6 +3852,56 @@
           }
         },
         "summary": "Approve Cast"
+      }
+    },
+    "/api/series/{slug}/cast": {
+      "post": {
+        "description": "append cast members to a series; never replaces one (an id already in the series is a 409)",
+        "operationId": "add_cast_api_series__slug__cast_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewCast"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesModel"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Cast"
       }
     },
     "/api/series/{slug}/parts": {

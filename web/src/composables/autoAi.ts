@@ -8,14 +8,14 @@ const settings = ref<AiSettings | null>(null)
 export function useAutoAi() {
   api.settings().then((s) => (settings.value = s), () => {}) // no settings = the manual flow
   const busy = ref(false)
+  const provider = computed(() => ({ gemini: 'Gemini', openrouter: 'OpenRouter', omniroute: 'OmniRoute' })[settings.value?.provider ?? 'omniroute'])
   const secs = ref(0) // a full prompt takes OmniRoute a minute or more: count up so it doesn't look stuck
   /** the AI's reply text, or undefined after toasting the error */
   async function generate(prompt: string): Promise<string | undefined> {
     busy.value = true
     secs.value = 0
     const tick = setInterval(() => secs.value++, 1000)
-    const provider = settings.value?.provider === 'gemini' ? 'Gemini' : settings.value?.provider === 'openrouter' ? 'OpenRouter' : 'OmniRoute'
-    toast(`Sent to ${provider}: replies can take a minute or two`, 'info')
+    toast(`Sent to ${provider.value}: replies can take a minute or two`, 'info')
     try {
       return (await api.aiComplete(prompt)).text
     } catch (e) {
@@ -26,5 +26,5 @@ export function useAutoAi() {
     }
   }
   const label = computed(() => (busy.value ? `Generating… ${secs.value}s` : 'Generate'))
-  return { auto: computed(() => !!settings.value?.has_key), busy, generate, label }
+  return { auto: computed(() => !!settings.value?.has_key), busy, generate, label, provider }
 }

@@ -1,14 +1,12 @@
 <script setup lang="ts">
-import { ArrowDown, ArrowLeft, ArrowUp, ClipboardPaste, Copy, Plus, Sparkles, Trash2 } from 'lucide-vue-next'
+import { ArrowDown, ArrowLeft, ArrowUp, Plus, Sparkles, Trash2 } from 'lucide-vue-next'
 import { computed, reactive, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { api } from '../api/client'
 import ErrorCard from '../components/ErrorCard.vue'
 import PropPreview from '../components/PropPreview.vue'
 import { act, confirm, toast } from '../composables/feedback'
 import { useApi } from '../composables/useApi'
-import { useAutoAi } from '../composables/autoAi'
-import { buildPrompt, importProp } from '../lib/propPrompt'
 import { HANDS, type CustomProp, type Hand, type PropShape } from '../lib/props'
 
 // Create (/props/new) or edit one custom prop: a list of shapes in hand space, previewed live in a stickman's hand
@@ -80,55 +78,6 @@ async function remove() {
   const ok = await confirm({ title: `Delete “${form.name}”?`, body: 'Only possible while nobody holds it and no story uses it in @do.', confirm: 'Delete prop', danger: true })
   if (ok && (await act(() => api.deleteProp(props.id), 'Prop deleted'))) router.push('/props')
 }
-// ---- build with AI: a prompt to paste into any AI chat, then its JSON reply loads into the editor ----
-const aiOpen = ref(useRoute().hash === '#ai')
-const aiWhat = ref('')
-const aiDetails = ref('')
-// the id the AI must use: this one's own, or one typed in the id field (e.g. the id a story already uses)
-const aiId = computed(() => (!isNew.value || form.idEdited ? form.id : '') || slugify(aiWhat.value))
-const aiPrompt = ref('')
-const aiReply = ref('')
-const aiError = ref('')
-const promptBox = ref<HTMLTextAreaElement>()
-function makePrompt() {
-  const c = data.value
-  aiPrompt.value = buildPrompt(aiWhat.value, [...(c?.builtin ?? []), ...(c?.custom ?? []).map((p) => p.id)].filter((x) => x !== props.id), aiDetails.value, aiId.value)
-}
-async function copyPrompt() {
-  try {
-    await navigator.clipboard.writeText(aiPrompt.value)
-    toast('Prompt copied: paste it into your AI', 'ok')
-  } catch {
-    promptBox.value?.select() // no clipboard access (plain http): select it for Ctrl+C
-    toast('Could not copy: the prompt is selected, press Ctrl+C', 'error')
-  }
-}
-async function pasteReply() {
-  try {
-    aiReply.value = await navigator.clipboard.readText()
-  } catch {
-    document.getElementById('ai-reply')?.focus() // no clipboard read access: paste with Ctrl+V
-    toast('Could not read the clipboard: press Ctrl+V in the box', 'error')
-  }
-}
-function loadReply() {
-  const { prop, error: err } = importProp(aiReply.value)
-  aiError.value = err ?? ''
-  if (!prop) return
-  Object.assign(form, { name: prop.name, rows: prop.shapes.map(toRow) })
-  if (isNew.value) Object.assign(form, { id: prop.id, idEdited: true })
-  aiReply.value = ''
-  toast(`Loaded ${prop.shapes.length} shapes: check the preview, then ${isNew.value ? 'create' : 'save'} the prop`, 'ok')
-}
-// with an API key in Settings: prompt -> AI -> reply -> editor in one click; the reply stays in step 3 if it doesn't load
-const { auto, busy, generate, label } = useAutoAi()
-async function generateReply() {
-  makePrompt()
-  const text = await generate(aiPrompt.value)
-  if (text === undefined) return
-  aiReply.value = text
-  loadReply()
-}
 const field = 'inset mt-1 block h-10 w-full rounded-md px-4 text-sm text-ink outline-none focus:border-blue'
 </script>
 
@@ -142,78 +91,10 @@ const field = 'inset mt-1 block h-10 w-full rounded-md px-4 text-sm text-ink out
       <div class="min-w-0 space-y-5">
         <div class="flex flex-wrap items-center gap-3">
           <h2 class="font-display text-3xl font-semibold">{{ isNew ? 'New prop' : form.name || id }}</h2>
-          <button type="button" class="btn btn-secondary ml-auto" :aria-expanded="aiOpen" aria-controls="ai-build" @click="aiOpen = !aiOpen">
+          <RouterLink :to="{ path: '/ai-creations', query: { type: 'prop', name: form.name || undefined, id: form.id || undefined } }" class="btn btn-secondary ml-auto">
             <Sparkles :size="16" aria-hidden="true" /> Build with AI
-          </button>
+          </RouterLink>
         </div>
-
-        <section v-if="aiOpen" id="ai-build" class="inset rounded-md p-4" aria-label="Build with AI">
-          <p class="pb-4 text-xs text-muted">Three steps. The result loads into this editor, so you check the preview before saving.</p>
-          <ol class="divide-y divide-rule">
-            <!-- 1: what to build -->
-            <li class="flex gap-3 pb-5">
-              <span class="step-no" aria-hidden="true">1</span>
-              <div class="min-w-0 flex-1 space-y-2">
-                <h3 class="font-semibold">Say what to build</h3>
-                <label class="block text-sm font-semibold" for="ai-what">Name
-                  <input id="ai-what" v-model="aiWhat" placeholder="Gun, umbrella, trophy, newspaper…" maxlength="40" :class="field"
-                    @keydown.enter.prevent="aiWhat.trim() && (auto ? generateReply() : makePrompt())" />
-                </label>
-                <p v-if="aiId" class="text-xs text-muted">Saved as <code>{{ aiId }}</code>. A story needs a different id? Set it in the id field below first.</p>
-                <label class="block text-sm font-semibold" for="ai-details">Details <span class="font-normal text-muted">(optional)</span>
-                  <textarea id="ai-details" v-model="aiDetails" rows="3" placeholder="Shape, colours, which end is held…"
-                    class="inset mt-1 block w-full rounded-md px-4 py-2 text-sm text-ink outline-none focus:border-blue" />
-                </label>
-                <div class="flex flex-wrap items-center gap-2">
-                  <template v-if="auto">
-                    <button type="button" class="btn btn-primary" :disabled="!aiWhat.trim() || busy" :aria-busy="busy" @click="generateReply">
-                      <Sparkles :size="16" aria-hidden="true" /> {{ label }}</button>
-                    <button type="button" class="btn btn-secondary" :disabled="!aiWhat.trim() || busy" @click="makePrompt">Prompt only</button>
-                  </template>
-                  <template v-else>
-                    <button type="button" class="btn btn-primary" :disabled="!aiWhat.trim()" @click="makePrompt">Prompt for AI</button>
-                    <RouterLink to="/settings" class="text-xs text-muted underline">Add an API key in Settings to skip copy/paste</RouterLink>
-                  </template>
-                </div>
-              </div>
-            </li>
-            <!-- 2: the prompt, read-only: goes OUT to the AI -->
-            <li class="flex gap-3 py-5" :class="!aiPrompt && 'opacity-50'">
-              <span class="step-no" aria-hidden="true">2</span>
-              <div class="min-w-0 flex-1 space-y-2">
-                <div class="flex flex-wrap items-center gap-2">
-                  <h3 class="font-semibold">Copy the prompt into your AI</h3>
-                  <button type="button" class="btn btn-secondary ml-auto" :disabled="!aiPrompt" @click="copyPrompt"><Copy :size="16" aria-hidden="true" /> Copy prompt</button>
-                </div>
-                <p class="text-xs text-muted">ChatGPT, Claude, Gemini, a CLI… any of them. Don't edit this: it's read-only.</p>
-                <template v-if="aiPrompt">
-                  <label class="sr-only" for="ai-prompt">Prompt for AI (read-only)</label>
-                  <textarea id="ai-prompt" ref="promptBox" :value="aiPrompt" readonly rows="6" spellcheck="false"
-                    class="block w-full resize-y rounded-md border border-rule bg-well p-4 font-mono text-xs leading-5 text-muted outline-none focus:border-blue" />
-                </template>
-              </div>
-            </li>
-            <!-- 3: the AI's reply: comes IN from the AI -->
-            <li class="flex gap-3 pt-5">
-              <span class="step-no" aria-hidden="true">3</span>
-              <div class="min-w-0 flex-1 space-y-2">
-                <div class="flex flex-wrap items-center gap-2">
-                  <h3 class="font-semibold"><label for="ai-reply">Paste the AI's JSON reply here</label></h3>
-                  <button type="button" class="btn btn-secondary ml-auto" @click="pasteReply"><ClipboardPaste :size="16" aria-hidden="true" /> Paste</button>
-                </div>
-                <p class="text-xs text-muted">The JSON block, or its whole message: the JSON is picked out of it.</p>
-                <textarea id="ai-reply" v-model="aiReply" rows="6" spellcheck="false"
-                  placeholder='Paste here, e.g.&#10;```json&#10;{"id": "gun", "name": "Gun", "shapes": [...]}&#10;```'
-                  class="paper block w-full resize-y rounded-md border-2 border-dashed p-4 font-mono text-xs leading-5 text-ink outline-none focus:border-blue focus:border-solid"
-                  :class="aiError ? 'border-red-ink' : 'border-blue-ink/60'" :aria-invalid="!!aiError" />
-                <p v-if="aiError" class="text-sm text-red-ink" role="alert">{{ aiError }}</p>
-                <div class="flex justify-end">
-                  <button type="button" class="btn btn-primary" :disabled="!aiReply.trim()" @click="loadReply">Load into editor</button>
-                </div>
-              </div>
-            </li>
-          </ol>
-        </section>
         <div class="grid gap-4 sm:grid-cols-2">
           <label class="block text-xs font-semibold text-muted">Name
             <input v-model="form.name" required maxlength="40" placeholder="Torch" :class="field" />

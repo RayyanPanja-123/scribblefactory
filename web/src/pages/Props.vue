@@ -42,7 +42,7 @@ async function remove(o: { id: string; name: string }) {
     <div class="flex flex-wrap items-baseline gap-3">
       <h2 class="font-display text-2xl font-semibold">Props</h2>
       <span class="text-sm text-muted">{{ options.length }} things a cast member can hold, one per hand · {{ custom.length }} custom</span>
-      <RouterLink to="/props/new#ai" class="btn btn-secondary ml-auto"><Sparkles :size="16" aria-hidden="true" /> Build with AI</RouterLink>
+      <RouterLink to="/ai-creations?type=prop" class="btn btn-secondary ml-auto"><Sparkles :size="16" aria-hidden="true" /> Build with AI</RouterLink>
       <RouterLink to="/props/new" class="btn btn-primary"><Plus :size="16" aria-hidden="true" /> New prop</RouterLink>
     </div>
     <p class="text-sm text-muted">

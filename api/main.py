@@ -563,6 +563,30 @@ def create_series(body: NewSeries):
     return series_json(d)
 
 
+class NewCast(BaseModel):
+    cast: list[dict]  # same entries as NewSeries.cast
+
+
+@app.post("/api/series/{slug}/cast", response_model=SeriesModel)
+def add_cast(slug: str, body: NewCast):
+    """append cast members to a series; never replaces one (an id already in the series is a 409)"""
+    d = series_path(slug)
+    check_free(slug)
+    new = [cast_member(i, c) for i, c in enumerate(body.cast)]
+    series = load_series(d / "series.json")
+    ids = [c.id for c in series.cast + new]
+    if dupes := sorted({i for i in ids if ids.count(i) > 1}):
+        raise HTTPException(409, f"cast ids must be unique: {', '.join(dupes)}")
+    if unknown := unknown_cast_props(new, lib()):
+        raise HTTPException(409, f"unknown prop {unknown[0]} (props: {', '.join(prop_kinds(lib()))})")
+    if problems := cast_body_problems(new, lib()):
+        raise HTTPException(409, f"cast body: {problems[0]}")
+    series.cast = series.cast + new
+    save_series(d / "series.json", series)
+    publish("series-changed", {"slug": slug})
+    return series_json(d)
+
+
 # ---------------- props (library/props.json, shared by every series) ----------------
 
 class PropCatalog(BaseModel):

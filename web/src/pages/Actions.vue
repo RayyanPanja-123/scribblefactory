@@ -28,7 +28,7 @@ async function remove(a: { id: string; name: string }) {
     <div class="flex flex-wrap items-baseline gap-3">
       <h2 class="font-display text-2xl font-semibold">Actions</h2>
       <span class="text-sm text-muted">{{ data.do.length }} built in · {{ custom.length }} custom</span>
-      <RouterLink to="/actions/new#ai" class="btn btn-secondary ml-auto"><Sparkles :size="16" aria-hidden="true" /> Build with AI</RouterLink>
+      <RouterLink to="/ai-creations?type=action" class="btn btn-secondary ml-auto"><Sparkles :size="16" aria-hidden="true" /> Build with AI</RouterLink>
       <RouterLink to="/actions/new" class="btn btn-primary"><Plus :size="16" aria-hidden="true" /> New action</RouterLink>
     </div>
     <p class="text-sm text-muted">

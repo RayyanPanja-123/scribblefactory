@@ -41,7 +41,7 @@ async function remove(o: { id: string; name: string }) {
     <div class="flex flex-wrap items-baseline gap-3">
       <h2 class="font-display text-2xl font-semibold">Creatures</h2>
       <span class="text-sm text-muted">{{ creatures.length }} bodies for cast members · {{ custom }} custom</span>
-      <RouterLink to="/creatures/new#ai" class="btn btn-secondary ml-auto"><Sparkles :size="16" aria-hidden="true" /> Build with AI</RouterLink>
+      <RouterLink to="/ai-creations?type=creature" class="btn btn-secondary ml-auto"><Sparkles :size="16" aria-hidden="true" /> Build with AI</RouterLink>
       <RouterLink to="/creatures/new" class="btn btn-primary"><Plus :size="16" aria-hidden="true" /> New creature</RouterLink>
     </div>
     <p class="text-sm text-muted">

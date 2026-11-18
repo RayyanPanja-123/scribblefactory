@@ -50,8 +50,7 @@ OpenRouter. API keys stay on the server; the UI only shows their last four chara
 
 | Feature | With a provider | Without one |
 |---|---|---|
-| Build with AI (Props, Sets, Creatures, Actions) | One click generates the item into the editor | "Prompt for AI" gives a prompt to copy into any chat AI and paste the reply back, or fill the editor by hand |
-| Story Writer (Gemini or OpenRouter only) | Plans a multi-part series, creates the props, sets, creatures and actions it needs, then the series and parts | "Copy story guide" on the Overview for any chat AI, or write each part's story yourself |
+| AI Creations (props, sets, creatures, actions, cast, series; each editor's "Build with AI" opens it) | "Generate" sends the brief to the configured provider (OmniRoute, Gemini or OpenRouter); for a series it plans the parts, creates the missing assets, then the series and parts | "Use any chat AI": copy the prompt into any chat AI and paste the reply back. Either way you review every item before import, and an id that already exists gets a suffix instead of being overwritten |
 
 Voice (FreeTTS) and uploading stay manual either way.
 
