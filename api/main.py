@@ -1216,6 +1216,20 @@ class GatewayIn(BaseModel):
     on: bool
 
 
+class OmniRouteModel(BaseModel):
+    id: str
+    owned_by: str | None = None
+    is_free: bool | None = None
+    context_window: int | None = None
+    max_input_tokens: int | None = None
+    max_output_tokens: int | None = None
+
+
+class OmniRouteModels(BaseModel):
+    models: list[OmniRouteModel]
+    checked_at: datetime
+
+
 def gateway_port() -> int | None:
     """Port of the gateway in Settings when it's on this machine (the only kind we can start); None otherwise."""
     from urllib.parse import urlsplit
@@ -1300,6 +1314,42 @@ def put_gateway(body: GatewayIn):
     return Gateway(running=False)
 
 
+@app.get("/api/ai/omniroute-models", response_model=OmniRouteModels)
+def omniroute_models():
+    """Discover models exposed by the configured OmniRoute gateway."""
+    import urllib.error
+    import urllib.request
+    s = load_settings()
+    if s["provider"] != "omniroute":
+        raise HTTPException(409, "OmniRoute is not the active AI provider")
+    if not s["api_key"]:
+        raise HTTPException(400, "no OmniRoute API key: add one in Settings")
+    url = f"{s['base_url'].rstrip('/')}/models"
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {s['api_key']}"})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            payload = json.loads(r.read())
+        models = []
+        for item in payload.get("data", []):
+            if not isinstance(item, dict) or not item.get("id"):
+                continue
+            models.append(OmniRouteModel(
+                id=str(item["id"]),
+                owned_by=item.get("owned_by"),
+                is_free=item.get("is_free", item.get("isFree")),
+                context_window=item.get("context_window", item.get("contextWindow")),
+                max_input_tokens=item.get("max_input_tokens", item.get("maxInputTokens")),
+                max_output_tokens=item.get("max_output_tokens", item.get("maxOutputTokens")),
+            ))
+        return OmniRouteModels(models=sorted(models, key=lambda m: m.id.lower()), checked_at=datetime.now().astimezone())
+    except urllib.error.HTTPError as e:
+        raise HTTPException(502, f"OmniRoute said {e.code}: {e.read().decode(errors='replace')[:500]}")
+    except (urllib.error.URLError, TimeoutError, OSError) as e:
+        raise HTTPException(502, f"OmniRoute not reachable: {getattr(e, 'reason', e)}")
+    except (ValueError, KeyError, TypeError):
+        raise HTTPException(502, "OmniRoute returned an unexpected model list")
+
+
 @app.post("/api/ai/complete", response_model=AiReply)
 def ai_complete(body: AiPrompt):
     """One completion through the selected provider. Keys stay server-side."""
@@ -1320,6 +1370,9 @@ def ai_complete(body: AiPrompt):
     else:
         url = f"{s['base_url']}/chat/completions"
         payload = {"model": s["model"], "messages": [{"role": "user", "content": body.prompt}]}
+        if s["provider"] == "openrouter":
+            # OpenRouter may reject its 16k default when a free key has only a smaller remaining limit.
+            payload["max_tokens"] = 4000
         headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
     req = urllib.request.Request(url, data=json.dumps(payload).encode(), headers=headers)
     try:

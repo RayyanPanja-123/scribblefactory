@@ -79,6 +79,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/ai/omniroute-models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Omniroute Models
+         * @description Discover models exposed by the configured OmniRoute gateway.
+         */
+        get: operations["omniroute_models_api_ai_omniroute_models_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/ai/story-writer": {
         parameters: {
             query?: never;
@@ -1242,6 +1262,31 @@ export interface components {
             /** Title */
             title: string;
         };
+        /** OmniRouteModel */
+        OmniRouteModel: {
+            /** Context Window */
+            context_window?: number | null;
+            /** Id */
+            id: string;
+            /** Is Free */
+            is_free?: boolean | null;
+            /** Max Input Tokens */
+            max_input_tokens?: number | null;
+            /** Max Output Tokens */
+            max_output_tokens?: number | null;
+            /** Owned By */
+            owned_by?: string | null;
+        };
+        /** OmniRouteModels */
+        OmniRouteModels: {
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            /** Models */
+            models: components["schemas"]["OmniRouteModel"][];
+        };
         /** Overview */
         Overview: {
             /** Disk Usage */
@@ -1935,6 +1980,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    omniroute_models_api_ai_omniroute_models_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OmniRouteModels"];
                 };
             };
         };

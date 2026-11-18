@@ -1535,6 +1535,96 @@
         "title": "NewSeries",
         "type": "object"
       },
+      "OmniRouteModel": {
+        "properties": {
+          "context_window": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context Window"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "is_free": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Free"
+          },
+          "max_input_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Input Tokens"
+          },
+          "max_output_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Output Tokens"
+          },
+          "owned_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owned By"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "OmniRouteModel",
+        "type": "object"
+      },
+      "OmniRouteModels": {
+        "properties": {
+          "checked_at": {
+            "format": "date-time",
+            "title": "Checked At",
+            "type": "string"
+          },
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/OmniRouteModel"
+            },
+            "title": "Models",
+            "type": "array"
+          }
+        },
+        "required": [
+          "models",
+          "checked_at"
+        ],
+        "title": "OmniRouteModels",
+        "type": "object"
+      },
       "Overview": {
         "properties": {
           "disk_usage": {
@@ -2998,6 +3088,25 @@
           }
         },
         "summary": "Gemini Models"
+      }
+    },
+    "/api/ai/omniroute-models": {
+      "get": {
+        "description": "Discover models exposed by the configured OmniRoute gateway.",
+        "operationId": "omniroute_models_api_ai_omniroute_models_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OmniRouteModels"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Omniroute Models"
       }
     },
     "/api/ai/story-writer": {

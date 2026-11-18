@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue'
-import { api } from '../api/client'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { BadgeCheck, CircleDollarSign } from 'lucide-vue-next'
+import { api, type OmniRouteModels } from '../api/client'
 import ErrorCard from '../components/ErrorCard.vue'
 import { act } from '../composables/feedback'
 import { useApi } from '../composables/useApi'
@@ -13,6 +14,41 @@ watch(data, (s) => { if (s?.gemini_model && !geminiModels.value.length) geminiMo
 
 const saving = ref(false)
 const testingGemini = ref(false)
+const omniModels = ref<OmniRouteModels | null>(null)
+const omniModelsError = ref('')
+const loadingOmniModels = ref(false)
+const omniPriceFilter = ref<'all' | 'free' | 'paid'>('all')
+let omniWatch: ReturnType<typeof setInterval> | undefined
+async function refreshOmniModels(showError = true) {
+  if (form.provider !== 'omniroute') return
+  loadingOmniModels.value = true
+  if (showError) omniModelsError.value = ''
+  try {
+    omniModels.value = await api.omnirouteModels()
+  } catch (e) {
+    if (showError) omniModelsError.value = e instanceof Error ? e.message : String(e)
+  } finally {
+    loadingOmniModels.value = false
+  }
+}
+watch(() => form.provider, (provider) => {
+  if (provider === 'omniroute') refreshOmniModels(false)
+})
+function useOmniModel(model: string) {
+  form.omniroute_model = model
+}
+const modelPricing = (model: OmniRouteModels['models'][number]) => model.is_free === true ? 'Free' : 'Paid / varies'
+const filteredOmniModels = computed(() => {
+  const models = omniModels.value?.models ?? []
+  if (omniPriceFilter.value === 'free') return models.filter((model) => model.is_free === true)
+  if (omniPriceFilter.value === 'paid') return models.filter((model) => model.is_free !== true)
+  return models
+})
+onMounted(() => {
+  refreshOmniModels(false)
+  omniWatch = setInterval(() => refreshOmniModels(false), 30000)
+})
+onUnmounted(() => { if (omniWatch) clearInterval(omniWatch) })
 async function loadGeminiModels() {
   testingGemini.value = true
   const r = await act(() => api.geminiModels(form.gemini_api_key.trim() || null), 'Gemini models loaded')
@@ -80,6 +116,22 @@ const block = 'inset my-1.5 overflow-x-auto rounded-md px-3 py-2 font-mono text-
             <div class="flex flex-wrap gap-2"><button type="submit" class="btn btn-primary" :disabled="saving">Save OmniRoute</button><button v-if="data?.has_omniroute_key" type="button" class="btn btn-secondary" :disabled="saving" @click="save('')">Remove key</button></div>
           </form>
           <div class="mt-8 max-w-2xl text-sm"><h4 class="border-b border-rule pb-2 font-semibold">OmniRoute setup</h4><ol class="mt-4 list-decimal space-y-2 pl-5 text-muted"><li>Install and start it:<pre :class="block">npm install -g omniroute</pre><pre :class="block">omniroute</pre></li><li>Open <a class="underline" href="http://localhost:20128" target="_blank" rel="noopener">localhost:20128</a> and create an API key from the Endpoints page.</li><li>Connect a provider in OmniRoute, then paste its endpoint key above.</li></ol></div>
+          <div class="mt-8 max-w-2xl">
+            <div class="flex items-center gap-3 border-b border-rule pb-2"><h4 class="font-semibold">Available models</h4><span v-if="omniModels" class="text-xs text-muted">{{ omniModels.models.length }} found · checked {{ new Date(omniModels.checked_at).toLocaleTimeString() }}</span><button type="button" class="btn btn-secondary ml-auto px-3 py-1 text-xs" :disabled="loadingOmniModels" @click="refreshOmniModels()">{{ loadingOmniModels ? 'Checking…' : 'Refresh' }}</button></div>
+            <div v-if="omniModels" class="mt-3 flex flex-wrap gap-1 rounded-md border border-rule bg-well p-1" role="group" aria-label="Filter models by pricing"><button v-for="filter in [{ id: 'all', label: 'All' }, { id: 'free', label: 'Free' }, { id: 'paid', label: 'Paid / varies' }]" :key="filter.id" type="button" class="rounded px-3 py-1.5 text-xs font-semibold transition-colors" :class="omniPriceFilter === filter.id ? 'bg-panel text-ink shadow-[var(--shadow-sheet)]' : 'text-muted hover:text-ink'" @click="omniPriceFilter = filter.id as 'all' | 'free' | 'paid'">{{ filter.label }}</button></div>
+            <p v-if="omniModelsError" class="mt-3 text-sm text-red-ink">{{ omniModelsError }}</p>
+            <p v-else-if="!omniModels && loadingOmniModels" class="mt-3 text-sm text-muted">Checking the OmniRoute gateway…</p>
+            <p v-else-if="omniModels && !omniModels.models.length" class="mt-3 text-sm text-muted">No models are exposed by this OmniRoute key. Connect a provider in the OmniRoute dashboard.</p>
+            <p v-else-if="omniModels && !filteredOmniModels.length" class="mt-3 text-sm text-muted">No models match this pricing filter.</p>
+            <div v-else-if="omniModels" class="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <article v-for="model in filteredOmniModels" :key="model.id" class="inset flex min-h-36 flex-col justify-between gap-4 p-4">
+                <div class="min-w-0"><div class="flex items-start gap-2"><component :is="model.is_free === true ? BadgeCheck : CircleDollarSign" :size="17" class="mt-0.5 shrink-0" :class="model.is_free === true ? 'text-green-ink' : 'text-amber-ink'" aria-hidden="true" /><code class="break-all text-sm font-semibold">{{ model.id }}</code></div><p v-if="model.owned_by" class="mt-2 truncate text-xs text-muted">{{ model.owned_by }}</p></div>
+                <div class="flex items-center justify-between gap-2"><span class="text-xs font-semibold" :class="model.is_free === true ? 'text-green-ink' : 'text-amber-ink'"><component :is="model.is_free === true ? BadgeCheck : CircleDollarSign" :size="13" class="mr-1 inline" aria-hidden="true" />{{ modelPricing(model) }}</span><span v-if="model.context_window" class="text-xs text-muted">{{ model.context_window.toLocaleString() }} context</span></div>
+                <button type="button" class="btn btn-secondary w-full px-2 py-1.5 text-xs" @click="useOmniModel(model.id)">{{ form.omniroute_model === model.id ? 'Selected model' : 'Use this model' }}</button>
+              </article>
+            </div>
+            <p class="mt-2 text-xs text-muted">This list watches the models available through the configured key. Provider quotas and account connections remain managed in <a class="underline" href="http://localhost:20128" target="_blank" rel="noopener">OmniRoute</a>.</p>
+          </div>
         </section>
 
         <section v-else-if="active === 'gemini'" id="gemini">
