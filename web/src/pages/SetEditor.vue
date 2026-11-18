@@ -111,7 +111,7 @@ function loadReply() {
   toast(`Loaded ${set.pieces?.length ?? 0} pieces: check the preview, then ${isNew.value ? 'create' : 'save'} the set`, 'ok')
 }
 // with an API key in Settings: prompt -> AI -> reply -> editor in one click; the reply stays in step 3 if it doesn't load
-const { auto, busy, generate } = useAutoAi()
+const { auto, busy, generate, label } = useAutoAi()
 async function generateReply() {
   makePrompt()
   const text = await generate(aiPrompt.value)
@@ -157,7 +157,7 @@ const num = 'inset mt-1 block h-10 w-full rounded-md px-3 text-sm text-ink outli
                 <div class="flex flex-wrap items-center gap-2">
                   <template v-if="auto">
                     <button type="button" class="btn btn-primary" :disabled="!aiWhat.trim() || busy" :aria-busy="busy" @click="generateReply">
-                      <Sparkles :size="16" aria-hidden="true" /> {{ busy ? 'Generating…' : 'Generate' }}</button>
+                      <Sparkles :size="16" aria-hidden="true" /> {{ label }}</button>
                     <button type="button" class="btn btn-secondary" :disabled="!aiWhat.trim() || busy" @click="makePrompt">Prompt only</button>
                   </template>
                   <template v-else>
