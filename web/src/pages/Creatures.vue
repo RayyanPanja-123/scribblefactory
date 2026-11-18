@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { PawPrint, Plus, Sparkles, Trash2 } from 'lucide-vue-next'
+import { PawPrint, Plus, Sparkles } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { api } from '../api/client'
 import CreaturePreview from '../components/CreaturePreview.vue'
 import ErrorCard from '../components/ErrorCard.vue'
+import LibraryCard from '../components/LibraryCard.vue'
+import LibrarySection from '../components/LibrarySection.vue'
 import { act, confirm } from '../composables/feedback'
 import { refetchOn } from '../composables/live'
 import { useApi } from '../composables/useApi'
-import { RIG_NOTES, allCreatures, isBuiltinCreature } from '../lib/creatures'
+import { RIG_LIST, RIG_NOTES, allCreatures, isBuiltinCreature } from '../lib/creatures'
 
 // Every body a cast member can have (default human): the engine's built-ins and the library's custom creatures, shared
 // by every series, with who uses each.
@@ -20,12 +22,14 @@ refetchOn(() => null, () => null, refresh)
 const creatures = computed(() => allCreatures(data.value?.catalog))
 const custom = computed(() => data.value?.catalog.custom.length ?? 0)
 const users = computed(() => {
-  const by: Record<string, { slug: string; title: string; name: string; color: string; headless: boolean }[]> = {}
+  const by: Record<string, { slug: string; name: string; color: string; detail?: string }[]> = {}
   for (const d of data.value?.series ?? [])
     for (const c of d.series.cast)
-      (by[c.body] ??= []).push({ slug: d.series.slug, title: d.series.title, name: c.name, color: c.top.color, headless: c.headless || Object.values(c.looks ?? {}).some((l) => l.headless) })
+      (by[c.body] ??= []).push({ slug: d.series.slug, name: c.name, color: c.top.color,
+        detail: c.headless || Object.values(c.looks ?? {}).some((l) => l.headless) ? 'headless' : undefined })
   return by
 })
+const byRig = computed(() => RIG_LIST.map((rig) => ({ rig, items: creatures.value.filter((c) => c.rig === rig) })))
 
 // the server refuses (409, naming them) while a cast member has it as its body
 async function remove(o: { id: string; name: string }) {
@@ -51,45 +55,14 @@ async function remove(o: { id: string; name: string }) {
       and a mouth only; <code>"headless": true</code> swaps its head for a stump, and bipeds have hands. Changing a
       creature clears the cast approval of everyone using it.
     </p>
-    <!-- the creatures sheet: one ruled row per body -->
-    <div class="raised overflow-x-auto">
-      <table class="w-full min-w-[680px] border-collapse text-sm">
-        <thead>
-          <tr class="border-b-2 border-rule-strong">
-            <th scope="col" class="colhead w-44 px-4 py-2.5 text-left">Drawing</th>
-            <th scope="col" class="colhead border-l border-rule px-4 py-2.5 text-left">Creature</th>
-            <th scope="col" class="colhead border-l border-rule px-4 py-2.5 text-left">Cast</th>
-            <th scope="col" class="colhead w-48 border-l border-rule px-4 py-2.5 text-left"><span class="sr-only">Actions</span></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="c in creatures" :key="c.id" class="border-b border-rule align-top last:border-b-0">
-            <td class="px-4 py-3"><CreaturePreview :creature="c" :color="users[c.id]?.[0]?.color" :label="`${c.name}, standing`" class="h-24 w-36" /></td>
-            <th scope="row" class="border-l border-rule px-4 py-3 text-left font-normal">
-              <p class="font-display text-lg font-semibold">{{ c.name }}</p>
-              <p class="text-xs text-muted">{{ isBuiltinCreature(c.id) ? 'built in' : 'custom' }} · <code>{{ c.id }}</code> · {{ c.rig }}</p>
-              <p class="mt-1 max-w-sm text-xs text-muted">{{ RIG_NOTES[c.rig] }}</p>
-            </th>
-            <td class="border-l border-rule px-4 py-3">
-              <ul v-if="users[c.id]?.length" class="space-y-1">
-                <li v-for="u in users[c.id]" :key="`${u.slug}/${u.name}`">
-                  <RouterLink :to="`/series/${u.slug}`" class="font-semibold hover:underline">{{ u.name }}</RouterLink>
-                  <span class="text-muted"> · {{ u.title }}<template v-if="u.headless"> · headless</template></span>
-                </li>
-              </ul>
-              <p v-else class="flex items-center gap-1.5 text-muted"><PawPrint :size="14" aria-hidden="true" /> no cast member yet</p>
-            </td>
-            <td class="border-l border-rule px-4 py-3">
-              <div class="flex flex-wrap gap-2">
-                <RouterLink :to="isBuiltinCreature(c.id) ? `/creatures/new?from=${c.id}` : `/creatures/${c.id}`" class="btn btn-secondary">
-                  {{ isBuiltinCreature(c.id) ? 'Copy' : 'Edit' }}
-                </RouterLink>
-                <button v-if="!isBuiltinCreature(c.id) && !users[c.id]?.length" type="button" class="btn btn-secondary text-red-ink" :aria-label="`Delete ${c.name}`" @click="remove(c)"><Trash2 :size="16" aria-hidden="true" /> Delete</button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    <LibrarySection v-for="g in byRig" :id="g.rig" :key="g.rig" :title="g.rig[0].toUpperCase() + g.rig.slice(1)" :count="g.items.length" :note="RIG_NOTES[g.rig]"
+      :empty="`No ${g.rig} bodies yet.`">
+      <LibraryCard v-for="c in g.items" :key="c.id" :name="c.name" :code="c.id" :tag="isBuiltinCreature(c.id) ? 'built in' : 'custom'"
+        :users="users[c.id] ?? []" unused="no cast member yet" :icon="PawPrint"
+        :edit-to="isBuiltinCreature(c.id) ? `/creatures/new?from=${c.id}` : `/creatures/${c.id}`" :edit-label="isBuiltinCreature(c.id) ? 'Copy' : 'Edit'"
+        :deletable="!isBuiltinCreature(c.id) && !users[c.id]?.length" @delete="remove(c)">
+        <template #preview><CreaturePreview :creature="c" :color="users[c.id]?.[0]?.color" :label="`${c.name}, standing`" class="h-full w-full" /></template>
+      </LibraryCard>
+    </LibrarySection>
   </div>
 </template>

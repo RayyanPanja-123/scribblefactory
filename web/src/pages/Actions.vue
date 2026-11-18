@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { PersonStanding, Plus, Sparkles, Trash2 } from 'lucide-vue-next'
+import { Plus, Sparkles } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { api } from '../api/client'
 import ActionPreview from '../components/ActionPreview.vue'
 import ErrorCard from '../components/ErrorCard.vue'
+import LibraryCard from '../components/LibraryCard.vue'
+import LibrarySection from '../components/LibrarySection.vue'
+import WardrobePreview from '../components/WardrobePreview.vue'
 import { act, confirm } from '../composables/feedback'
 import { refetchOn } from '../composables/live'
 import { useApi } from '../composables/useApi'
@@ -13,6 +16,7 @@ import { useApi } from '../composables/useApi'
 const { data, error, loading, reload, refresh } = useApi(() => api.actions())
 refetchOn(() => null, () => null, refresh)
 const custom = computed(() => data.value?.custom ?? [])
+const title = (id: string) => id[0].toUpperCase() + id.slice(1).replaceAll('_', ' ')
 
 // the server refuses (409, naming the parts) while a story's @do uses it
 async function remove(a: { id: string; name: string }) {
@@ -36,38 +40,16 @@ async function remove(a: { id: string; name: string }) {
       <RouterLink to="/help#do" class="underline">Help</RouterLink>). Custom actions are in-place moves made of keyframes:
       humanoids (every human) play them; other creatures stand idle through them.
     </p>
-    <section class="raised p-4" aria-labelledby="builtin-h">
-      <h3 id="builtin-h" class="colhead">Built in</h3>
-      <p class="mt-2 flex flex-wrap gap-1.5">
-        <code v-for="a in data.do" :key="a" class="chip">{{ a }}</code>
-      </p>
-    </section>
-    <div v-if="custom.length" class="raised overflow-x-auto">
-      <table class="w-full min-w-[560px] border-collapse text-sm">
-        <thead>
-          <tr class="border-b-2 border-rule-strong">
-            <th scope="col" class="colhead w-32 px-4 py-2.5 text-left">Preview</th>
-            <th scope="col" class="colhead border-l border-rule px-4 py-2.5 text-left">Action</th>
-            <th scope="col" class="colhead w-48 border-l border-rule px-4 py-2.5 text-left"><span class="sr-only">Edit or delete</span></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="a in custom" :key="a.id" class="border-b border-rule align-top last:border-b-0">
-            <td class="px-4 py-3"><ActionPreview :action="a" :label="`Stickman playing ${a.name}`" class="h-32 w-24" /></td>
-            <th scope="row" class="border-l border-rule px-4 py-3 text-left font-normal">
-              <p class="font-display text-lg font-semibold">{{ a.name }}</p>
-              <p class="text-xs text-muted"><code>@do &lt;cast&gt;: {{ a.id }}</code> · {{ a.duration }} s · {{ a.loop ? 'loops' : 'plays once' }} · {{ a.keys.length }} keys</p>
-            </th>
-            <td class="border-l border-rule px-4 py-3">
-              <div class="flex flex-wrap gap-2">
-                <RouterLink :to="`/actions/${a.id}`" class="btn btn-secondary">Edit</RouterLink>
-                <button type="button" class="btn btn-secondary text-red-ink" :aria-label="`Delete ${a.name}`" @click="remove(a)"><Trash2 :size="16" aria-hidden="true" /> Delete</button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-    <p v-else class="raised flex items-center gap-2 p-6 text-muted"><PersonStanding :size="18" aria-hidden="true" /> No custom actions yet: make a salute, a bow or a dance with New action.</p>
+    <LibrarySection id="builtin" title="Built in" :count="data.do.length">
+      <LibraryCard v-for="a in data.do" :key="a" :name="title(a)" :code="`@do <cast>: ${a}`" tag="built in" readonly="engine code: read only">
+        <template #preview><WardrobePreview :pose="a" :label="`Stickman: ${a}`" class="h-full w-full" /></template>
+      </LibraryCard>
+    </LibrarySection>
+    <LibrarySection id="custom" title="Custom" :count="custom.length" empty="No custom actions yet: make a salute, a bow or a dance with New action.">
+      <LibraryCard v-for="a in custom" :key="a.id" :name="a.name" :code="`@do <cast>: ${a.id}`" tag="custom"
+        :note="`${a.duration} s · ${a.loop ? 'loops' : 'plays once'} · ${a.keys.length} keys`" :edit-to="`/actions/${a.id}`" deletable @delete="remove(a)">
+        <template #preview><ActionPreview :action="a" :label="`Stickman playing ${a.name}`" class="h-full w-full" /></template>
+      </LibraryCard>
+    </LibrarySection>
   </div>
 </template>

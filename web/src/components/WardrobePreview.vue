@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// A humanoid wearing one wardrobe item, drawn by the render engine's own code (engine/page/stickman.js), so the preview
+// A humanoid wearing one wardrobe item (or nothing: a pose preview), drawn by the render engine's own code (engine/page/stickman.js), so the preview
 // is what renders: any build, pose, expression and facing. Cropped to the figure. A drawing error shows under it.
 import { onMounted, ref, watch } from 'vue'
 // @ts-expect-error plain JS module from the engine, no types
@@ -9,7 +9,7 @@ import { setLibrary } from '../../../engine/page/library.js'
 import { LIST_SLOTS, PREVIEW_POSES, type Build, type Slot, type WardrobeItem } from '../lib/wardrobe'
 
 const p = defineProps<{
-  id: string; slot: Slot; custom: WardrobeItem[]; color?: string; build?: Build | null; pose?: string;
+  id?: string; slot?: Slot; custom?: WardrobeItem[]; color?: string; build?: Build | null; pose?: string;
   expression?: string; facing?: 'camera' | 'left' | 'right'; label: string
 }>()
 const cv = ref<HTMLCanvasElement>()
@@ -23,15 +23,15 @@ function draw() {
   g.clearRect(0, 0, out.width, out.height)
   const card = Object.assign(document.createElement('canvas'), { width: CW, height: 1024 })
   const color = p.color ?? '#6b4f3a', body = p.slot === 'top' ? color : '#c9c2b4'
-  const worn = p.slot === 'top' ? { top: { style: p.id, color } }
+  const worn = !p.id || !p.slot ? {} : p.slot === 'top' ? { top: { style: p.id, color } }
     : LIST_SLOTS.includes(p.slot) ? { [p.slot]: [{ id: p.id, color }] } : { [p.slot]: { id: p.id, color } }
   const pose = p.pose ?? 'idle'
   try {
-    setLibrary({ wardrobe: p.custom })
+    if (p.custom) setLibrary({ wardrobe: p.custom })
     drawStickman(card, {
       seed: 'preview:wardrobe', boil: 0, t: 0.3, action: pose, phase: 0, lid: 0, mouth: 0, breath: 0,
       facing: p.facing ?? 'camera', eyes: 'dots', expression: p.expression ?? 'neutral', props: [], color: body,
-      top: { style: 'plain', color: body }, build: p.build ?? undefined, ...PREVIEW_POSES[pose], ...worn,
+      top: { style: 'plain', color: body }, build: p.build ?? undefined, ...(PREVIEW_POSES[pose] ?? {}), ...worn,
     })
     error.value = ''
   } catch (e) {

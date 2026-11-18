@@ -44,6 +44,9 @@ export const PREVIEW_POSES: Record<string, Record<string, unknown>> = {
   wave: { wave: { k: 1, swing: 0.4 } }, react: {}, cheer: { mood: { k: 1, bounce: 0, shake: 0 } },
   angry: { mood: { k: 1, bounce: 0, shake: 0.5 } }, gasp: { mood: { k: 1, bounce: 0, shake: 0 } },
   stagger: { phase: 0.3, stagger: { sway: 0.6, buckle: 0.3 } }, collapse: { buckle: 0.6 },
+  eat: { eat: { k: 1, side: 1 }, props: [{ kind: 'apple', hand: 'right' }] },
+  give: { reach: { side: 1, k: 1 }, props: [{ kind: 'medal', hand: 'right' }] },
+  carry: { reach: { side: 1, k: 1 }, phase: 0.3 }, support: { reach: { side: 1, k: 1 }, phase: 0.3 },
 }
 
 export const SHAPES = ['rect', 'circle', 'ellipse', 'line', 'poly'] as const

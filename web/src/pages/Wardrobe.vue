@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { Plus, Shirt, Trash2 } from 'lucide-vue-next'
+import { Plus, Shirt } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { api } from '../api/client'
 import ErrorCard from '../components/ErrorCard.vue'
+import LibraryCard from '../components/LibraryCard.vue'
+import LibrarySection from '../components/LibrarySection.vue'
 import WardrobePreview from '../components/WardrobePreview.vue'
 import { act, confirm } from '../composables/feedback'
 import { refetchOn } from '../composables/live'
@@ -45,28 +47,12 @@ async function remove(o: { id: string; name: string }) {
       <code>null</code> for none. A look (<code>@look</code>) can swap any of them; <code>"none"</code> takes one off.
       Items scale with every build and move with every pose. Changing an item clears the cast approval of everyone wearing it.
     </p>
-    <section v-for="g in bySlot" :key="g.slot" class="raised p-4" :aria-labelledby="`slot-${g.slot}`">
-      <h3 :id="`slot-${g.slot}`" class="font-display text-lg font-semibold">{{ SLOT_LABEL[g.slot] }}
-        <span class="text-sm font-normal text-muted">· {{ g.items.length || 'nothing yet' }}</span></h3>
-      <ul class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <li v-for="o in g.items" :key="o.id" class="inset flex gap-3 rounded-md p-3">
-          <WardrobePreview :id="o.id" :slot="o.slot" :custom="custom" :color="colorOf(o.id)" :label="`Stickman wearing ${o.name}`" class="h-32 w-20 shrink-0" />
-          <div class="min-w-0 flex-1 space-y-1">
-            <p class="font-semibold">{{ o.name }}</p>
-            <p class="text-xs text-muted"><code>{{ o.id }}</code> · {{ o.builtin ? 'built in' : 'custom' }}</p>
-            <p v-if="worn[o.id]?.length" class="text-xs">
-              worn by <template v-for="(w, i) in worn[o.id]" :key="`${w.slug}/${w.name}`"><template v-if="i">, </template>
-                <RouterLink :to="`/series/${w.slug}`" class="font-semibold hover:underline">{{ w.name }}</RouterLink></template>
-            </p>
-            <p v-else class="flex items-center gap-1 text-xs text-muted"><Shirt :size="12" aria-hidden="true" /> nobody wears it</p>
-            <div v-if="!o.builtin" class="flex flex-wrap gap-2 pt-1">
-              <RouterLink :to="`/wardrobe/${o.id}`" class="btn btn-secondary">Edit</RouterLink>
-              <button v-if="!worn[o.id]?.length" type="button" class="btn btn-secondary text-red-ink" :aria-label="`Delete ${o.name}`" @click="remove(o)"><Trash2 :size="16" aria-hidden="true" /></button>
-            </div>
-            <p v-else class="text-xs text-muted">hand-drawn: read only</p>
-          </div>
-        </li>
-      </ul>
-    </section>
+    <LibrarySection v-for="g in bySlot" :id="g.slot" :key="g.slot" :title="SLOT_LABEL[g.slot]" :count="g.items.length">
+      <LibraryCard v-for="o in g.items" :key="o.id" :name="o.name" :code="o.id" :tag="o.builtin ? 'built in' : 'custom'"
+        :users="worn[o.id]" used-by="worn by" unused="nobody wears it" :icon="Shirt" :edit-to="o.builtin ? undefined : `/wardrobe/${o.id}`"
+        :deletable="!o.builtin && !worn[o.id]?.length" readonly="hand-drawn: read only" @delete="remove(o)">
+        <template #preview><WardrobePreview :id="o.id" :slot="o.slot" :custom="custom" :color="colorOf(o.id)" :label="`Stickman wearing ${o.name}`" class="h-full w-full" /></template>
+      </LibraryCard>
+    </LibrarySection>
   </div>
 </template>

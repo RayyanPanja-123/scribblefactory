@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { Backpack, Plus, Sparkles, Trash2 } from 'lucide-vue-next'
+import { Backpack, Plus, Sparkles } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { api } from '../api/client'
 import ErrorCard from '../components/ErrorCard.vue'
-import { act, confirm } from '../composables/feedback'
+import LibraryCard from '../components/LibraryCard.vue'
+import LibrarySection from '../components/LibrarySection.vue'
 import PropPreview from '../components/PropPreview.vue'
+import { act, confirm } from '../composables/feedback'
 import { refetchOn } from '../composables/live'
 import { useApi } from '../composables/useApi'
 import { builtinNote, propOptions, type BuiltinProp } from '../lib/props'
@@ -19,12 +21,16 @@ refetchOn(() => null, () => null, refresh)
 
 const custom = computed(() => data.value?.catalog.custom ?? [])
 const options = computed(() => propOptions(data.value?.catalog))
-const isBuiltin = (id: string) => (data.value?.catalog.builtin as string[] | undefined)?.includes(id)
+const isBuiltin = (id: string) => (data.value?.catalog.builtin as string[] | undefined)?.includes(id) ?? false
+const groups = computed(() => [
+  { id: 'builtin', title: 'Built in', items: options.value.filter((o) => isBuiltin(o.id)).map((o) => ({ ...o, name: o.name[0].toUpperCase() + o.name.slice(1) })) },
+  { id: 'custom', title: 'Custom', items: options.value.filter((o) => !isBuiltin(o.id)) },
+])
 const holders = computed(() => {
-  const by: Record<string, { slug: string; title: string; name: string; hand: string }[]> = {}
+  const by: Record<string, { slug: string; name: string; detail: string }[]> = {}
   for (const d of data.value?.series ?? [])
     for (const c of d.series.cast)
-      for (const p of c.props) (by[p.kind] ??= []).push({ slug: d.series.slug, title: d.series.title, name: c.name, hand: p.hand })
+      for (const p of c.props) (by[p.kind] ??= []).push({ slug: d.series.slug, name: c.name, detail: `${p.hand} hand` })
   return by
 })
 
@@ -51,46 +57,14 @@ async function remove(o: { id: string; name: string }) {
       them too: <code>@do fred: eat apple</code>, <code>@do fred: give flag sam</code>. Changing a prop’s drawing clears
       the cast approval of everyone holding it.
     </p>
-    <!-- the props sheet: one ruled row per prop -->
-    <div class="raised overflow-x-auto">
-      <table class="w-full min-w-[640px] border-collapse text-sm">
-        <thead>
-          <tr class="border-b-2 border-rule-strong">
-            <th scope="col" class="colhead w-28 px-4 py-2.5 text-left">Drawing</th>
-            <th scope="col" class="colhead border-l border-rule px-4 py-2.5 text-left">Prop</th>
-            <th scope="col" class="colhead border-l border-rule px-4 py-2.5 text-left">Held by</th>
-            <th scope="col" class="colhead w-48 border-l border-rule px-4 py-2.5 text-left"><span class="sr-only">Actions</span></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="o in options" :key="o.id" class="border-b border-rule align-top last:border-b-0">
-            <td class="px-4 py-3"><PropPreview :kind="o.id" :custom="custom" :label="`Stickman holding ${o.name}`" class="h-28 w-20" /></td>
-            <th scope="row" class="border-l border-rule px-4 py-3 text-left font-normal">
-              <p class="font-display text-lg font-semibold">{{ o.name }}</p>
-              <p class="text-xs text-muted">
-                <template v-if="isBuiltin(o.id)">built in · {{ builtinNote(o.id as BuiltinProp) }}</template>
-                <template v-else>custom · <code>{{ o.id }}</code></template>
-              </p>
-            </th>
-            <td class="border-l border-rule px-4 py-3">
-              <ul v-if="holders[o.id]?.length" class="space-y-1">
-                <li v-for="h in holders[o.id]" :key="`${h.slug}/${h.name}/${h.hand}`">
-                  <RouterLink :to="`/series/${h.slug}`" class="font-semibold hover:underline">{{ h.name }}</RouterLink>
-                  <span class="text-muted"> · {{ h.title }} · {{ h.hand }} hand</span>
-                </li>
-              </ul>
-              <p v-else class="flex items-center gap-1.5 text-muted"><Backpack :size="14" aria-hidden="true" /> nobody holds one yet</p>
-            </td>
-            <td class="border-l border-rule px-4 py-3">
-              <div v-if="!isBuiltin(o.id)" class="flex flex-wrap gap-2">
-                <RouterLink :to="`/props/${o.id}`" class="btn btn-secondary">Edit</RouterLink>
-                <button v-if="!holders[o.id]?.length" type="button" class="btn btn-secondary text-red-ink" :aria-label="`Delete ${o.name}`" @click="remove(o)"><Trash2 :size="16" aria-hidden="true" /> Delete</button>
-              </div>
-              <span v-else class="text-xs text-muted">built in: read only</span>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    <LibrarySection v-for="g in groups" :id="g.id" :key="g.id" :title="g.title" :count="g.items.length"
+      empty="No custom props yet: draw one with New prop, or Build with AI.">
+      <LibraryCard v-for="o in g.items" :key="o.id" :name="o.name" :code="o.id" :tag="isBuiltin(o.id) ? 'built in' : 'custom'"
+        :note="isBuiltin(o.id) ? builtinNote(o.id as BuiltinProp) : undefined" :users="holders[o.id] ?? []" used-by="held by"
+        unused="nobody holds one yet" :icon="Backpack" :edit-to="isBuiltin(o.id) ? undefined : `/props/${o.id}`"
+        :deletable="!isBuiltin(o.id) && !holders[o.id]?.length" readonly="hand-drawn: read only" @delete="remove(o)">
+        <template #preview><PropPreview :kind="o.id" :custom="custom" :label="`Stickman holding ${o.name}`" class="h-full w-full" /></template>
+      </LibraryCard>
+    </LibrarySection>
   </div>
 </template>
