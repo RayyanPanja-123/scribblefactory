@@ -1,6 +1,7 @@
 # Writing stories for scribblefactory: a guide for AI assistants
 
-Share this whole file with an AI (paste it, or attach it), fill in **Your series** at the end, and ask for a part.
+Share this whole file with an AI (paste it, or attach it), fill in **Your series** at the end, and ask for a story.
+The AI writes **part 1 only**, then waits until you ask for part 2 (and so on).
 Every rule below is what the software actually enforces; a story that follows it renders without edits.
 
 ---
@@ -23,12 +24,49 @@ that already exist, by their **id**.
 
 ## 2. What to return
 
-- First, only if the story uses a set or prop that does not exist yet: one fenced `text` block listing them, each
-  with its id and name (see section 6).
-- Then one fenced `md` code block containing only the complete `story.md`.
-- After the blocks, three short lines: word count, estimated length in seconds (words / 2.6, plus 1 for the end
-  card), and the cast ids used.
-- Nothing else inside the blocks: no explanations, no comments.
+Write **one part per answer**: part 1 first. Stop after it and wait. Write part 2 only when the user asks for it
+("part 2", "next part"), then part 3 the same way. Never write ahead or sketch later parts unasked.
+
+Every answer has these parts, in this order:
+
+1. **Series title**: one line, `**Series title:** <title>` (the same in every part).
+2. **Short description**: two or three plain sentences: what the story is about and what this part covers,
+   without giving away its twist.
+3. **New sets and props**: only if this part uses a set or prop that does not exist yet: one fenced `text`
+   block listing them, each with its id and name (section 6). Leave it out otherwise.
+4. **The script**: one fenced `md` code block containing only the complete `story.md`: the `# Part title`
+   line, every `@` directive and the narration (section 3).
+5. **Audio script (TTS)**: one fenced `text` code block with only what the voice reads: the narration lines of
+   the script, in order, one per line, with every `@` line, the `# title` line and the `!!` markers left out.
+   Word for word the same as the script's narration: nothing added, removed or reworded (the voice is matched
+   to the script word by word, so any difference breaks the captions and shots).
+6. Three short lines: word count, estimated length in seconds (words / 2.6, plus 1 for the end card), and the
+   cast ids used.
+
+Nothing else inside the blocks: no explanations, no comments. For example:
+
+````text
+**Series title:** The Chicken That Would Not Die
+
+A farm rooster survives the axe and keeps living without a head. Part 1: the night it happens and the trip
+to the university that cannot explain it.
+
+```md
+# The Chicken That Would Not Die
+
+@set countryside
+@cast lloyd, clara, mike
+A chicken lived eighteen months without a head.
+...
+```
+
+```text
+A chicken lived eighteen months without a head.
+...
+```
+
+Words: 128 · about 50 seconds · cast: lloyd, clara, mike, scientist
+````
 
 ## 3. File format
 
@@ -315,6 +353,9 @@ at an exact moment).
 5. Each `@cast` has at most 12 ids, at most 6 of them named in that scene; `@car ride` at most 3.
 6. No digits, symbols or markdown formatting in narration.
 7. 110 to 140 words; short lines, no filler transitions.
+8. The answer has the series title, the short description, the script and the audio script (section 2), and
+   the audio script is the script's narration word for word, without `@` lines, the title or `!!`.
+9. Only the part that was asked for (part 1 unless the user asked for a later one).
 
 ### Pre-publish checklist
 
@@ -401,7 +442,7 @@ A woman danced in the street for six days straight.
 ## Your series (fill this in before asking)
 
 - **Series title:**
-- **Part number and what happens in it:**
+- **What the story is about** (the AI writes part 1 first; ask for part 2 when you want it):
 - **Cast** (`id: Name`, one per line; only these ids may be used; for an animal add its creature and rig, and
   list any named looks, e.g. `mike: Mike (chicken, bird; looks: headless)`):
   - `id: Name`
