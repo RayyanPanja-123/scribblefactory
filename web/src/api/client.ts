@@ -62,6 +62,7 @@ export const api = {
   markPosted: (slug: string, p: string, body: { platform: Platform; url: string; date?: string; force?: boolean }) =>
     call<PartModel>('POST', `${part(slug, p)}/mark-posted`, body),
   saveUpload: (slug: string, p: string, text: string) => call<PartDetail>('PUT', `${part(slug, p)}/upload.md`, { text }),
+  saveStory: (slug: string, p: string, text: string) => call<PartDetail>('PUT', `${part(slug, p)}/story.md`, { text }),
   createSeries: (body: S['NewSeries']) => call<SeriesModel>('POST', '/api/series', body),
   createPart: (slug: string, body: S['NewPart']) => call<PartDetail>('POST', `/api/series/${e(slug)}/parts`, body),
   uploadVoice: (slug: string, p: string, file: File, replace = false) =>

@@ -30,18 +30,21 @@ const EXAMPLES: CustomProp[] = [
 const compact = (p: CustomProp) =>
   `{"id": "${p.id}", "name": "${p.name}", "shapes": [\n${p.shapes.map((s) => `  ${JSON.stringify(s)}`).join(',\n')}\n]}`
 
-/** the prompt for "what": paste it into any AI chat; taken = prop ids already in use */
-export function buildPrompt(what: string, taken: string[]): string {
-  const thing = what.trim() || 'a prop'
-  const id = slugify(thing) || 'prop'
-  return `You are drawing a prop for a hand-drawn stick-figure cartoon renderer. Design: **${thing}**.
+/** the prompt for a prop called "name": paste it into any AI chat; taken = prop ids already in use; details = what it
+ *  should look like (optional); id = the id the story already uses (default: from the name) */
+export function buildPrompt(name: string, taken: string[], details = '', id = ''): string {
+  const thing = name.trim() || 'a prop'
+  id = slugify(id || thing) || 'prop'
+  const title = name.trim() ? JSON.stringify(name.trim().slice(0, 40)) : '"<display name, max 40 chars>"'
+  const brief = details.trim() ? `\n\nWhat it should look like: ${details.trim()}` : ''
+  return `You are drawing a prop for a hand-drawn stick-figure cartoon renderer. Design: **${thing}**.${brief}
 
 Reply with ONE JSON object in a \`\`\`json code block and nothing else.
 
 ## Format
-{"id": "${id}", "name": "<display name, max 40 chars>", "shapes": [ <shape>, ... ]}
+{"id": "${id}", "name": ${title}, "shapes": [ <shape>, ... ]}
 
-- id: lowercase a-z, 0-9 and single dashes (e.g. "${id}"). Must NOT be one of: ${taken.join(', ')}.
+- id and name: use exactly the ones above (the id is lowercase a-z, 0-9 and single dashes). Must NOT be one of: ${taken.join(', ')}.
 - shapes: 3 to 15 shapes (max 40), drawn in order, later ones on top.
 
 Each shape is one of:

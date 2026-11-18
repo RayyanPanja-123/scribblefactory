@@ -323,11 +323,15 @@ function drawShot(shot, n) {
   const travelHidden = scrollSet(group, shift, !!shot.travel);
   const hidden = shot.travel ? travelHidden : hiddenFor(shot, subject, span, group);
   for (const [id, pc] of group.userData.pieces) for (const m of pc.meshes) m.visible = !hidden.has(id);
-  const camAt = (uu) => shotCamera(shot, subject ? placeAt2(subject, uu)[0] : 0, span, uu,
+  // a give / receive is framed on the pair's midpoint, so neither the giver nor the receiver is cut off
+  const pair = subject && (subject.action === "give" || subject.action === "receive")
+    ? shot.actors.find((b) => b.cast_id === subject.target) : null;
+  const focusX = (pl) => (pair ? (pl(subject)[0] + pl(pair)[0]) / 2 : pl(subject)[0]);
+  const camAt = (uu) => shotCamera(shot, subject ? focusX((a) => placeAt2(a, uu)) : 0, span, uu,
     subject ? LIE.drop * lying(subject, shot.start_frame + uu * (shot.end_frame - shot.start_frame - 1), shot) : 0);
   const placeAt2 = (a, uu) => seated.get(a.cast_id) || heldPlace(a, shot.actors, placeAt, uu) || placeAt(a, uu);
   const extraShift = extrasFor(shot, camAt, placeAt2);
-  shotCamera(shot, subject ? place(subject)[0] : 0, span, u, subject ? LIE.drop * lying(subject, kf, shot) : 0);
+  shotCamera(shot, subject ? focusX(place) : 0, span, u, subject ? LIE.drop * lying(subject, kf, shot) : 0);
   const gestures = [], riders = new Map(); // riders: cast id -> drawStickman options, drawn inside the car card
   const ownMove = (a) => (a.end_pos ? Math.hypot(a.end_pos[0] - a.start_pos[0], a.end_pos[1] - a.start_pos[1]) : 0);
   for (const a of shot.actors) {

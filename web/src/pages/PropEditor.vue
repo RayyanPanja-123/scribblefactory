@@ -76,19 +76,22 @@ async function save() {
   if (isNew.value) router.replace(`/props/${body.id}`)
 }
 async function remove() {
-  const ok = await confirm({ title: `Delete “${form.name}”?`, body: 'Stories that still use it in @do will fail to plan until you change them.', confirm: 'Delete prop', danger: true })
+  const ok = await confirm({ title: `Delete “${form.name}”?`, body: 'Only possible while nobody holds it and no story uses it in @do.', confirm: 'Delete prop', danger: true })
   if (ok && (await act(() => api.deleteProp(props.id), 'Prop deleted'))) router.push('/props')
 }
 // ---- build with AI: a prompt to paste into any AI chat, then its JSON reply loads into the editor ----
 const aiOpen = ref(useRoute().hash === '#ai')
 const aiWhat = ref('')
+const aiDetails = ref('')
+// the id the AI must use: this one's own, or one typed in the id field (e.g. the id a story already uses)
+const aiId = computed(() => (!isNew.value || form.idEdited ? form.id : '') || slugify(aiWhat.value))
 const aiPrompt = ref('')
 const aiReply = ref('')
 const aiError = ref('')
 const promptBox = ref<HTMLTextAreaElement>()
 function makePrompt() {
   const c = data.value
-  aiPrompt.value = buildPrompt(aiWhat.value, [...(c?.builtin ?? []), ...(c?.custom ?? []).map((p) => p.id)].filter((x) => x !== props.id))
+  aiPrompt.value = buildPrompt(aiWhat.value, [...(c?.builtin ?? []), ...(c?.custom ?? []).map((p) => p.id)].filter((x) => x !== props.id), aiDetails.value, aiId.value)
 }
 async function copyPrompt() {
   try {
@@ -142,12 +145,16 @@ const field = 'inset mt-1 block h-11 w-full rounded-full px-4 text-sm text-ink o
               <span class="step-no" aria-hidden="true">1</span>
               <div class="min-w-0 flex-1 space-y-2">
                 <h3 class="font-semibold">Say what to build</h3>
-                <div class="flex flex-wrap items-end gap-2">
-                  <label class="sr-only" for="ai-what">What should the prop be?</label>
-                  <input id="ai-what" v-model="aiWhat" placeholder="Gun, umbrella, trophy, newspaper…" :class="[field, 'mt-0 min-w-48 flex-1']"
+                <label class="block text-sm font-semibold" for="ai-what">Name
+                  <input id="ai-what" v-model="aiWhat" placeholder="Gun, umbrella, trophy, newspaper…" maxlength="40" :class="field"
                     @keydown.enter.prevent="aiWhat.trim() && makePrompt()" />
-                  <button type="button" class="btn btn-primary" :disabled="!aiWhat.trim()" @click="makePrompt">Prompt for AI</button>
-                </div>
+                </label>
+                <p v-if="aiId" class="text-xs text-muted">Saved as <code>{{ aiId }}</code>. A story needs a different id? Set it in the id field below first.</p>
+                <label class="block text-sm font-semibold" for="ai-details">Details <span class="font-normal text-muted">(optional)</span>
+                  <textarea id="ai-details" v-model="aiDetails" rows="3" placeholder="Shape, colours, which end is held…"
+                    class="inset mt-1 block w-full rounded-md px-4 py-2 text-sm text-ink outline-none" />
+                </label>
+                <button type="button" class="btn btn-primary" :disabled="!aiWhat.trim()" @click="makePrompt">Prompt for AI</button>
               </div>
             </li>
             <!-- 2: the prompt, read-only: goes OUT to the AI -->

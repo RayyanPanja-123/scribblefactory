@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { Plus, Sparkles } from 'lucide-vue-next'
+import { Plus, Sparkles, Trash2 } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { api } from '../api/client'
 import Card from '../components/Card.vue'
 import ErrorCard from '../components/ErrorCard.vue'
+import { act, confirm } from '../composables/feedback'
 import { refetchOn } from '../composables/live'
 import { useApi } from '../composables/useApi'
 import { builtinNote } from '../lib/sets'
@@ -18,6 +19,12 @@ const all = computed(() => [
   ...(data.value?.builtin ?? []).map((b) => ({ id: b.id, name: b.id.replace('_', ' '), kind: b.kind, builtin: true })),
   ...custom.value.map((c) => ({ id: c.id, name: c.name, kind: c.kind, builtin: false })),
 ])
+
+// the server refuses (409, naming the stories) while any part's story.md still has @set <id>
+async function remove(s: { id: string; name: string }) {
+  const ok = await confirm({ title: `Delete “${s.name}”?`, body: 'Only possible while no story uses it: change their @set lines first.', confirm: 'Delete set', danger: true })
+  if (ok && (await act(() => api.deleteSet(s.id), 'Set deleted'))) refresh()
+}
 </script>
 
 <template>
@@ -44,7 +51,10 @@ const all = computed(() => [
           </div>
         </div>
         <span class="chip shrink-0" :class="s.kind === 'outdoor' ? 'chip-green' : 'chip-amber'">{{ s.kind }}</span>
-        <RouterLink v-if="!s.builtin" :to="`/sets/${s.id}`" class="btn btn-secondary shrink-0 px-3" :aria-label="`Edit ${s.name}`">Edit</RouterLink>
+        <template v-if="!s.builtin">
+          <RouterLink :to="`/sets/${s.id}`" class="btn btn-secondary shrink-0 px-3" :aria-label="`Edit ${s.name}`">Edit</RouterLink>
+          <button type="button" class="btn btn-secondary size-11 shrink-0 justify-center p-0 text-red-ink" :aria-label="`Delete ${s.name}`" @click="remove(s)"><Trash2 :size="16" aria-hidden="true" /></button>
+        </template>
         <span v-else class="shrink-0 text-xs text-muted">built in</span>
       </Card>
     </div>

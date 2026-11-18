@@ -321,6 +321,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/series/{slug}/parts/{part}/story.md": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Story Md
+         * @description replace story.md; the stages after it see the change on their next run (their inputs hash differently)
+         */
+        put: operations["put_story_md_api_series__slug__parts__part__story_md_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/series/{slug}/parts/{part}/upload.md": {
         parameters: {
             query?: never;
@@ -650,6 +670,8 @@ export interface components {
             qa: {
                 [key: string]: unknown;
             } | null;
+            /** Story Md */
+            story_md: string | null;
             /** Thumbs */
             thumbs: string[];
             /** Upload Md */
@@ -1812,6 +1834,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PartModel"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_story_md_api_series__slug__parts__part__story_md_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                part: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UploadText"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartDetail"];
                 };
             };
             /** @description Validation Error */

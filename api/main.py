@@ -240,6 +240,7 @@ class PartDetail(BaseModel):
     thumbs: list[str]
     qa: dict | None
     upload_md: str | None
+    story_md: str | None
     voice_duration: float | None
     frames_bytes: int
     part_bytes: int  # the whole part folder, frames included
@@ -321,11 +322,12 @@ def part_detail(slug: str, part: str):
         voice = probe_duration(pdir / "voice.mp3") if files["voice.mp3"] else None
     except StageError:
         voice = None
-    qa, upload = pdir / "qa.json", pdir / "upload.md"
+    qa, upload, story = pdir / "qa.json", pdir / "upload.md", pdir / "story.md"
     return {"part": part_json(pdir), "files": files,
             "thumbs": sorted(f.name for f in (pdir / "thumbs").glob("thumb-*.png")),
             "qa": json.loads(qa.read_bytes()) if qa.is_file() else None,
             "upload_md": upload.read_text(encoding="utf-8") if upload.is_file() else None,
+            "story_md": story.read_text(encoding="utf-8") if story.is_file() else None,
             "voice_duration": voice, "frames_bytes": du(pdir / "frames"), "part_bytes": du(pdir),
             "busy": busy(slug, part)}
 
@@ -604,6 +606,16 @@ def write_story(pdir: Path, text: str) -> None:
     tmp = pdir / ".story.md.upload.tmp"
     tmp.write_text(text, encoding="utf-8", newline="\n")
     os.replace(tmp, pdir / "story.md")
+
+
+@app.put("/api/series/{slug}/parts/{part}/story.md", response_model=PartDetail)
+def put_story_md(slug: str, part: str, body: UploadText):
+    """replace story.md; the stages after it see the change on their next run (their inputs hash differently)"""
+    pdir = part_path(slug, part)
+    check_free(slug, part)
+    write_story(pdir, body.text)
+    publish("part-changed", {"slug": slug, "part": part})
+    return part_detail(slug, part)
 
 
 @app.post("/api/series/{slug}/parts", response_model=PartDetail)

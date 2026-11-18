@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ArrowLeft, ArrowRight, Check, CircleAlert, CircleCheck, CircleX, ExternalLink, HardDrive, Instagram, Minus, Play, Plus, Save, Trash2, Upload, Youtube } from 'lucide-vue-next'
+import { ArrowLeft, ArrowRight, Check, CircleAlert, CircleCheck, CircleX, ExternalLink, HardDrive, Instagram, Minus, Play, Plus, RefreshCw, Save, Trash2, Upload, Youtube } from 'lucide-vue-next'
 import { animate, motion } from 'motion-v'
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, media, type Approval, type Platform, type StoryCheck } from '../api/client'
-import EmptyState from '../components/EmptyState.vue'
+import PartStepper from '../components/PartStepper.vue'
 import ErrorCard from '../components/ErrorCard.vue'
 import StageChips from '../components/StageChips.vue'
 import Switch from '../components/Switch.vue'
@@ -14,7 +14,8 @@ import { act, confirm, zoom } from '../composables/feedback'
 import { jobFor, refetchOn } from '../composables/live'
 import { useApi } from '../composables/useApi'
 import { bytes, expandFrom, label, reducedMotion, shortDate, SPRING, today } from '../composables/ui'
-import { partNext } from '../lib/partNext'
+import { partNext, type PartState } from '../lib/partNext'
+import { partSteps } from '../lib/partSteps'
 
 const props = defineProps<{ slug: string; part: string }>()
 const route = useRoute()
@@ -48,7 +49,7 @@ const failedStage = computed(() => {
   const st = Object.keys(stages.value).find((k) => stages.value[k] === 'failed')
   return st ? { stage: st, error: errors.value[st] } : null
 })
-const next = computed(() => partNext({
+const state = computed<PartState>(() => ({
   stages: stages.value as never,
   approvals: { stills: approved('stills'), test_render: approved('test_render'), final: approved('final') },
   files: { voice: has('voice.mp3'), stillsSheet: has('stills-sheet.png'), testRender: has('test-render.mp4') },
@@ -59,6 +60,8 @@ const next = computed(() => partNext({
   thumbnailPicked: !!p.value?.thumbnail_choice,
   posted: { youtube: !!p.value?.posted.youtube, instagram: !!p.value?.posted.instagram },
 }))
+const next = computed(() => partNext(state.value))
+const steps = computed(() => partSteps(state.value))
 // the section the next step happens in, outlined so the eye lands on it
 const focus = computed(() => {
   const n = next.value
@@ -87,13 +90,39 @@ async function checkStory() {
   checking.value = true
   try {
     const r = await act(() => api.checkStory(props.slug, props.part), 'Story checked')
-    if (r) story.value = r
+    if (r) {
+      story.value = r
+      goTo('story') // the result shows in the Story tab, next to the text its line numbers point at
+    }
   } finally {
     checking.value = false
   }
 }
 watch(() => props.part, () => { story.value = null })
 const at = (line: number | null) => (line ? `line ${line}` : 'story')
+
+// ---- story.md (the voice is read from it: a changed story after recording means recording again) ----
+const storyText = ref('')
+const storySaved = ref('')
+const storyDirty = computed(() => storyText.value !== storySaved.value)
+watch(() => d.value?.story_md, (md) => {
+  if (!storyDirty.value) storyText.value = storySaved.value = md ?? '' // never clobber unsaved edits on a live refresh
+}, { immediate: true })
+async function saveStory() {
+  if (!storyDirty.value) return
+  const body = storyText.value
+  if (await act(() => api.saveStory(props.slug, props.part, body), 'story.md saved')) {
+    storySaved.value = body
+    story.value = null // an old check result no longer applies
+  }
+}
+function onStoryKey(e: KeyboardEvent) {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+    e.preventDefault()
+    e.stopPropagation() // not the page-wide Ctrl+S, which saves upload.md
+    saveStory()
+  }
+}
 
 // ---- voice ----
 const uploading = ref(false)
@@ -115,6 +144,58 @@ async function uploadVoice(e: Event) {
   }
 }
 
+// ---- what is on screen: each section shows up once it has something to do or show ----
+const anyApproval = computed(() => APPROVALS.some((a) => approved(a.key) || has(a.file)))
+const show = computed(() => ({
+  video: sources.value.length > 0,
+  review: has('stills-sheet.png') || !!d.value?.thumbs.length,
+  approvals: anyApproval.value,
+  qa: !!qa.value,
+  upload: has('final.mp4') || approved('final'),
+  posting: approved('final') || !!p.value?.posted.youtube || !!p.value?.posted.instagram,
+}))
+// ---- tabs: Story, Voice, Review, Publish, Tools. Review and Publish show up once they have something in them ----
+type Tab = 'story' | 'voice' | 'review' | 'publish' | 'tools'
+const tabs = computed(() => [
+  { id: 'story', label: 'Story' },
+  { id: 'voice', label: 'Voice' },
+  ...(show.value.video || show.value.review || show.value.approvals || show.value.qa ? [{ id: 'review', label: 'Review' }] : []),
+  ...(show.value.upload || show.value.posting ? [{ id: 'publish', label: 'Publish' }] : []),
+  { id: 'tools', label: 'Tools' },
+] as { id: Tab; label: string }[])
+// the tab where the current step (lib/partSteps) happens
+const STEP_TAB: Record<string, Tab> = { story: 'story', voice: 'voice', plan: 'story', stills: 'review', test: 'review', final: 'review', thumbnail: 'review', post: 'publish' }
+const stepTab = computed<Tab>(() => STEP_TAB[steps.value.find((x) => x.status !== 'done')?.key ?? 'post'])
+const chosen = ref<Tab | null>(null)
+const tab = computed<Tab>(() => {
+  const want = chosen.value ?? stepTab.value
+  return tabs.value.some((t) => t.id === want) ? want : 'story'
+})
+// every in-page link (#voice, #posting, ...) opens its tab, then scrolls to that section
+const TAB_OF: Record<string, Tab> = { story: 'story', voice: 'voice', video: 'review', review: 'review', approvals: 'review', qa: 'review',
+  thumbnails: 'review', upload: 'publish', posting: 'publish', run: 'tools', disk: 'tools', publish: 'publish', tools: 'tools' }
+async function goTo(id: string) {
+  if (!TAB_OF[id]) return
+  chosen.value = TAB_OF[id]
+  await nextTick()
+  document.getElementById(id)?.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'nearest' })
+}
+function onAnchor(e: MouseEvent) {
+  const a = (e.target as HTMLElement).closest<HTMLAnchorElement>('a[href^="#"]')
+  if (!a || !TAB_OF[a.hash.slice(1)]) return
+  e.preventDefault()
+  goTo(a.hash.slice(1))
+}
+function onTabKey(e: KeyboardEvent) { // arrow keys move between tabs (WAI-ARIA tabs pattern)
+  const k = ({ ArrowRight: 1, ArrowLeft: -1 } as Record<string, number>)[e.key]
+  if (!k) return
+  e.preventDefault()
+  const ids = tabs.value.map((t) => t.id)
+  const next = ids[(ids.indexOf(tab.value) + k + ids.length) % ids.length]
+  chosen.value = next
+  nextTick(() => document.getElementById(`tab-${next}`)?.focus())
+}
+
 // ---- approvals ----
 const APPROVALS: { key: Approval; label: string; file: string }[] = [
   { key: 'stills', label: 'Stills', file: 'stills-sheet.png' },
@@ -132,6 +213,22 @@ async function approve(a: (typeof APPROVALS)[number]) {
     if (!ok) return
   }
   if (await act(() => api.approve(props.slug, props.part, a.key), `${a.label} approved`)) refresh()
+}
+
+// ---- reject: render a waiting item again (approvals are kept for good, so only before approving) ----
+// stills re-plan the shots first, so planner fixes and changed sets / props / cast show up on the new sheet
+const REDO: Record<Approval, { steps: string[]; body: string }> = {
+  stills: { steps: ['run --stage shots --force', 'run --stage validate --force', 'render-stills'],
+    body: 'Plans the shots again from story.md, then renders a new stills sheet. Change the story, cast, sets or props first if something in it was wrong.' },
+  test_render: { steps: ['test-render'], body: 'Renders the 5 s test again. Takes a minute or two.' },
+  final: { steps: ['render --force', 'run --stage audio --force', 'run --stage finish --force', 'run --stage thumbnails --force'],
+    body: 'Deletes every frame and renders the whole video again, then the sound, final.mp4 and thumbnails. This is the slow one.' },
+}
+const canReject = (a: (typeof APPROVALS)[number]) => !approved(a.key) && has(a.file)
+async function reject(a: (typeof APPROVALS)[number]) {
+  const ok = await confirm({ title: `Reject the ${a.label.toLowerCase()} and render again?`, body: REDO[a.key].body,
+    confirm: 'Render again', danger: a.key === 'final' })
+  if (ok) await run(REDO[a.key].steps)
 }
 
 // ---- media ----
@@ -230,11 +327,10 @@ watch(header, (el) => {
   const to = el.getBoundingClientRect()
   animate(el, { x: [from.left - to.left, 0], y: [from.top - to.top, 0], scaleX: [from.width / to.width, 1], scaleY: [from.height / to.height, 1] }, SPRING)
 })
-watch(data, async (v, old) => {
-  if (!v || old || !route.hash) return
-  await nextTick()
-  document.querySelector(route.hash)?.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'start' })
+watch(data, (v, old) => {
+  if (v && !old && route.hash) goTo(route.hash.slice(1))
 })
+watch(() => props.part, () => { chosen.value = null })
 </script>
 
 <template>
@@ -245,7 +341,7 @@ watch(data, async (v, old) => {
     <div class="grid grid-cols-[360px_1fr] gap-6"><div class="skeleton h-[720px]" /><div class="skeleton h-[720px]" /></div>
   </div>
 
-  <div v-else-if="d && p && series" class="space-y-6">
+  <div v-else-if="d && p && series" class="space-y-6" @click="onAnchor">
     <RouterLink :to="`/series/${slug}`" class="btn btn-secondary"><ArrowLeft :size="16" aria-hidden="true" /> {{ series.title }}</RouterLink>
 
     <!-- header (the part card expands into this) -->
@@ -255,37 +351,12 @@ watch(data, async (v, old) => {
         <span class="num text-3xl text-muted">{{ String(p.number).padStart(2, '0') }}</span>
         <h2 class="font-display text-3xl font-semibold">{{ p.title }}</h2>
         <span v-if="busy" class="chip chip-blue"><span class="pulse size-1.5 rounded-full bg-current" />{{ busy }}</span>
-        <button class="btn btn-secondary ml-auto" :disabled="checking" @click="checkStory">
-          <CircleCheck :size="16" aria-hidden="true" /> {{ checking ? 'Checking…' : 'Check story' }}
-        </button>
       </div>
-      <div v-if="story" class="inset mt-4 p-4 text-sm" role="status" aria-label="Story check">
-        <div class="flex flex-wrap items-center gap-2">
-          <span class="chip" :class="story.ok ? 'chip-green' : 'chip-red'">
-            {{ story.ok ? 'story ready' : `${story.problems.length} problem${story.problems.length === 1 ? '' : 's'}` }}
-          </span>
-          <span class="text-muted">{{ story.words }} words · about {{ story.seconds }} s spoken</span>
-          <button class="btn btn-secondary ml-auto" @click="story = null">Close</button>
-        </div>
-        <ul v-if="story.problems.length || story.warnings.length" class="mt-3 space-y-1.5">
-          <li v-for="(x, i) in story.problems" :key="`p${i}`" class="flex items-start gap-2">
-            <CircleX :size="16" class="mt-0.5 shrink-0 text-red-ink" aria-label="problem" />
-            <span><span class="num font-semibold">{{ at(x.line) }}</span> {{ x.message }}</span>
-          </li>
-          <li v-for="(x, i) in story.warnings" :key="`w${i}`" class="flex items-start gap-2">
-            <CircleAlert :size="16" class="mt-0.5 shrink-0 text-amber-ink" aria-label="warning" />
-            <span><span class="num font-semibold">{{ at(x.line) }}</span> {{ x.message }}</span>
-          </li>
-        </ul>
-      </div>
-      <StageChips class="mt-4" :stages="stages" :errors="errors" menu :disabled="busy" @rerun="rerun" />
-      <div class="mt-3 flex flex-wrap items-center gap-2 text-sm">
-        <span class="mr-1 text-muted">Approvals</span>
-        <span v-for="a in APPROVALS" :key="a.key" class="chip" :class="approved(a.key) ? 'chip-green' : d.files[a.file] ? 'chip-amber' : ''">
-          <Check v-if="approved(a.key)" :size="14" aria-hidden="true" />{{ a.label.toLowerCase() }}
-          <span class="sr-only">: {{ approved(a.key) ? 'approved' : d.files[a.file] ? 'waiting' : 'not ready' }}</span>
-        </span>
-      </div>
+      <PartStepper class="mt-5" :steps="steps" />
+      <details class="mt-3 text-sm">
+        <summary class="cursor-pointer text-xs font-semibold text-muted">Pipeline stages (re-run one)</summary>
+        <StageChips class="mt-2" :stages="stages" :errors="errors" menu :disabled="busy" @rerun="rerun" />
+      </details>
      </div>
 
       <!-- the one thing to do next (lib/partNext) -->
@@ -324,6 +395,9 @@ watch(data, async (v, old) => {
               <button class="btn btn-primary" @click="approve(approvalOf(next.approval))">
                 <Check :size="16" aria-hidden="true" /> Approve {{ approvalOf(next.approval).label.toLowerCase() }}
               </button>
+              <button class="btn btn-secondary text-red-ink" @click="reject(approvalOf(next.approval))">
+                <RefreshCw :size="16" aria-hidden="true" /> Reject and render again
+              </button>
             </template>
             <a v-else-if="next.kind === 'thumbnail'" href="#thumbnails" class="btn btn-primary">Pick a thumbnail <ArrowRight :size="16" aria-hidden="true" /></a>
             <a v-else-if="next.kind === 'post'" href="#posting" class="btn btn-primary">Add the links <ArrowRight :size="16" aria-hidden="true" /></a>
@@ -332,136 +406,162 @@ watch(data, async (v, old) => {
       </div>
     </div>
 
-    <nav class="sticky top-0 z-10 -mx-1 flex gap-1 overflow-x-auto rounded-full border border-white/60 bg-surface/90 p-1 shadow-[0_6px_18px_rgb(120_104_82/0.14)] backdrop-blur-md" aria-label="Part sections">
-      <a v-for="s in [{ id: 'video', label: 'Video' }, { id: 'voice', label: 'Voice' }, { id: 'run', label: 'Run' }, { id: 'review', label: 'Review' }, { id: 'approvals', label: 'Approvals' }, { id: 'thumbnails', label: 'Thumbnail' }, { id: 'posting', label: 'Post' }]"
-        :key="s.id" :href="`#${s.id}`" class="shrink-0 rounded-full px-3 py-2 text-xs font-semibold text-muted hover:bg-panel hover:text-ink">{{ s.label }}</a>
-    </nav>
-
-    <div class="grid items-start gap-6 xl:grid-cols-[360px_1fr]">
-      <!-- player -->
-      <section id="video" class="raised p-5" aria-label="Video">
-        <VideoPlayer v-if="sources.length" :sources="sources" />
-        <EmptyState v-else :icon="Play" title="No video yet" text="A test render, preview or final shows up here." />
-      </section>
-
-      <div class="space-y-6">
-        <!-- voice -->
-        <section id="voice" :class="{ 'next-target': focus === 'voice' }" class="raised p-6">
-          <div class="flex items-center gap-2">
-            <h3 class="font-display text-lg font-semibold">Voice</h3>
-            <span class="text-xs text-muted">{{ has('voice.mp3') ? `voice.mp3 · ${d?.voice_duration?.toFixed(1) ?? '?'} s` : 'no voice.mp3 yet' }}</span>
-            <label class="btn btn-secondary ml-auto" :class="{ 'pointer-events-none opacity-50': !!busy || uploading }" :title="busy ?? undefined">
-              <Upload :size="16" aria-hidden="true" /> {{ uploading ? 'Uploading…' : has('voice.mp3') ? 'Replace' : 'Upload mp3' }}
-              <input type="file" accept=".mp3,audio/mpeg" class="sr-only" :disabled="!!busy || uploading" @change="uploadVoice" />
-            </label>
-          </div>
-          <audio v-if="has('voice.mp3')" :key="d?.voice_duration ?? 0" :src="src('voice.mp3')" controls class="mt-4 w-full" />
-          <p class="mt-1 text-xs text-muted">Read from script-for-tts.txt. An import check runs after each upload.</p>
-        </section>
-
-        <!-- run controls -->
-        <section id="run" class="raised p-6">
-          <h3 class="font-display text-lg font-semibold">Run</h3>
-          <div class="mt-4 grid gap-3 sm:grid-cols-2">
-            <div v-for="c in [{ cmd: 'render-stills', label: 'Render stills' }, { cmd: 'test-render', label: 'Test render (5 s)' }, { cmd: 'cast-sheet', label: 'Cast sheet' }]"
-              :key="c.cmd" class="flex flex-col">
-              <button class="btn btn-secondary justify-center" :disabled="!!why(c.cmd)" :title="why(c.cmd) ?? undefined"
-                @click="run([c.cmd])">{{ c.label }}</button>
-              <span v-if="why(c.cmd)" class="mt-1 text-xs text-muted">{{ why(c.cmd) }}</span>
-            </div>
-            <div class="flex flex-col">
-              <div class="flex gap-2">
-                <button class="btn btn-secondary flex-1 justify-center" :disabled="!!why('render')" :title="why('render') ?? undefined"
-                  @click="run([`render --workers ${workers}`])">Full render</button>
-                <div class="inset flex items-center rounded-full px-1" role="group" aria-label="Render workers">
-                  <button class="grid size-7 place-items-center rounded-full disabled:opacity-40" aria-label="Fewer workers"
-                    :disabled="workers <= 1" @click="workers--"><Minus :size="14" /></button>
-                  <span class="num w-5 text-center" :aria-label="`${workers} workers`">{{ workers }}</span>
-                  <button class="grid size-7 place-items-center rounded-full disabled:opacity-40" aria-label="More workers"
-                    :disabled="workers >= 3" @click="workers++"><Plus :size="14" /></button>
-                </div>
-              </div>
-              <span class="mt-1 text-xs text-muted">{{ why('render') ?? `${workers} parallel browser${workers > 1 ? 's' : ''}` }}</span>
-            </div>
-          </div>
-        </section>
-
-        <!-- approvals -->
-        <section id="approvals" :class="{ 'next-target': focus === 'approvals' }" class="raised p-6">
-          <h3 class="font-display text-lg font-semibold">Approvals</h3>
-          <div class="mt-4 flex flex-wrap gap-x-8 gap-y-4">
-            <div v-for="a in APPROVALS" :key="a.key">
-              <Switch :on="approved(a.key)" :label="a.label" :reason="approved(a.key) ? null : approvalReason(a)" @request="approve(a)" />
-              <p class="mt-1 pl-[68px] text-xs text-muted">
-                {{ approved(a.key) ? shortDate(p.approvals[a.key].approved_at) : approvalReason(a) ?? 'ready to approve' }}
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <!-- QA -->
-        <section id="qa" class="raised p-6">
-          <div class="flex items-center gap-3">
-            <h3 class="font-display text-lg font-semibold">QA</h3>
-            <span v-if="qa" class="chip" :class="qa.ok ? 'chip-green' : 'chip-red'">{{ qa.ok ? 'all checks pass' : 'checks failed' }}</span>
-          </div>
-          <div v-if="qa" class="mt-4 grid items-center gap-6 lg:grid-cols-[1fr_260px]">
-            <ul class="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-              <li v-for="(c, name) in qa.checks" :key="name" class="flex items-start gap-2">
-                <CircleCheck v-if="c.ok" :size="18" class="mt-px shrink-0 text-green-ink" aria-label="pass" />
-                <CircleX v-else :size="18" class="mt-px shrink-0 text-red-ink" aria-label="fail" />
-                <span class="min-w-0">
-                  <span class="font-semibold">{{ label(String(name)) }}</span>
-                  <span class="block text-xs text-muted">{{ c.value }} · want {{ c.want }}</span>
-                </span>
-              </li>
-            </ul>
-            <VuMeter v-if="lufs !== null" :lufs="lufs" />
-          </div>
-          <EmptyState v-else class="mt-4" :icon="CircleCheck" title="No QA yet" text="Runs with the finish stage (qa.json)." />
-        </section>
-      </div>
+    <!-- tabs: one area of work at a time; it opens where the current step happens -->
+    <div class="sticky top-0 z-10 -mx-1 flex gap-1 overflow-x-auto rounded-full border border-white/60 bg-surface/90 p-1 shadow-[0_6px_18px_rgb(120_104_82/0.14)] backdrop-blur-md"
+      role="tablist" aria-label="Part sections">
+      <button v-for="t in tabs" :id="`tab-${t.id}`" :key="t.id" type="button" role="tab" :aria-selected="tab === t.id" :aria-controls="`panel-${t.id}`"
+        :tabindex="tab === t.id ? 0 : -1" class="relative shrink-0 rounded-full px-4 py-2 text-sm font-semibold"
+        :class="tab === t.id ? 'text-white' : 'text-muted hover:text-ink'" @click="goTo(t.id)" @keydown="onTabKey">
+        <motion.span v-if="tab === t.id" layout-id="part-tab-pill" class="absolute inset-0 rounded-full bg-ink shadow-[var(--shadow-dark)]"
+          :transition="SPRING" aria-hidden="true" />
+        <span class="relative">{{ t.label }}</span>
+        <span v-if="t.id === stepTab && tab !== t.id" class="relative ml-1.5 inline-block size-2 rounded-full bg-amber align-middle" aria-label="current step" />
+      </button>
     </div>
 
-    <!-- light table: sheets + thumbnail polaroids -->
-    <section id="review" :class="{ 'next-target': focus === 'review' }" class="raised p-6">
-      <h3 class="font-display text-lg font-semibold">Light table</h3>
-      <p class="text-sm text-muted">Click a sheet to zoom. Click a polaroid to pick the thumbnail.</p>
-      <div class="lighttable inset mt-4 grid gap-8 p-8 lg:grid-cols-[1fr_auto]">
-        <div class="flex flex-wrap items-start gap-6">
-          <figure v-for="sh in [{ f: 'stills-sheet.png', t: 'Stills sheet', url: has('stills-sheet.png') ? src('stills-sheet.png') : null }, { f: 'cast-sheet.png', t: 'Cast sheet', url: data?.[1].cast_sheet ?? null }]"
-            :key="sh.f" class="w-60">
-            <button v-if="sh.url" class="block w-full cursor-zoom-in rounded-md bg-white p-2 shadow-[var(--shadow-raised)] transition-transform hover:-translate-y-1"
-              :aria-label="`Zoom ${sh.t}`" @click="zoom(sh.url!, sh.t)">
-              <img :src="sh.url" :alt="sh.t" loading="lazy" class="w-full rounded-sm" />
-            </button>
-            <div v-else class="grid h-40 place-items-center rounded-md border-2 border-dashed border-[#cfc8bb] text-sm text-muted">not rendered yet</div>
-            <figcaption class="mt-2 text-center text-sm font-semibold">{{ sh.t }}</figcaption>
-          </figure>
+    <div v-show="tab === 'story'" id="panel-story" role="tabpanel" aria-labelledby="tab-story">
+      <section id="story" class="raised p-6">
+        <div class="flex flex-wrap items-center gap-2">
+          <h3 class="font-display text-lg font-semibold">Story</h3>
+          <span class="text-xs text-muted">story.md</span>
+          <span v-if="storyDirty" class="size-2.5 rounded-full bg-amber" title="Unsaved changes" aria-label="Unsaved changes" />
         </div>
-        <div id="thumbnails" class="rounded-md" :class="{ 'next-target': focus === 'thumbnails' }">
-          <p class="mb-8 text-center text-sm font-semibold">Thumbnail</p>
-          <div v-if="d.thumbs.length" class="flex gap-5">
-            <motion.button v-for="(t, i) in d.thumbs" :key="t" class="relative w-32 bg-white p-2 pb-8 shadow-[var(--shadow-raised)]"
-              :animate="picked === `thumbs/${t}` ? { rotate: 0, y: -12, scale: 1.06 } : { rotate: TILT[i % 3], y: 0, scale: 1 }"
-              :while-hover="picked === `thumbs/${t}` ? undefined : { y: -4 }" :transition="SPRING"
-              :aria-pressed="picked === `thumbs/${t}`" :aria-label="`Pick thumbnail ${i + 1}`" :disabled="!!busy"
-              @click="pick(Number(t.match(/\d+/)![0]))">
-              <img :src="src(`thumbs/${t}`)" :alt="`Thumbnail candidate ${i + 1}`" loading="lazy" class="aspect-[9/16] w-full object-cover" />
-              <span class="absolute bottom-2 left-0 w-full text-center font-display text-sm text-muted">#{{ i + 1 }}</span>
-              <span v-if="picked === `thumbs/${t}`" class="absolute -top-2 left-1/2 grid size-6 -translate-x-1/2 place-items-center rounded-full bg-green text-white shadow-[var(--shadow-dark)]">
-                <Check :size="14" :stroke-width="3" aria-hidden="true" />
-              </span>
-            </motion.button>
+        <div class="mt-3 flex flex-wrap items-center gap-2">
+          <button class="btn btn-secondary" :disabled="checking || storyDirty" :title="storyDirty ? 'Save first: the check reads the saved file' : undefined" @click="checkStory">
+            <CircleCheck :size="16" aria-hidden="true" /> Check
+          </button>
+          <button class="btn btn-primary" :disabled="!storyDirty || !!busy" :title="busy ?? undefined" @click="saveStory"><Save :size="16" aria-hidden="true" /> Save</button>
+        </div>
+        <p class="mt-1 text-xs text-muted">
+          Ctrl+S saves. Later stages pick up the change on their next run.<template v-if="has('voice.mp3')"> The voice is already recorded: if the narration changes, record and upload it again.</template>
+        </p>
+        <div v-if="story" class="inset mt-4 p-4 text-sm" role="status" aria-label="Story check">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="chip" :class="story.ok ? 'chip-green' : 'chip-red'">
+              {{ story.ok ? 'story ready' : `${story.problems.length} problem${story.problems.length === 1 ? '' : 's'}` }}
+            </span>
+            <span class="text-muted">{{ story.words }} words · about {{ story.seconds }} s spoken</span>
+            <button class="btn btn-secondary ml-auto" @click="story = null">Close</button>
           </div>
-          <p v-else class="text-sm text-muted">No candidates yet (thumbnails stage).</p>
+          <ul v-if="story.problems.length || story.warnings.length" class="mt-3 space-y-1.5">
+            <li v-for="(x, i) in story.problems" :key="`p${i}`" class="flex items-start gap-2">
+              <CircleX :size="16" class="mt-0.5 shrink-0 text-red-ink" aria-label="problem" />
+              <span><span class="num font-semibold">{{ at(x.line) }}</span> {{ x.message }}</span>
+            </li>
+            <li v-for="(x, i) in story.warnings" :key="`w${i}`" class="flex items-start gap-2">
+              <CircleAlert :size="16" class="mt-0.5 shrink-0 text-amber-ink" aria-label="warning" />
+              <span><span class="num font-semibold">{{ at(x.line) }}</span> {{ x.message }}</span>
+            </li>
+          </ul>
+        </div>
+        <label class="sr-only" for="story-md">story.md</label>
+        <textarea id="story-md" v-model="storyText" class="paper inset mt-4 block max-h-[32rem] min-h-48 w-full resize-y overflow-auto p-5 font-mono text-sm leading-7 outline-none"
+          spellcheck="true" @keydown="onStoryKey" />
+      </section>
+    </div>
+
+    <div v-show="tab === 'voice'" id="panel-voice" role="tabpanel" aria-labelledby="tab-voice">
+      <section id="voice" :class="{ 'next-target': focus === 'voice' }" class="raised p-6">
+        <div class="flex items-center gap-2">
+          <h3 class="font-display text-lg font-semibold">Voice</h3>
+          <span class="text-xs text-muted">{{ has('voice.mp3') ? `voice.mp3 · ${d?.voice_duration?.toFixed(1) ?? '?'} s` : 'no voice.mp3 yet' }}</span>
+          <label class="btn btn-secondary ml-auto" :class="{ 'pointer-events-none opacity-50': !!busy || uploading }" :title="busy ?? undefined">
+            <Upload :size="16" aria-hidden="true" /> {{ uploading ? 'Uploading…' : has('voice.mp3') ? 'Replace' : 'Upload mp3' }}
+            <input type="file" accept=".mp3,audio/mpeg" class="sr-only" :disabled="!!busy || uploading" @change="uploadVoice" />
+          </label>
+        </div>
+        <audio v-if="has('voice.mp3')" :key="d?.voice_duration ?? 0" :src="src('voice.mp3')" controls class="mt-4 w-full" />
+        <p class="mt-1 text-xs text-muted">Read from script-for-tts.txt. An import check runs after each upload.</p>
+      </section>
+    </div>
+
+    <div v-show="tab === 'review'" id="panel-review" role="tabpanel" aria-labelledby="tab-review" class="space-y-6">
+      <div class="grid items-start gap-6" :class="show.video && (show.approvals || show.qa) && 'xl:grid-cols-[360px_1fr]'">
+        <!-- player -->
+        <section v-if="show.video" id="video" class="raised p-5" aria-label="Video">
+          <VideoPlayer :sources="sources" />
+        </section>
+        <div v-if="show.approvals || show.qa" class="space-y-6">
+          <!-- approvals -->
+          <section v-if="show.approvals" id="approvals" :class="{ 'next-target': focus === 'approvals' }" class="raised p-6">
+            <h3 class="font-display text-lg font-semibold">Approvals</h3>
+            <div class="mt-4 flex flex-wrap gap-x-8 gap-y-4">
+              <div v-for="a in APPROVALS" :key="a.key">
+                <Switch :on="approved(a.key)" :label="a.label" :reason="approved(a.key) ? null : approvalReason(a)" @request="approve(a)" />
+                <p class="mt-1 pl-[68px] text-xs text-muted">
+                  {{ approved(a.key) ? shortDate(p.approvals[a.key].approved_at) : approvalReason(a) ?? 'ready to approve' }}
+                </p>
+                <button v-if="canReject(a)" class="btn btn-secondary mt-2 ml-[68px] text-red-ink" :disabled="!!busy" :title="busy ?? undefined" @click="reject(a)">
+                  <RefreshCw :size="14" aria-hidden="true" /> Reject and render again
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <!-- QA -->
+          <section v-if="show.qa" id="qa" class="raised p-6">
+            <div class="flex items-center gap-3">
+              <h3 class="font-display text-lg font-semibold">QA</h3>
+              <span v-if="qa" class="chip" :class="qa.ok ? 'chip-green' : 'chip-red'">{{ qa.ok ? 'all checks pass' : 'checks failed' }}</span>
+            </div>
+            <div v-if="qa" class="mt-4 grid items-center gap-6 lg:grid-cols-[1fr_260px]">
+              <ul class="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+                <li v-for="(c, name) in qa.checks" :key="name" class="flex items-start gap-2">
+                  <CircleCheck v-if="c.ok" :size="18" class="mt-px shrink-0 text-green-ink" aria-label="pass" />
+                  <CircleX v-else :size="18" class="mt-px shrink-0 text-red-ink" aria-label="fail" />
+                  <span class="min-w-0">
+                    <span class="font-semibold">{{ label(String(name)) }}</span>
+                    <span class="block text-xs text-muted">{{ c.value }} · want {{ c.want }}</span>
+                  </span>
+                </li>
+              </ul>
+              <VuMeter v-if="lufs !== null" :lufs="lufs" />
+            </div>
+          </section>
         </div>
       </div>
-    </section>
 
-    <div class="grid items-start gap-6 xl:grid-cols-2">
+      <!-- light table: sheets + thumbnail polaroids -->
+      <section v-if="show.review" id="review" :class="{ 'next-target': focus === 'review' }" class="raised p-6">
+        <h3 class="font-display text-lg font-semibold">Light table</h3>
+        <p class="text-sm text-muted">Click a sheet to zoom. Click a polaroid to pick the thumbnail.</p>
+        <div class="lighttable inset mt-4 grid gap-8 p-8 lg:grid-cols-[1fr_auto]">
+          <div class="flex flex-wrap items-start gap-6">
+            <figure v-for="sh in [{ f: 'stills-sheet.png', t: 'Stills sheet', url: has('stills-sheet.png') ? src('stills-sheet.png') : null }, { f: 'cast-sheet.png', t: 'Cast sheet', url: data?.[1].cast_sheet ?? null }]"
+              :key="sh.f" class="w-60">
+              <button v-if="sh.url" class="block w-full cursor-zoom-in rounded-md bg-white p-2 shadow-[var(--shadow-raised)] transition-transform hover:-translate-y-1"
+                :aria-label="`Zoom ${sh.t}`" @click="zoom(sh.url!, sh.t)">
+                <img :src="sh.url" :alt="sh.t" loading="lazy" class="w-full rounded-sm" />
+              </button>
+              <div v-else class="grid h-40 place-items-center rounded-md border-2 border-dashed border-[#cfc8bb] text-sm text-muted">not rendered yet</div>
+              <figcaption class="mt-2 text-center text-sm font-semibold">{{ sh.t }}</figcaption>
+            </figure>
+          </div>
+          <div id="thumbnails" class="rounded-md" :class="{ 'next-target': focus === 'thumbnails' }">
+            <p class="mb-8 text-center text-sm font-semibold">Thumbnail</p>
+            <div v-if="d.thumbs.length" class="flex gap-5">
+              <motion.button v-for="(t, i) in d.thumbs" :key="t" class="relative w-32 bg-white p-2 pb-8 shadow-[var(--shadow-raised)]"
+                :animate="picked === `thumbs/${t}` ? { rotate: 0, y: -12, scale: 1.06 } : { rotate: TILT[i % 3], y: 0, scale: 1 }"
+                :while-hover="picked === `thumbs/${t}` ? undefined : { y: -4 }" :transition="SPRING"
+                :aria-pressed="picked === `thumbs/${t}`" :aria-label="`Pick thumbnail ${i + 1}`" :disabled="!!busy"
+                @click="pick(Number(t.match(/\d+/)![0]))">
+                <img :src="src(`thumbs/${t}`)" :alt="`Thumbnail candidate ${i + 1}`" loading="lazy" class="aspect-[9/16] w-full object-cover" />
+                <span class="absolute bottom-2 left-0 w-full text-center font-display text-sm text-muted">#{{ i + 1 }}</span>
+                <span v-if="picked === `thumbs/${t}`" class="absolute -top-2 left-1/2 grid size-6 -translate-x-1/2 place-items-center rounded-full bg-green text-white shadow-[var(--shadow-dark)]">
+                  <Check :size="14" :stroke-width="3" aria-hidden="true" />
+                </span>
+              </motion.button>
+            </div>
+            <p v-else class="text-sm text-muted">No candidates yet (thumbnails stage).</p>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div v-show="tab === 'publish'" id="panel-publish" role="tabpanel" aria-labelledby="tab-publish"
+      class="grid items-start gap-6" :class="show.upload && show.posting && 'xl:grid-cols-2'">
       <!-- upload.md -->
-      <section id="upload" class="raised p-6">
+      <section v-if="show.upload" id="upload" class="raised p-6">
         <div class="flex items-center gap-2">
           <h3 class="font-display text-lg font-semibold">upload.md</h3>
           <span v-if="dirty" class="size-2.5 rounded-full bg-amber" title="Unsaved changes" aria-label="Unsaved changes" />
@@ -473,60 +573,88 @@ watch(data, async (v, old) => {
           spellcheck="true" @keydown="onKey" />
       </section>
 
-      <div class="space-y-6">
-        <!-- posting -->
-        <section id="posting" :class="{ 'next-target': focus === 'posting' }" class="grid gap-6 sm:grid-cols-2">
-          <div v-for="pl in PLATFORMS" :key="pl.key" class="raised p-5">
-            <p class="flex items-center gap-2 font-display text-lg font-semibold">
-              <component :is="pl.icon" :size="20" :class="pl.color" aria-hidden="true" />{{ pl.name }}
-            </p>
-            <template v-if="p.posted[pl.key] && !form[pl.key].replacing">
-              <a :href="p.posted[pl.key]!.url" target="_blank" rel="noopener noreferrer"
-                class="mt-3 flex items-center gap-1 text-sm font-semibold break-all text-blue-ink hover:underline">
-                {{ p.posted[pl.key]!.url }} <ExternalLink :size="14" class="shrink-0" aria-hidden="true" />
-              </a>
-              <p class="mt-1 text-sm text-muted">posted {{ shortDate(p.posted[pl.key]!.posted_at) }}</p>
-              <button class="btn btn-secondary mt-4" @click="replace(pl.key)">Replace</button>
-            </template>
-            <form v-else class="mt-3 space-y-3" @submit.prevent="post(pl.key)">
-              <label class="block text-xs font-semibold text-muted">Link
-                <input v-model="form[pl.key].url" type="url" required placeholder="https://"
-                  class="inset mt-1 block w-full rounded-full px-4 py-2 text-sm text-ink outline-none" />
-              </label>
-              <label class="block text-xs font-semibold text-muted">Date
-                <input v-model="form[pl.key].date" type="date" class="inset mt-1 block w-full rounded-full px-4 py-2 text-sm text-ink outline-none" />
-              </label>
-              <div class="flex gap-2">
-                <button class="btn btn-primary" :disabled="!form[pl.key].url.trim()">Mark posted</button>
-                <button v-if="form[pl.key].replacing" type="button" class="btn btn-secondary" @click="form[pl.key].replacing = false">Cancel</button>
-              </div>
-            </form>
-          </div>
-        </section>
-
-        <!-- disk + danger zone -->
-        <section id="disk" class="raised p-6">
-          <h3 class="font-display text-lg font-semibold">Disk</h3>
-          <dl class="mt-3 grid grid-cols-2 gap-4">
-            <div class="inset px-4 py-3"><dt class="text-xs font-semibold text-muted">Frames</dt><dd class="num text-xl">{{ bytes(d.frames_bytes) }}</dd></div>
-            <div class="inset px-4 py-3"><dt class="text-xs font-semibold text-muted">Whole part</dt><dd class="num text-xl">{{ bytes(d.part_bytes) }}</dd></div>
-          </dl>
-          <div class="mt-5 rounded-md border border-[#f0c9bd] bg-[#fbeee9] p-4">
-            <p class="flex items-center gap-2 text-sm font-semibold text-red-ink"><HardDrive :size="16" aria-hidden="true" /> Danger zone</p>
-            <p class="mt-1 text-xs text-muted">Delete frames/ once final.mp4 is finished. Frees {{ bytes(d.frames_bytes) }}.</p>
-            <button class="btn btn-secondary mt-3 text-red-ink" :disabled="!!cleanReason" :title="cleanReason ?? undefined" @click="clean">
-              <Trash2 :size="16" aria-hidden="true" /> Clean frames
-            </button>
-            <p v-if="cleanReason" class="mt-1 text-xs text-muted">{{ cleanReason }}</p>
-            <div class="mt-4 border-t border-[#f0c9bd] pt-4">
-              <p class="text-xs text-muted">Delete this part: story, voice, videos, everything. Cannot be undone.</p>
-              <button class="btn btn-secondary mt-3 text-red-ink" :disabled="!!busy" :title="busy ?? undefined" @click="deletePart">
-                <Trash2 :size="16" aria-hidden="true" /> Delete part
-              </button>
+      <!-- posting -->
+      <section v-if="show.posting" id="posting" :class="{ 'next-target': focus === 'posting' }" class="grid gap-6 sm:grid-cols-2">
+        <div v-for="pl in PLATFORMS" :key="pl.key" class="raised p-5">
+          <p class="flex items-center gap-2 font-display text-lg font-semibold">
+            <component :is="pl.icon" :size="20" :class="pl.color" aria-hidden="true" />{{ pl.name }}
+          </p>
+          <template v-if="p.posted[pl.key] && !form[pl.key].replacing">
+            <a :href="p.posted[pl.key]!.url" target="_blank" rel="noopener noreferrer"
+              class="mt-3 flex items-center gap-1 text-sm font-semibold break-all text-blue-ink hover:underline">
+              {{ p.posted[pl.key]!.url }} <ExternalLink :size="14" class="shrink-0" aria-hidden="true" />
+            </a>
+            <p class="mt-1 text-sm text-muted">posted {{ shortDate(p.posted[pl.key]!.posted_at) }}</p>
+            <button class="btn btn-secondary mt-4" @click="replace(pl.key)">Replace</button>
+          </template>
+          <form v-else class="mt-3 space-y-3" @submit.prevent="post(pl.key)">
+            <label class="block text-xs font-semibold text-muted">Link
+              <input v-model="form[pl.key].url" type="url" required placeholder="https://"
+                class="inset mt-1 block w-full rounded-full px-4 py-2 text-sm text-ink outline-none" />
+            </label>
+            <label class="block text-xs font-semibold text-muted">Date
+              <input v-model="form[pl.key].date" type="date" class="inset mt-1 block w-full rounded-full px-4 py-2 text-sm text-ink outline-none" />
+            </label>
+            <div class="flex gap-2">
+              <button class="btn btn-primary" :disabled="!form[pl.key].url.trim()">Mark posted</button>
+              <button v-if="form[pl.key].replacing" type="button" class="btn btn-secondary" @click="form[pl.key].replacing = false">Cancel</button>
             </div>
+          </form>
+        </div>
+      </section>
+    </div>
+
+    <div v-show="tab === 'tools'" id="panel-tools" role="tabpanel" aria-labelledby="tab-tools" class="grid items-start gap-6 xl:grid-cols-2">
+      <!-- run controls -->
+      <section id="run" class="raised p-6">
+        <h3 class="font-display text-lg font-semibold">Manual controls</h3>
+        <p class="text-xs text-muted">The Next step card runs these for you; use them to redo one step by hand.</p>
+        <div class="mt-4 grid gap-3 sm:grid-cols-2">
+          <div v-for="c in [{ cmd: 'render-stills', label: 'Render stills' }, { cmd: 'test-render', label: 'Test render (5 s)' }, { cmd: 'cast-sheet', label: 'Cast sheet' }]"
+            :key="c.cmd" class="flex flex-col">
+            <button class="btn btn-secondary justify-center" :disabled="!!why(c.cmd)" :title="why(c.cmd) ?? undefined"
+              @click="run([c.cmd])">{{ c.label }}</button>
+            <span v-if="why(c.cmd)" class="mt-1 text-xs text-muted">{{ why(c.cmd) }}</span>
           </div>
-        </section>
-      </div>
+          <div class="flex flex-col">
+            <div class="flex gap-2">
+              <button class="btn btn-secondary flex-1 justify-center" :disabled="!!why('render')" :title="why('render') ?? undefined"
+                @click="run([`render --workers ${workers}`])">Full render</button>
+              <div class="inset flex items-center rounded-full px-1" role="group" aria-label="Render workers">
+                <button class="grid size-7 place-items-center rounded-full disabled:opacity-40" aria-label="Fewer workers"
+                  :disabled="workers <= 1" @click="workers--"><Minus :size="14" /></button>
+                <span class="num w-5 text-center" :aria-label="`${workers} workers`">{{ workers }}</span>
+                <button class="grid size-7 place-items-center rounded-full disabled:opacity-40" aria-label="More workers"
+                  :disabled="workers >= 3" @click="workers++"><Plus :size="14" /></button>
+              </div>
+            </div>
+            <span class="mt-1 text-xs text-muted">{{ why('render') ?? `${workers} parallel browser${workers > 1 ? 's' : ''}` }}</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- disk + danger zone -->
+      <section id="disk" class="raised p-6">
+        <h3 class="font-display text-lg font-semibold">Disk</h3>
+        <dl class="mt-3 grid grid-cols-2 gap-4">
+          <div class="inset px-4 py-3"><dt class="text-xs font-semibold text-muted">Frames</dt><dd class="num text-xl">{{ bytes(d.frames_bytes) }}</dd></div>
+          <div class="inset px-4 py-3"><dt class="text-xs font-semibold text-muted">Whole part</dt><dd class="num text-xl">{{ bytes(d.part_bytes) }}</dd></div>
+        </dl>
+        <div class="mt-5 rounded-md border border-[#f0c9bd] bg-[#fbeee9] p-4">
+          <p class="flex items-center gap-2 text-sm font-semibold text-red-ink"><HardDrive :size="16" aria-hidden="true" /> Danger zone</p>
+          <p class="mt-1 text-xs text-muted">Delete frames/ once final.mp4 is finished. Frees {{ bytes(d.frames_bytes) }}.</p>
+          <button class="btn btn-secondary mt-3 text-red-ink" :disabled="!!cleanReason" :title="cleanReason ?? undefined" @click="clean">
+            <Trash2 :size="16" aria-hidden="true" /> Clean frames
+          </button>
+          <p v-if="cleanReason" class="mt-1 text-xs text-muted">{{ cleanReason }}</p>
+          <div class="mt-4 border-t border-[#f0c9bd] pt-4">
+            <p class="text-xs text-muted">Delete this part: story, voice, videos, everything. Cannot be undone.</p>
+            <button class="btn btn-secondary mt-3 text-red-ink" :disabled="!!busy" :title="busy ?? undefined" @click="deletePart">
+              <Trash2 :size="16" aria-hidden="true" /> Delete part
+            </button>
+          </div>
+        </div>
+      </section>
     </div>
   </div>
 </template>

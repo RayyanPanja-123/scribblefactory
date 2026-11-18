@@ -172,6 +172,14 @@ def test_upload_md(client, lib):
     assert (lib / "demo" / "part-01" / "upload.md").read_bytes() == b"New title\n#shorts\n"
 
 
+def test_story_md(client, lib):
+    story = "# T\n\n@set room\nHello.\n"
+    r = client.put(f"{P}/story.md", json={"text": story})
+    assert r.status_code == 200 and r.json()["story_md"] == story
+    assert (lib / "demo" / "part-01" / "story.md").read_bytes() == story.encode()
+    assert client.put("/api/series/demo/parts/part-99/story.md", json={"text": "x"}).status_code == 404
+
+
 def test_create_series_and_part(client, lib):
     cast = [{"id": "ann", "name": "Ann", "color": "#00ff00"}, {"id": "cy", "name": "Cy", "color": "#0000ff", "eyes": "half_closed"}]
     r = client.post("/api/series", json={"slug": "fresh", "title": "Fresh", "cast": cast})
@@ -227,6 +235,11 @@ def test_custom_props(client, lib):
     assert r.status_code == 409 and "flags/ann" in r.json()["detail"]
     s["cast"][0]["props"] = []
     (lib / "flags" / "series.json").write_text(json.dumps(s), encoding="utf-8")
+    story = lib / "demo" / "part-01" / "story.md"
+    story.write_text("# T\n\n@do bob: eat flag\nHi.\n", encoding="utf-8")
+    r = client.delete("/api/props/flag")
+    assert r.status_code == 409 and "demo/part-01" in r.json()["detail"]
+    story.write_text("# T\n\n@do bob: eat flagpole\nflag in narration is fine.\n", encoding="utf-8")
     assert client.delete("/api/props/flag").json()["custom"] == []
     assert client.delete("/api/props/flag").status_code == 404
 

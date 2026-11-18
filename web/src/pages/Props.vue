@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { Backpack, Plus, Sparkles } from 'lucide-vue-next'
+import { Backpack, Plus, Sparkles, Trash2 } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { api } from '../api/client'
 import Card from '../components/Card.vue'
 import ErrorCard from '../components/ErrorCard.vue'
+import { act, confirm } from '../composables/feedback'
 import PropPreview from '../components/PropPreview.vue'
 import { refetchOn } from '../composables/live'
 import { useApi } from '../composables/useApi'
@@ -27,6 +28,12 @@ const holders = computed(() => {
       for (const p of c.props) (by[p.kind] ??= []).push({ slug: d.series.slug, title: d.series.title, name: c.name, hand: p.hand })
   return by
 })
+
+// the server refuses (409, naming them) while a cast member holds it or a story's @do uses it
+async function remove(o: { id: string; name: string }) {
+  const ok = await confirm({ title: `Delete “${o.name}”?`, body: 'Only possible while nobody holds it and no story uses it in @do.', confirm: 'Delete prop', danger: true })
+  if (ok && (await act(() => api.deleteProp(o.id), 'Prop deleted'))) refresh()
+}
 </script>
 
 <template>
@@ -63,7 +70,10 @@ const holders = computed(() => {
             </li>
           </ul>
           <p v-else class="flex items-center gap-1.5 text-sm text-muted"><Backpack :size="14" aria-hidden="true" /> nobody holds one yet</p>
-          <RouterLink v-if="!isBuiltin(o.id)" :to="`/props/${o.id}`" class="btn btn-secondary">Edit</RouterLink>
+          <div v-if="!isBuiltin(o.id)" class="flex gap-2">
+            <RouterLink :to="`/props/${o.id}`" class="btn btn-secondary">Edit</RouterLink>
+            <button v-if="!holders[o.id]?.length" type="button" class="btn btn-secondary text-red-ink" :aria-label="`Delete ${o.name}`" @click="remove(o)"><Trash2 :size="16" aria-hidden="true" /> Delete</button>
+          </div>
         </div>
       </Card>
     </div>

@@ -232,7 +232,19 @@ describe('partNext', () => {
     const s = p(2, { failed: { stage: 'timing', error: 'no phrases' } })
     expect(partNext(s)).toMatchObject({ kind: 'run', text: expect.stringMatching(/^timing failed: no phrases\./) })
   })
+  it('stepper: done steps, one current step, the rest to do', () => {
+    const at = (s: PartState) => partSteps(s).map((x) => `${x.key}:${x.status}`).join(' ')
+    expect(at(p(0))).toMatch(/^story:current voice:todo/)
+    expect(at(p(5))).toMatch(/^story:done voice:done plan:done stills:current test:todo/)
+    expect(at(p(5, { files: { voice: true, stillsSheet: true, testRender: false } }))).toContain('stills:review')
+    expect(at(p(5, { busy: 'job 1' }))).toContain('stills:running')
+    expect(at(p(2, { stages: { ...state(2).stages, timing: 'failed' } }))).toContain('voice:failed')
+    expect(at(p(9, { approvals: ALL_OK, thumbnailPicked: true, posted: { youtube: true, instagram: false } })))
+      .not.toMatch(/current|todo/)
+  })
 })
+
+import { partSteps } from './partSteps'
 
 import { buildSetPrompt, importSet } from './setPrompt'
 
@@ -243,6 +255,12 @@ describe('build a set with AI', () => {
     expect(p).toContain('"id": "beach-bar"')
     expect(p).toContain('NOT be one of: room, kitchen')
     expect(p).toContain('STAGE CLEARANCE')
+  })
+  it('prompt takes the name, the details and a story id separately', () => {
+    const p = buildSetPrompt('Corner Bakery', ['room'], 'glass counter, bread shelves', 'bakery')
+    expect(p).toContain('"id": "bakery", "name": "Corner Bakery"')
+    expect(p).toContain('What it should look like: glass counter, bread shelves')
+    expect(buildPrompt('Baguette', []).includes('What it should look like')).toBe(false)
   })
   it('imports a fenced reply, a sets file, and rejects junk', () => {
     const reply = 'Here:\n```json\n{"id": "Beach!", "name": "Beach", "kind": "outdoor", "floor": "#f2d8a0", "back": "nope", "pieces": [{"shape": "ball", "at": [3, 1, -3], "size": [0.5], "color": "#43aa8b", "backdrop": true}]}\n```'

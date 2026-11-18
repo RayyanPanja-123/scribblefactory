@@ -382,8 +382,8 @@ def _group_move(xs: list[float], role: str, seconds: float) -> float:
 
 def _apply_do(clauses, line, cast, pos, actors, vehicles, seconds, fallen) -> list[Actor]:
     """@do for one shot: the named actors get the given action (others keep the planner's choice); "car: broken"
-    stops the car on stage. pos is updated to where everyone ends. fallen: (line, cast id) already collapsed on
-    this line: a collapse happens once, in the line's first shot, and the line's later shots lie."""
+    stops the car on stage. pos is updated to where everyone ends. fallen: (line, cast id) already collapsed or
+    gave on this line: a collapse or a give happens once, in the line's first shot; later shots lie / carry on."""
     def bad(msg):
         raise StageError(f"story.md line {line}: @do: {msg}")
     by = {a.cast_id: a for a in actors}
@@ -408,6 +408,9 @@ def _apply_do(clauses, line, cast, pos, actors, vehicles, seconds, fallen) -> li
             continue
         if c.action == "give":
             g, t = c.who[0], c.target
+            if (line, g) in fallen:  # handed over in the line's first shot; the receiver keeps it (engine propsByShot)
+                continue
+            fallen.add((line, g))
             dg = 1 if pos[t] >= pos[g] else -1
             by[g] = Actor(cast_id=g, action="give", target=t, prop=c.prop, start_pos=(pos[g], 0.0), facing=face(dg),
                           expression=by[g].expression)
@@ -667,6 +670,8 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
                         car_left, park = True, None
                 if do:
                     actors = _apply_do(do[1], do[0], cast, pos, actors, vehicles, seconds, fallen)
+                    if any(ac.action == "give" for ac in actors):  # a hand-over needs both people in frame: wide
+                        angle = "wide" if prev_angle != "wide" else "medium"  # fits everyone; medium: the pair (engine)
                     for v in vehicles:
                         if v.action == "broken":  # it stays where it broke down
                             park, car_left = (v.start_pos[0], v.facing), False

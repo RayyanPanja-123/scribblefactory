@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import tempfile
 import time
 from pathlib import Path
@@ -102,13 +103,24 @@ def save_prop(library, prop: CustomProp) -> list[str]:
     return cleared
 
 
+def prop_users(library, kind: str) -> list[str]:
+    """"<slug>/<part id>" for every story.md in the library with an @do line naming this prop (eat / give)"""
+    # ponytail: whole-word match, so a cast id equal to the prop id also counts (blocks a delete, never breaks one)
+    word = re.compile(rf"(?<![\w-]){re.escape(kind)}(?![\w-])")
+    return [f"{f.parent.parent.name}/{f.parent.name}" for f in sorted(Path(library).glob("*/part-*/story.md"))
+            if any(line.strip().startswith("@do") and word.search(line)
+                   for line in f.read_text(encoding="utf-8").splitlines())]
+
+
 def delete_prop(library, prop_id: str) -> None:
-    """remove a custom prop; refused (ValueError) while any cast member holds it"""
+    """remove a custom prop; refused (ValueError) while any cast member holds it or any story's @do uses it"""
     lib = load_props(library)
     if not any(p.id == prop_id for p in lib.props):
         raise KeyError(prop_id)
     if held := prop_holders(library, prop_id):
         raise ValueError(f"{prop_id} is still held by " + ", ".join(f"{f.parent.name}/{cid}" for f, cid in held))
+    if used := prop_users(library, prop_id):
+        raise ValueError(f"{prop_id} is still used by @do in " + ", ".join(used))
     lib.props = [p for p in lib.props if p.id != prop_id]
     atomic_write_json(Path(library) / "props.json", lib.model_dump(mode="json"))
 

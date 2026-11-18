@@ -33,7 +33,7 @@ async function records() {
       `- **Props** (${props.builtin.length + props.custom.length}): built in ${props.builtin.map((p) => `\`${p}\``).join(', ')}` +
         (props.custom.length ? `; custom ${ids(props.custom)}` : ''),
       '',
-      'Use only these sets and props.',
+      'Use these sets and props; anything else goes in the NEW block (section 6).',
       '',
       '',
     ].join('\n')

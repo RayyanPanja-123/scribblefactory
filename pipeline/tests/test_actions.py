@@ -62,6 +62,15 @@ def test_do_eat_give_and_props():
     assert a.facing == ("right" if t.start_pos[0] > a.start_pos[0] else "left") and t.facing != a.facing
 
 
+def test_do_give_happens_once_and_frames_both():
+    md = ("# T\n\n@set office\n@cast fred, amy, tom\n@do amy: give medal tom\n"
+          "Amy talked and talked about the long long race he once ran, then handed it over to Tom at last.\n")
+    story = planned(md, word_s=0.5)
+    gives = [s for s in story.shots if who(s, "amy").action == "give"]
+    assert len(story.shots) >= 2 and len(gives) == 1 and gives[0] is story.shots[0]  # once, in the line's first shot
+    assert gives[0].camera.angle in ("wide", "medium")                              # both people in frame
+
+
 def test_do_carry_group_walks_together_and_carried_has_no_own_move():
     story = planned("# T\n\n@set office\n@cast fred, amy, tom\n@do amy, tom: carry fred\nThey carried him home.\n")
     s = story.shots[0]

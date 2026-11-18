@@ -4,8 +4,15 @@ import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../api/client'
 import ErrorCard from '../components/ErrorCard.vue'
+import PartStepper from '../components/PartStepper.vue'
 import { act } from '../composables/feedback'
 import { useApi } from '../composables/useApi'
+import { partSteps } from '../lib/partSteps'
+
+// the whole journey, so it is clear what follows the story (no links: those sections live on the part page)
+const steps = partSteps({ stages: {}, approvals: { stills: false, test_render: false, final: false },
+  files: { voice: false, stillsSheet: false, testRender: false }, castApproved: false, busy: null, failed: null,
+  thumbs: false, thumbnailPicked: false, posted: { youtube: false, instagram: false } }).map((s) => ({ ...s, href: '' }))
 
 const props = defineProps<{ slug: string }>()
 const router = useRouter()
@@ -39,6 +46,7 @@ async function create() {
 
     <form class="raised space-y-5 p-6" @submit.prevent="create">
       <h2 class="font-display text-3xl font-semibold">New part <span class="text-muted">#{{ number }}</span></h2>
+      <PartStepper :steps="steps" />
 
       <label class="block text-xs font-semibold text-muted">Title
         <input v-model="title" :placeholder="`Part ${number}`" class="inset mt-1 block w-full rounded-full px-4 py-2 text-sm text-ink outline-none" />

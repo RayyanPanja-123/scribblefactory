@@ -658,6 +658,17 @@
             ],
             "title": "Qa"
           },
+          "story_md": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Story Md"
+          },
           "thumbs": {
             "items": {
               "type": "string"
@@ -694,6 +705,7 @@
           "thumbs",
           "qa",
           "upload_md",
+          "story_md",
           "voice_duration",
           "frames_bytes",
           "part_bytes",
@@ -2684,6 +2696,65 @@
           }
         },
         "summary": "Pick Thumbnail"
+      }
+    },
+    "/api/series/{slug}/parts/{part}/story.md": {
+      "put": {
+        "description": "replace story.md; the stages after it see the change on their next run (their inputs hash differently)",
+        "operationId": "put_story_md_api_series__slug__parts__part__story_md_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "part",
+            "required": true,
+            "schema": {
+              "title": "Part",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadText"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Story Md"
       }
     },
     "/api/series/{slug}/parts/{part}/upload.md": {

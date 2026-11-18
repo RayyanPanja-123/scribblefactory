@@ -70,13 +70,16 @@ async function remove() {
 // ---- build with AI: a prompt to paste into any AI chat, then its JSON reply loads into the editor ----
 const aiOpen = ref(useRoute().hash === '#ai')
 const aiWhat = ref('')
+const aiDetails = ref('')
+// the id the AI must use: this one's own, or one typed in the id field (e.g. the id a story already uses)
+const aiId = computed(() => (!isNew.value || form.idEdited ? form.id : '') || slugify(aiWhat.value))
 const aiPrompt = ref('')
 const aiReply = ref('')
 const aiError = ref('')
 const promptBox = ref<HTMLTextAreaElement>()
 function makePrompt() {
   const c = data.value
-  aiPrompt.value = buildSetPrompt(aiWhat.value, [...(c?.builtin ?? []).map((b) => b.id), ...(c?.custom ?? []).map((s) => s.id)].filter((x) => x !== props.id))
+  aiPrompt.value = buildSetPrompt(aiWhat.value, [...(c?.builtin ?? []).map((b) => b.id), ...(c?.custom ?? []).map((s) => s.id)].filter((x) => x !== props.id), aiDetails.value, aiId.value)
 }
 async function copyPrompt() {
   try {
@@ -132,12 +135,16 @@ const num = 'inset mt-1 block h-11 w-full rounded-full px-3 text-sm text-ink out
               <span class="step-no" aria-hidden="true">1</span>
               <div class="min-w-0 flex-1 space-y-2">
                 <h3 class="font-semibold">Say what to build</h3>
-                <div class="flex flex-wrap items-end gap-2">
-                  <label class="sr-only" for="ai-what">What should the set be?</label>
-                  <input id="ai-what" v-model="aiWhat" placeholder="Kitchen, beach, classroom, forest…" :class="[field, 'mt-0 min-w-48 flex-1']"
+                <label class="block text-sm font-semibold" for="ai-what">Name
+                  <input id="ai-what" v-model="aiWhat" placeholder="Kitchen, beach, classroom, forest…" maxlength="40" :class="field"
                     @keydown.enter.prevent="aiWhat.trim() && makePrompt()" />
-                  <button type="button" class="btn btn-primary" :disabled="!aiWhat.trim()" @click="makePrompt">Prompt for AI</button>
-                </div>
+                </label>
+                <p v-if="aiId" class="text-xs text-muted">Saved as <code>{{ aiId }}</code>. A story needs a different id? Set it in the id field below first.</p>
+                <label class="block text-sm font-semibold" for="ai-details">Details <span class="font-normal text-muted">(optional)</span>
+                  <textarea id="ai-details" v-model="aiDetails" rows="3" placeholder="Indoor or outdoor, the big objects that make it recognisable, main colours…"
+                    class="inset mt-1 block w-full rounded-md px-4 py-2 text-sm text-ink outline-none" />
+                </label>
+                <button type="button" class="btn btn-primary" :disabled="!aiWhat.trim()" @click="makePrompt">Prompt for AI</button>
               </div>
             </li>
             <li class="flex gap-3 py-5" :class="!aiPrompt && 'opacity-50'">

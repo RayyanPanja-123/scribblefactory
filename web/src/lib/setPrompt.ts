@@ -20,19 +20,22 @@ const EXAMPLE: CustomSet = { id: 'office', name: 'Office', kind: 'indoor', floor
 const compact = (s: CustomSet) => JSON.stringify({ ...s, pieces: undefined }).replace(/}$/, ', "pieces": [\n')
   + s.pieces!.map((p) => `  ${JSON.stringify(p)}`).join(',\n') + '\n]}'
 
-/** the prompt for "what": paste it into any AI chat; taken = set names already in use */
-export function buildSetPrompt(what: string, taken: string[]): string {
-  const thing = what.trim() || 'a set'
-  const id = slugify(thing) || 'set'
-  return `You are designing a set (a scene location) for a 3D cartoon renderer with stick-figure actors. Design: **${thing}**.
+/** the prompt for a set called "name": paste it into any AI chat; taken = set names already in use; details = what it
+ *  should look like (optional); id = the id the story already uses (default: from the name) */
+export function buildSetPrompt(name: string, taken: string[], details = '', id = ''): string {
+  const thing = name.trim() || 'a set'
+  id = slugify(id || thing) || 'set'
+  const title = name.trim() ? JSON.stringify(name.trim().slice(0, 40)) : '"<display name, max 40 chars>"'
+  const brief = details.trim() ? `\n\nWhat it should look like: ${details.trim()}` : ''
+  return `You are designing a set (a scene location) for a 3D cartoon renderer with stick-figure actors. Design: **${thing}**.${brief}
 
 Reply with ONE JSON object in a \`\`\`json code block and nothing else.
 
 ## Format
-{"id": "${id}", "name": "<display name, max 40 chars>", "kind": "indoor" | "outdoor",
+{"id": "${id}", "name": ${title}, "kind": "indoor" | "outdoor",
  "floor": "#rrggbb", "back": "#rrggbb", "pieces": [ <piece>, ... ]}
 
-- id: lowercase a-z, 0-9 and single dashes (e.g. "${id}"). Must NOT be one of: ${taken.join(', ')}.
+- id and name: use exactly the ones above (the id is lowercase a-z, 0-9 and single dashes). Must NOT be one of: ${taken.join(', ')}.
 - kind: indoor = a floor and a back wall at z -2.6 ("back" is the wall colour). outdoor = a wide floor and a sky
   ("back" is the sky colour); actors can walk and the world scrolls past along x.
 - pieces: 5 to 25 (max 60), drawn in order. Each piece is one of:

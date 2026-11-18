@@ -23,10 +23,12 @@ that already exist, by their **id**.
 
 ## 2. What to return
 
-- One fenced `md` code block containing only the complete `story.md`.
-- After the block, three short lines: word count, estimated length in seconds (words / 150 x 60), and the cast
+- First, only if the story uses a set or prop that does not exist yet: one fenced `text` block listing them, each
+  with its id and name (see section 6).
+- Then one fenced `md` code block containing only the complete `story.md`.
+- After the blocks, three short lines: word count, estimated length in seconds (words / 150 x 60), and the cast
   ids used.
-- Nothing else inside the block: no explanations, no comments.
+- Nothing else inside the blocks: no explanations, no comments.
 
 ## 3. File format
 
@@ -71,8 +73,8 @@ Second narration line.
 One of: `room`, `office`, `street`, `dirt_road`, `countryside`, `orchard`, `stadium`, or the id of a custom set
 from the dashboard's **Sets** page (e.g. `@set kitchen`). Default: `room`.
 Put a `@set` before the first narration line. `room` and `office` are indoors; the other five are outdoors and
-allow travelling shots (see section 6). A custom set is indoor or outdoor as it was made. Changing the set adds a
-wipe transition and an establishing wide shot.
+allow travelling shots (see section 7). A custom set is indoor or outdoor as it was made. Changing the set adds a
+wipe transition and an establishing wide shot. Need a place that does not exist yet? See section 6.
 
 ### `@cast a, b, c`: who is on stage
 
@@ -137,9 +139,33 @@ low hit sounds. Use it **at most once per part**, on the single biggest reveal, 
 ### Props
 
 Built in: `clipboard`, `stopwatch`, `bottle`, `syringe`, `apple`, `medal`. A series may define more (listed under
-**Your series**). Only these can be used with `eat` and `give`.
+**Your series**). Only these can be used with `eat` and `give`, plus new ones you list (section 6).
 
-## 6. How plain narration is interpreted
+## 6. New sets and props
+
+Prefer what already exists. When the story really needs a place or an object that is not among the built-ins or
+**Your series**, list it in a block **before the story**, then use its id in `story.md`:
+
+```text
+NEW SETS
+- id: bakery | name: Corner Bakery | indoor | a small bakery with a glass counter, bread shelves on the back wall and a red awning window
+NEW PROPS
+- id: baguette | name: Baguette | a long golden loaf of bread, held at one end
+```
+
+- At most **2** new sets and **3** new props per part. Leave out a heading that has nothing under it, and the
+  whole block when nothing is new.
+- Every entry starts with `id:` and `name:`. The id is lowercase a-z, 0-9 and single dashes, used exactly as
+  written in `story.md`, never a built-in name. The name is what the dashboard shows: plain words, at most 40
+  characters.
+- Sets: say `indoor` (back wall) or `outdoor` (sky, allows travelling shots), and describe the look in one line:
+  the 3 to 6 big objects that make the place recognisable, and its main colours.
+- Props: one line on shape and colour, and which end is held. A new prop is only needed for `eat` and `give`
+  (or if a cast member should hold it).
+- The user builds each one before rendering (dashboard **Sets** / **Props**, *Build with AI*, with your id and
+  name and the description); until then the story fails as "unknown set" or "unknown prop".
+
+## 7. How plain narration is interpreted
 
 You do not need `@do` on every line. The planner reads the words:
 
@@ -159,13 +185,13 @@ You do not need `@do` on every line. The planner reads the words:
 Use `@do` where the guess would be wrong, or for actions with no keyword (give, carry, support, cheer, a collapse
 at an exact moment).
 
-## 7. Common mistakes (each one fails or looks wrong)
+## 8. Common mistakes (each one fails or looks wrong)
 
 | Mistake | Why it matters |
 |---|---|
 | Narration on a directive's line | The text is never read aloud; the directive is invalid |
 | Cast id not in the series list | The shot planner stops |
-| Unknown set, action or prop | The shot planner stops |
+| Unknown set, action or prop | The shot planner stops (a new set or prop must be in the NEW block) |
 | `@do` with no narration line right after it | It is ignored (reported as an error) |
 | `@do` naming someone not in the current `@cast` | The shot planner stops |
 | More than 12 in `@cast`, or more than 6 named in one scene | Not enough room on stage |
@@ -175,17 +201,18 @@ at an exact moment).
 | Over 225 words | Too long for a Short |
 | More than one `!!` | Only one twist per part |
 
-## 8. Checklist before answering
+## 9. Checklist before answering
 
 1. Line 1 is `# Title`; every directive is alone on its line.
 2. A `@set` comes before the first narration line.
-3. Only cast ids, sets, actions and props from this guide and **Your series**.
+3. Only cast ids, sets, actions and props from this guide and **Your series**, plus new sets and props listed
+   in the NEW block (at most 2 sets, 3 props).
 4. Every `@do` is directly followed by a narration line, and everyone in it is in the current `@cast`.
 5. Each `@cast` has at most 12 ids, at most 6 of them named in that scene; `@car ride` at most 3.
 6. No digits, symbols or markdown formatting in narration.
 7. 110 to 175 words; at most one `!!` line.
 
-## 9. Examples
+## 10. Examples
 
 ### A complete part
 
