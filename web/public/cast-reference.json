@@ -3,6 +3,8 @@
   "_values": {
     "id": "lowercase slug, used in @cast / @do: a-z 0-9 and single hyphens",
     "eyes": ["dots", "half_closed"],
+    "body": ["stickman", "chicken"],
+    "headless": "true or false (default false): chicken only, a neck stump instead of a head",
     "default_expression": ["neutral", "happy", "sad", "angry", "surprised", "sleepy", "cheeky", "exhausted"],
     "top.style": ["plain", "suit", "tank", "shirt", "dress"],
     "top.color": "#rrggbb (required)",

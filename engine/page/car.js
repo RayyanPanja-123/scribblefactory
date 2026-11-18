@@ -4,6 +4,7 @@
 import { Pen, ellPts } from "./borrowed.js";
 import { rng } from "./rng.js";
 import { CH, CW, FEET_Y, drawStickman, jitter, wobble } from "./stickman.js";
+import { drawChicken } from "./chicken.js";
 
 export const VW = 1024, VH = 640, CAR_GROUND = 620;
 export const CAR_CARD_W = 2.8;                    // world units across the card
@@ -75,7 +76,7 @@ export function drawCar(canvas, o) {
   const seat = (fig, x) => {
     tmp = tmp || Object.assign(canvas.ownerDocument.createElement("canvas"), { width: CW, height: CH });
     // the whole card mirrors for "left"; seated raises a held prop above the panel
-    drawStickman(tmp, { ...fig, facing: "right", seated: true, mirrored: o.facing === "left" });
+    (fig.body === "chicken" ? drawChicken : drawStickman)(tmp, { ...fig, facing: "right", seated: true, mirrored: o.facing === "left" });
     g.drawImage(tmp, x - (CW / 2) * RIDER_SCALE, SEAT_Y - HIP_PX * RIDER_SCALE, CW * RIDER_SCALE, CH * RIDER_SCALE);
   };
   // driver first, then riders back to front: a rider's raised (waving) arm stays in front of the driver

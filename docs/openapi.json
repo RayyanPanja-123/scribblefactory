@@ -87,6 +87,16 @@
             ],
             "title": "Approved At"
           },
+          "body": {
+            "default": "stickman",
+            "description": "drawing: stickman, or a side-view chicken (feathers = top.color; no costume, props or face expressions; cannot give, carry or support)",
+            "enum": [
+              "stickman",
+              "chicken"
+            ],
+            "title": "Body",
+            "type": "string"
+          },
           "default_expression": {
             "default": "neutral",
             "enum": [
@@ -109,6 +119,12 @@
             ],
             "title": "Eyes",
             "type": "string"
+          },
+          "headless": {
+            "default": false,
+            "description": "chicken only: a neck stump instead of a head",
+            "title": "Headless",
+            "type": "boolean"
           },
           "headwear": {
             "$ref": "#/components/schemas/Headwear",

@@ -687,3 +687,26 @@ def test_end_card_on_non_final_parts_and_hard_cut_on_the_last():
     story, ph = plan(SHORT, series=FINAL)
     assert story.end_card is None and story.duration_frames == math.ceil(round((last + 0.3) * 30, 6))
     assert validate(story, ph, {c.id for c in SERIES.cast}) == []
+
+
+# --- chicken cast members ---
+
+CHICKEN = SeriesModel.model_validate({**SERIES.model_dump(mode="json"), "cast": [
+    *SERIES.model_dump(mode="json")["cast"],
+    {"id": "mike", "name": "Mike", "top": {"color": "#f2f2f2"}, "eyes": "dots", "body": "chicken", "headless": True}]})
+
+
+def test_chicken_takes_moves_but_has_no_hands():
+    story, _ = plan("# C\n\n@cast bob, mike\n@do mike: stagger\nThe head dropped.\n@do bob: support mike\nBob held him.\n",
+                    series=CHICKEN)
+    acts = {(a.cast_id, a.action) for s in story.shots for a in s.actors}
+    assert ("mike", "stagger") in acts and ("mike", "supported") in acts  # a chicken can be held up
+    for do in ("mike: give medal bob", "bob: give medal mike", "mike: support bob"):
+        with pytest.raises(StageError, match="mike is a chicken"):
+            plan(f"# C\n\n@cast bob, mike\n@do {do}\nHere.\n", series=CHICKEN)
+
+
+def test_only_a_chicken_is_headless():
+    with pytest.raises(ValueError, match="only a chicken"):
+        SeriesModel.model_validate({**CHICKEN.model_dump(mode="json"), "cast": [
+            {"id": "bob", "name": "Bob", "top": {"color": "#3a7bd5"}, "eyes": "dots", "headless": True}]})

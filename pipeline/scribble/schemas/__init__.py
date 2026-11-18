@@ -97,6 +97,10 @@ class CastMember(Strict):
     props: list[Prop] = Field(default=[], max_length=2, description="held props, one per hand")
     default_expression: Expression = "neutral"
     eyes: Literal["dots", "half_closed"]
+    body: Literal["stickman", "chicken"] = Field(
+        default="stickman", description="drawing: stickman, or a side-view chicken (feathers = top.color; no "
+                                        "costume, props or face expressions; cannot give, carry or support)")
+    headless: bool = Field(default=False, description="chicken only: a neck stump instead of a head")
     approved_at: UtcDateTime | None = None
 
     @field_validator("props")
@@ -105,6 +109,12 @@ class CastMember(Strict):
         if len({p.hand for p in v}) != len(v):
             raise ValueError("props: one per hand")
         return v
+
+    @model_validator(mode="after")
+    def _headless_chicken(self):
+        if self.headless and self.body != "chicken":
+            raise ValueError("headless: only a chicken can be headless (set body to chicken)")
+        return self
 
     def look(self) -> str:
         """everything the cast sheet shows (hex case ignored): a change here needs a new approval"""

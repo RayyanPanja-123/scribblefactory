@@ -195,3 +195,14 @@ test("riders' props show in the car (both hands), deterministic; a v2 single pro
   assert.ok(!img("two").equals(img("one")), "the second prop does not show in the car");
   assert.ok(img("v2").equals(img("one")), "v2 prop differs from the same prop as a list");
 });
+
+test("chicken: legs follow the gait phase only, wings flap when startled, a peck tips the body", async () => {
+  const { chickenPose } = await import("../page/chicken.js");
+  const walk = (phase, t) => chickenPose({ action: "walk", phase, t }).legs;
+  assert.deepEqual(walk(0.3, 0.1), walk(0.3, 2.9));          // time alone never moves the legs
+  assert.notDeepEqual(walk(0.3, 0), walk(0.4, 0));
+  assert.deepEqual(chickenPose({ action: "idle", t: 1 }).legs, [0, -0]);
+  assert.ok(chickenPose({ action: "react", t: 0.06 }).flap > 0.5);
+  assert.equal(chickenPose({ action: "idle", t: 0.06 }).flap, 0);
+  assert.ok(chickenPose({ action: "eat", t: 0.15 }).pitch > 30);
+});

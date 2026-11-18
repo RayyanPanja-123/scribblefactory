@@ -36,6 +36,7 @@ STAGE_X = 1.0              # starting cast spread across -STAGE_X..STAGE_X, z = 
 BOUNDS = (-2.0, 2.0)       # x range a walk/run must end inside
 MOVE_SPEED = {"walk": 1.2, "run": 2.5, "stagger": 0.6}  # units/s
 MIN_SPEED = {a: SPEEDS[a][0] for a in MOVE_SPEED}  # shortened moves never go slower than the validator allows
+CHICKEN_CANNOT = {"give", "carry", "support"}  # no hands; a chicken can still be carried or supported
 GROUP_SPEED = {"carry": 0.9, "support": 0.8}  # @do carry / support: the group walks toward the stage centre
 HOLD_GAP = 0.42            # carry / support: a holder stands this far (x) beside the held actor (engine actions.js)
 MIN_GAP = 0.8              # actors at least this far apart in x at the start and end of every shot
@@ -380,10 +381,11 @@ def _group_move(xs: list[float], role: str, seconds: float) -> float:
     return 0.0
 
 
-def _apply_do(clauses, line, cast, pos, actors, vehicles, seconds, fallen) -> list[Actor]:
+def _apply_do(clauses, line, cast, pos, actors, vehicles, seconds, fallen, chickens=frozenset()) -> list[Actor]:
     """@do for one shot: the named actors get the given action (others keep the planner's choice); "car: broken"
     stops the car on stage. pos is updated to where everyone ends. fallen: (line, cast id) already collapsed or
-    gave on this line: a collapse or a give happens once, in the line's first shot; later shots lie / carry on."""
+    gave on this line: a collapse or a give happens once, in the line's first shot; later shots lie / carry on.
+    chickens: cast ids drawn as chickens (no hands: no give, receive, carry or support)."""
     def bad(msg):
         raise StageError(f"story.md line {line}: @do: {msg}")
     by = {a.cast_id: a for a in actors}
@@ -400,6 +402,11 @@ def _apply_do(clauses, line, cast, pos, actors, vehicles, seconds, fallen) -> li
                 bad(f"{w} is not on stage on this line (@cast {', '.join(cast)})")
         if c.target in named:
             bad(f"{c.target} is the target of {c.action} and has its own action too")
+        if c.action in CHICKEN_CANNOT:
+            hands = c.who + ((c.target,) if c.action == "give" else ())
+            if birds := [w for w in hands if w in chickens]:
+                bad(f"{', '.join(birds)} is a chicken and cannot {c.action}"
+                    + (" or be given things" if c.action == "give" else ""))
     for cid in named & set(by):  # undo the planner's move for every actor @do takes over
         pos[cid] = by[cid].start_pos[0]
     face = lambda d: "left" if d < 0 else "right"
@@ -672,7 +679,8 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
                     elif v.action == "leave":
                         car_left, park = True, None
                 if do:
-                    actors = _apply_do(do[1], do[0], cast, pos, actors, vehicles, seconds, fallen)
+                    actors = _apply_do(do[1], do[0], cast, pos, actors, vehicles, seconds, fallen,
+                                      {c.id for c in series.cast if c.body == "chicken"})
                     if any(ac.action == "give" for ac in actors):  # a hand-over needs both people in frame: wide
                         angle = "wide" if prev_angle != "wide" else "medium"  # fits everyone; medium: the pair (engine)
                     for v in vehicles:

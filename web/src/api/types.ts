@@ -471,6 +471,13 @@ export interface components {
             /** Approved At */
             approved_at?: string | null;
             /**
+             * Body
+             * @description drawing: stickman, or a side-view chicken (feathers = top.color; no costume, props or face expressions; cannot give, carry or support)
+             * @default stickman
+             * @enum {string}
+             */
+            body: "stickman" | "chicken";
+            /**
              * Default Expression
              * @default neutral
              * @enum {string}
@@ -481,6 +488,12 @@ export interface components {
              * @enum {string}
              */
             eyes: "dots" | "half_closed";
+            /**
+             * Headless
+             * @description chicken only: a neck stump instead of a head
+             * @default false
+             */
+            headless: boolean;
             /**
              * @default {
              *       "kind": "none"

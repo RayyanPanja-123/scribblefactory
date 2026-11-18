@@ -76,7 +76,8 @@ def cmd_cast_add(args) -> int:
     f, series = load_existing_series(args)
     if any(c.id == args.id for c in series.cast):
         raise UserError(f"cast id {args.id!r} already exists in {args.slug}")
-    series.cast.append(CastMember(id=args.id, name=args.name, top={"color": args.color}, eyes=args.eyes))
+    series.cast.append(CastMember(id=args.id, name=args.name, top={"color": args.color}, eyes=args.eyes, body=args.body,
+                                  headless=args.headless == "yes"))
     save_series(f, series)
     print(f"added {args.id} to {args.slug} cast")
     return 0
@@ -92,7 +93,7 @@ def cmd_cast_edit(args) -> int:
               "top": ("top", "style"), "top_color": ("top", "color"), "accent": ("top", "accent_color"),
               "number": ("top", "number"), "headwear": ("headwear", "kind"), "headwear_color": ("headwear", "color"),
               "legwear": ("legwear", "kind"), "legwear_color": ("legwear", "color"),
-              "props": (None, "props")}
+              "props": (None, "props"), "body": (None, "body"), "headless": (None, "headless")}
     changes = {k: getattr(args, k) for k in fields if getattr(args, k) is not None}
     if not changes:
         raise UserError("nothing to change: give at least one of " + ", ".join(f"--{k.replace('_', '-')}" for k in fields))
@@ -103,6 +104,10 @@ def cmd_cast_edit(args) -> int:
         (data[section] if section else data)[name] = None if v == "none" and name in ("accent_color", "number") else v
     if args.props is not None:
         data["props"] = parse_props(args.props)
+    if args.headless is not None:
+        data["headless"] = args.headless == "yes"
+    if args.body == "stickman" and args.headless is None:
+        data["headless"] = False  # back to a person: put the head back on
     new = CastMember.model_validate(data)  # validates colours, kinds, number
     if unknown := unknown_cast_props([new], library_root(args)):
         raise UserError(f"unknown prop {unknown[0].split(': ')[1]!r} (props: {', '.join(prop_kinds(library_root(args)))})")
@@ -579,6 +584,8 @@ def build_parser() -> Parser:
     c.add_argument("--name", required=True)
     c.add_argument("--color", required=True, help="outfit colour #rrggbb")
     c.add_argument("--eyes", choices=["dots", "half_closed"], default="dots")
+    c.add_argument("--body", choices=["stickman", "chicken"], default="stickman", help="drawing (colour = feathers)")
+    c.add_argument("--headless", choices=["yes", "no"], default="no", help="chicken only: no head, a neck stump")
     c.set_defaults(func=cmd_cast_add)
 
     c = sub.add_parser("cast-edit", parents=[common], help="change a cast member (a new look clears its approval)")
@@ -597,6 +604,8 @@ def build_parser() -> Parser:
                                     'library/props.json), e.g. "clipboard:right,stopwatch:left", or none')
     c.add_argument("--default-expression", choices=list(get_args(Expression)))
     c.add_argument("--eyes", choices=["dots", "half_closed"])
+    c.add_argument("--body", choices=["stickman", "chicken"], help="drawing (a chicken's feathers are the top colour)")
+    c.add_argument("--headless", choices=["yes", "no"], help="chicken only: no head, a neck stump")
     c.set_defaults(func=cmd_cast_edit)
 
     c = sub.add_parser("set-voice", parents=[common], help="set the series voice name")

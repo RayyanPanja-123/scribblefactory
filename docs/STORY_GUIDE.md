@@ -159,6 +159,10 @@ Comma-separated cast ids. Default: the first two cast members of the series.
 - **7 to 12:** the characters *named in that scene's lines* (or used in an `@do`) stand in front and everyone else
   stands further back, smaller, idle. At most 6 may be named in one scene.
 - Never more than **12**. For a large group of people, use `@crowd` instead (extras, not cast).
+- A cast member can be a **chicken** (series.json `"body": "chicken"`, optionally `"headless": true`). A chicken
+  walks, runs, staggers, pecks (`eat`), flaps its wings (react, cheer, angry, gasp, wave, point), sits down (`lie`,
+  `collapse`), rides in the car and can be supported or carried. It has no hands: it cannot `give`, be given
+  things, `carry` or `support`. When the chicken is the focus, the camera comes down to its height.
 
 ### `@do <cast>: <action> [target | prop]`: force an action
 
