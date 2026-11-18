@@ -588,6 +588,18 @@ def test_creatures(client, lib):
     assert client.delete("/api/creatures/wolf").status_code == 404
 
 
+def test_spawn_detached_outlives_its_launcher():
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    # listens until its first connection, then exits: the connect below is also the cleanup
+    m.spawn_detached([sys.executable, "-c", f"import socket; socket.create_server(('127.0.0.1', {port})).accept()"])
+    deadline = time.monotonic() + 15
+    while not m.gateway_up(port) and time.monotonic() < deadline:  # gateway_up's probe connects: it exits
+        time.sleep(0.2)
+    assert time.monotonic() < deadline, "the detached process never listened"
+
+
 def test_gateway_switch(tmp_path, monkeypatch):
     monkeypatch.setenv("SCRIBBLE_LIBRARY", str(tmp_path))
     c = TestClient(m.app)
@@ -598,12 +610,10 @@ def test_gateway_switch(tmp_path, monkeypatch):
     c.put("/api/settings", json={"base_url": f"http://127.0.0.1:{port}/v1", "model": "x"})
     calls = []
 
-    def fake_serve(argv, **kw):  # stands in for the long-running `omniroute serve`: it listens
+    def fake_serve(argv):  # stands in for the long-running `omniroute serve`: it listens
         nonlocal srv
         calls.append(argv[1:])
-        assert kw["creationflags"] == getattr(subprocess, "CREATE_NO_WINDOW", 0)  # hidden console its CLIs inherit
         srv = socket.create_server(("127.0.0.1", port))
-        return type("P", (), {"returncode": None, "poll": lambda self: None})()
 
     def fake_run(argv, **kw):  # `omniroute stop`: closes it
         calls.append(argv[1:])
@@ -611,7 +621,7 @@ def test_gateway_switch(tmp_path, monkeypatch):
         return subprocess.CompletedProcess(argv, 0, "", "")
 
     monkeypatch.setattr("shutil.which", lambda _: "omniroute")
-    monkeypatch.setattr(m.subprocess, "Popen", fake_serve)
+    monkeypatch.setattr(m, "spawn_detached", fake_serve)
     monkeypatch.setattr(m.subprocess, "run", fake_run)
     assert c.get("/api/gateway").json() == {"running": False}
     assert c.put("/api/gateway", json={"on": True}).json() == {"running": True}

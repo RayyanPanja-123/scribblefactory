@@ -1094,6 +1094,28 @@ def gateway_up(port: int | None) -> bool:
     return False
 
 
+# Windows: a launcher starts argv and exits at once, so argv is orphaned: outside the API's process tree (an API
+# reload, or dev.sh's taskkill /T, can't reach it) and, where the job allows breakaway, outside its job object.
+# CREATE_NO_WINDOW gives it a hidden console that the CLIs it spawns inherit.
+_LAUNCHER = """import subprocess, sys
+flags = subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
+for f in (flags | subprocess.CREATE_BREAKAWAY_FROM_JOB, flags):
+    try:
+        subprocess.Popen(sys.argv[1:], creationflags=f, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        break
+    except OSError:  # the job doesn't allow breakaway
+        pass
+"""
+
+
+def spawn_detached(argv: list[str]) -> None:
+    """Start argv so it outlives this process (and its reloads), with no visible window."""
+    if os.name != "nt":
+        subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        return
+    subprocess.run([sys.executable, "-c", _LAUNCHER, *argv], timeout=30, creationflags=subprocess.CREATE_NO_WINDOW)
+
+
 @app.get("/api/gateway", response_model=Gateway)
 def get_gateway():
     return Gateway(running=gateway_up(gateway_port()))
@@ -1114,16 +1136,14 @@ def put_gateway(body: GatewayIn):
     no_window = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     if body.on:
         # Not --daemon: that detaches the server from any console, so on Windows every CLI provider it runs
-        # (claude, codex, ...) pops its own console window. In a hidden console of ours, they inherit it instead.
+        # (claude, codex, ...) pops its own console window. In a hidden console, they inherit it instead.
         # `omniroute stop` still finds it (PID file, else the port).
-        proc = subprocess.Popen([exe, "serve", "--no-open", "--port", str(port)], stdin=subprocess.DEVNULL,
-                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=no_window)
+        spawn_detached([exe, "serve", "--no-open", "--port", str(port)])
         deadline = time.monotonic() + 60
-        while not gateway_up(port) and proc.poll() is None and time.monotonic() < deadline:
+        while not gateway_up(port) and time.monotonic() < deadline:
             time.sleep(0.5)
         if not gateway_up(port):
-            raise HTTPException(502, f"omniroute serve exited with code {proc.returncode}" if proc.poll() is not None
-                                else "omniroute serve didn't start listening within 60 s")
+            raise HTTPException(502, "omniroute serve didn't start listening within 60 s: run it in a terminal to see why")
         return Gateway(running=True)
     try:
         r = subprocess.run([exe, "stop", "--port", str(port)], capture_output=True, text=True, encoding="utf-8",
