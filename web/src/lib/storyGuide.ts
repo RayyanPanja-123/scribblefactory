@@ -5,6 +5,14 @@ import { api } from '../api/client'
 import { SLOTS } from './wardrobe'
 
 const ids = (xs: { id: string; name: string }[]) => xs.map((x) => `\`${x.id}\` (${x.name})`).join(', ')
+type Weather = { kind: string; intensity: string } | null | undefined
+const wx = (w: Weather) => (w ? `${w.kind} ${w.intensity}` : '')
+/** custom sets with their default weather, e.g. `harbour` (Harbour, default weather fog light) */
+const setIds = (xs: { id: string; name: string; default_weather?: Weather }[]) =>
+  xs.map((x) => `\`${x.id}\` (${x.name}${x.default_weather ? `, default weather ${wx(x.default_weather)}` : ''})`).join(', ')
+/** cast members with their named looks (@look), e.g. `mike` (Mike; looks: headless) */
+const castIds = (xs: { id: string; name: string; looks?: Record<string, unknown> }[]) =>
+  xs.map((x) => { const l = Object.keys(x.looks ?? {}); return `\`${x.id}\` (${x.name}${l.length ? `; looks: ${l.map((k) => `\`${k}\``).join(', ')}` : ''})` }).join(', ')
 
 /** the "Available in this library" section, or '' when the API can't be reached (the static guide still works) */
 export async function libraryRecords(): Promise<string> {
@@ -13,18 +21,23 @@ export async function libraryRecords(): Promise<string> {
     const casts = await Promise.all(series.map((s) => api.seriesDetail(s.slug).then((d) => d.series, () => null)))
     const indoor = sets.custom.filter((s) => s.kind === 'indoor')
     const outdoor = sets.custom.filter((s) => s.kind === 'outdoor')
-    const cast = casts.filter((s) => s?.cast.length).map((s) => `  - ${s!.title}: ${ids(s!.cast)}`)
+    const cast = casts.filter((s) => s?.cast.length).map((s) => `  - ${s!.title}: ${castIds(s!.cast)}`)
     return [
       '## Available in this library right now',
       '',
       `- **Sets** (${sets.builtin.length + sets.custom.length}): built in ${sets.builtin.map((s) => `\`${s.id}\``).join(', ')}` +
-        (indoor.length ? `; custom indoor ${ids(indoor)}` : '') +
-        (outdoor.length ? `; custom outdoor ${ids(outdoor)}` : ''),
+        (indoor.length ? `; custom indoor ${setIds(indoor)}` : '') +
+        (outdoor.length ? `; custom outdoor ${setIds(outdoor)}` : ''),
+      '- **Weather** for `@weather <type> [intensity]`: types `clear`, `rain`, `snow`, `fog`, `wind`, `storm`; intensities ' +
+        '`light`, `medium` (default), `heavy`. Built-in sets start clear' +
+        (sets.custom.some((s) => s.default_weather) ? '; custom sets with a default weather say so above' : '') +
+        '. Mood: gods, sea battles, villains `storm`; sadness `rain`; mystery `fog`; calm `clear`.',
+      '- **Lightning** `@fx lightning [target]`: at most 3 per part; target a cast id on stage or a prop someone on stage holds.',
       `- **Props** (${props.builtin.length + props.custom.length}): built in ${props.builtin.map((p) => `\`${p}\``).join(', ')}` +
         (props.custom.length ? `; custom ${ids(props.custom)}` : ''),
       `- **Creatures** (cast bodies, by rig; default \`human\`): ${[...creatures.builtin, ...creatures.custom]
         .map((c) => `\`${c.id}\` (${c.rig})`).join(', ')}`,
-      `- **Actions** for \`@do\`: built in ${actions.do.map((a) => `\`${a}\``).join(', ')}` +
+      `- **Actions** for \`@do <cast>: <action>\`: built in ${actions.do.map((a) => `\`${a}\``).join(', ')}` +
         (actions.custom.length ? `; custom (humanoids only) ${ids(actions.custom)}` : ''),
       `- **Wardrobe** (cast slots, by slot; worn by id, \`null\` for none): ${SLOTS.map((s) => {
         const xs = [...wardrobe.builtin.filter((w) => w.slot === s), ...wardrobe.custom.filter((w) => w.slot === s)]
