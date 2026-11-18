@@ -598,23 +598,27 @@ def test_gateway_switch(tmp_path, monkeypatch):
     c.put("/api/settings", json={"base_url": f"http://127.0.0.1:{port}/v1", "model": "x"})
     calls = []
 
-    def fake_run(argv, **kw):  # stands in for the omniroute CLI: serve listens, stop closes
+    def fake_serve(argv, **kw):  # stands in for the long-running `omniroute serve`: it listens
         nonlocal srv
         calls.append(argv[1:])
-        if argv[1] == "serve":
-            srv = socket.create_server(("127.0.0.1", port))
-        else:
-            srv.close()
+        assert kw["creationflags"] == getattr(subprocess, "CREATE_NO_WINDOW", 0)  # hidden console its CLIs inherit
+        srv = socket.create_server(("127.0.0.1", port))
+        return type("P", (), {"returncode": None, "poll": lambda self: None})()
+
+    def fake_run(argv, **kw):  # `omniroute stop`: closes it
+        calls.append(argv[1:])
+        srv.close()
         return subprocess.CompletedProcess(argv, 0, "", "")
 
     monkeypatch.setattr("shutil.which", lambda _: "omniroute")
+    monkeypatch.setattr(m.subprocess, "Popen", fake_serve)
     monkeypatch.setattr(m.subprocess, "run", fake_run)
     assert c.get("/api/gateway").json() == {"running": False}
     assert c.put("/api/gateway", json={"on": True}).json() == {"running": True}
     assert c.get("/api/gateway").json() == {"running": True}
     assert c.put("/api/gateway", json={"on": True}).json() == {"running": True}  # already on: no second serve
     assert c.put("/api/gateway", json={"on": False}).json() == {"running": False}
-    assert calls == [["serve", "--daemon", "--no-open", "--port", str(port)], ["stop", "--port", str(port)]]
+    assert calls == [["serve", "--no-open", "--port", str(port)], ["stop", "--port", str(port)]]
     c.put("/api/settings", json={"base_url": "https://api.example.com/v1", "model": "x"})
     assert c.put("/api/gateway", json={"on": True}).status_code == 409  # remote gateway: not ours to start
 

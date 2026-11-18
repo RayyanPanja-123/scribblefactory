@@ -1111,18 +1111,31 @@ def put_gateway(body: GatewayIn):
     exe = shutil.which("omniroute")
     if not exe:
         raise HTTPException(409, "OmniRoute isn't installed: npm install -g omniroute")
-    argv = [exe, "serve", "--daemon", "--no-open", "--port", str(port)] if body.on else [exe, "stop", "--port", str(port)]
+    no_window = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    if body.on:
+        # Not --daemon: that detaches the server from any console, so on Windows every CLI provider it runs
+        # (claude, codex, ...) pops its own console window. In a hidden console of ours, they inherit it instead.
+        # `omniroute stop` still finds it (PID file, else the port).
+        proc = subprocess.Popen([exe, "serve", "--no-open", "--port", str(port)], stdin=subprocess.DEVNULL,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=no_window)
+        deadline = time.monotonic() + 60
+        while not gateway_up(port) and proc.poll() is None and time.monotonic() < deadline:
+            time.sleep(0.5)
+        if not gateway_up(port):
+            raise HTTPException(502, f"omniroute serve exited with code {proc.returncode}" if proc.poll() is not None
+                                else "omniroute serve didn't start listening within 60 s")
+        return Gateway(running=True)
     try:
-        r = subprocess.run(argv, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=90,
-                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        r = subprocess.run([exe, "stop", "--port", str(port)], capture_output=True, text=True, encoding="utf-8",
+                           errors="replace", timeout=90, creationflags=no_window)
     except subprocess.TimeoutExpired:
-        raise HTTPException(502, f"omniroute {argv[1]} took over 90 s")
-    deadline = time.monotonic() + 30  # the CLI can return before the server is listening / the port is released
-    while gateway_up(port) != body.on and time.monotonic() < deadline:
+        raise HTTPException(502, "omniroute stop took over 90 s")
+    deadline = time.monotonic() + 30  # the CLI can return before the port is released
+    while gateway_up(port) and time.monotonic() < deadline:
         time.sleep(0.5)
-    if gateway_up(port) != body.on:
-        raise HTTPException(502, f"omniroute {argv[1]} failed: {(r.stderr or r.stdout).strip()[-500:] or f'exit {r.returncode}'}")
-    return Gateway(running=body.on)
+    if gateway_up(port):
+        raise HTTPException(502, f"omniroute stop failed: {(r.stderr or r.stdout).strip()[-500:] or f'exit {r.returncode}'}")
+    return Gateway(running=False)
 
 
 @app.post("/api/ai/complete", response_model=AiReply)
