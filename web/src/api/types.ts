@@ -4,6 +4,41 @@
  */
 
 export interface paths {
+    "/api/actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Actions */
+        get: operations["get_actions_api_actions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/actions/{action_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put Action */
+        put: operations["put_action_api_actions__action_id__put"];
+        post?: never;
+        /** Remove Action */
+        delete: operations["remove_action_api_actions__action_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/ai/complete": {
         parameters: {
             query?: never;
@@ -531,6 +566,55 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ActionCatalog */
+        ActionCatalog: {
+            /** Builtin */
+            builtin: string[];
+            /** Custom */
+            custom: components["schemas"]["CustomAction"][];
+            /** Do */
+            do: string[];
+        };
+        /**
+         * ActionKey
+         * @description one pose of a custom action. Angles in degrees on the stickman's front view: from straight down, + toward +x
+         *     (screen right; the left arm hangs out at about -16, the right at +16)
+         */
+        ActionKey: {
+            /**
+             * Arms
+             * @description [[upper arm, forearm bend] left, [upper arm, forearm bend] right]; none: at rest
+             */
+            arms?: [
+                [
+                    number,
+                    number
+                ],
+                [
+                    number,
+                    number
+                ]
+            ] | null;
+            /**
+             * Lean
+             * @description whole figure, about the feet; + leans toward +x
+             * @default 0
+             */
+            lean: number;
+            /**
+             * Legs
+             * @description [left, right] leg angles (rest -6, 6); the feet stay on the ground; none: at rest
+             */
+            legs?: [
+                number,
+                number
+            ] | null;
+            /**
+             * T
+             * @description when, as a share of the action's duration
+             */
+            t: number;
+        };
         /** AiPrompt */
         AiPrompt: {
             /** Prompt */
@@ -765,6 +849,33 @@ export interface components {
              * @default 8
              */
             width: number;
+        };
+        /**
+         * CustomAction
+         * @description an in-place move for humanoids (salute, bow, dance...): keyframes the engine blends between. @do <cast>:
+         *     <id> plays it; other creatures stand idle through it.
+         */
+        CustomAction: {
+            /**
+             * Duration
+             * @description seconds for one pass through the keys
+             */
+            duration: number;
+            /** Id */
+            id: string;
+            /**
+             * Keys
+             * @description in time order
+             */
+            keys: components["schemas"]["ActionKey"][];
+            /**
+             * Loop
+             * @description repeat for the whole shot; false: play once and hold the last key
+             * @default true
+             */
+            loop: boolean;
+            /** Name */
+            name: string;
         };
         /** CustomCreature */
         CustomCreature: {
@@ -1569,6 +1680,92 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    get_actions_api_actions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionCatalog"];
+                };
+            };
+        };
+    };
+    put_action_api_actions__action_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                action_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomAction"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionCatalog"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_action_api_actions__action_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                action_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionCatalog"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     ai_complete_api_ai_complete_post: {
         parameters: {
             query?: never;

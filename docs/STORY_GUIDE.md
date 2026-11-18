@@ -281,6 +281,7 @@ Several clauses are comma-separated: `@do fred: lie, amy: wave`.
 | support | `@do trainer1: support thomas` | **1 or 2** helpers hold someone up |
 | cheer, angry, gasp | `@do amy: cheer` | crowd-style reactions |
 | car: broken | `@do car: broken` | only when a car is on stage |
+| a custom action | `@do fred: salute` | listed under *Available in this library*; in place; humanoids only (others stand idle) |
 
 The target of give / carry / support cannot have its own action in the same `@do`.
 

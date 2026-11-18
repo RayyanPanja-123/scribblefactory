@@ -33,8 +33,10 @@ from sse_starlette import EventSourceResponse
 from pipeline.scribble import cli, storycheck
 from pipeline.scribble.io import (atomic_write_bytes, atomic_write_json, atomic_write_text, delete_prop, delete_set, load_part, load_props,
                                   load_series, load_sets, prop_kinds, save_prop, save_series, save_set, unknown_cast_props,
-                                  cast_body_problems, delete_creature, load_creatures, save_creature)
-from pipeline.scribble.schemas import (BUILTIN_CREATURES, BUILTIN_SETS, BuiltinProp, CastMember, CreatureRig, CustomCreature,
+                                  cast_body_problems, delete_creature, load_creatures, save_creature, delete_action,
+                                  load_actions, save_action)
+from pipeline.scribble.schemas import (ACTIONS, BUILTIN_CREATURES, BUILTIN_SETS, BuiltinProp, CastMember, CreatureRig,
+                                       CustomAction, CustomCreature, actions_with,
                                        CustomProp, CustomSet, PartModel, Posted, SeriesModel, SetKind, Slug,
                                        Stage, Stages,
                                        utcnow)
@@ -657,6 +659,47 @@ def remove_creature(creature_id: Slug):
         raise HTTPException(409, str(e))
     publish("creatures-changed", {"id": creature_id})
     return creature_catalog()
+
+
+# ---------------- actions (library/actions.json: custom moves, shared by every series) ----------------
+
+class ActionCatalog(BaseModel):
+    builtin: list[str]  # code in the engine (schemas ACTIONS); @do may ask for those with the "do" trait
+    do: list[str]       # the built-ins @do accepts
+    custom: list[CustomAction]
+
+
+def action_catalog() -> ActionCatalog:
+    return ActionCatalog(builtin=list(ACTIONS), do=sorted(actions_with("do")), custom=load_actions(lib()).actions)
+
+
+@app.get("/api/actions", response_model=ActionCatalog)
+def get_actions():
+    return action_catalog()
+
+
+@app.put("/api/actions/{action_id}", response_model=ActionCatalog)
+def put_action(action_id: Slug, body: CustomAction):
+    if body.id != action_id:
+        raise HTTPException(409, f"body id {body.id!r} does not match {action_id!r}")
+    check_no_jobs()  # actions.json feeds every render, like props.json
+    lib().mkdir(parents=True, exist_ok=True)
+    save_action(lib(), body)
+    publish("actions-changed", {"id": action_id})
+    return action_catalog()
+
+
+@app.delete("/api/actions/{action_id}", response_model=ActionCatalog)
+def remove_action(action_id: Slug):
+    check_no_jobs()
+    try:
+        delete_action(lib(), action_id)
+    except KeyError:
+        raise HTTPException(404, f"no custom action {action_id!r}")
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+    publish("actions-changed", {"id": action_id})
+    return action_catalog()
 
 
 # ---------------- sets (library/sets.json, shared by every series) ----------------

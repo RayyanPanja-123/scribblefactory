@@ -1,6 +1,128 @@
 {
   "components": {
     "schemas": {
+      "ActionCatalog": {
+        "properties": {
+          "builtin": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Builtin",
+            "type": "array"
+          },
+          "custom": {
+            "items": {
+              "$ref": "#/components/schemas/CustomAction"
+            },
+            "title": "Custom",
+            "type": "array"
+          },
+          "do": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Do",
+            "type": "array"
+          }
+        },
+        "required": [
+          "builtin",
+          "do",
+          "custom"
+        ],
+        "title": "ActionCatalog",
+        "type": "object"
+      },
+      "ActionKey": {
+        "additionalProperties": false,
+        "description": "one pose of a custom action. Angles in degrees on the stickman's front view: from straight down, + toward +x\n(screen right; the left arm hangs out at about -16, the right at +16)",
+        "properties": {
+          "arms": {
+            "anyOf": [
+              {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "maxItems": 2,
+                    "minItems": 2,
+                    "prefixItems": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ],
+                    "type": "array"
+                  },
+                  {
+                    "maxItems": 2,
+                    "minItems": 2,
+                    "prefixItems": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ],
+                    "type": "array"
+                  }
+                ],
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "[[upper arm, forearm bend] left, [upper arm, forearm bend] right]; none: at rest",
+            "title": "Arms"
+          },
+          "lean": {
+            "default": 0,
+            "description": "whole figure, about the feet; + leans toward +x",
+            "maximum": 30.0,
+            "minimum": -30.0,
+            "title": "Lean",
+            "type": "number"
+          },
+          "legs": {
+            "anyOf": [
+              {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "[left, right] leg angles (rest -6, 6); the feet stay on the ground; none: at rest",
+            "title": "Legs"
+          },
+          "t": {
+            "description": "when, as a share of the action's duration",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "T",
+            "type": "number"
+          }
+        },
+        "required": [
+          "t"
+        ],
+        "title": "ActionKey",
+        "type": "object"
+      },
       "AiPrompt": {
         "properties": {
           "prompt": {
@@ -569,6 +691,54 @@
           "pts"
         ],
         "title": "CreatureShape",
+        "type": "object"
+      },
+      "CustomAction": {
+        "additionalProperties": false,
+        "description": "an in-place move for humanoids (salute, bow, dance...): keyframes the engine blends between. @do <cast>:\n<id> plays it; other creatures stand idle through it.",
+        "properties": {
+          "duration": {
+            "description": "seconds for one pass through the keys",
+            "maximum": 10.0,
+            "minimum": 0.2,
+            "title": "Duration",
+            "type": "number"
+          },
+          "id": {
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "title": "Id",
+            "type": "string"
+          },
+          "keys": {
+            "description": "in time order",
+            "items": {
+              "$ref": "#/components/schemas/ActionKey"
+            },
+            "maxItems": 40,
+            "minItems": 1,
+            "title": "Keys",
+            "type": "array"
+          },
+          "loop": {
+            "default": true,
+            "description": "repeat for the whole shot; false: play once and hold the last key",
+            "title": "Loop",
+            "type": "boolean"
+          },
+          "name": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "duration",
+          "keys"
+        ],
+        "title": "CustomAction",
         "type": "object"
       },
       "CustomCreature": {
@@ -2465,6 +2635,112 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/actions": {
+      "get": {
+        "operationId": "get_actions_api_actions_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionCatalog"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Actions"
+      }
+    },
+    "/api/actions/{action_id}": {
+      "delete": {
+        "operationId": "remove_action_api_actions__action_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionCatalog"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Action"
+      },
+      "put": {
+        "operationId": "put_action_api_actions__action_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomAction"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionCatalog"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Action"
+      }
+    },
     "/api/ai/complete": {
       "post": {
         "description": "One chat completion through the OpenAI-compatible gateway (OmniRoute). Server-side: no CORS, key stays here.",

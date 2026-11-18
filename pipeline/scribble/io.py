@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import get_args
 
 from .schemas import (ACTIONS, BUILTIN_CREATURES, BUILTIN_SETS, ActionLibrary, BuiltinProp, CreatureLibrary,
-                      CustomCreature, CustomProp, CustomSet, PartModel, PropLibrary, SeriesModel, SetLibrary)
+                      CustomAction, CustomCreature, CustomProp, CustomSet, PartModel, PropLibrary, SeriesModel, SetLibrary)
 
 # User-owned files a save must never write to.
 PROTECTED = {"story.md", "voice.mp3"}
@@ -198,6 +198,33 @@ def load_actions(library) -> ActionLibrary:
 def custom_actions(library) -> list[str]:
     """the ids of library/actions.json: what @do may ask for besides the built-in actions"""
     return [a.id for a in load_actions(library).actions]
+
+
+def action_users(library, action_id: str) -> list[str]:
+    """"<slug>/<part id>" for every story.md in the library with an @do clause using this action"""
+    used = re.compile(rf":\s*{re.escape(action_id)}\s*(,|$)")  # a clause's action follows its colon
+    return [f"{f.parent.parent.name}/{f.parent.name}" for f in sorted(Path(library).glob("*/part-*/story.md"))
+            if any(line.strip().startswith("@do") and used.search(line)
+                   for line in f.read_text(encoding="utf-8").splitlines())]
+
+
+def save_action(library, action: CustomAction) -> None:
+    """add or replace a custom action (in-place moves: no cast approval depends on them)"""
+    lib = load_actions(library)
+    lib.actions = [action if a.id == action.id else a for a in lib.actions] if any(a.id == action.id for a in lib.actions) \
+        else [*lib.actions, action]
+    atomic_write_json(Path(library) / "actions.json", lib.model_dump(mode="json"))
+
+
+def delete_action(library, action_id: str) -> None:
+    """remove a custom action; refused (ValueError) while any story.md uses it in an @do"""
+    lib = load_actions(library)
+    if not any(a.id == action_id for a in lib.actions):
+        raise KeyError(action_id)
+    if used := action_users(library, action_id):
+        raise ValueError(f"{action_id} is still used by " + ", ".join(used))
+    lib.actions = [a for a in lib.actions if a.id != action_id]
+    atomic_write_json(Path(library) / "actions.json", lib.model_dump(mode="json"))
 
 
 def unknown_actions(story, library) -> list[str]:

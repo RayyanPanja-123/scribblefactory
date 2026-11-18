@@ -20,7 +20,7 @@ const copied = ref(false)
 const ids = (xs: { id: string; name: string }[]) => xs.map((x) => `\`${x.id}\` (${x.name})`).join(', ')
 async function records() {
   try {
-    const [sets, props, creatures] = await Promise.all([api.sets(), api.props(), api.creatures()])
+    const [sets, props, creatures, actions] = await Promise.all([api.sets(), api.props(), api.creatures(), api.actions()])
     const indoor = sets.custom.filter((s) => s.kind === 'indoor')
     const outdoor = sets.custom.filter((s) => s.kind === 'outdoor')
     return [
@@ -31,10 +31,11 @@ async function records() {
         (outdoor.length ? `; custom outdoor ${ids(outdoor)}` : ''),
       `- **Props** (${props.builtin.length + props.custom.length}): built in ${props.builtin.map((p) => `\`${p}\``).join(', ')}` +
         (props.custom.length ? `; custom ${ids(props.custom)}` : ''),
-      `- **Creatures** (animal bodies for cast members, by rig): ${[...creatures.builtin, ...creatures.custom]
+      `- **Creatures** (cast bodies, by rig; default \`human\`): ${[...creatures.builtin, ...creatures.custom]
         .map((c) => `\`${c.id}\` (${c.rig})`).join(', ')}`,
+      `- **Custom actions** (for \`@do\`, humanoids only): ${actions.custom.length ? ids(actions.custom) : 'none yet'}`,
       '',
-      'Use these sets, props and creatures; anything else goes in the NEW block (section 6).',
+      'Use these sets, props, creatures and actions; anything else goes in the NEW block (section 6).',
       '',
       '',
     ].join('\n')
