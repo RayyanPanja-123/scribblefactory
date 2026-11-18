@@ -18,6 +18,7 @@ const router = createRouter({
     { path: '/new-series', name: 'new-series', component: () => import('./pages/NewSeries.vue') },
     { path: '/series/:slug/new-part', name: 'new-part', component: () => import('./pages/NewPart.vue'), props: true },
     { path: '/series/:slug', name: 'series-detail', component: () => import('./pages/SeriesDetail.vue'), props: true },
+    { path: '/series/:slug/cast/:id', name: 'cast-edit', component: () => import('./pages/CastEditor.vue'), props: true },
     { path: '/series/:slug/:part', name: 'part', component: () => import('./pages/PartDetail.vue'), props: true },
     { path: '/review', name: 'review', component: () => import('./pages/Review.vue') },
     { path: '/creatures', name: 'creatures', component: () => import('./pages/Creatures.vue') },

@@ -8,6 +8,7 @@ from PIL import Image
 from pipeline.scribble import cli, sheet
 from pipeline.scribble.cli import main
 from pipeline.scribble.io import load_part, load_series
+from pipeline.tests.helpers import rendered
 
 FIX = Path(__file__).parent / "fixtures" / "story"
 
@@ -21,6 +22,7 @@ def lib(tmp_path, monkeypatch):
     main(["cast-add", "nap", "amy", "--name", "Amy", "--color", "#e2453c", "--eyes", "half_closed"])
     main(["new-part", "nap"])
     shutil.copy(FIX / "story.json", tmp_path / "nap" / "part-01" / "story.json")
+    rendered(tmp_path / "nap")
     return tmp_path
 
 
@@ -29,12 +31,18 @@ def engine_calls(monkeypatch):
     """Fake render.mjs: records its args and writes the frames + manifest it would have written."""
     calls = []
 
+    def frames(d: Path, name: str):
+        d.mkdir(parents=True, exist_ok=True)
+        Image.new("RGB", (1080, 1920), "white").save(d / name)
+        (d / "manifest.json").write_text(json.dumps([{"label": "a", "file": name}]))
+
     def fake(*args):
         calls.append([str(a) for a in args])
-        d = Path(args[1]) / ("frames/stills" if args[0] == "--part" else "cast-frames")
-        d.mkdir(parents=True, exist_ok=True)
-        Image.new("RGB", (1080, 1920), "white").save(d / "a.png")
-        (d / "manifest.json").write_text(json.dumps([{"label": "a", "file": "a.png"}]))
+        if args[0] == "--batch":  # cast-sheet: one job per member, --series <dir> --cast-sheet --cast <id>
+            for job in json.loads(Path(args[1]).read_text()):
+                frames(Path(job[1]) / "cast-frames" / job[4], f"{job[4]}-idle.png")
+        else:
+            frames(Path(args[1]) / "frames/stills", "a.png")
     monkeypatch.setattr(cli, "run_engine", fake)
     return calls
 
@@ -100,9 +108,21 @@ def test_render_stills_needs_story(lib, engine_calls, capsys):
 
 
 def test_cast_sheet(lib, engine_calls):
+    d = lib / "nap"
+    shutil.rmtree(d / "cast")
+    assert main(["approve-cast", "nap", "bob"]) == 1  # no render yet
     assert main(["cast-sheet", "nap"]) == 0
-    assert engine_calls == [["--series", str(lib / "nap"), "--cast-sheet"]]
-    assert (lib / "nap" / "cast-sheet.png").exists()
+    assert engine_calls[0][0] == "--batch"
+    assert all((d / "cast" / f).exists() for f in ["bob.png", "bob-idle.png", "amy.png", "amy-idle.png"])
+    assert main(["approve-cast", "nap", "bob"]) == 0
+    main(["cast-edit", "nap", "amy", "--top-color", "#00ff00"])  # amy's render is stale now, bob's is not
+    assert main(["approve-cast", "nap", "amy"]) == 1
+    (d / "cast" / "bob.png").unlink()
+    assert main(["cast-sheet", "nap", "amy"]) == 0  # only amy
+    assert [j[4] for j in json.loads((d / "cast-frames" / "batch.json").read_text())] == ["amy"]
+    assert not (d / "cast" / "bob.png").exists()
+    assert main(["approve-cast", "nap", "amy"]) == 0
+    assert main(["cast-sheet", "nap", "zed"]) == 1
 
 
 def test_cast_sheet_needs_cast(tmp_path, monkeypatch, engine_calls):

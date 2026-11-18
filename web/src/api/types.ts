@@ -349,6 +349,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/series/{slug}/cast/{cast_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Edit Cast
+         * @description replace one cast member (same entry shape as NewCast; the id stays). A new look clears its approval and makes
+         *     its render stale (CastRender.current) until cast-sheet <slug> <id> runs again.
+         */
+        put: operations["edit_cast_api_series__slug__cast__cast_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/series/{slug}/parts": {
         parameters: {
             query?: never;
@@ -813,6 +834,15 @@ export interface components {
              */
             props: components["schemas"]["Prop"][];
             top: components["schemas"]["Top"];
+        };
+        /** CastRender */
+        CastRender: {
+            /** Current */
+            current: boolean;
+            /** Idle */
+            idle: string | null;
+            /** Sheet */
+            sheet: string | null;
         };
         /** CreatureCatalog */
         CreatureCatalog: {
@@ -1514,8 +1544,10 @@ export interface components {
         };
         /** SeriesDetail */
         SeriesDetail: {
-            /** Cast Sheet */
-            cast_sheet: string | null;
+            /** Cast */
+            cast: {
+                [key: string]: components["schemas"]["CastRender"];
+            };
             /** Parts */
             parts: components["schemas"]["PartSummary"][];
             series: components["schemas"]["SeriesModel"];
@@ -2642,6 +2674,44 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["NewCast"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesModel"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_cast_api_series__slug__cast__cast_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                cast_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
             };
         };
         responses: {

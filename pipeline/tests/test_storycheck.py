@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from pipeline.scribble.io import delete_set, outdoor_sets, save_set, set_kinds
 from pipeline.scribble.schemas import BUILTIN_SETS, CustomSet, SetLibrary
 from pipeline.scribble.storycheck import check_story
+from pipeline.tests.helpers import rendered
 
 STORY = """# Test
 
@@ -41,6 +42,7 @@ def setup(tmp_path, story, approve=("bob", "amy")):
     assert cli(["new-series", "demo", "--title", "Demo", "--library", lib]) == 0
     for cid in ("bob", "amy", "fred"):
         assert cli(["cast-add", "demo", cid, "--name", cid.title(), "--color", "#ff0000", "--library", lib]) == 0
+    rendered(Path(lib) / "demo")
     for cid in approve:
         assert cli(["approve-cast", "demo", cid, "--library", lib]) == 0
     assert cli(["new-part", "demo", "--library", lib]) == 0

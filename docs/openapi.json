@@ -592,6 +592,43 @@
         "title": "CastMember",
         "type": "object"
       },
+      "CastRender": {
+        "properties": {
+          "current": {
+            "title": "Current",
+            "type": "boolean"
+          },
+          "idle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idle"
+          },
+          "sheet": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sheet"
+          }
+        },
+        "required": [
+          "sheet",
+          "idle",
+          "current"
+        ],
+        "title": "CastRender",
+        "type": "object"
+      },
       "CreatureCatalog": {
         "properties": {
           "builtin": {
@@ -2317,16 +2354,12 @@
       },
       "SeriesDetail": {
         "properties": {
-          "cast_sheet": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Cast Sheet"
+          "cast": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/CastRender"
+            },
+            "title": "Cast",
+            "type": "object"
           },
           "parts": {
             "items": {
@@ -2342,7 +2375,7 @@
         "required": [
           "series",
           "parts",
-          "cast_sheet"
+          "cast"
         ],
         "title": "SeriesDetail",
         "type": "object"
@@ -4138,6 +4171,67 @@
           }
         },
         "summary": "Add Cast"
+      }
+    },
+    "/api/series/{slug}/cast/{cast_id}": {
+      "put": {
+        "description": "replace one cast member (same entry shape as NewCast; the id stays). A new look clears its approval and makes\nits render stale (CastRender.current) until cast-sheet <slug> <id> runs again.",
+        "operationId": "edit_cast_api_series__slug__cast__cast_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "cast_id",
+            "required": true,
+            "schema": {
+              "title": "Cast Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesModel"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Edit Cast"
       }
     },
     "/api/series/{slug}/parts": {

@@ -5,6 +5,7 @@ import pytest
 
 from pipeline.scribble.cli import main
 from pipeline.scribble.io import load_part, load_series, save_series
+from pipeline.tests.helpers import rendered
 
 
 @pytest.fixture
@@ -228,6 +229,7 @@ def test_set_style_refuses_when_locked(lib):
 def _approved_cat(lib):
     main(["new-series", "cat", "--title", "Cat"])
     main(["cast-add", "cat", "bob", "--name", "Bob", "--color", "#3a7bd5"])
+    rendered(lib / "cat")
     main(["approve-cast", "cat", "bob"])
     return lib / "cat" / "series.json"
 
@@ -282,6 +284,7 @@ def test_cast_edit_costume_flags(lib, capsys):
     assert ([p.model_dump() for p in c.props], c.default_expression, c.approved_at) == \
         ([{"kind": "clipboard", "hand": "left"}], "exhausted", None)
     assert json.loads(f.read_text())["schema_version"] == 3
+    rendered(lib / "cat")
     main(["approve-cast", "cat", "bob"])
     approved = load_series(f).cast[0].approved_at
     # same look again (hex case differs): approval kept; clearing the number is a look change
@@ -309,6 +312,7 @@ def test_cast_edit_props(lib, capsys):
     assert main(["cast-edit", "cat", "bob", "--props", "clipboard:right, stopwatch:left"]) == 0
     assert [(p.kind, p.hand) for p in load_series(f).cast[0].props] == [("clipboard", "right"), ("stopwatch", "left")]
     assert "approval was cleared" in capsys.readouterr().out
+    rendered(lib / "cat")
     main(["approve-cast", "cat", "bob"])
     approved = load_series(f).cast[0].approved_at
     assert main(["cast-edit", "cat", "bob", "--props", "clipboard:right,stopwatch:left"]) == 0  # same props

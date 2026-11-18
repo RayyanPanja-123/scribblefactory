@@ -12,7 +12,7 @@ export interface SeriesPartState {
 export interface SeriesState {
   cast: number
   castApproved: number
-  castSheet: boolean
+  castCurrent: number // cast whose render shows their look now (approving needs it)
   sheetRendering: boolean
   parts: SeriesPartState[]
 }
@@ -30,10 +30,12 @@ const APPROVAL = { stills: 'stills', test_render: 'test render', final: 'final v
 
 export function seriesNext(s: SeriesState): SeriesStep {
   if (!s.cast) return { kind: 'add-cast', text: 'No cast yet. Add the characters with cast-add, or import cast JSON on a new series.' }
-  if (!s.castSheet || (s.castApproved < s.cast && s.sheetRendering)) {
-    if (s.sheetRendering) return { kind: 'wait', text: 'The cast sheet is rendering. Approve the cast once it shows up.' }
-    if (!s.parts.length) return { kind: 'add-part', text: 'Add the first part: the cast sheet renders through a part.' }
-    return { kind: 'render-sheet', text: 'Render the cast sheet to check every character before approving them.' }
+  if (s.castCurrent < s.cast || (s.castApproved < s.cast && s.sheetRendering)) {
+    if (s.sheetRendering) return { kind: 'wait', text: 'The cast is rendering. Approve them once their poses show up.' }
+    if (!s.parts.length) return { kind: 'add-part', text: 'Add the first part: the cast renders through a part.' }
+    const n = s.cast - s.castCurrent
+    return { kind: 'render-sheet', text: n === s.cast ? 'Render the cast to check every character before approving them.'
+      : `${n} of ${s.cast} cast ${n === 1 ? 'is' : 'are'} new or changed. Render ${n === 1 ? 'it' : 'them'} before approving.` }
   }
   const left = s.cast - s.castApproved
   if (left) {

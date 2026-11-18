@@ -550,7 +550,7 @@ watch(() => props.part, () => { chosen.value = null })
         <p class="text-sm text-muted">Click a sheet to zoom. Click a polaroid to pick the thumbnail.</p>
         <div class="lighttable inset mt-4 grid gap-8 p-8 lg:grid-cols-[1fr_auto]">
           <div class="flex flex-wrap items-start gap-6">
-            <figure v-for="sh in [{ f: 'stills-sheet.png', t: 'Stills sheet', url: has('stills-sheet.png') ? src('stills-sheet.png') : null }, { f: 'cast-sheet.png', t: 'Cast sheet', url: data?.[1].cast_sheet ?? null }]"
+            <figure v-for="sh in [{ f: 'stills-sheet.png', t: 'Stills sheet', url: has('stills-sheet.png') ? src('stills-sheet.png') : null }]"
               :key="sh.f" class="w-60">
               <button v-if="sh.url" class="block w-full cursor-zoom-in rounded-md bg-white p-2 shadow-[var(--shadow-sheet)] transition-transform hover:-translate-y-1"
                 :aria-label="`Zoom ${sh.t}`" @click="zoom(sh.url!, sh.t)">
@@ -633,7 +633,7 @@ watch(() => props.part, () => { chosen.value = null })
         <h3 class="font-display text-lg font-semibold">Manual controls</h3>
         <p class="text-xs text-muted">The Next step card runs these for you; use them to redo one step by hand.</p>
         <div class="mt-4 grid gap-3 sm:grid-cols-2">
-          <div v-for="c in [{ cmd: 'render-stills', label: 'Render stills' }, { cmd: 'test-render', label: 'Test render (5 s)' }, { cmd: 'cast-sheet', label: 'Cast sheet' }]"
+          <div v-for="c in [{ cmd: 'render-stills', label: 'Render stills' }, { cmd: 'test-render', label: 'Test render (5 s)' }, { cmd: 'cast-sheet', label: 'Render whole cast' }]"
             :key="c.cmd" class="flex flex-col">
             <button class="btn btn-secondary justify-center" :disabled="!!why(c.cmd)" :title="why(c.cmd) ?? undefined"
               @click="run([c.cmd])">{{ c.label }}</button>

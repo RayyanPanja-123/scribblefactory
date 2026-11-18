@@ -19,8 +19,10 @@ bash scripts/serve.sh      # http://127.0.0.1:8765
    Custom sets (places beyond the seven built in, e.g. a kitchen or a beach): **Sets** page. A set is a floor, a back
    wall or sky, and simple pieces (boxes, cylinders, balls, mounds) with a live preview; *Build with AI* drafts one.
    Saved in library/sets.json, shared by every series; stories use it by id (`@set kitchen`).
-3. **Cast sheet**: part detail → Run → *Cast sheet* (`cli cast-sheet <slug>`). Look at every row, then approve each
-   cast member on the series page (`cli approve-cast <slug> <id>`). Changing a look later clears its approval.
+3. **Cast**: the series page shows one card per character (its idle pose). *Render* draws that character in every
+   pose (`cli cast-sheet <slug> <id>`; no id: everyone); click the picture to check them all, then *Approve*
+   (`cli approve-cast <slug> <id>`). *Edit* opens the character page (props, wardrobe, body, live preview). A new look
+   clears the approval and only that character needs a re-render before it can be approved again.
 
 ## 2. Write story.md
 

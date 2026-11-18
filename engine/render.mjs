@@ -4,6 +4,7 @@
 //   node engine/render.mjs --part <dir> --frames A-B --out-dir <dir>   -> <dir>/000042.png (A..B inclusive)
 //   node engine/render.mjs --part <dir> --stills          -> <part>/frames/stills/<shot>.png + manifest.json
 //   node engine/render.mjs --series <dir> --cast-sheet    -> <series>/cast-frames/<id>-<pose>.png + manifest.json
+//   node engine/render.mjs --series <dir> --cast-sheet --cast <id>  -> one member: <series>/cast-frames/<id>/...
 //   node engine/render.mjs --probe                        -> print the renderer it would use
 //   node engine/render.mjs --loop-check                   -> JSON: every set/variant built, travel loop excess
 //   node engine/render.mjs --batch jobs.json              -> [[args of one --part/--series job], ...] in one browser
@@ -152,13 +153,15 @@ function castJobs(a) {
   const dir = path.resolve(a.series);
   const data = { series: readJson(path.join(dir, "series.json")), story: { seed: 0 }, ...loadLibrary(path.join(dir, "..")) };
   if (!data.series.cast.length) throw new Error("series.json has no cast");
-  const manifestDir = path.join(dir, "cast-frames"), jobs = [];
-  for (const c of data.series.cast) for (const [label, pose, expression] of POSES) {
+  const cast = a.cast ? data.series.cast.filter((c) => c.id === a.cast) : data.series.cast;
+  if (!cast.length) throw new Error(`cast id ${a.cast} not in series.json`);
+  const manifestDir = path.join(dir, "cast-frames", ...(a.cast ? [a.cast] : [])), jobs = [];
+  for (const c of cast) for (const [label, pose, expression] of POSES) {
     jobs.push({ label: `${c.id} ${label}`, file: path.join(manifestDir, `${c.id}-${label}.png`),
       call: ["renderCast", { castId: c.id, pose, expression }] });
   }
   // named looks (@look) after everyone's full rows, so those rows stay aligned: a few poses each
-  for (const c of data.series.cast) for (const look of Object.keys(c.looks || {})) for (const pose of LOOK_POSES) {
+  for (const c of cast) for (const look of Object.keys(c.looks || {})) for (const pose of LOOK_POSES) {
     jobs.push({ label: `${c.id} ${look} ${pose}`, file: path.join(manifestDir, `${c.id}-${look}-${pose}.png`),
       call: ["renderCast", { castId: c.id, pose, look }] });
   }
@@ -199,13 +202,13 @@ async function runWorker(a) {
 
 const OPTIONS = {
   part: { type: "string" }, series: { type: "string" }, frame: { type: "string" }, out: { type: "string" },
-  stills: { type: "boolean" }, "cast-sheet": { type: "boolean" },
+  stills: { type: "boolean" }, "cast-sheet": { type: "boolean" }, cast: { type: "string" },
   frames: { type: "string" }, "out-dir": { type: "string" },
   swiftshader: { type: "boolean" }, probe: { type: "boolean" }, "info-out": { type: "string" },
   worker: { type: "boolean" }, "loop-check": { type: "boolean" }, batch: { type: "string" },
 };
 const USAGE = "usage: --part <dir> (--frame N --out file.png | --frames A-B --out-dir <dir> | --stills) "
-  + "| --series <dir> --cast-sheet | --probe | --loop-check | --batch jobs.json   [--swiftshader] [--info-out file.json]";
+  + "| --series <dir> --cast-sheet [--cast <id>] | --probe | --loop-check | --batch jobs.json   [--swiftshader] [--info-out file.json]";
 
 /** one render job (--part ... or --series ... --cast-sheet) on an open page: setup, frames, manifest */
 async function renderJobs(opened, a) {

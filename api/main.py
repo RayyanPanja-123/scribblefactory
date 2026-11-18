@@ -31,7 +31,7 @@ from sse_starlette import EventSourceResponse
 from pipeline.scribble import cli, package, storycheck
 from pipeline.scribble.io import (atomic_write_bytes, atomic_write_json, atomic_write_text, delete_prop, delete_set, load_part, load_props,
                                   load_series, load_sets, prop_kinds, save_prop, save_series, save_set, unknown_cast_props,
-                                  cast_body_problems, delete_creature, load_creatures, save_creature, delete_action,
+                                  cast_body_problems, cast_files, cast_render_current, delete_creature, load_creatures, save_creature, delete_action,
                                   load_actions, save_action, delete_wardrobe_item, load_wardrobe, save_wardrobe_item)
 from pipeline.scribble.schemas import (ACTIONS, BUILTIN_CREATURES, BUILTIN_SETS, BuiltinProp, CastMember, CreatureRig,
                                        CustomAction, CustomCreature, actions_with,
@@ -46,7 +46,7 @@ ROOT = Path(__file__).resolve().parents[1]
 OPENAPI = ROOT / "docs" / "openapi.json"
 MEDIA_TYPES = {".mp4", ".png", ".jpg", ".mp3", ".md", ".json"}
 COVER_W = 360  # dashboard cover width (px): a small cached JPEG instead of the 1080x1920 thumbnail PNG
-PART_FILES = ["story.md", "voice.mp3", "preview.mp4", "test-render.mp4", "final.mp4", "stills-sheet.png", "cast-sheet.png"]
+PART_FILES = ["story.md", "voice.mp3", "preview.mp4", "test-render.mp4", "final.mp4", "stills-sheet.png"]
 APPROVE_NEEDS = {"stills": "stills-sheet.png", "test_render": "test-render.mp4", "final": "final.mp4"}
 JOB_COMMANDS = {"run", "render-stills", "test-render", "render", "cast-sheet"}
 KEEP_JOBS = 500  # finished jobs kept as history (oldest dropped first); the History page cleans up sooner
@@ -246,10 +246,16 @@ class PartSummary(BaseModel):
     waiting: list[str] = []
 
 
+class CastRender(BaseModel):
+    sheet: str | None  # every pose in one row (plus a row per named look); None: never rendered
+    idle: str | None  # the idle pose alone: the card picture
+    current: bool  # drawn from the look it has now; approving needs it
+
+
 class SeriesDetail(BaseModel):
     series: SeriesModel
     parts: list[PartSummary]
-    cast_sheet: str | None
+    cast: dict[str, CastRender]  # cast id -> its render
 
 
 class PartDetail(BaseModel):
@@ -330,8 +336,8 @@ def overview():
     for d in all_series():
         s = load_series(d / "series.json")
         disk[d.name] = du(d)
-        cast = [f"cast:{c.id}" for c in s.cast if not c.approved_at]
-        if cast and (d / "cast-sheet.png").is_file():
+        cast = [f"cast:{c.id}" for c in s.cast if not c.approved_at and cast_render_current(d, c)]
+        if cast:
             waiting.append({"slug": d.name, "part": None, "waiting": cast})
         for pid, p in parts_of(d):
             if p is None:
@@ -366,15 +372,22 @@ def series_list():
 @app.get("/api/series/{slug}", response_model=SeriesDetail)
 def series_detail(slug: str):
     d = series_path(slug)
-    return {"series": series_json(d), "parts": [part_summary(d / pid, p) for pid, p in parts_of(d)],
-            "cast_sheet": media_url(slug, "cast-sheet.png") if (d / "cast-sheet.png").is_file() else None}
+    s = load_series(d / "series.json")
+    return {"series": s.model_dump(mode="json"), "parts": [part_summary(d / pid, p) for pid, p in parts_of(d)],
+            "cast": {c.id: cast_render(d, c) for c in s.cast}}
+
+
+def cast_render(d: Path, c) -> dict:
+    def url(f: Path):  # ?v: a re-render is a new url, not a cached old picture
+        return f"{media_url(d.name, f.relative_to(d).as_posix())}?v={f.stat().st_mtime_ns}" if f.is_file() else None
+    files = cast_files(d, c.id)
+    return {"sheet": url(files["sheet"]), "idle": url(files["idle"]), "current": cast_render_current(d, c)}
 
 
 @app.get("/api/series/{slug}/parts/{part}", response_model=PartDetail)
 def part_detail(slug: str, part: str):
     pdir = part_path(slug, part)
     files = {f: (pdir / f).is_file() for f in PART_FILES}
-    files["cast-sheet.png"] = (pdir.parent / "cast-sheet.png").is_file()  # series level
     try:
         voice = probe_duration(pdir / "voice.mp3") if files["voice.mp3"] else None
     except StageError:
@@ -477,9 +490,7 @@ class CastApproval(BaseModel):
 def approve_cast(slug: str, body: CastApproval):
     d = series_path(slug)
     check_free(slug)
-    if not (d / "cast-sheet.png").is_file():
-        raise HTTPException(409, f"no cast sheet yet: run cast-sheet {slug} first")
-    cli_call("approve-cast", slug, body.cast_id)
+    cli_call("approve-cast", slug, body.cast_id)  # refused until that member's render shows its current look
     publish("series-changed", {"slug": slug})
     return series_json(d)
 
@@ -578,6 +589,30 @@ def add_cast(slug: str, body: NewCast):
         raise HTTPException(409, f"cast: {problems[0]}")
     series.cast = series.cast + new
     save_series(d / "series.json", series)
+    publish("series-changed", {"slug": slug})
+    return series_json(d)
+
+
+@app.put("/api/series/{slug}/cast/{cast_id}", response_model=SeriesModel)
+def edit_cast(slug: str, cast_id: str, body: dict):
+    """replace one cast member (same entry shape as NewCast; the id stays). A new look clears its approval and makes
+    its render stale (CastRender.current) until cast-sheet <slug> <id> runs again."""
+    d = series_path(slug)
+    check_free(slug)
+    series = load_series(d / "series.json")
+    i = next((i for i, c in enumerate(series.cast) if c.id == cast_id), None)
+    if i is None:
+        raise HTTPException(404, f"cast id {cast_id!r} not in {slug}")
+    new = cast_member(i, {**body, "id": cast_id})
+    if unknown := unknown_cast_props([new], lib()):
+        raise HTTPException(409, f"unknown prop {unknown[0]} (props: {', '.join(prop_kinds(lib()))})")
+    if problems := cast_body_problems([new], lib()):
+        raise HTTPException(409, f"cast: {problems[0]}")
+    old = series.cast[i]
+    new.approved_at = old.approved_at if new.look() == old.look() else None
+    series.cast[i] = new
+    # written directly: save_series would restore a cleared approval (it only ever adds approvals)
+    atomic_write_json(d / "series.json", series.model_dump(mode="json"))
     publish("series-changed", {"slug": slug})
     return series_json(d)
 

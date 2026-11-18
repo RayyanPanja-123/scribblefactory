@@ -1,46 +1,58 @@
 <script setup lang="ts">
-// The series cast workflow in one place: the cast sheet to check against, one approval per character, and the
-// cast-sheet render. The page passes the data in and refreshes on `changed`; live job state comes from live.ts.
-import { Check, CheckCheck, ImageOff, RefreshCw, ZoomIn } from 'lucide-vue-next'
+// The series cast: one card per character with its idle pose. Each one renders, is edited (CastEditor page) and is
+// approved on its own, so changing one character never means re-rendering the rest. Approving needs a render of the
+// character's current look (renders[id].current); live job state comes from live.ts.
+import { CheckCheck, ImageOff, Pencil, RefreshCw, TriangleAlert, ZoomIn } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { api, type CastMember, type SeriesModel } from '../api/client'
+import type { components } from '../api/types'
 import { act, confirm, zoom } from '../composables/feedback'
 import { castSheetJob, seriesBusy } from '../composables/live'
 import { shortDate } from '../composables/ui'
 import Switch from './Switch.vue'
 
-const p = defineProps<{ series: SeriesModel; castSheet: string | null }>()
+type CastRender = components['schemas']['CastRender']
+const p = defineProps<{ series: SeriesModel; renders: Record<string, CastRender> }>()
 const emit = defineEmits<{ changed: [] }>()
 
 const cast = computed(() => p.series.cast)
-const waiting = computed(() => cast.value.filter((c) => !c.approved_at))
-const rendering = computed(() => !!castSheetJob(p.series.slug))
+const render = (c: CastMember): CastRender => p.renders[c.id] ?? { sheet: null, idle: null, current: false }
+const rendering = (c: CastMember) => !!castSheetJob(p.series.slug, c.id)
 const busy = computed(() => seriesBusy(p.series.slug))
+const outdated = computed(() => cast.value.filter((c) => !render(c).current))
+const waiting = computed(() => cast.value.filter((c) => !c.approved_at))
+const ready = computed(() => waiting.value.filter((c) => !approveReason(c)))
 
-// why the sheet can't be rendered now (null: it can)
-const renderReason = computed(() => !cast.value.length ? 'add cast first'
-  : !p.series.parts.length ? 'add a part first: the cast sheet renders through a part'
-  : rendering.value ? 'the cast sheet is rendering' : busy.value ? 'a job is running in this series' : null)
+// why a character can't be rendered now (null: it can)
+const renderReason = (c?: CastMember) => !p.series.parts.length ? 'add a part first: the cast renders through a part'
+  : c && rendering(c) ? `${c.name} is rendering` : busy.value ? 'a job is running in this series' : null
 // why a character can't be approved now
-const approveReason = computed(() => !p.castSheet ? 'render the cast sheet first'
-  : rendering.value ? 'wait for the new cast sheet' : busy.value ? 'a job is running in this series' : null)
-
-async function renderSheet() {
-  if (renderReason.value) return
-  await act(() => api.submitJob(p.series.slug, p.series.parts[0], ['cast-sheet']), 'Cast sheet queued')
+const approveReason = (c: CastMember) => {
+  const r = render(c)
+  return !r.sheet ? 'render it first' : !r.current ? 'changed since its render: re-render it first'
+    : rendering(c) ? 'wait for the new render' : busy.value ? 'a job is running in this series' : null
 }
+
+async function renderCast(members: CastMember[], what: string) {
+  if (!members.length || renderReason()) return
+  await act(() => api.submitJob(p.series.slug, p.series.parts[0], [`cast-sheet ${members.map((c) => c.id).join(' ')}`]),
+    `${what} queued`)
+}
+/** the series page's next-step button: whatever is new or changed, else everyone */
+const renderSheet = () => renderCast(outdated.value.length ? outdated.value : cast.value, 'Cast render')
+
 async function approve(c: CastMember) {
   if (await act(() => api.approveCast(p.series.slug, c.id), `${c.name} approved`)) emit('changed')
 }
 async function approveAll() {
-  const n = waiting.value.length
+  const n = ready.value.length
   const ok = await confirm({
-    title: `Approve all ${n} cast members?`,
-    body: 'Only after checking every row of the cast sheet. An approval stays until that character’s look changes.',
+    title: `Approve ${n} cast members?`,
+    body: 'Only after checking every pose of each one. An approval stays until that character’s look changes.',
     confirm: `Approve ${n}`,
   })
   if (!ok) return
-  for (const c of waiting.value) {
+  for (const c of ready.value) {
     if (!(await act(() => api.approveCast(p.series.slug, c.id), `${c.name} approved`))) break
   }
   emit('changed')
@@ -56,12 +68,13 @@ defineExpose({ renderSheet })
         <span class="num">{{ cast.length - waiting.length }}/{{ cast.length }}</span> approved
       </span>
       <div class="ml-auto flex flex-wrap gap-2">
-        <button v-if="cast.length" class="btn btn-secondary" :disabled="!!renderReason" :title="renderReason ?? undefined" @click="renderSheet">
-          <RefreshCw :size="16" :class="{ 'animate-spin': rendering }" aria-hidden="true" />
-          {{ rendering ? 'Rendering…' : castSheet ? 'Re-render sheet' : 'Render cast sheet' }}
+        <button v-if="outdated.length" class="btn btn-secondary" :disabled="!!renderReason()" :title="renderReason() ?? undefined"
+          @click="renderCast(outdated, 'Cast render')">
+          <RefreshCw :size="16" aria-hidden="true" />
+          Render {{ outdated.length === cast.length ? 'all' : `${outdated.length} new or changed` }}
         </button>
-        <button v-if="waiting.length > 1" class="btn btn-primary" :disabled="!!approveReason" :title="approveReason ?? undefined" @click="approveAll">
-          <CheckCheck :size="16" aria-hidden="true" /> Approve all
+        <button v-if="ready.length > 1" class="btn btn-primary" @click="approveAll">
+          <CheckCheck :size="16" aria-hidden="true" /> Approve {{ ready.length }}
         </button>
       </div>
     </div>
@@ -70,39 +83,48 @@ defineExpose({ renderSheet })
       No cast yet. Add characters with <code>cast-add</code>, or import cast JSON when creating a series.
     </p>
 
-    <div v-else class="mt-5 grid items-start gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-      <!-- the sheet is what approvals are judged on: it gets the room -->
-      <figure class="min-w-0">
-        <button v-if="castSheet" class="inset group relative block w-full cursor-zoom-in overflow-hidden p-3"
-          aria-label="Zoom the cast sheet" @click="zoom(castSheet, 'Cast sheet')">
-          <img :src="castSheet" alt="Cast sheet: one row per character, in the order listed" class="w-full rounded-sm"
-            :class="{ 'opacity-50': rendering }" />
-          <span class="absolute right-5 bottom-5 grid size-9 place-items-center rounded-full bg-panel text-ink opacity-0 shadow-[var(--shadow-sheet)] transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
-            <ZoomIn :size="16" aria-hidden="true" />
+    <ul v-else class="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" aria-label="Cast members">
+      <li v-for="c in cast" :key="c.id" class="inset flex flex-col p-3">
+        <div class="relative">
+          <button v-if="render(c).idle" class="group relative block w-full cursor-zoom-in overflow-hidden rounded-sm bg-white"
+            :aria-label="`Zoom every pose of ${c.name}`" @click="zoom(render(c).sheet!, `${c.name}: every pose`)">
+            <img :src="render(c).idle!" :alt="`${c.name}, idle`" loading="lazy" class="aspect-[3/4] w-full object-cover object-bottom"
+              :class="{ 'opacity-40': rendering(c) || !render(c).current }" />
+            <span class="absolute right-2 bottom-2 grid size-8 place-items-center rounded-full bg-panel text-ink opacity-0 shadow-[var(--shadow-sheet)] transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+              <ZoomIn :size="14" aria-hidden="true" />
+            </span>
+          </button>
+          <div v-else class="grid aspect-[3/4] place-items-center gap-2 rounded-sm border-2 border-dashed border-rule-strong p-4 text-center">
+            <ImageOff :size="22" class="text-faint" aria-hidden="true" />
+            <span class="text-xs text-muted">{{ rendering(c) ? 'Rendering…' : 'Not rendered yet' }}</span>
+          </div>
+          <span v-if="render(c).idle && !render(c).current && !rendering(c)" class="chip chip-amber absolute top-2 left-2">
+            <TriangleAlert :size="12" aria-hidden="true" /> Changed: re-render
           </span>
-        </button>
-        <div v-else class="inset grid min-h-48 place-items-center gap-3 p-6 text-center">
-          <ImageOff :size="24" class="text-faint" aria-hidden="true" />
-          <p class="max-w-xs text-sm text-muted">
-            {{ rendering ? 'Rendering the cast sheet: every character in every pose.' : 'No cast sheet yet. It shows every character in every pose, so you can approve their looks.' }}
-          </p>
+          <span v-else-if="render(c).idle && rendering(c)" class="chip absolute top-2 left-2">Rendering…</span>
         </div>
-        <figcaption v-if="castSheet" class="mt-2 text-xs text-muted">One row per character, top to bottom in the order listed. Click to zoom.</figcaption>
-      </figure>
 
-      <ol class="divide-y divide-rule" aria-label="Cast approvals">
-        <li v-for="(c, i) in cast" :key="c.id" class="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
-          <span class="num w-5 shrink-0 text-right text-xs text-muted" :title="`row ${i + 1} of the cast sheet`">{{ i + 1 }}</span>
-          <span class="size-5 shrink-0 rounded-full border-2 border-ink" :style="{ background: c.top.color }" aria-hidden="true" />
+        <div class="mt-3 flex items-center gap-2">
+          <span class="size-4 shrink-0 rounded-full border-2 border-ink" :style="{ background: c.top.color }" aria-hidden="true" />
           <span class="min-w-0 flex-1">
             <span class="block truncate text-sm font-semibold">{{ c.name }}</span>
-            <span class="block truncate text-xs text-muted">{{ c.id }}</span>
+            <span class="block truncate text-xs text-muted">{{ c.id }}<template v-if="c.approved_at"> · approved {{ shortDate(c.approved_at) }}</template></span>
           </span>
-          <span v-if="c.approved_at" class="num shrink-0 text-xs text-muted">{{ shortDate(c.approved_at) }}</span>
-          <Switch class="shrink-0" :on="!!c.approved_at" :label="c.name" :reason="c.approved_at ? null : approveReason"
-            @request="approve(c)"><span class="sr-only">{{ c.name }}</span></Switch>
-        </li>
-      </ol>
-    </div>
+        </div>
+
+        <div class="mt-3 flex flex-wrap items-center gap-2">
+          <RouterLink :to="`/series/${series.slug}/cast/${c.id}`" class="btn btn-secondary" :aria-label="`Edit ${c.name}`">
+            <Pencil :size="14" aria-hidden="true" /> Edit
+          </RouterLink>
+          <button class="btn btn-secondary" :disabled="!!renderReason(c)" :title="renderReason(c) ?? undefined"
+            :aria-label="`Re-render ${c.name}`" @click="renderCast([c], `${c.name} render`)">
+            <RefreshCw :size="14" :class="{ 'animate-spin': rendering(c) }" aria-hidden="true" /> {{ render(c).sheet ? 'Re-render' : 'Render' }}
+          </button>
+          <Switch v-if="!c.approved_at" :on="false" :label="c.name" :reason="approveReason(c)" @request="approve(c)">
+            <span class="sr-only">{{ c.name }}</span>
+          </Switch>
+        </div>
+      </li>
+    </ul>
   </section>
 </template>

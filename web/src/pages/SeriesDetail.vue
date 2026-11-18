@@ -28,7 +28,7 @@ const next = computed(() => {
   return seriesNext({
     cast: d.series.cast.length,
     castApproved: d.series.cast.filter((c) => c.approved_at).length,
-    castSheet: !!d.cast_sheet,
+    castCurrent: Object.values(d.cast).filter((r) => r.current).length,
     sheetRendering: !!castSheetJob(props.slug),
     parts: d.parts.filter((p) => !p.missing).map((p) => ({
       id: p.id, number: p.number ?? 0, waiting: p.waiting,
@@ -99,7 +99,7 @@ const facts = computed(() => {
           <p class="text-sm font-medium text-ink">{{ next.text }}</p>
           <div class="mt-3 flex flex-wrap gap-2 whitespace-nowrap">
             <button v-if="next.kind === 'render-sheet'" class="btn btn-primary" @click="castPanel?.renderSheet()">
-              Render cast sheet <ArrowRight :size="16" aria-hidden="true" />
+              Render cast <ArrowRight :size="16" aria-hidden="true" />
             </button>
             <a v-else-if="next.kind === 'approve-cast'" href="#cast" class="btn btn-primary">
               Go to the cast <ArrowRight :size="16" aria-hidden="true" />
@@ -115,7 +115,7 @@ const facts = computed(() => {
       </div>
     </header>
 
-    <CastPanel ref="castPanel" :series="series" :cast-sheet="data.cast_sheet" @changed="refresh" />
+    <CastPanel ref="castPanel" :series="series" :renders="data.cast" @changed="refresh" />
 
     <section class="space-y-4" aria-labelledby="parts-title">
       <div class="flex items-center gap-3">

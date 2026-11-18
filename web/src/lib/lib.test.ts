@@ -186,13 +186,14 @@ describe('build with AI', () => {
 describe('seriesNext', () => {
   const part = (n: number, over = {}) => ({ id: `part-0${n}`, number: n, waiting: [], finished: false, started: false, ...over })
   const s = (over: Partial<SeriesState> = {}): SeriesState =>
-    ({ cast: 3, castApproved: 3, castSheet: true, sheetRendering: false, parts: [part(1)], ...over })
+    ({ cast: 3, castApproved: 3, castCurrent: 3, sheetRendering: false, parts: [part(1)], ...over })
 
   it('walks the series pipeline in order', () => {
     expect(seriesNext(s({ cast: 0 })).kind).toBe('add-cast')
-    expect(seriesNext(s({ castSheet: false, parts: [] })).kind).toBe('add-part') // the sheet needs a part
-    expect(seriesNext(s({ castSheet: false })).kind).toBe('render-sheet')
-    expect(seriesNext(s({ castSheet: false, sheetRendering: true })).kind).toBe('wait')
+    expect(seriesNext(s({ castCurrent: 0, parts: [] })).kind).toBe('add-part') // a render needs a part
+    expect(seriesNext(s({ castCurrent: 0 })).text).toMatch(/^Render the cast/)
+    expect(seriesNext(s({ castCurrent: 0, sheetRendering: true })).kind).toBe('wait')
+    expect(seriesNext(s({ castCurrent: 2 })).text).toMatch(/^1 of 3 cast is new or changed/) // even with everyone approved
     expect(seriesNext(s({ castApproved: 0 })).text).toMatch(/^None of the 3 cast are approved yet\./)
     expect(seriesNext(s({ castApproved: 1 })).text).toMatch(/^2 of 3 cast still need approval/)
     expect(seriesNext(s({ castApproved: 2 })).text).toMatch(/^1 of 3 cast still needs approval/)

@@ -17,7 +17,7 @@ from pathlib import Path
 from pydantic import TypeAdapter, ValidationError
 
 from . import sheet, storycheck
-from .io import (atomic_write_json, cast_body_problems, load_part, load_series, prop_kinds, replace_file, save_part,
+from .io import (atomic_write_json, cast_body_problems, cast_files, cast_key, cast_render_current, load_part, load_series, prop_kinds, replace_file, save_part,
                  save_series, unknown_cast_props)
 from .schemas import CastMember, Expression, PartId, PartModel, Post, SeriesModel, Slug, Stages, StoryModel, Style, Voice, utcnow
 from .stages import STAGES
@@ -118,7 +118,7 @@ def cmd_cast_edit(args) -> int:
         raise UserError(f"unknown prop {unknown[0].split(': ')[1]!r} (props: {', '.join(prop_kinds(library_root(args)))})")
     if new.look() != old.look() and old.approved_at:
         new.approved_at = None
-        print(f"note: {args.id}'s look changed, so its approval was cleared: check cast-sheet {args.slug}, "
+        print(f"note: {args.id}'s look changed, so its approval was cleared: re-render it (cast-sheet {args.slug} {args.id}), "
               f"then approve-cast {args.slug} {args.id}")
     series.cast[i] = new
     # write directly: save_series would restore the approval cleared above (it only ever adds approvals)
@@ -366,9 +366,35 @@ def cmd_cast_sheet(args) -> int:
     f, series = load_existing_series(args)
     if not series.cast:
         raise UserError(f"{args.slug} has no cast: add some with cast-add")
-    run_engine("--series", f.parent, "--cast-sheet")
-    out = sheet.from_manifest(f.parent / "cast-frames", f.parent / "cast-sheet.png", cols=CAST_SHEET_COLS)
-    print(f"cast sheet: {out}")
+    known = {c.id: c for c in series.cast}
+    if unknown := [i for i in args.ids if i not in known]:
+        raise UserError(f"cast id {unknown[0]!r} not in {args.slug} (cast: {', '.join(known)})")
+    todo = [known[i] for i in dict.fromkeys(args.ids)] or series.cast
+    # the looks as the engine reads them now, not as they may be edited mid-render
+    keys = {c.id: cast_key(c) for c in todo}
+    frames, out = f.parent / "cast-frames", f.parent / "cast"
+    frames.mkdir(exist_ok=True)
+    out.mkdir(exist_ok=True)
+    batch = frames / "batch.json"
+    atomic_write_json(batch, [["--series", str(f.parent), "--cast-sheet", "--cast", c.id] for c in todo])
+    try:
+        run_engine("--batch", batch)  # one browser for all of them
+    except UserError as e:
+        failed = e
+    else:
+        failed = None
+    done = []
+    for c in todo:  # each member whose job finished has a manifest (the engine empties its folder first)
+        d, files = frames / c.id, cast_files(f.parent, c.id)
+        if not (d / "manifest.json").is_file():
+            continue
+        sheet.from_manifest(d, files["sheet"], cols=CAST_SHEET_COLS)
+        shutil.copyfile(d / f"{c.id}-idle.png", files["idle"])
+        files["key"].write_text(keys[c.id])
+        done.append(c.id)
+    print(f"cast rendered: {', '.join(done) or 'none'} -> {out}")
+    if failed:
+        raise failed
     return 0
 
 
@@ -448,6 +474,9 @@ def cmd_approve_cast(args) -> int:
     if c.approved_at:
         print(f"{c.id} already approved at {c.approved_at:%Y-%m-%d %H:%M} UTC (kept)")
         return 0
+    if not cast_render_current(f.parent, c):
+        raise UserError(f"{c.id} has no render of its current look: run cast-sheet {args.slug} {c.id}, check it, "
+                        f"then approve")
     c.approved_at = utcnow()
     save_series(f, series)
     print(f"{c.id} approved")
@@ -656,8 +685,10 @@ def build_parser() -> Parser:
     c.add_argument("--swiftshader", action="store_true", help="software WebGL instead of the GPU")
     c.set_defaults(func=cmd_test_render)
 
-    c = sub.add_parser("cast-sheet", parents=[common], help="render the cast sheet -> <series>/cast-sheet.png")
+    c = sub.add_parser("cast-sheet", parents=[common],
+                       help="render cast members (default: all) -> <series>/cast/<id>.png, <id>-idle.png")
     c.add_argument("slug")
+    c.add_argument("ids", nargs="*", help="only these cast ids")
     c.set_defaults(func=cmd_cast_sheet)
 
     c = sub.add_parser("render-stills", parents=[common], help="render one still per shot -> part-NN/stills-sheet.png")

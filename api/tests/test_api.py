@@ -16,6 +16,7 @@ from pipeline.scribble.cli import main as cli
 from pipeline.scribble.io import load_part, save_part
 from pipeline.scribble.stages import render as render_stage
 from pipeline.scribble.stages.render import pid_alive
+from pipeline.tests.helpers import rendered
 
 P = "/api/series/demo/parts/part-01"
 PY = sys.executable
@@ -145,12 +146,32 @@ def test_approve_gates(client, lib):
 
 
 def test_approve_cast(client, lib):
-    assert client.post("/api/series/demo/approve-cast", json={"cast_id": "bob"}).status_code == 409  # no sheet
-    (lib / "demo" / "cast-sheet.png").write_bytes(b"c")
+    r = client.post("/api/series/demo/approve-cast", json={"cast_id": "bob"})
+    assert r.status_code == 409 and "no render" in r.json()["detail"]
+    rendered(lib / "demo")
     r = client.post("/api/series/demo/approve-cast", json={"cast_id": "zed"})
     assert r.status_code == 409 and "not in demo" in r.json()["detail"]
     r = client.post("/api/series/demo/approve-cast", json={"cast_id": "bob"})
     assert r.json()["cast"][0]["approved_at"]
+
+
+def test_edit_cast_needs_that_members_rerender(client, lib):
+    rendered(lib / "demo")
+    client.post("/api/series/demo/approve-cast", json={"cast_id": "bob"})
+    detail = client.get("/api/series/demo").json()
+    bob, render = detail["series"]["cast"][0], detail["cast"]["bob"]
+    assert render["current"] and render["idle"].startswith("/api/media/demo/cast/bob-idle.png?v=")
+    r = client.put("/api/series/demo/cast/bob", json={**bob, "name": "Bobby"})  # name only: not drawn
+    assert r.json()["cast"][0]["approved_at"] and client.get("/api/series/demo").json()["cast"]["bob"]["current"]
+    r = client.put("/api/series/demo/cast/bob", json={**bob, "hair": {"id": "short_hair", "color": "#222222"}})
+    assert r.status_code == 200 and r.json()["cast"][0]["approved_at"] is None  # new look: approval cleared
+    assert not client.get("/api/series/demo").json()["cast"]["bob"]["current"]
+    r = client.post("/api/series/demo/approve-cast", json={"cast_id": "bob"})
+    assert r.status_code == 409 and "cast-sheet demo bob" in r.json()["detail"]  # stale render: no approving
+    rendered(lib / "demo")  # re-rendered
+    assert client.post("/api/series/demo/approve-cast", json={"cast_id": "bob"}).status_code == 200
+    assert client.put("/api/series/demo/cast/bob", json={**bob, "hair": "crown"}).status_code == 409  # wrong slot
+    assert client.put("/api/series/demo/cast/zed", json=bob).status_code == 404
 
 
 def test_add_cast(client, lib):
@@ -317,6 +338,7 @@ def test_job_steps_validated(client):
         assert r.status_code == 409, steps
     assert m.step_argv("demo", "part-01", "run --stage prep")[-5:-1] == ["demo", "part-01", "--stage", "prep"]
     assert "part-01" not in m.step_argv("demo", "part-01", "cast-sheet")
+    assert m.step_argv("demo", "part-01", "cast-sheet bob")[-2] == "bob"  # one member
 
 
 def test_jobs_fifo_and_output(client, monkeypatch, lib):

@@ -70,6 +70,8 @@ export const api = {
   saveStory: (slug: string, p: string, text: string) => call<PartDetail>('PUT', `${part(slug, p)}/story.md`, { text }),
   createSeries: (body: S['NewSeries']) => call<SeriesModel>('POST', '/api/series', body),
   addCast: (slug: string, cast: Record<string, unknown>[]) => call<SeriesModel>('POST', `/api/series/${e(slug)}/cast`, { cast }),
+  editCast: (slug: string, castId: string, entry: Record<string, unknown>) =>
+    call<SeriesModel>('PUT', `/api/series/${e(slug)}/cast/${e(castId)}`, entry),
   createPart: (slug: string, body: S['NewPart']) => call<PartDetail>('POST', `/api/series/${e(slug)}/parts`, body),
   uploadVoice: (slug: string, p: string, file: File, replace = false) =>
     call<PartDetail>('PUT', `${part(slug, p)}/voice.mp3${replace ? '?replace=true' : ''}`, file),

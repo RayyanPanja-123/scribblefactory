@@ -1,5 +1,6 @@
 """Load/save series.json, part.json, library/props.json and library/sets.json. Writes are atomic; saves never drop an existing approval."""
 
+import hashlib
 import json
 import os
 import re
@@ -65,6 +66,24 @@ def load_series(path) -> SeriesModel:
     return SeriesModel.model_validate_json(Path(path).read_bytes())
 
 
+# one cast member's render (cli cast-sheet <slug> [id]): <series>/cast/<id>.png (every pose in one row, plus a row
+# per named look), <id>-idle.png (the card picture) and <id>.key (the look it was drawn from)
+def cast_files(series_dir, cast_id: str) -> dict[str, Path]:
+    d = Path(series_dir) / "cast"
+    return {"sheet": d / f"{cast_id}.png", "idle": d / f"{cast_id}-idle.png", "key": d / f"{cast_id}.key"}
+
+
+def cast_key(c) -> str:
+    return hashlib.sha256(c.look().encode()).hexdigest()
+
+
+def cast_render_current(series_dir, c) -> bool:
+    """this member's render shows its look now. A look change, or a library drawing it uses changing
+    (_clear_approvals drops the key), makes it stale: approving waits for a re-render."""
+    f = cast_files(series_dir, c.id)
+    return f["sheet"].is_file() and f["key"].is_file() and f["key"].read_text().strip() == cast_key(c)
+
+
 def load_props(library) -> PropLibrary:
     """library/props.json (custom props, shared by every series); none yet: an empty library"""
     f = Path(library) / "props.json"
@@ -96,17 +115,7 @@ def save_prop(library, prop: CustomProp) -> list[str]:
     old = next((p for p in lib.props if p.id == prop.id), None)
     lib.props = [prop if p.id == prop.id else p for p in lib.props] if old else [*lib.props, prop]
     atomic_write_json(Path(library) / "props.json", lib.model_dump(mode="json"))
-    cleared = []
-    if old and old.shapes != prop.shapes:
-        for f, cid in prop_holders(library, prop.id):
-            series = load_series(f)
-            c = next(c for c in series.cast if c.id == cid)
-            if c.approved_at:
-                c.approved_at = None
-                # written directly: save_series would restore the approval (it only ever adds approvals)
-                atomic_write_json(f, series.model_dump(mode="json"))
-                cleared.append(f"{series.slug}/{cid}")
-    return cleared
+    return _clear_approvals(prop_holders(library, prop.id)) if old and old.shapes != prop.shapes else []
 
 
 def prop_users(library, kind: str) -> list[str]:
@@ -195,6 +204,7 @@ def _clear_approvals(pairs) -> list[str]:
     """clear the cast approval of each (series.json, cast id); "<slug>/<cast id>" for each one cleared"""
     cleared = []
     for f, cid in pairs:
+        cast_files(f.parent, cid)["key"].unlink(missing_ok=True)  # its render shows the old drawing
         series = load_series(f)
         c = next(c for c in series.cast if c.id == cid)
         if c.approved_at:
@@ -241,16 +251,8 @@ def save_creature(library, creature: CustomCreature) -> list[str]:
     old = next((c for c in lib.creatures if c.id == creature.id), None)
     lib.creatures = [creature if c.id == creature.id else c for c in lib.creatures] if old else [*lib.creatures, creature]
     atomic_write_json(Path(library) / "creatures.json", lib.model_dump(mode="json"))
-    cleared = []
-    if old and old.model_dump(exclude={"name"}) != creature.model_dump(exclude={"name"}):
-        for f, cid in creature_users(library, creature.id):
-            series = load_series(f)
-            c = next(c for c in series.cast if c.id == cid)
-            if c.approved_at:
-                c.approved_at = None
-                atomic_write_json(f, series.model_dump(mode="json"))  # directly: save_series keeps approvals
-                cleared.append(f"{series.slug}/{cid}")
-    return cleared
+    changed = old and old.model_dump(exclude={"name"}) != creature.model_dump(exclude={"name"})
+    return _clear_approvals(creature_users(library, creature.id)) if changed else []
 
 
 def delete_creature(library, creature_id: str) -> None:

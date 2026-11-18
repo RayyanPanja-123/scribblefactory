@@ -23,9 +23,13 @@ export const runningJob = computed(() => jobs.value.find((j) => j.status === 'ru
 export const queuedCount = computed(() => jobs.value.filter((j) => j.status === 'queued').length)
 export const jobFor = (slug: string, part: string) =>
   jobs.value.find((j) => j.slug === slug && j.part === part && (j.status === 'running' || j.status === 'queued'))
-/** a cast-sheet job queued or running for this series (it runs on any of its parts) */
-export const castSheetJob = (slug: string) =>
-  jobs.value.find((j) => j.slug === slug && j.steps.includes('cast-sheet') && (j.status === 'running' || j.status === 'queued'))
+/** a cast render queued or running for this series (it runs on any of its parts); with an id: one that draws that
+ * member (step "cast-sheet" draws everyone, "cast-sheet a b" only a and b) */
+export const castSheetJob = (slug: string, id?: string) =>
+  jobs.value.find((j) => j.slug === slug && (j.status === 'running' || j.status === 'queued') && j.steps.some((s) => {
+    const [cmd, ...ids] = s.split(/\s+/)
+    return cmd === 'cast-sheet' && (!id || !ids.length || ids.includes(id))
+  }))
 /** any job running in this series: cast approvals wait (a render reads series.json) */
 export const seriesBusy = (slug: string) => jobs.value.some((j) => j.slug === slug && j.status === 'running')
 
