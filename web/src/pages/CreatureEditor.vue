@@ -101,7 +101,7 @@ const field = 'inset mt-1 block h-10 w-full rounded-md px-4 text-sm text-ink out
       <div class="min-w-0 space-y-5">
         <div class="flex flex-wrap items-center gap-3">
           <h2 class="font-display text-3xl font-semibold">{{ isNew ? 'New creature' : form.name || id }}</h2>
-          <RouterLink v-if="!humanoid" :to="{ path: '/ai-creations', query: { type: 'creature', name: form.name || undefined, id: form.id || undefined, rig: form.rig } }" class="btn btn-secondary ml-auto">
+          <RouterLink :to="{ path: '/ai-creations', query: { type: 'creature', name: form.name || undefined, id: form.id || undefined, rig: form.rig } }" class="btn btn-secondary ml-auto">
             <Sparkles :size="16" aria-hidden="true" /> Build with AI
           </RouterLink>
         </div>

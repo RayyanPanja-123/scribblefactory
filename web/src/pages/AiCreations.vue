@@ -7,7 +7,7 @@ import ErrorCard from '../components/ErrorCard.vue'
 import { toast } from '../composables/feedback'
 import { useApi } from '../composables/useApi'
 import { buildCreationPrompt, chosen, isKind, parseReply, reviewItems, TYPE_LABEL, TYPES, type Brief, type Item, type Kind, type Library } from '../lib/aiCreations'
-import { DRAWN_RIGS, RIG_NOTES, type CustomCreature, type Rig } from '../lib/creatures'
+import { RIG_LIST, RIG_NOTES, type CustomCreature, type Rig } from '../lib/creatures'
 import type { CustomProp } from '../lib/props'
 import type { CustomSet } from '../lib/sets'
 
@@ -154,7 +154,7 @@ const when = (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyl
         </label>
         <div v-if="kind === 'creature'" class="max-w-xs">
           <label class="block text-sm font-semibold" for="ai-rig">Rig
-            <select id="ai-rig" v-model="brief.rig" :class="field"><option v-for="r in DRAWN_RIGS" :key="r" :value="r">{{ r }}</option></select>
+            <select id="ai-rig" v-model="brief.rig" :class="field"><option v-for="r in RIG_LIST" :key="r" :value="r">{{ r }}</option></select>
           </label>
           <p class="mt-1 text-xs text-muted">{{ RIG_NOTES[brief.rig] }}</p>
         </div>

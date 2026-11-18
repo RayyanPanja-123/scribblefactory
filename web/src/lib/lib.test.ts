@@ -293,6 +293,14 @@ describe('creature prompt', () => {
     expect(importCreature(`{"name": "X", "rig": "fish", ${body}}`).error).toMatch(/rig/)
     expect(importCreature('{"name": "X", "rig": "bird"}').error).toMatch(/body/)
   })
+  it('a humanoid is a build, not a drawing: its own prompt, imported without parts', async () => {
+    const { buildCreaturePrompt, importCreature } = await import('./creatures')
+    const p = buildCreaturePrompt('Giant', 'humanoid', ['human'], 'very tall')
+    expect(p).toContain('"build"')
+    expect(p).not.toContain('Coordinate space')
+    const { creature } = importCreature('```json\n{"id": "giant", "name": "Giant", "rig": "humanoid", "build": {"leg": 1.3, "head_color": "#c68e5a"}}\n```')
+    expect(creature).toMatchObject({ rig: 'humanoid', parts: {}, joints: {}, build: { leg: 1.3, head: 1, head_color: '#c68e5a' } })
+  })
 })
 
 describe('action prompt', () => {

@@ -13,8 +13,6 @@ export const builtinCreatures = BUILTIN as CustomCreature[]
 export const rigParts = RIGS as Record<Rig, { parts: Record<string, boolean>; hands: boolean }>
 export const jointOf = JOINT_OF as Record<string, string>
 export const RIG_LIST: Rig[] = ['humanoid', 'bird', 'quadruped', 'biped', 'crawler']
-/** the rigs drawn from shapes (what "Build with AI" designs); a humanoid is a stickman with a build */
-export const DRAWN_RIGS: Rig[] = RIG_LIST.filter((r) => r !== 'humanoid')
 export const DEFAULT_BUILD = { head: 1, body_w: 1, body_h: 1, leg: 1, arm: 1, head_color: '#ffffff' }
 export const RIG_NOTES: Record<Rig, string> = {
   humanoid: 'a stickman with its own proportions and head colour: face, expressions, costume and hands, like every human',
@@ -35,6 +33,7 @@ const compact = (c: CustomCreature) => JSON.stringify(c)
 export function buildCreaturePrompt(name: string, rig: Rig, taken: string[], details = '', id = ''): string {
   const thing = name.trim() || 'an animal'
   id = slugify(id || thing) || 'creature'
+  if (rig === 'humanoid') return humanoidPrompt(thing, name, id, taken, details)
   const spec = rigParts[rig].parts
   const parts = Object.entries(spec).map(([p, need]) => `- ${p}${need ? ' (required)' : ' (optional)'}${p === 'body' ? ': ground space' : `: around joint "${jointOf[p]}"`}`).join('\n')
   const example = builtinCreatures.find((c) => c.rig === rig)!
@@ -84,6 +83,29 @@ ${compact(example)}
 Now design **${thing}** from scratch${brief ? ` (${details.trim()})` : ''} and reply with only its JSON object.`
 }
 
+/** a humanoid is the stickman with its own proportions and skin: no drawing, only a build */
+function humanoidPrompt(thing: string, name: string, id: string, taken: string[], details: string): string {
+  const brief = details.trim() ? `
+
+What it should look like: ${details.trim()}` : ''
+  return `You are designing a humanoid body for a hand-drawn stick-figure video renderer. Design: **${thing}** (${RIG_NOTES.humanoid}).${brief}
+
+Reply with ONE JSON object in a \`\`\`json code block and nothing else.
+
+## Format
+{"id": "${id}", "name": ${JSON.stringify(name.trim().slice(0, 40) || 'New humanoid')}, "rig": "humanoid",
+ "build": {"head": 1, "body_w": 1, "body_h": 1, "leg": 1, "arm": 1, "head_color": "#ffffff"}}
+
+- id, name and rig: use exactly the ones above. The id must NOT be one of: ${taken.join(', ') || '(none)'}.
+- build: factors of the standard stickman (1 = a normal human), each 0.7 to 1.3: head (head size), body_w (body
+  width), body_h (body height), leg (leg length), arm (arm length). Push them toward the edges for a clear silhouette
+  (a giant: legs and body 1.3, small head; a child: big head, short legs). head_color: the skin, "#rrggbb".
+- No parts, joints or face: the renderer draws the stickman itself, with face, expressions, costume and hands.
+  Clothes are not part of the body: they come from each cast member's costume.
+
+Now design **${thing}**${brief ? ` (${details.trim()})` : ''} and reply with only its JSON object.`
+}
+
 /** the AI's reply (raw JSON, a fenced block, or JSON inside other text; a {"creatures": [...]} file takes the first)
  *  -> a creature to load into the editor, or an error message. The server checks the rest on save. */
 export function importCreature(text: string): { creature?: CustomCreature; error?: string } {
@@ -96,9 +118,15 @@ export function importCreature(text: string): { creature?: CustomCreature; error
     return { error: `Not valid JSON: ${(e as Error).message}` }
   }
   const c = (Array.isArray((j as { creatures?: unknown })?.creatures) ? (j as { creatures: unknown[] }).creatures[0] : j) as Partial<CustomCreature>
-  if (!c || typeof c !== 'object' || !c.parts || typeof c.parts !== 'object' || !c.parts.body) return { error: 'Expected an object with "parts" including "body".' }
+  if (!c || typeof c !== 'object') return { error: 'Expected a JSON object.' }
   if (!RIG_LIST.includes(c.rig as Rig)) return { error: `"rig" must be one of ${RIG_LIST.join(', ')}.` }
   const name = typeof c.name === 'string' && c.name.trim() ? c.name.trim().slice(0, 40) : 'New creature'
-  return { creature: { id: slugify(typeof c.id === 'string' ? c.id : name) || 'creature', name, rig: c.rig as Rig,
+  const id = slugify(typeof c.id === 'string' ? c.id : name) || 'creature'
+  if (c.rig === 'humanoid') {
+    return { creature: { id, name, rig: 'humanoid', accent: c.accent ?? '#3a2a1e', joints: {}, face: {}, parts: {},
+      build: { ...DEFAULT_BUILD, ...(c.build ?? {}) } } as CustomCreature }
+  }
+  if (!c.parts || typeof c.parts !== 'object' || !c.parts.body) return { error: 'Expected an object with "parts" including "body".' }
+  return { creature: { id, name, rig: c.rig as Rig,
     accent: c.accent ?? '#3a2a1e', joints: c.joints ?? {}, face: c.face ?? {}, parts: c.parts } as CustomCreature }
 }
