@@ -28,7 +28,7 @@ onBeforeUnmount(() => document.removeEventListener('click', close))
       </component>
       <div v-if="open === stage" class="raised absolute top-full left-0 z-20 mt-2 w-64 p-3 text-sm" role="menu">
         <p class="font-semibold">{{ FRIENDLY[String(stage)] ?? label(String(stage)) }} <span class="font-normal text-muted">· {{ status }}</span></p>
-        <p v-if="p.errors?.[stage]" class="mt-1 rounded-sm bg-[#f8e6e1] px-2 py-1 text-xs text-red-ink">{{ p.errors[stage] }}</p>
+        <p v-if="p.errors?.[stage]" class="mt-1 rounded-sm bg-red/10 px-2 py-1 text-xs text-red-ink">{{ p.errors[stage] }}</p>
         <button class="btn btn-secondary mt-3 w-full justify-center" role="menuitem" :disabled="!!p.disabled"
           :title="p.disabled ?? undefined" @click="emit('rerun', String(stage)); open = null">
           <RotateCw :size="14" aria-hidden="true" /> Re-run (force)

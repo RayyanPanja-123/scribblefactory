@@ -118,11 +118,11 @@ async function create() {
   saving.value = false
   if (s) router.push(`/series/${s.slug}/new-part`)
 }
-const field = 'inset mt-1 block h-11 w-full rounded-full px-4 text-sm text-ink outline-none'
+const field = 'inset mt-1 block h-10 w-full rounded-md px-4 text-sm text-ink outline-none focus:border-blue'
 </script>
 
 <template>
-  <div class="mx-auto max-w-3xl space-y-6">
+  <div class="max-w-3xl space-y-6">
     <RouterLink to="/series" class="btn btn-secondary"><ArrowLeft :size="16" aria-hidden="true" /> All series</RouterLink>
 
     <form class="raised space-y-6 p-6" @submit.prevent="create">
@@ -161,7 +161,7 @@ const field = 'inset mt-1 block h-11 w-full rounded-full px-4 text-sm text-ink o
           <label class="sr-only" for="cast-json">Cast JSON</label>
           <textarea id="cast-json" v-model="importText" rows="8" spellcheck="false"
             placeholder="[{ &quot;id&quot;: &quot;fred&quot;, &quot;name&quot;: &quot;Fred Lorz&quot;, &quot;color&quot;: &quot;#e53935&quot; }]"
-            class="paper block w-full resize-y rounded-md p-4 font-mono text-xs leading-6 text-ink outline-none" />
+            class="paper block w-full resize-y rounded-md p-4 font-mono text-xs leading-6 text-ink outline-none focus:border-blue" />
           <p v-if="importError" class="text-sm text-red-ink" role="alert">{{ importError }}</p>
           <p class="text-xs text-muted">An array of entries, <code>{"cast": [...]}</code>, or a whole series.json. An entry with the same id as a row below replaces it.
             The server checks every field when you create the series.</p>
@@ -178,10 +178,10 @@ const field = 'inset mt-1 block h-11 w-full rounded-full px-4 text-sm text-ink o
             <input v-model="r.id" pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="fred" :class="field" @input="r.idEdited = true" />
           </label>
           <label v-if="customizeCast" class="block text-xs font-semibold text-muted">Outfit
-            <span class="inset mt-1 flex h-11 cursor-pointer items-center gap-2 rounded-full pr-4 pl-1.5 focus-within:outline-2 focus-within:outline-ink">
+            <span class="inset mt-1 flex h-10 cursor-pointer items-center gap-2 rounded-md pr-4 pl-1.5 focus-within:outline-2 focus-within:outline-ink">
               <!-- native picker, drawn as a round raised swatch -->
               <input v-model="r.color" type="color" :aria-label="`Outfit colour for ${r.name || `character ${i + 1}`}`"
-                class="size-8 shrink-0 cursor-pointer appearance-none rounded-full border-0 bg-transparent p-0 shadow-[0_2px_4px_rgb(96_78_52/.3),inset_0_1px_0_rgb(255_255_255/.4)] outline-none
+                class="size-8 shrink-0 cursor-pointer appearance-none rounded-full border-0 bg-transparent p-0 ring-1 ring-rule-strong outline-none
                   [&::-moz-color-swatch]:rounded-full [&::-moz-color-swatch]:border-2 [&::-moz-color-swatch]:border-white
                   [&::-webkit-color-swatch]:rounded-full [&::-webkit-color-swatch]:border-2 [&::-webkit-color-swatch]:border-white [&::-webkit-color-swatch-wrapper]:p-0" />
               <span class="num font-mono text-sm text-ink uppercase">{{ r.color }}</span>

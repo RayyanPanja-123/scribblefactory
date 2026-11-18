@@ -956,6 +956,10 @@ export interface components {
             kpi: components["schemas"]["Kpi"];
             /** Posts Per Month */
             posts_per_month: components["schemas"]["MonthPosts"][];
+            /** Sheet */
+            sheet: components["schemas"]["SheetRow"][];
+            /** Sheet Steps */
+            sheet_steps: string[];
             /** Waiting */
             waiting: components["schemas"]["Waiting"][];
         };
@@ -1278,6 +1282,21 @@ export interface components {
              * @description box: width, height, depth; cyl: top radius, bottom radius, height; ball: radius; mound: radius, height factor
              */
             size: number[];
+        };
+        /** SheetRow */
+        SheetRow: {
+            /** Cells */
+            cells: ("done" | "current" | "review" | "running" | "failed" | "todo")[];
+            /** Number */
+            number: number;
+            /** Part */
+            part: string;
+            /** Series Title */
+            series_title: string;
+            /** Slug */
+            slug: string;
+            /** Title */
+            title: string;
         };
         /** Stage */
         Stage: {

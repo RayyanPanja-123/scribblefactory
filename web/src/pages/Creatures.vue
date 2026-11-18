@@ -2,7 +2,6 @@
 import { PawPrint, Plus, Sparkles, Trash2 } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { api } from '../api/client'
-import Card from '../components/Card.vue'
 import CreaturePreview from '../components/CreaturePreview.vue'
 import ErrorCard from '../components/ErrorCard.vue'
 import { act, confirm } from '../composables/feedback'
@@ -51,32 +50,45 @@ async function remove(o: { id: string; name: string }) {
       stump. Creatures have eyes and a mouth only, and only bipeds have hands. Changing a creature’s drawing clears the
       cast approval of everyone using it.
     </p>
-    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      <Card v-for="c in creatures" :key="c.id" class="flex gap-4 p-4">
-        <CreaturePreview :creature="c" :color="users[c.id]?.[0]?.color" :label="`${c.name}, standing`" class="h-32 w-40 shrink-0" />
-        <div class="min-w-0 flex-1 space-y-2">
-          <div>
-            <h3 class="font-display text-lg font-semibold">{{ c.name }}</h3>
-            <p class="text-xs text-muted">
-              {{ isBuiltinCreature(c.id) ? 'built in' : 'custom' }} · <code>{{ c.id }}</code> · {{ c.rig }}
-            </p>
-            <p class="mt-1 text-xs text-muted">{{ RIG_NOTES[c.rig] }}</p>
-          </div>
-          <ul v-if="users[c.id]?.length" class="space-y-1 text-sm">
-            <li v-for="u in users[c.id]" :key="`${u.slug}/${u.name}`">
-              <RouterLink :to="`/series/${u.slug}`" class="font-semibold hover:underline">{{ u.name }}</RouterLink>
-              <span class="text-muted"> · {{ u.title }}<template v-if="u.headless"> · headless</template></span>
-            </li>
-          </ul>
-          <p v-else class="flex items-center gap-1.5 text-sm text-muted"><PawPrint :size="14" aria-hidden="true" /> no cast member yet</p>
-          <div class="flex gap-2">
-            <RouterLink :to="isBuiltinCreature(c.id) ? `/creatures/new?from=${c.id}` : `/creatures/${c.id}`" class="btn btn-secondary">
-              {{ isBuiltinCreature(c.id) ? 'Copy' : 'Edit' }}
-            </RouterLink>
-            <button v-if="!isBuiltinCreature(c.id) && !users[c.id]?.length" type="button" class="btn btn-secondary text-red-ink" :aria-label="`Delete ${c.name}`" @click="remove(c)"><Trash2 :size="16" aria-hidden="true" /> Delete</button>
-          </div>
-        </div>
-      </Card>
+    <!-- the creatures sheet: one ruled row per body -->
+    <div class="raised overflow-x-auto">
+      <table class="w-full min-w-[680px] border-collapse text-sm">
+        <thead>
+          <tr class="border-b-2 border-rule-strong">
+            <th scope="col" class="colhead w-44 px-4 py-2.5 text-left">Drawing</th>
+            <th scope="col" class="colhead border-l border-rule px-4 py-2.5 text-left">Creature</th>
+            <th scope="col" class="colhead border-l border-rule px-4 py-2.5 text-left">Cast</th>
+            <th scope="col" class="colhead w-48 border-l border-rule px-4 py-2.5 text-left"><span class="sr-only">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="c in creatures" :key="c.id" class="border-b border-rule align-top last:border-b-0">
+            <td class="px-4 py-3"><CreaturePreview :creature="c" :color="users[c.id]?.[0]?.color" :label="`${c.name}, standing`" class="h-24 w-36" /></td>
+            <th scope="row" class="border-l border-rule px-4 py-3 text-left font-normal">
+              <p class="font-display text-lg font-semibold">{{ c.name }}</p>
+              <p class="text-xs text-muted">{{ isBuiltinCreature(c.id) ? 'built in' : 'custom' }} · <code>{{ c.id }}</code> · {{ c.rig }}</p>
+              <p class="mt-1 max-w-sm text-xs text-muted">{{ RIG_NOTES[c.rig] }}</p>
+            </th>
+            <td class="border-l border-rule px-4 py-3">
+              <ul v-if="users[c.id]?.length" class="space-y-1">
+                <li v-for="u in users[c.id]" :key="`${u.slug}/${u.name}`">
+                  <RouterLink :to="`/series/${u.slug}`" class="font-semibold hover:underline">{{ u.name }}</RouterLink>
+                  <span class="text-muted"> · {{ u.title }}<template v-if="u.headless"> · headless</template></span>
+                </li>
+              </ul>
+              <p v-else class="flex items-center gap-1.5 text-muted"><PawPrint :size="14" aria-hidden="true" /> no cast member yet</p>
+            </td>
+            <td class="border-l border-rule px-4 py-3">
+              <div class="flex flex-wrap gap-2">
+                <RouterLink :to="isBuiltinCreature(c.id) ? `/creatures/new?from=${c.id}` : `/creatures/${c.id}`" class="btn btn-secondary">
+                  {{ isBuiltinCreature(c.id) ? 'Copy' : 'Edit' }}
+                </RouterLink>
+                <button v-if="!isBuiltinCreature(c.id) && !users[c.id]?.length" type="button" class="btn btn-secondary text-red-ink" :aria-label="`Delete ${c.name}`" @click="remove(c)"><Trash2 :size="16" aria-hidden="true" /> Delete</button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   </div>
 </template>

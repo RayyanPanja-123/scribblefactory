@@ -74,12 +74,17 @@ def test_health(client):
 
 
 def test_overview(client, lib):
+    o = client.get("/api/overview").json()
+    assert len(o["sheet_steps"]) == 8
+    [row] = o["sheet"]  # story not prepped yet: the first column is current, the rest to do
+    assert (row["part"], row["number"], row["cells"]) == ("part-01", 1, ["current"] + ["todo"] * 7)
     cli(["mark-posted", "demo", "part-01", "youtube", "--url", "https://yt/x"])
     o = client.get("/api/overview").json()
     assert o["kpi"] == {"series": 1, "parts_in_progress": 1, "waiting_for_approval": 1, "posted_this_month": 1}
     assert o["waiting"] == [{"slug": "demo", "part": "part-01", "waiting": ["stills"]}]
     assert len(o["posts_per_month"]) == 12 and o["posts_per_month"][-1]["youtube"] == 1
     assert o["disk_usage"]["demo"] > 1024
+    assert o["sheet"] == []  # posted parts leave the sheet
 
 
 def test_series_list_and_cover(client, lib):

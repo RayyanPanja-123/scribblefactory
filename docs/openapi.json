@@ -1109,6 +1109,20 @@
             "title": "Posts Per Month",
             "type": "array"
           },
+          "sheet": {
+            "items": {
+              "$ref": "#/components/schemas/SheetRow"
+            },
+            "title": "Sheet",
+            "type": "array"
+          },
+          "sheet_steps": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Sheet Steps",
+            "type": "array"
+          },
           "waiting": {
             "items": {
               "$ref": "#/components/schemas/Waiting"
@@ -1120,6 +1134,8 @@
         "required": [
           "kpi",
           "waiting",
+          "sheet_steps",
+          "sheet",
           "posts_per_month",
           "disk_usage"
         ],
@@ -1892,6 +1908,55 @@
           "color"
         ],
         "title": "SetPiece",
+        "type": "object"
+      },
+      "SheetRow": {
+        "properties": {
+          "cells": {
+            "items": {
+              "enum": [
+                "done",
+                "current",
+                "review",
+                "running",
+                "failed",
+                "todo"
+              ],
+              "type": "string"
+            },
+            "title": "Cells",
+            "type": "array"
+          },
+          "number": {
+            "title": "Number",
+            "type": "integer"
+          },
+          "part": {
+            "title": "Part",
+            "type": "string"
+          },
+          "series_title": {
+            "title": "Series Title",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug",
+          "series_title",
+          "part",
+          "number",
+          "title",
+          "cells"
+        ],
+        "title": "SheetRow",
         "type": "object"
       },
       "Stage": {

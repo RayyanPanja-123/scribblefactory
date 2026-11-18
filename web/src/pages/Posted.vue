@@ -51,7 +51,7 @@ const PLATFORMS: { key: Platform; name: string; icon: typeof Youtube; color: str
           </tr>
         </thead>
         <tbody>
-          <tr v-for="r in rows" :key="`${r.s.slug}/${r.p.id}`" class="border-t border-[#ebe6dc]">
+          <tr v-for="r in rows" :key="`${r.s.slug}/${r.p.id}`" class="border-t border-rule">
             <td class="px-4 py-3 font-semibold">{{ r.s.title }}</td>
             <td class="px-4 py-3">
               <RouterLink :to="`/series/${r.s.slug}/${r.p.id}#posting`" class="hover:underline">

@@ -77,7 +77,7 @@ defineExpose({ renderSheet })
           aria-label="Zoom the cast sheet" @click="zoom(castSheet, 'Cast sheet')">
           <img :src="castSheet" alt="Cast sheet: one row per character, in the order listed" class="w-full rounded-sm"
             :class="{ 'opacity-50': rendering }" />
-          <span class="absolute right-5 bottom-5 grid size-9 place-items-center rounded-full bg-panel text-ink opacity-0 shadow-[var(--shadow-raised)] transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+          <span class="absolute right-5 bottom-5 grid size-9 place-items-center rounded-full bg-panel text-ink opacity-0 shadow-[var(--shadow-sheet)] transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
             <ZoomIn :size="16" aria-hidden="true" />
           </span>
         </button>
@@ -90,7 +90,7 @@ defineExpose({ renderSheet })
         <figcaption v-if="castSheet" class="mt-2 text-xs text-muted">One row per character, top to bottom in the order listed. Click to zoom.</figcaption>
       </figure>
 
-      <ol class="divide-y divide-[#e7e1d6]" aria-label="Cast approvals">
+      <ol class="divide-y divide-rule" aria-label="Cast approvals">
         <li v-for="(c, i) in cast" :key="c.id" class="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
           <span class="num w-5 shrink-0 text-right text-xs text-muted" :title="`row ${i + 1} of the cast sheet`">{{ i + 1 }}</span>
           <span class="size-5 shrink-0 rounded-full border-2 border-ink" :style="{ background: c.top.color }" aria-hidden="true" />
@@ -98,10 +98,8 @@ defineExpose({ renderSheet })
             <span class="block truncate text-sm font-semibold">{{ c.name }}</span>
             <span class="block truncate text-xs text-muted">{{ c.id }}</span>
           </span>
-          <span v-if="c.approved_at" class="flex shrink-0 items-center gap-1 text-xs font-semibold text-green-ink">
-            <Check :size="14" aria-hidden="true" /> {{ shortDate(c.approved_at) }}
-          </span>
-          <Switch class="shrink-0" :on="!!c.approved_at" :label="`Approve ${c.name}`" :reason="c.approved_at ? null : approveReason"
+          <span v-if="c.approved_at" class="num shrink-0 text-xs text-muted">{{ shortDate(c.approved_at) }}</span>
+          <Switch class="shrink-0" :on="!!c.approved_at" :label="c.name" :reason="c.approved_at ? null : approveReason"
             @request="approve(c)"><span class="sr-only">{{ c.name }}</span></Switch>
         </li>
       </ol>

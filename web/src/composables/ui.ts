@@ -20,8 +20,6 @@ export function bytes(n: number): string {
 
 export const label = (s: string) => s.replace(/_/g, ' ')
 
-/** Chart / donut colours, in order. */
-export const PALETTE = ['#5b6cf0', '#ff6b4a', '#3fbf7f', '#f5b544', '#b44cf0', '#2bb3c0']
 
 const CHIP: Record<string, string> = {
   active: 'chip-blue', complete: 'chip-green',

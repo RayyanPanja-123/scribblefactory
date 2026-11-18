@@ -42,3 +42,8 @@ export function partSteps(s: PartState): PartStepView[] {
     return { key: d.key, label: d.label, href: d.href, status, note: NOTE[status] }
   })
 }
+
+/** Steps only the creator can do (write, record, pick, post). Their current cell, and every review cell, gets circled. */
+export const HUMAN_STEPS = ['story', 'voice', 'thumbnail', 'post']
+export const needsYou = (s: { key: string; status: StepStatus }) =>
+  s.status === 'review' || (s.status === 'current' && HUMAN_STEPS.includes(s.key))

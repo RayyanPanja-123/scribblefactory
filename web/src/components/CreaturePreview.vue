@@ -38,7 +38,7 @@ watch(() => [p.creature, p.action, p.headless, p.color], draw, { deep: true })
 </script>
 
 <template>
-  <div class="paper relative grid place-items-center overflow-hidden rounded-md">
+  <div class="drawing relative grid place-items-center overflow-hidden rounded-md">
     <canvas ref="cv" width="320" height="240" role="img" :aria-label="label" class="h-full w-auto max-w-full" />
     <p v-if="error" class="absolute inset-x-2 bottom-2 text-xs text-red-ink" role="alert">{{ error }}</p>
   </div>

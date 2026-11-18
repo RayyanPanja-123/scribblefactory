@@ -42,13 +42,13 @@ function choose(key: string) {
 </script>
 
 <template>
-  <div class="space-y-4 outline-none" tabindex="0" aria-label="Video player: space plays, arrow keys seek 5 seconds"
+  <div class="space-y-4 outline-none focus:border-blue" tabindex="0" aria-label="Video player: space plays, arrow keys seek 5 seconds"
     @keydown="onKey">
-    <div v-if="p.sources.length > 1" class="inset relative flex rounded-full p-1" role="tablist" aria-label="Source">
+    <div v-if="p.sources.length > 1" class="inset relative flex p-1" role="tablist" aria-label="Source">
       <button v-for="s in p.sources" :key="s.key" type="button" role="tab" :aria-selected="current === s.key"
         :aria-controls="`video-panel-${s.key}`" :tabindex="current === s.key ? 0 : -1"
-        class="relative flex-1 rounded-full px-3 py-1.5 text-sm font-semibold" @click="choose(s.key)">
-        <motion.span v-if="current === s.key" layout-id="player-src" class="absolute inset-0 rounded-full bg-panel shadow-[var(--shadow-raised)]"
+        class="relative flex-1 rounded-sm px-3 py-1.5 text-sm font-semibold" @click="choose(s.key)">
+        <motion.span v-if="current === s.key" layout-id="player-src" class="absolute inset-0 rounded-sm bg-panel shadow-[var(--shadow-sheet)]"
           :transition="SPRING" />
         <span class="relative">{{ s.label }}</span>
       </button>

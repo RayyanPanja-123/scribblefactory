@@ -10,3 +10,5 @@ frames/
 *.mp4
 .DS_Store
 models/
+.impeccable/review/
+.impeccable/questions/

@@ -56,7 +56,7 @@ async function cleanup(cut: string | null) {
   const left = await act(() => api.cleanupJobs(cut), `Deleted ${n} job${n === 1 ? '' : 's'} from the history`)
   if (left) jobs.value = left
 }
-const field = 'inset mt-1 block h-11 w-full rounded-full px-4 text-sm text-ink outline-none'
+const field = 'inset mt-1 block h-10 w-full rounded-md px-4 text-sm text-ink outline-none focus:border-blue'
 </script>
 
 <template>
@@ -92,7 +92,7 @@ const field = 'inset mt-1 block h-11 w-full rounded-full px-4 text-sm text-ink o
 
         <section v-for="[d, list] in days" :key="d" class="raised p-4" :aria-label="longDay(d)">
           <h3 class="px-1 pb-2 text-sm font-semibold">{{ longDay(d) }} <span class="font-normal text-muted">· {{ list.length }}</span></h3>
-          <ul class="divide-y divide-[#ebe6dc]">
+          <ul class="divide-y divide-rule">
             <li v-for="j in list" :key="j.id">
               <details class="group">
                 <summary class="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 rounded-md px-1 py-2.5 hover:bg-panel [&::-webkit-details-marker]:hidden">
@@ -106,7 +106,7 @@ const field = 'inset mt-1 block h-11 w-full rounded-full px-4 text-sm text-ink o
                   <ChevronDown :size="16" class="shrink-0 text-muted transition-transform group-open:rotate-180" aria-hidden="true" />
                 </summary>
                 <div class="space-y-2 px-1 pb-3">
-                  <p v-if="j.error" class="rounded-sm bg-[#f8e6e1] px-2 py-1 text-xs text-red-ink">{{ j.error }}</p>
+                  <p v-if="j.error" class="rounded-sm bg-red/10 px-2 py-1 text-xs text-red-ink">{{ j.error }}</p>
                   <pre v-if="j.output.length" class="inset max-h-72 overflow-auto p-3 font-mono text-xs leading-5 whitespace-pre-wrap">{{ j.output.join('\n') }}</pre>
                   <p v-else class="text-xs text-muted">No output.</p>
                   <div class="flex flex-wrap gap-2">
@@ -130,7 +130,7 @@ const field = 'inset mt-1 block h-11 w-full rounded-full px-4 text-sm text-ink o
         <button type="button" class="btn btn-secondary w-full justify-center text-red-ink" :disabled="!olderCount" @click="cleanup(before)">
           <Trash2 :size="16" aria-hidden="true" /> {{ before ? `Delete ${olderCount} older job${olderCount === 1 ? '' : 's'}` : 'Pick a date' }}
         </button>
-        <div class="border-t border-[#ebe6dc] pt-4">
+        <div class="border-t border-rule pt-4">
           <button type="button" class="btn btn-secondary w-full justify-center text-red-ink" :disabled="!finished.length" @click="cleanup(null)">
             <Trash2 :size="16" aria-hidden="true" /> Delete all history
           </button>

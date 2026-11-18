@@ -24,8 +24,8 @@ watch(() => [p.id, p.custom], draw, { deep: true })
 </script>
 
 <template>
-  <div class="relative overflow-hidden rounded-md bg-[#ebe6dc]">
+  <div class="relative overflow-hidden rounded-md bg-well">
     <canvas ref="cv" width="270" height="480" role="img" :aria-label="label" class="block h-full w-full object-contain" />
-    <p v-if="error" class="absolute inset-x-0 bottom-0 bg-[#fbeee9]/95 p-2 text-xs text-red-ink" role="alert">{{ error }}</p>
+    <p v-if="error" class="absolute inset-x-0 bottom-0 bg-panel/95 p-2 text-xs text-red-ink" role="alert">{{ error }}</p>
   </div>
 </template>

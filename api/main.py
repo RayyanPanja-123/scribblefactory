@@ -196,9 +196,23 @@ class MonthPosts(BaseModel):
     instagram: int
 
 
+SheetCell = Literal["done", "current", "review", "running", "failed", "todo"]
+
+
+class SheetRow(BaseModel):
+    slug: str
+    series_title: str
+    part: str
+    number: int
+    title: str
+    cells: list[SheetCell]  # one per SHEET_STEPS column
+
+
 class Overview(BaseModel):
     kpi: Kpi
     waiting: list[Waiting]
+    sheet_steps: list[str]
+    sheet: list[SheetRow]  # every unposted part of every series, the exposure sheet
     posts_per_month: list[MonthPosts]
     disk_usage: dict[str, int]  # slug -> bytes
 
@@ -271,12 +285,45 @@ def health():
     return {"ok": True}
 
 
+# the exposure sheet's columns: the same journey as web/src/lib/partSteps.ts, coarse (from files on disk + jobs)
+SHEET_STEPS = ["Story", "Voice", "Plan", "Stills", "Test", "Final", "Thumb", "Post"]
+
+
+def sheet_cells(slug: str, pdir: Path, p) -> list[str]:
+    st = {f.alias or n: getattr(p.stages, n).status for n, f in Stages.model_fields.items()}
+    ok = lambda *xs: all(st.get(x) == "done" for x in xs)  # noqa: E731
+    steps = [  # (done, stages that can fail it, ready for review)
+        (ok("prep"), ["prep"], False),
+        ((pdir / "voice.mp3").is_file() and ok("import_check", "timing"), ["import_check", "timing"], False),
+        (ok("shots", "validate"), ["shots", "validate"], False),
+        (bool(p.approvals.stills.approved_at), [], (pdir / "stills-sheet.png").is_file()),
+        (bool(p.approvals.test_render.approved_at), [], (pdir / "test-render.mp4").is_file()),
+        (bool(p.approvals.final.approved_at), ["render", "audio", "finish"], ok("render", "audio", "finish")),
+        (bool(p.thumbnail_choice), ["thumbnails"], False),
+        (bool(p.posted.youtube or p.posted.instagram), [], False),
+    ]
+    cur = next((i for i, (done, _, _) in enumerate(steps) if not done), len(steps))
+    out = []
+    for i, (done, stages, review) in enumerate(steps):
+        if done:
+            out.append("done")
+        elif i != cur:
+            out.append("todo")
+        elif any(st.get(x) == "failed" for x in stages):
+            out.append("failed")
+        elif busy(slug, pdir.name):
+            out.append("running")
+        else:
+            out.append("review" if review else "current")
+    return out
+
+
 @app.get("/api/overview", response_model=Overview)
 def overview():
     now = utcnow()
     months = [f"{now.year - (now.month - 1 - i < 0)}-{(now.month - 1 - i) % 12 + 1:02d}" for i in range(11, -1, -1)]
     per_month = {m: {"youtube": 0, "instagram": 0} for m in months}
-    in_progress, waiting, disk = 0, [], {}
+    in_progress, waiting, disk, sheet = 0, [], {}, []
     for d in all_series():
         s = load_series(d / "series.json")
         disk[d.name] = du(d)
@@ -289,6 +336,9 @@ def overview():
             in_progress += p.stages.finish.status != "done"
             if w := waiting_approvals(d / pid, p):
                 waiting.append({"slug": d.name, "part": pid, "waiting": w})
+            if not (p.posted.youtube or p.posted.instagram) and s.status != "archived":
+                sheet.append({"slug": d.name, "series_title": s.title, "part": pid, "number": p.number,
+                              "title": p.title, "cells": sheet_cells(d.name, d / pid, p)})
             for platform in ("youtube", "instagram"):
                 post = getattr(p.posted, platform)
                 if post and (m := post.posted_at.strftime("%Y-%m")) in per_month:
@@ -297,6 +347,8 @@ def overview():
     return {"kpi": {"series": len(disk), "parts_in_progress": in_progress, "waiting_for_approval": len(waiting),
                     "posted_this_month": this["youtube"] + this["instagram"]},
             "waiting": waiting,
+            "sheet_steps": SHEET_STEPS,
+            "sheet": sheet,
             "posts_per_month": [{"month": m, **per_month[m]} for m in months],
             "disk_usage": disk}
 

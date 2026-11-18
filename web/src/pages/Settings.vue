@@ -18,18 +18,18 @@ async function save(api_key: string | null) {
   saving.value = false
   if (s) data.value = s
 }
-const field = 'inset mt-1 block h-11 w-full rounded-full px-4 text-sm text-ink outline-none'
+const field = 'inset mt-1 block h-10 w-full rounded-md px-4 text-sm text-ink outline-none focus:border-blue'
 </script>
 
 <template>
-  <div class="mx-auto max-w-5xl space-y-6">
+  <div class="max-w-5xl space-y-6">
     <h2 class="font-display text-2xl font-semibold">Settings</h2>
     <ErrorCard v-if="error" :message="error" @retry="reload" />
     <div v-else-if="loading" class="skeleton h-72" aria-busy="true" aria-label="Loading settings" />
     <div v-else class="grid gap-6 lg:grid-cols-[1fr_340px]">
       <form class="raised space-y-4 p-6" @submit.prevent="save(form.api_key.trim() || null)">
         <div>
-          <h3 class="font-semibold">AI gateway (OmniRoute)</h3>
+          <h3 class="font-display text-lg font-semibold">AI gateway (OmniRoute)</h3>
           <p class="text-xs text-muted">With an API key, “Build with AI” sends the prompt and loads the reply for you. Without one, you copy and paste as usual.</p>
         </div>
         <label class="block text-xs font-semibold text-muted">Base URL
@@ -51,9 +51,9 @@ const field = 'inset mt-1 block h-11 w-full rounded-full px-4 text-sm text-ink o
       </form>
 
       <details class="raised p-6 text-sm" open>
-        <summary class="cursor-pointer font-semibold">How to get an OmniRoute API key</summary>
+        <summary class="cursor-pointer font-display text-lg font-semibold">How to get an OmniRoute API key</summary>
         <ol class="mt-3 list-decimal space-y-2 pl-5 text-muted">
-          <li>Install and start OmniRoute (Node 18–22): <code>npm install -g omniroute</code> then <code>omniroute</code>.
+          <li>Install and start OmniRoute (Node 22 or 24+): <code>npm install -g omniroute</code> then <code>omniroute</code>.
             Or Docker: <code>docker run -p 20128:20128 diegosouzapw/omniroute:latest</code>.</li>
           <li>Open the dashboard at <a class="underline" href="http://localhost:20128" target="_blank" rel="noopener">localhost:20128</a> and log in.
             The default password is <code>123456</code> unless <code>INITIAL_PASSWORD</code> is set: change it.</li>

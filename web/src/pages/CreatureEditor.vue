@@ -132,11 +132,11 @@ async function generateReply() {
   aiReply.value = text
   loadReply()
 }
-const field = 'inset mt-1 block h-11 w-full rounded-full px-4 text-sm text-ink outline-none'
+const field = 'inset mt-1 block h-10 w-full rounded-md px-4 text-sm text-ink outline-none focus:border-blue'
 </script>
 
 <template>
-  <div class="mx-auto max-w-6xl space-y-6">
+  <div class="max-w-6xl space-y-6">
     <RouterLink to="/creatures" class="btn btn-secondary"><ArrowLeft :size="16" aria-hidden="true" /> All creatures</RouterLink>
     <ErrorCard v-if="error" :message="error" @retry="reload" />
     <div v-else-if="loading" class="skeleton h-96" aria-busy="true" aria-label="Loading creature" />
@@ -152,7 +152,7 @@ const field = 'inset mt-1 block h-11 w-full rounded-full px-4 text-sm text-ink o
 
         <section v-if="aiOpen" id="ai-build" class="inset rounded-md p-4" aria-label="Build with AI">
           <p class="pb-4 text-xs text-muted">Three steps. The result loads into this editor, so you check every pose before saving.</p>
-          <ol class="divide-y divide-[#ebe6dc]">
+          <ol class="divide-y divide-rule">
             <li class="flex gap-3 pb-5">
               <span class="step-no" aria-hidden="true">1</span>
               <div class="min-w-0 flex-1 space-y-2">
@@ -172,7 +172,7 @@ const field = 'inset mt-1 block h-11 w-full rounded-full px-4 text-sm text-ink o
                 <p v-if="aiId" class="text-xs text-muted">Saved as <code>{{ aiId }}</code>.</p>
                 <label class="block text-sm font-semibold" for="ai-details">Details <span class="font-normal text-muted">(optional)</span>
                   <textarea id="ai-details" v-model="aiDetails" rows="3" placeholder="Long ears, spotted coat, a stump for a headless version…"
-                    class="inset mt-1 block w-full rounded-md px-4 py-2 text-sm text-ink outline-none" />
+                    class="inset mt-1 block w-full rounded-md px-4 py-2 text-sm text-ink outline-none focus:border-blue" />
                 </label>
                 <div class="flex flex-wrap items-center gap-2">
                   <template v-if="auto">
@@ -198,7 +198,7 @@ const field = 'inset mt-1 block h-11 w-full rounded-full px-4 text-sm text-ink o
                 <template v-if="aiPrompt">
                   <label class="sr-only" for="ai-prompt">Prompt for AI (read-only)</label>
                   <textarea id="ai-prompt" ref="promptBox" :value="aiPrompt" readonly rows="6" spellcheck="false"
-                    class="block w-full resize-y rounded-md bg-[#ebe6dc] p-4 font-mono text-xs leading-5 text-muted outline-none" />
+                    class="block w-full resize-y rounded-md border border-rule bg-well p-4 font-mono text-xs leading-5 text-muted outline-none focus:border-blue" />
                 </template>
               </div>
             </li>
@@ -211,7 +211,7 @@ const field = 'inset mt-1 block h-11 w-full rounded-full px-4 text-sm text-ink o
                 </div>
                 <textarea id="ai-reply" v-model="aiReply" rows="6" spellcheck="false"
                   placeholder='Paste here, e.g.&#10;```json&#10;{"id": "dog", "name": "Dog", "rig": "quadruped", ...}&#10;```'
-                  class="paper block w-full resize-y rounded-md border-2 border-dashed p-4 font-mono text-xs leading-5 text-ink outline-none focus:border-solid"
+                  class="paper block w-full resize-y rounded-md border-2 border-dashed p-4 font-mono text-xs leading-5 text-ink outline-none focus:border-blue focus:border-solid"
                   :class="aiError ? 'border-red-ink' : 'border-blue-ink/60'" :aria-invalid="!!aiError" />
                 <p v-if="aiError" class="text-sm text-red-ink" role="alert">{{ aiError }}</p>
                 <div class="flex justify-end">
@@ -244,7 +244,7 @@ const field = 'inset mt-1 block h-11 w-full rounded-full px-4 text-sm text-ink o
 
         <label class="block text-xs font-semibold text-muted" for="drawing">Drawing: joints, face and parts (JSON)
           <textarea id="drawing" v-model="form.drawing" rows="22" spellcheck="false" :aria-invalid="!!parsed.err"
-            class="inset mt-1 block w-full resize-y rounded-md p-4 font-mono text-xs leading-5 text-ink outline-none" />
+            class="inset mt-1 block w-full resize-y rounded-md p-4 font-mono text-xs leading-5 text-ink outline-none focus:border-blue" />
         </label>
         <p v-if="parsed.err" class="text-sm text-red-ink" role="alert">{{ parsed.err }}</p>
         <p class="text-xs text-muted">Side view facing right, y down, the ground at y 0. The body is drawn around the ground
@@ -287,9 +287,9 @@ const field = 'inset mt-1 block h-11 w-full rounded-full px-4 text-sm text-ink o
   flex-shrink: 0;
   width: 1.75rem;
   height: 1.75rem;
-  border-radius: 9999px;
-  background: var(--color-blue-ink);
-  color: #fff;
+  border-radius: var(--radius-sm);
+  background: var(--color-ink);
+  color: var(--on-ink);
   font-size: 0.8125rem;
   font-weight: 700;
 }

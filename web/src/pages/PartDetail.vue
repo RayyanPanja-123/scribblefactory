@@ -365,8 +365,7 @@ watch(() => props.part, () => { chosen.value = null })
         <CircleX v-else-if="failedStage && next.kind === 'run'" :size="20" class="mt-0.5 shrink-0 text-red-ink" aria-hidden="true" />
         <span v-else class="mt-1.5 size-2.5 shrink-0 rounded-full" :class="next.kind === 'wait' ? 'pulse bg-blue' : 'bg-amber'" aria-hidden="true" />
         <div class="min-w-0 flex-1">
-          <p class="text-xs font-semibold text-muted">Next step</p>
-          <p class="mt-0.5 text-sm text-ink">{{ next.text }}</p>
+          <p class="text-sm font-medium text-ink">{{ next.text }}</p>
           <details v-if="next.kind === 'run'" class="mt-2 text-xs text-muted">
             <summary class="cursor-pointer">Show the {{ next.steps.length }} step{{ next.steps.length === 1 ? '' : 's' }}</summary>
             <ol class="mt-1 list-decimal space-y-0.5 pl-5"><li v-for="s in next.steps" :key="s"><code>{{ s }}</code></li></ol>
@@ -407,12 +406,12 @@ watch(() => props.part, () => { chosen.value = null })
     </div>
 
     <!-- tabs: one area of work at a time; it opens where the current step happens -->
-    <div class="sticky top-0 z-10 -mx-1 flex gap-1 overflow-x-auto rounded-full border border-white/60 bg-surface/90 p-1 shadow-[0_6px_18px_rgb(120_104_82/0.14)] backdrop-blur-md"
+    <div class="sticky top-0 z-10 -mx-1 flex gap-1 overflow-x-auto border-b border-rule bg-page/90 px-1 backdrop-blur-md"
       role="tablist" aria-label="Part sections">
       <button v-for="t in tabs" :id="`tab-${t.id}`" :key="t.id" type="button" role="tab" :aria-selected="tab === t.id" :aria-controls="`panel-${t.id}`"
-        :tabindex="tab === t.id ? 0 : -1" class="relative shrink-0 rounded-full px-4 py-2 text-sm font-semibold"
-        :class="tab === t.id ? 'text-white' : 'text-muted hover:text-ink'" @click="goTo(t.id)" @keydown="onTabKey">
-        <motion.span v-if="tab === t.id" layout-id="part-tab-pill" class="absolute inset-0 rounded-full bg-ink shadow-[var(--shadow-dark)]"
+        :tabindex="tab === t.id ? 0 : -1" class="relative shrink-0 px-4 py-3 text-sm font-semibold"
+        :class="tab === t.id ? 'text-ink' : 'text-muted hover:text-ink'" @click="goTo(t.id)" @keydown="onTabKey">
+        <motion.span v-if="tab === t.id" layout-id="part-tab-pill" class="absolute inset-x-2 -bottom-px h-[3px] rounded-t-sm bg-ink"
           :transition="SPRING" aria-hidden="true" />
         <span class="relative">{{ t.label }}</span>
         <span v-if="t.id === stepTab && tab !== t.id" class="relative ml-1.5 inline-block size-2 rounded-full bg-amber align-middle" aria-label="current step" />
@@ -455,7 +454,7 @@ watch(() => props.part, () => { chosen.value = null })
           </ul>
         </div>
         <label class="sr-only" for="story-md">story.md</label>
-        <textarea id="story-md" v-model="storyText" class="paper inset mt-4 block max-h-[32rem] min-h-48 w-full resize-y overflow-auto p-5 font-mono text-sm leading-7 outline-none"
+        <textarea id="story-md" v-model="storyText" class="paper inset mt-4 block max-h-[32rem] min-h-48 w-full resize-y overflow-auto p-5 font-mono text-sm leading-7 outline-none focus:border-blue"
           spellcheck="true" @keydown="onStoryKey" />
       </section>
     </div>
@@ -488,10 +487,10 @@ watch(() => props.part, () => { chosen.value = null })
             <div class="mt-4 flex flex-wrap gap-x-8 gap-y-4">
               <div v-for="a in APPROVALS" :key="a.key">
                 <Switch :on="approved(a.key)" :label="a.label" :reason="approved(a.key) ? null : approvalReason(a)" @request="approve(a)" />
-                <p class="mt-1 pl-[68px] text-xs text-muted">
+                <p class="mt-1 text-xs text-muted">
                   {{ approved(a.key) ? shortDate(p.approvals[a.key].approved_at) : approvalReason(a) ?? 'ready to approve' }}
                 </p>
-                <button v-if="canReject(a)" class="btn btn-secondary mt-2 ml-[68px] text-red-ink" :disabled="!!busy" :title="busy ?? undefined" @click="reject(a)">
+                <button v-if="canReject(a)" class="btn btn-secondary mt-2 text-red-ink" :disabled="!!busy" :title="busy ?? undefined" @click="reject(a)">
                   <RefreshCw :size="14" aria-hidden="true" /> Reject and render again
                 </button>
               </div>
@@ -535,25 +534,25 @@ watch(() => props.part, () => { chosen.value = null })
           <div class="flex flex-wrap items-start gap-6">
             <figure v-for="sh in [{ f: 'stills-sheet.png', t: 'Stills sheet', url: has('stills-sheet.png') ? src('stills-sheet.png') : null }, { f: 'cast-sheet.png', t: 'Cast sheet', url: data?.[1].cast_sheet ?? null }]"
               :key="sh.f" class="w-60">
-              <button v-if="sh.url" class="block w-full cursor-zoom-in rounded-md bg-white p-2 shadow-[var(--shadow-raised)] transition-transform hover:-translate-y-1"
+              <button v-if="sh.url" class="block w-full cursor-zoom-in rounded-md bg-white p-2 shadow-[var(--shadow-sheet)] transition-transform hover:-translate-y-1"
                 :aria-label="`Zoom ${sh.t}`" @click="zoom(sh.url!, sh.t)">
                 <img :src="sh.url" :alt="sh.t" loading="lazy" class="w-full rounded-sm" />
               </button>
-              <div v-else class="grid h-40 place-items-center rounded-md border-2 border-dashed border-[#cfc8bb] text-sm text-muted">not rendered yet</div>
+              <div v-else class="grid h-40 place-items-center rounded-md border-2 border-dashed border-rule-strong text-sm text-muted">not rendered yet</div>
               <figcaption class="mt-2 text-center text-sm font-semibold">{{ sh.t }}</figcaption>
             </figure>
           </div>
           <div id="thumbnails" class="rounded-md" :class="{ 'next-target': focus === 'thumbnails' }">
             <p class="mb-8 text-center text-sm font-semibold">Thumbnail</p>
             <div v-if="d.thumbs.length" class="flex gap-5">
-              <motion.button v-for="(t, i) in d.thumbs" :key="t" class="relative w-32 bg-white p-2 pb-8 shadow-[var(--shadow-raised)]"
+              <motion.button v-for="(t, i) in d.thumbs" :key="t" class="relative w-32 bg-white p-2 pb-8 shadow-[var(--shadow-sheet)]"
                 :animate="picked === `thumbs/${t}` ? { rotate: 0, y: -12, scale: 1.06 } : { rotate: TILT[i % 3], y: 0, scale: 1 }"
                 :while-hover="picked === `thumbs/${t}` ? undefined : { y: -4 }" :transition="SPRING"
                 :aria-pressed="picked === `thumbs/${t}`" :aria-label="`Pick thumbnail ${i + 1}`" :disabled="!!busy"
                 @click="pick(Number(t.match(/\d+/)![0]))">
                 <img :src="src(`thumbs/${t}`)" :alt="`Thumbnail candidate ${i + 1}`" loading="lazy" class="aspect-[9/16] w-full object-cover" />
                 <span class="absolute bottom-2 left-0 w-full text-center font-display text-sm text-muted">#{{ i + 1 }}</span>
-                <span v-if="picked === `thumbs/${t}`" class="absolute -top-2 left-1/2 grid size-6 -translate-x-1/2 place-items-center rounded-full bg-green text-white shadow-[var(--shadow-dark)]">
+                <span v-if="picked === `thumbs/${t}`" class="absolute -top-2 left-1/2 grid size-6 -translate-x-1/2 place-items-center rounded-full bg-ink text-[var(--on-ink)] shadow-[var(--shadow-sheet)]">
                   <Check :size="14" :stroke-width="3" aria-hidden="true" />
                 </span>
               </motion.button>
@@ -575,7 +574,7 @@ watch(() => props.part, () => { chosen.value = null })
         </div>
         <p class="mt-1 text-xs text-muted">Ctrl+S saves. Written atomically; nothing else in the part is touched.</p>
         <label class="sr-only" for="upload-md">upload.md</label>
-        <textarea id="upload-md" v-model="text" class="paper inset mt-4 block min-h-64 w-full resize-y p-5 font-mono text-sm leading-7 outline-none"
+        <textarea id="upload-md" v-model="text" class="paper inset mt-4 block min-h-64 w-full resize-y p-5 font-mono text-sm leading-7 outline-none focus:border-blue"
           spellcheck="true" @keydown="onKey" />
       </section>
 
@@ -596,10 +595,10 @@ watch(() => props.part, () => { chosen.value = null })
           <form v-else class="mt-3 space-y-3" @submit.prevent="post(pl.key)">
             <label class="block text-xs font-semibold text-muted">Link
               <input v-model="form[pl.key].url" type="url" required placeholder="https://"
-                class="inset mt-1 block w-full rounded-full px-4 py-2 text-sm text-ink outline-none" />
+                class="inset mt-1 block w-full rounded-md px-4 py-2 text-sm text-ink outline-none focus:border-blue" />
             </label>
             <label class="block text-xs font-semibold text-muted">Date
-              <input v-model="form[pl.key].date" type="date" class="inset mt-1 block w-full rounded-full px-4 py-2 text-sm text-ink outline-none" />
+              <input v-model="form[pl.key].date" type="date" class="inset mt-1 block w-full rounded-md px-4 py-2 text-sm text-ink outline-none focus:border-blue" />
             </label>
             <div class="flex gap-2">
               <button class="btn btn-primary" :disabled="!form[pl.key].url.trim()">Mark posted</button>
@@ -626,11 +625,11 @@ watch(() => props.part, () => { chosen.value = null })
             <div class="flex gap-2">
               <button class="btn btn-secondary flex-1 justify-center" :disabled="!!why('render')" :title="why('render') ?? undefined"
                 @click="run([`render --workers ${workers}`])">Full render</button>
-              <div class="inset flex items-center rounded-full px-1" role="group" aria-label="Render workers">
-                <button class="grid size-7 place-items-center rounded-full disabled:opacity-40" aria-label="Fewer workers"
+              <div class="inset flex items-center px-1" role="group" aria-label="Render workers">
+                <button class="grid size-7 place-items-center rounded-sm hover:bg-panel disabled:opacity-40" aria-label="Fewer workers"
                   :disabled="workers <= 1" @click="workers--"><Minus :size="14" /></button>
                 <span class="num w-5 text-center" :aria-label="`${workers} workers`">{{ workers }}</span>
-                <button class="grid size-7 place-items-center rounded-full disabled:opacity-40" aria-label="More workers"
+                <button class="grid size-7 place-items-center rounded-sm hover:bg-panel disabled:opacity-40" aria-label="More workers"
                   :disabled="workers >= 3" @click="workers++"><Plus :size="14" /></button>
               </div>
             </div>
@@ -646,14 +645,14 @@ watch(() => props.part, () => { chosen.value = null })
           <div class="inset px-4 py-3"><dt class="text-xs font-semibold text-muted">Frames</dt><dd class="num text-xl">{{ bytes(d.frames_bytes) }}</dd></div>
           <div class="inset px-4 py-3"><dt class="text-xs font-semibold text-muted">Whole part</dt><dd class="num text-xl">{{ bytes(d.part_bytes) }}</dd></div>
         </dl>
-        <div class="mt-5 rounded-md border border-[#f0c9bd] bg-[#fbeee9] p-4">
+        <div class="mt-5 rounded-md border tint-red p-4">
           <p class="flex items-center gap-2 text-sm font-semibold text-red-ink"><HardDrive :size="16" aria-hidden="true" /> Danger zone</p>
           <p class="mt-1 text-xs text-muted">Delete frames/ once final.mp4 is finished. Frees {{ bytes(d.frames_bytes) }}.</p>
           <button class="btn btn-secondary mt-3 text-red-ink" :disabled="!!cleanReason" :title="cleanReason ?? undefined" @click="clean">
             <Trash2 :size="16" aria-hidden="true" /> Clean frames
           </button>
           <p v-if="cleanReason" class="mt-1 text-xs text-muted">{{ cleanReason }}</p>
-          <div class="mt-4 border-t border-[#f0c9bd] pt-4">
+          <div class="mt-4 border-t border-red/30 pt-4">
             <p class="text-xs text-muted">Delete this part: story, voice, videos, everything. Cannot be undone.</p>
             <button class="btn btn-secondary mt-3 text-red-ink" :disabled="!!busy" :title="busy ?? undefined" @click="deletePart">
               <Trash2 :size="16" aria-hidden="true" /> Delete part
@@ -666,12 +665,13 @@ watch(() => props.part, () => { chosen.value = null })
 </template>
 
 <style scoped>
-.lighttable { background: radial-gradient(ellipse at 50% 40%, #fffdf7 0%, #f3eee3 70%, #ebe5d8 100%); }
+/* a lightbox: the glow is the sheet colour brightening toward the centre */
+.lighttable { background: radial-gradient(ellipse at 50% 40%, color-mix(in oklab, var(--color-panel) 70%, #fff8e6) 0%, var(--color-well) 75%); }
 .paper {
   field-sizing: content; /* autosize, native */
-  background-color: #fbf8f1;
-  background-image: var(--grain), repeating-linear-gradient(transparent 0 27px, rgb(96 78 52 / 0.08) 27px 28px);
-  background-position: 0 0, 0 19px;
+  background-color: var(--color-panel);
+  background-image: repeating-linear-gradient(transparent 0 27px, var(--color-rule) 27px 28px);
+  background-position: 0 19px;
 }
 button:disabled { cursor: not-allowed; opacity: 0.55; }
 .next-target { outline: 2px solid var(--color-amber); outline-offset: 4px; scroll-margin-top: 1.5rem; }

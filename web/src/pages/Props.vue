@@ -2,7 +2,6 @@
 import { Backpack, Plus, Sparkles, Trash2 } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { api } from '../api/client'
-import Card from '../components/Card.vue'
 import ErrorCard from '../components/ErrorCard.vue'
 import { act, confirm } from '../composables/feedback'
 import PropPreview from '../components/PropPreview.vue'
@@ -52,30 +51,46 @@ async function remove(o: { id: string; name: string }) {
       them too: <code>@do fred: eat apple</code>, <code>@do fred: give flag sam</code>. Changing a prop’s drawing clears
       the cast approval of everyone holding it.
     </p>
-    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      <Card v-for="o in options" :key="o.id" class="flex gap-4 p-4">
-        <PropPreview :kind="o.id" :custom="custom" :label="`Stickman holding ${o.name}`" class="h-40 w-28 shrink-0" />
-        <div class="min-w-0 flex-1 space-y-2">
-          <div>
-            <h3 class="font-display text-lg font-semibold">{{ o.name }}</h3>
-            <p class="text-xs text-muted">
-              <template v-if="isBuiltin(o.id)">built in · {{ builtinNote(o.id as BuiltinProp) }}</template>
-              <template v-else>custom · <code>{{ o.id }}</code></template>
-            </p>
-          </div>
-          <ul v-if="holders[o.id]?.length" class="space-y-1 text-sm">
-            <li v-for="h in holders[o.id]" :key="`${h.slug}/${h.name}/${h.hand}`">
-              <RouterLink :to="`/series/${h.slug}`" class="font-semibold hover:underline">{{ h.name }}</RouterLink>
-              <span class="text-muted"> · {{ h.title }} · {{ h.hand }}</span>
-            </li>
-          </ul>
-          <p v-else class="flex items-center gap-1.5 text-sm text-muted"><Backpack :size="14" aria-hidden="true" /> nobody holds one yet</p>
-          <div v-if="!isBuiltin(o.id)" class="flex gap-2">
-            <RouterLink :to="`/props/${o.id}`" class="btn btn-secondary">Edit</RouterLink>
-            <button v-if="!holders[o.id]?.length" type="button" class="btn btn-secondary text-red-ink" :aria-label="`Delete ${o.name}`" @click="remove(o)"><Trash2 :size="16" aria-hidden="true" /> Delete</button>
-          </div>
-        </div>
-      </Card>
+    <!-- the props sheet: one ruled row per prop -->
+    <div class="raised overflow-x-auto">
+      <table class="w-full min-w-[640px] border-collapse text-sm">
+        <thead>
+          <tr class="border-b-2 border-rule-strong">
+            <th scope="col" class="colhead w-28 px-4 py-2.5 text-left">Drawing</th>
+            <th scope="col" class="colhead border-l border-rule px-4 py-2.5 text-left">Prop</th>
+            <th scope="col" class="colhead border-l border-rule px-4 py-2.5 text-left">Held by</th>
+            <th scope="col" class="colhead w-48 border-l border-rule px-4 py-2.5 text-left"><span class="sr-only">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="o in options" :key="o.id" class="border-b border-rule align-top last:border-b-0">
+            <td class="px-4 py-3"><PropPreview :kind="o.id" :custom="custom" :label="`Stickman holding ${o.name}`" class="h-28 w-20" /></td>
+            <th scope="row" class="border-l border-rule px-4 py-3 text-left font-normal">
+              <p class="font-display text-lg font-semibold">{{ o.name }}</p>
+              <p class="text-xs text-muted">
+                <template v-if="isBuiltin(o.id)">built in · {{ builtinNote(o.id as BuiltinProp) }}</template>
+                <template v-else>custom · <code>{{ o.id }}</code></template>
+              </p>
+            </th>
+            <td class="border-l border-rule px-4 py-3">
+              <ul v-if="holders[o.id]?.length" class="space-y-1">
+                <li v-for="h in holders[o.id]" :key="`${h.slug}/${h.name}/${h.hand}`">
+                  <RouterLink :to="`/series/${h.slug}`" class="font-semibold hover:underline">{{ h.name }}</RouterLink>
+                  <span class="text-muted"> · {{ h.title }} · {{ h.hand }} hand</span>
+                </li>
+              </ul>
+              <p v-else class="flex items-center gap-1.5 text-muted"><Backpack :size="14" aria-hidden="true" /> nobody holds one yet</p>
+            </td>
+            <td class="border-l border-rule px-4 py-3">
+              <div v-if="!isBuiltin(o.id)" class="flex flex-wrap gap-2">
+                <RouterLink :to="`/props/${o.id}`" class="btn btn-secondary">Edit</RouterLink>
+                <button v-if="!holders[o.id]?.length" type="button" class="btn btn-secondary text-red-ink" :aria-label="`Delete ${o.name}`" @click="remove(o)"><Trash2 :size="16" aria-hidden="true" /> Delete</button>
+              </div>
+              <span v-else class="text-xs text-muted">built in: read only</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   </div>
 </template>

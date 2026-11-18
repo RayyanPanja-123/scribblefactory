@@ -294,3 +294,13 @@ describe('creature prompt', () => {
     expect(importCreature('{"name": "X", "rig": "bird"}').error).toMatch(/body/)
   })
 })
+
+describe('needsYou', async () => {
+  const { needsYou } = await import('./partSteps')
+  it('circles review cells and the creator-owned current step only', () => {
+    expect(needsYou({ key: 'stills', status: 'review' })).toBe(true)
+    expect(needsYou({ key: 'voice', status: 'current' })).toBe(true)
+    expect(needsYou({ key: 'plan', status: 'current' })).toBe(false) // a job does it
+    expect(needsYou({ key: 'post', status: 'done' })).toBe(false)
+  })
+})

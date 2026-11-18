@@ -96,8 +96,7 @@ const facts = computed(() => {
         <CircleCheck v-if="next.kind === 'done'" :size="20" class="mt-0.5 shrink-0 text-green-ink" aria-hidden="true" />
         <span v-else class="mt-1.5 size-2.5 shrink-0 rounded-full" :class="next.kind === 'wait' ? 'pulse bg-blue' : 'bg-amber'" aria-hidden="true" />
         <div class="min-w-0 flex-1">
-          <p class="text-xs font-semibold text-muted">Next step</p>
-          <p class="mt-0.5 text-sm text-ink">{{ next.text }}</p>
+          <p class="text-sm font-medium text-ink">{{ next.text }}</p>
           <div class="mt-3 flex flex-wrap gap-2 whitespace-nowrap">
             <button v-if="next.kind === 'render-sheet'" class="btn btn-primary" @click="castPanel?.renderSheet()">
               Render cast sheet <ArrowRight :size="16" aria-hidden="true" />
@@ -129,7 +128,7 @@ const facts = computed(() => {
       <PartCard v-for="(p, i) in data.parts" :key="p.id" :slug="slug" :part="p" :index="i" />
     </section>
 
-    <section class="flex flex-wrap items-center gap-4 rounded-lg border border-[#f0c9bd] bg-[#fbeee9] p-5" aria-label="Danger zone">
+    <section class="flex flex-wrap items-center gap-4 rounded-lg border tint-red p-5" aria-label="Danger zone">
       <div class="min-w-0 flex-1">
         <p class="text-sm font-semibold text-red-ink">Delete this series</p>
         <p class="text-xs text-muted">Every part, story, voice and video, the cast and its sheet. Cannot be undone.</p>

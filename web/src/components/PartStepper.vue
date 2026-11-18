@@ -1,47 +1,43 @@
 <script setup lang="ts">
-import { Check, X } from 'lucide-vue-next'
+import { Film, X } from 'lucide-vue-next'
 import { nextTick, ref, watch } from 'vue'
-import type { PartStepView, StepStatus } from '../lib/partSteps'
+import { needsYou, type PartStepView } from '../lib/partSteps'
+import GreaseCircle from './GreaseCircle.vue'
+import PencilTick from './PencilTick.vue'
 
-// The part's journey (lib/partSteps) as a row of numbered steps joined by a line. Each step links to the section
-// where it happens; the current one is marked aria-current="step".
+// The part's journey (lib/partSteps) as one row of the exposure sheet: the same columns and marks as the Overview.
+// Each cell links to the section where the step happens; the current one is aria-current="step".
 const p = defineProps<{ steps: PartStepView[] }>()
 
-// on a narrow screen the row scrolls sideways: keep the current step in view (horizontal only, never the page)
+// on a narrow screen the row scrolls sideways: keep the current cell in view (horizontal only, never the page)
 const nav = ref<HTMLElement>()
 watch([nav, () => p.steps.findIndex((s) => s.status !== 'done')], async ([el]) => {
   await nextTick()
   const cur = el?.querySelector<HTMLElement>('[aria-current=step]')
   if (el && cur) el.scrollLeft = cur.offsetLeft - (el.clientWidth - cur.offsetWidth) / 2
 }, { immediate: true })
-const DOT: Record<StepStatus, string> = {
-  done: 'bg-green text-white',
-  current: 'bg-amber text-ink ring-4 ring-amber/30',
-  review: 'bg-amber text-ink ring-4 ring-amber/30',
-  running: 'pulse bg-blue text-white ring-4 ring-blue/25',
-  failed: 'bg-red text-white ring-4 ring-red/25',
-  todo: 'inset text-muted',
-}
-const NOTE: Record<StepStatus, string> = {
-  done: 'text-green-ink', current: 'text-amber-ink', review: 'text-amber-ink font-semibold', running: 'text-blue-ink', failed: 'text-red-ink font-semibold', todo: 'text-muted',
-}
+const live = (s: PartStepView) => ['current', 'review', 'running', 'failed'].includes(s.status)
 </script>
 
 <template>
-  <nav ref="nav" aria-label="Part progress" class="relative overflow-x-auto">
-    <ol class="flex w-full min-w-max">
-      <li v-for="(s, i) in steps" :key="s.key" class="relative flex min-w-[4.5rem] flex-1 flex-col items-center text-center"
-        :aria-current="['current', 'review', 'running', 'failed'].includes(s.status) ? 'step' : undefined">
-        <span v-if="i" class="absolute top-4 right-1/2 h-0.5 w-full" :class="s.status === 'todo' ? 'bg-[#e2dccf]' : 'bg-green'" aria-hidden="true" />
+  <nav ref="nav" aria-label="Part progress" class="overflow-x-auto rounded-md border border-rule">
+    <ol class="grid min-w-[640px] grid-cols-8">
+      <li v-for="(s, i) in steps" :key="s.key" class="border-rule text-center" :class="{ 'border-l': i > 0 }" :aria-current="live(s) ? 'step' : undefined">
+        <p class="colhead flex h-14 flex-col items-center justify-center border-b-2 border-rule-strong px-1 py-1.5 leading-tight">
+          <span class="num text-muted" aria-hidden="true">{{ i + 1 }}</span><span>{{ s.label }}</span>
+        </p>
         <component :is="s.href ? 'a' : 'span'" :href="s.href || undefined"
-          class="relative z-[1] flex flex-col items-center gap-1 rounded-md px-1 py-0.5" :class="s.href && 'hover:bg-panel'">
-          <span class="grid size-8 place-items-center rounded-full text-sm font-semibold" :class="DOT[s.status]" aria-hidden="true">
-            <Check v-if="s.status === 'done'" :size="16" :stroke-width="3" />
-            <X v-else-if="s.status === 'failed'" :size="16" :stroke-width="3" />
-            <template v-else>{{ i + 1 }}</template>
-          </span>
-          <span class="text-xs font-semibold" :class="s.status === 'todo' ? 'text-muted' : 'text-ink'">{{ s.label }}</span>
-          <span class="text-[11px] leading-tight" :class="NOTE[s.status]">{{ s.note || ' ' }}<span v-if="!s.note" class="sr-only">to do</span></span>
+          class="relative flex h-12 items-center justify-center gap-1 text-xs font-semibold" :class="s.href && 'hover:bg-blue/10'">
+          <span class="sr-only">{{ s.label }}: {{ s.note || 'to do' }}</span>
+          <PencilTick v-if="s.status === 'done'" class="text-ink" />
+          <template v-else-if="needsYou(s)">
+            <span class="font-display text-[13px] text-amber-ink" aria-hidden="true">{{ s.status === 'review' ? 'approve' : 'you' }}</span>
+            <GreaseCircle />
+          </template>
+          <template v-else-if="s.status === 'current'"><span class="size-1.5 rounded-full bg-blue" aria-hidden="true" /><span class="font-display text-[13px] text-blue-ink" aria-hidden="true">next</span></template>
+          <template v-else-if="s.status === 'running'"><Film :size="14" class="reel text-blue" aria-hidden="true" /><span class="font-display text-[13px] text-blue-ink" aria-hidden="true">running</span></template>
+          <template v-else-if="s.status === 'failed'"><X :size="14" :stroke-width="3" class="text-red" aria-hidden="true" /><span class="font-display text-[13px] text-red-ink" aria-hidden="true">failed</span></template>
+          <span v-else class="size-1 rounded-full bg-rule-strong" aria-hidden="true" />
         </component>
       </li>
     </ol>

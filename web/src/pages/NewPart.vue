@@ -41,7 +41,7 @@ async function create() {
 <template>
   <ErrorCard v-if="error" :message="error" @retry="reload" />
 
-  <div v-else class="mx-auto max-w-3xl space-y-6">
+  <div v-else class="max-w-3xl space-y-6">
     <RouterLink :to="`/series/${slug}`" class="btn btn-secondary"><ArrowLeft :size="16" aria-hidden="true" /> {{ data?.series.title ?? slug }}</RouterLink>
 
     <form class="raised space-y-5 p-6" @submit.prevent="create">
@@ -49,11 +49,11 @@ async function create() {
       <PartStepper :steps="steps" />
 
       <label class="block text-xs font-semibold text-muted">Title
-        <input v-model="title" :placeholder="`Part ${number}`" class="inset mt-1 block w-full rounded-full px-4 py-2 text-sm text-ink outline-none" />
+        <input v-model="title" :placeholder="`Part ${number}`" class="inset mt-1 block w-full rounded-md px-4 py-2 text-sm text-ink outline-none focus:border-blue" />
       </label>
 
       <label class="block text-xs font-semibold text-muted" for="story-md">story.md</label>
-      <textarea id="story-md" v-model="story" class="paper inset block min-h-96 w-full resize-y p-5 font-mono text-sm leading-7 outline-none"
+      <textarea id="story-md" v-model="story" class="paper inset block min-h-96 w-full resize-y p-5 font-mono text-sm leading-7 outline-none focus:border-blue"
         spellcheck="true" @input="storyEdited = true" />
       <p class="text-xs text-muted">
         Narration lines, with directives on their own lines: <code>@set</code>, <code>@cast</code>, <code>@car</code>, <code>@do</code>,
