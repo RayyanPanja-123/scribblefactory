@@ -28,7 +28,7 @@ from PIL import Image
 from pydantic import BaseModel, TypeAdapter, ValidationError
 from sse_starlette import EventSourceResponse
 
-from pipeline.scribble import cli, storycheck
+from pipeline.scribble import cli, package, storycheck
 from pipeline.scribble.io import (atomic_write_bytes, atomic_write_json, atomic_write_text, delete_prop, delete_set, load_part, load_props,
                                   load_series, load_sets, prop_kinds, save_prop, save_series, save_set, unknown_cast_props,
                                   cast_body_problems, delete_creature, load_creatures, save_creature, delete_action,
@@ -259,6 +259,7 @@ class PartDetail(BaseModel):
     qa: dict | None
     upload_md: str | None
     story_md: str | None
+    tts_script: str | None  # script-for-tts.txt: what the voice reads (prep writes it; a story package too)
     voice_duration: float | None
     frames_bytes: int
     part_bytes: int  # the whole part folder, frames included
@@ -378,12 +379,13 @@ def part_detail(slug: str, part: str):
         voice = probe_duration(pdir / "voice.mp3") if files["voice.mp3"] else None
     except StageError:
         voice = None
-    qa, upload, story = pdir / "qa.json", pdir / "upload.md", pdir / "story.md"
+    qa, upload, story, tts = pdir / "qa.json", pdir / "upload.md", pdir / "story.md", pdir / "script-for-tts.txt"
     return {"part": part_json(pdir), "files": files,
             "thumbs": sorted(f.name for f in (pdir / "thumbs").glob("thumb-*.png")),
             "qa": json.loads(qa.read_bytes()) if qa.is_file() else None,
             "upload_md": upload.read_text(encoding="utf-8") if upload.is_file() else None,
             "story_md": story.read_text(encoding="utf-8") if story.is_file() else None,
+            "tts_script": tts.read_text(encoding="utf-8") if tts.is_file() else None,
             "voice_duration": voice, "frames_bytes": du(pdir / "frames"), "part_bytes": du(pdir),
             "busy": busy(slug, part)}
 
@@ -528,11 +530,7 @@ class NewSeries(BaseModel):
 
 def cast_member(i: int, c: dict) -> CastMember:
     """one imported cast entry -> CastMember, or a 409 naming the entry and the field"""
-    c = {k: v for k, v in c.items() if k != "approved_at"}
-    if "color" in c:
-        c.setdefault("top", {})
-        c["top"] = {**c["top"], "color": c.pop("color")} if isinstance(c["top"], dict) else c["top"]
-    c.setdefault("eyes", "dots")
+    c = package.cast_dict(c)
     try:
         return CastMember.model_validate(c)
     except ValidationError as e:
@@ -767,6 +765,70 @@ def remove_set(set_id: Slug):
         raise HTTPException(409, str(e))
     publish("sets-changed", {"id": set_id})
     return set_catalog()
+
+# ---------------- story packages (docs/story-package.md): one paste -> assets, cast, series, parts ----------------
+
+class PackageText(BaseModel):
+    text: str
+
+
+class PackageIssue(BaseModel):
+    section: str  # META, PROPS ... CAST, "PART 2 SCRIPT", "PART 2 VOICE", START, END
+    line: int | None  # in the pasted text
+    message: str
+
+
+class PackageItem(BaseModel):
+    id: str
+    name: str
+
+
+class PackagePart(BaseModel):
+    number: int
+    title: str
+    words: int
+
+
+class PackageSeries(BaseModel):
+    title: str
+    slug: str
+    was: str | None  # the slug it asked for, when that was taken
+
+
+class PackageResult(BaseModel):
+    ok: bool
+    series: PackageSeries | None
+    props: list[PackageItem]
+    sets: list[PackageItem]
+    creatures: list[PackageItem]
+    actions: list[PackageItem]
+    cast: list[PackageItem]
+    renames: dict[str, dict[str, str]]  # props / sets / creatures / actions: package id -> imported id
+    parts: list[PackagePart]
+    warnings: list[PackageIssue]
+    errors: list[PackageIssue]
+
+
+@app.post("/api/packages/validate", response_model=PackageResult)
+def validate_package(body: PackageText):
+    """dry run: what the package would create, its warnings and errors (section + pasted-text line). Writes nothing."""
+    return package.summary(package.parse(body.text, lib()))
+
+
+@app.post("/api/packages/import", response_model=PackageResult)
+def import_package(body: PackageText):
+    """all or nothing: new assets, then the series with its cast and parts (story.md + script-for-tts.txt).
+    Never overwrites: a clashing id or slug gets a suffix. 409 when the package has errors (validate lists them)."""
+    check_no_jobs()  # it writes the library's item files, which feed every render
+    try:
+        r = package.import_package(body.text, lib())
+    except package.PackageError as e:
+        raise HTTPException(409, f"package has errors, nothing was written: {e}")
+    for kind in ("props", "sets", "creatures", "actions"):
+        publish(f"{kind}-changed", {"id": None})
+    publish("series-changed", {"slug": r["series"]["slug"]})
+    return package.summary(r)
+
 
 class NewPart(BaseModel):
     title: str | None = None

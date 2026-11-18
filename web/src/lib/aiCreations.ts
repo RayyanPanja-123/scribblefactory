@@ -1,6 +1,7 @@
-// AI Creations: one place to create anything with AI. The per-asset prompt builders and importers live in their own
-// files (propPrompt, setPrompt, creatures, actionPrompt); this routes a brief to them, adds cast and series prompts
-// (docs/STORY_GUIDE.md does the teaching), and turns a reply into a reviewable plan that never overwrites.
+// AI Creations: one place to create a library item or cast with AI (a whole series is a Story Package: Story Writer).
+// The per-asset prompt builders and importers live in their own files (propPrompt, setPrompt, creatures,
+// actionPrompt); this routes a brief to them, adds the cast prompt (docs/STORY_GUIDE.md does the teaching), and turns
+// a reply into a reviewable plan that never overwrites.
 import type { ActionCatalog, CustomAction, PropCatalog } from '../api/client'
 import { buildActionPrompt, importAction } from './actionPrompt'
 import { buildCreaturePrompt, importCreature, type CreatureCatalog, type CustomCreature, type Rig } from './creatures'
@@ -9,19 +10,19 @@ import type { CustomProp } from './props'
 import { buildSetPrompt, importSet } from './setPrompt'
 import type { CustomSet, SetCatalog } from './sets'
 
-export const TYPES = ['prop', 'set', 'creature', 'action', 'cast', 'series'] as const
+export const TYPES = ['prop', 'set', 'creature', 'action', 'cast'] as const
 export type Kind = (typeof TYPES)[number]
-export const TYPE_LABEL: Record<Kind, string> = { prop: 'Prop', set: 'Set', creature: 'Creature', action: 'Action', cast: 'Cast', series: 'Series' }
+export const TYPE_LABEL: Record<Kind, string> = { prop: 'Prop', set: 'Set', creature: 'Creature', action: 'Action', cast: 'Cast' }
 export const isKind = (k: unknown): k is Kind => TYPES.includes(k as Kind)
 
-export type Library = { props: PropCatalog; sets: SetCatalog; creatures: CreatureCatalog; actions: ActionCatalog; series: string[] }
+export type Library = { props: PropCatalog; sets: SetCatalog; creatures: CreatureCatalog; actions: ActionCatalog }
 /** what the user asked for: the description, plus the fields only some types use */
-export type Brief = { description: string; name?: string; id?: string; rig?: Rig; parts?: number; series?: string; cast?: string[] }
+export type Brief = { description: string; name?: string; id?: string; rig?: Rig; series?: string; cast?: string[] }
 export type Plan = {
   props: CustomProp[]; sets: CustomSet[]; creatures: CustomCreature[]; actions: CustomAction[]
-  cast: Record<string, unknown>[]; series?: { title: string; slug: string }; parts: { title: string; story: string }[]
+  cast: Record<string, unknown>[]
 }
-type ItemKind = 'prop' | 'set' | 'creature' | 'action' | 'cast' | 'series' | 'part'
+type ItemKind = 'prop' | 'set' | 'creature' | 'action' | 'cast'
 export type Item = { key: string; kind: ItemKind; id: string; was?: string; name: string; status: 'new' | 'existing'; checked: boolean; data: unknown }
 
 export const slugify = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60)
@@ -47,7 +48,7 @@ export const takenIds = (lib: Library) => ({
 })
 const inventory = (lib: Library) => JSON.stringify({ props: lib.props, sets: lib.sets, creatures: lib.creatures, actions: lib.actions })
 
-/** the prompt for one brief; guide = docs/STORY_GUIDE.md (cast and series only) */
+/** the prompt for one brief; guide = docs/STORY_GUIDE.md (cast only) */
 export function buildCreationPrompt(kind: Kind, b: Brief, lib: Library, guide = ''): string {
   const name = b.name?.trim() || shortName(b.description)
   const t = takenIds(lib)
@@ -69,21 +70,6 @@ ${inventory(lib)}
 
 STORY_GUIDE.md:
 ${guide}`
-    case 'series': return `You are Scribble Factory Story Writer. Follow the attached STORY_GUIDE.md exactly for story.md syntax, directives, cast, pacing, props, sets, creatures, and actions.
-
-Create a basic series from this premise: ${b.description.trim()}
-Plan exactly ${b.parts ?? 3} parts. Unlike the guide's one-part chat behavior, return all requested parts in one machine-readable plan.
-
-Return ONLY valid JSON, with this shape:
-{"title":"...","slug":"lowercase-slug","cast":[...],"assets":{"props":[...],"sets":[...],"creatures":[...],"actions":[...]},"parts":[{"title":"...","story":"complete story.md text"}]}
-
-Use existing library items whenever possible. Put only genuinely needed new custom items in assets, using the exact schemas and valid primitive/keyframe values from the guide and existing conventions. Every asset id used by a story or cast must be present in the library or in the corresponding assets list. The slug must not be one of: ${lib.series.join(', ') || 'none'}. Keep each story self-contained with # title, @set, @cast, directives, and narration. Do not include audio, voice.mp3, markdown fences, explanations, or NEW blocks outside the JSON. The user will build no audio automatically: TTS and audio upload stay manual.
-
-CURRENT LIBRARY INVENTORY:
-${inventory(lib)}
-
-STORY_GUIDE.md:
-${guide}`
   }
 }
 
@@ -94,7 +80,7 @@ function extractJson(text: string): unknown {
   const a = text.search(/[[{]/)
   return JSON.parse(text.slice(a, Math.max(text.lastIndexOf('}'), text.lastIndexOf(']')) + 1))
 }
-const empty = (): Plan => ({ props: [], sets: [], creatures: [], actions: [], cast: [], parts: [] })
+const empty = (): Plan => ({ props: [], sets: [], creatures: [], actions: [], cast: [] })
 const isObj = (x: unknown): x is Record<string, unknown> => !!x && typeof x === 'object' && !Array.isArray(x)
 const castOk = (c: unknown) => isObj(c) && typeof c.id === 'string' && typeof c.name === 'string'
 
@@ -114,48 +100,20 @@ export function parseReply(kind: Kind, text: string): { plan?: Plan; error?: str
   } catch (e) {
     return { error: `Not valid JSON: ${(e as Error).message}` }
   }
-  if (kind === 'cast') {
-    const cast = Array.isArray(j) ? j : isObj(j) ? j.cast : null
-    if (!Array.isArray(cast) || !cast.length) return { error: 'Expected {"cast": [ … ]} with at least one entry.' }
-    const bad = cast.findIndex((c) => !castOk(c))
-    if (bad >= 0) return { error: `Cast #${bad + 1}: needs "id" and "name".` }
-    return { plan: { ...empty(), cast: cast as Record<string, unknown>[] } }
-  }
-  if (!isObj(j) || typeof j.title !== 'string' || !Array.isArray(j.cast) || !Array.isArray(j.parts) || !j.parts.length) {
-    return { error: 'Expected a series plan with "title", "cast" and a non-empty "parts" list.' }
-  }
-  const parts = j.parts as Record<string, unknown>[]
-  const badPart = parts.findIndex((p) => !isObj(p) || typeof p.story !== 'string')
-  if (badPart >= 0) return { error: `Part #${badPart + 1}: needs a "story".` }
-  const badCast = j.cast.findIndex((c) => !castOk(c))
-  if (badCast >= 0) return { error: `Cast #${badCast + 1}: needs "id" and "name".` }
-  const plan: Plan = { ...empty(), cast: j.cast as Record<string, unknown>[],
-    series: { title: j.title.slice(0, 120), slug: slugify(typeof j.slug === 'string' && j.slug ? j.slug : j.title) || 'new-story' },
-    parts: parts.map((p, i) => ({ title: typeof p.title === 'string' && p.title ? p.title : `Part ${i + 1}`, story: p.story as string })) }
-  const assets = isObj(j.assets) ? j.assets : {}
-  const importers = { props: [importProp, 'prop'], sets: [importSet, 'set'], creatures: [importCreature, 'creature'], actions: [importAction, 'action'] } as const
-  for (const [list, [imp, key]] of Object.entries(importers) as [keyof typeof importers, (typeof importers)[keyof typeof importers]][]) {
-    for (const [i, a] of (Array.isArray(assets[list]) ? (assets[list] as unknown[]) : []).entries()) {
-      const r = (imp as (t: string) => Record<string, unknown>)(JSON.stringify(a))
-      if (r.error) return { error: `assets.${list} #${i + 1}: ${r.error}` }
-      ;(plan[list] as unknown[]).push(r[key])
-    }
-  }
-  return { plan }
+  const cast = Array.isArray(j) ? j : isObj(j) ? j.cast : null
+  if (!Array.isArray(cast) || !cast.length) return { error: 'Expected {"cast": [ … ]} with at least one entry.' }
+  const bad = cast.findIndex((c) => !castOk(c))
+  if (bad >= 0) return { error: `Cast #${bad + 1}: needs "id" and "name".` }
+  return { plan: { ...empty(), cast: cast as Record<string, unknown>[] } }
 }
 
-/** the review list. Nothing existing is ever overwritten: on an id clash a single asset or cast member gets a suffixed
- *  id; in a series the clashing asset is the library's own (the stories name it), so it shows as existing and is reused */
-export function reviewItems(kind: Kind, plan: Plan, lib: Library, targetCast: string[] = []): Item[] {
+/** the review list. Nothing existing is ever overwritten: on an id clash an asset or cast member gets a suffixed id */
+export function reviewItems(plan: Plan, lib: Library, targetCast: string[] = []): Item[] {
   const items: Item[] = []
   const t = takenIds(lib)
   const add = (k: 'prop' | 'set' | 'creature' | 'action', xs: { id: string; name: string }[]) => {
     const taken = new Set(t[k])
     for (const x of xs) {
-      if (kind === 'series' && taken.has(x.id)) {
-        items.push({ key: `${k}:${x.id}`, kind: k, id: x.id, name: x.name, status: 'existing', checked: false, data: x })
-        continue
-      }
       const id = uniqueId(x.id, taken)
       taken.add(id)
       items.push({ key: `${k}:${id}`, kind: k, id, was: id !== x.id ? x.id : undefined, name: x.name, status: 'new', checked: true, data: { ...x, id } })
@@ -171,19 +129,8 @@ export function reviewItems(kind: Kind, plan: Plan, lib: Library, targetCast: st
     castTaken.add(id)
     items.push({ key: `cast:${id}`, kind: 'cast', id, was: id !== c.id ? (c.id as string) : undefined, name: c.name as string, status: 'new', checked: true, data: { ...c, id } })
   }
-  if (plan.series) {
-    const slug = uniqueId(plan.series.slug, new Set(lib.series))
-    items.push({ key: `series:${slug}`, kind: 'series', id: slug, was: slug !== plan.series.slug ? plan.series.slug : undefined,
-      name: plan.series.title, status: 'new', checked: true, data: { ...plan.series, slug } })
-    plan.parts.forEach((p, i) => items.push({ key: `part:${i}`, kind: 'part', id: `part-${String(i + 1).padStart(2, '0')}`, name: p.title, status: 'new', checked: true, data: p }))
-  }
   return items
 }
 
-/** parts, and the cast of a new series, can only be created with their series */
-export const needsSeries = (i: Item, items: Item[]) => i.kind === 'part' || (i.kind === 'cast' && items.some((s) => s.kind === 'series'))
-/** what Import writes: checked new items, minus those whose series is unchecked */
-export function chosen(items: Item[]): Item[] {
-  const seriesOn = items.some((i) => i.kind === 'series' && i.checked)
-  return items.filter((i) => i.checked && i.status === 'new' && (seriesOn || !needsSeries(i, items)))
-}
+/** what Import writes: the checked new items */
+export const chosen = (items: Item[]): Item[] => items.filter((i) => i.checked && i.status === 'new')

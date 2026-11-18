@@ -47,19 +47,19 @@ take a move speed in units/second; a negative speed glides backwards (moonwalk).
 There is no AI provider and no API key: the app writes a prompt, you paste it into any chat AI, then paste the
 reply back. Everything goes through **AI Creations** (`/ai-creations`, Studio in the sidebar):
 
-1. Pick a type: Prop, Set, Creature, Action, Cast or Series. Each editor's "Build with AI" opens it pre-filled.
-2. Describe it. Only the fields a type needs are added (Creature: rig, Cast: which series, Series: number of parts).
+1. Pick a type: Prop, Set, Creature, Action or Cast. Each editor's "Build with AI" opens it pre-filled.
+2. Describe it. Only the fields a type needs are added (Creature: rig, Cast: which series).
 3. Make the prompt, copy it into any chat AI, paste its JSON reply back.
 4. Review everything it would create, each marked new or existing; uncheck what you don't want.
 5. Import: one button writes it to the library and links to each new item. Nothing existing is overwritten: a
-   clashing id gets a suffix (a series reuses library items its stories already name).
+   clashing id gets a suffix.
 
-**Story Writer** is the Series type (the old `/story-writer` link redirects there): the AI plans a multi-part series
-from a premise and your library, and Import creates the missing props, sets, creatures and actions, then the series
-with its cast, then its parts. Voice (FreeTTS) and uploading stay manual.
-
-"Copy story guide" on the Overview copies docs/STORY_GUIDE.md plus your library's ids, for writing one part with any
-chat AI.
+**Story Writer** (`/story-writer`) makes a whole series in one paste. Make the story guide (docs/STORY_GUIDE.md plus
+your library's ids and the [Story Package format](docs/story-package.md)), brainstorm with any chat AI, and paste the
+one Story Package it returns. It is checked as you paste (errors and warnings with their section and line), previewed,
+and imported all or nothing: new props, sets, creatures and actions, then the series with its cast and every part's
+story.md and TTS script (script-for-tts.txt, shown on the part's Voice tab). Voice (FreeTTS) and uploading stay manual.
+"Copy story guide" on the Overview copies the same guide.
 
 ## Tests
 

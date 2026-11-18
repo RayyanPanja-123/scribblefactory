@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeft, ArrowRight, Check, CircleAlert, CircleCheck, CircleX, ExternalLink, HardDrive, Instagram, Minus, Play, Plus, RefreshCw, Save, Trash2, Upload, Youtube } from 'lucide-vue-next'
+import { ArrowLeft, ArrowRight, Check, CircleAlert, CircleCheck, CircleX, Copy, ExternalLink, HardDrive, Instagram, Minus, Play, Plus, RefreshCw, Save, Trash2, Upload, Youtube } from 'lucide-vue-next'
 import { animate, motion } from 'motion-v'
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -10,7 +10,7 @@ import StageChips from '../components/StageChips.vue'
 import Switch from '../components/Switch.vue'
 import VideoPlayer from '../components/VideoPlayer.vue'
 import VuMeter from '../components/VuMeter.vue'
-import { act, confirm, zoom } from '../composables/feedback'
+import { act, confirm, toast, zoom } from '../composables/feedback'
 import { jobFor, refetchOn } from '../composables/live'
 import { useApi } from '../composables/useApi'
 import { bytes, expandFrom, label, reducedMotion, shortDate, SPRING, today } from '../composables/ui'
@@ -31,6 +31,15 @@ const stages = computed<Record<string, string>>(() => Object.fromEntries(Object.
 const errors = computed(() => Object.fromEntries(Object.entries(p.value?.stages ?? {}).map(([k, v]) => [k, v.error ?? null])))
 const approved = (a: Approval) => !!p.value?.approvals[a].approved_at
 const has = (f: string) => !!d.value?.files[f]
+// script-for-tts.txt: what the voice reads (written by prep, or by a Story Package import)
+async function copyTts() {
+  try {
+    await navigator.clipboard.writeText(d.value?.tts_script ?? '')
+    toast('TTS script copied: paste it into freetts.ai', 'ok')
+  } catch {
+    toast('Could not copy: select the script on the Voice tab and press Ctrl+C', 'error')
+  }
+}
 
 // ---- gates (client mirror of the CLI's, for the disabled reasons; the API stays the judge) ----
 const job = computed(() => jobFor(props.slug, props.part))
@@ -379,9 +388,9 @@ watch(() => props.part, () => { chosen.value = null })
                 <Upload :size="16" aria-hidden="true" /> {{ uploading ? 'Uploading…' : 'Upload mp3' }}
                 <input type="file" accept=".mp3,audio/mpeg" class="sr-only" :disabled="uploading" @change="uploadVoice" />
               </label>
-              <a :href="src('script-for-tts.txt')" target="_blank" rel="noopener" class="btn btn-secondary">
-                Open script <ExternalLink :size="14" aria-hidden="true" />
-              </a>
+              <button v-if="d?.tts_script" type="button" class="btn btn-secondary" @click="copyTts">
+                <Copy :size="14" aria-hidden="true" /> Copy TTS script
+              </button>
             </template>
             <RouterLink v-else-if="next.kind === 'cast'" :to="`/series/${slug}`" class="btn btn-primary">
               Go to the cast <ArrowRight :size="16" aria-hidden="true" />
@@ -470,7 +479,16 @@ watch(() => props.part, () => { chosen.value = null })
           </label>
         </div>
         <audio v-if="has('voice.mp3')" :key="d?.voice_duration ?? 0" :src="src('voice.mp3')" controls class="mt-4 w-full" />
-        <p class="mt-1 text-xs text-muted">Read from script-for-tts.txt. An import check runs after each upload.</p>
+        <p class="mt-1 text-xs text-muted">An import check runs after each upload.</p>
+        <div class="mt-4">
+          <div class="flex items-center gap-2">
+            <h4 class="text-sm font-semibold">TTS script</h4>
+            <span class="text-xs text-muted">script-for-tts.txt: paste it into freetts.ai, word for word</span>
+            <button v-if="d?.tts_script" type="button" class="btn btn-secondary ml-auto" @click="copyTts"><Copy :size="14" aria-hidden="true" /> Copy</button>
+          </div>
+          <pre v-if="d?.tts_script" class="inset mt-2 max-h-80 overflow-auto rounded-md p-4 font-mono text-xs leading-5 whitespace-pre-wrap text-ink">{{ d.tts_script }}</pre>
+          <p v-else class="mt-1 text-xs text-muted">None yet: running the story step (prep) writes it from story.md.</p>
+        </div>
       </section>
     </div>
 

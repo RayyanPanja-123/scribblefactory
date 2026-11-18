@@ -18,6 +18,7 @@ export type CustomProp = S['CustomProp']
 export type ActionCatalog = S['ActionCatalog']
 export type CustomAction = S['CustomAction']
 export type StoryCheck = S['StoryCheck']
+export type PackageResult = S['PackageResult']
 export type Approval = 'stills' | 'test_render' | 'final'
 export type Platform = 'youtube' | 'instagram'
 
@@ -91,4 +92,6 @@ export const api = {
   sets: () => call<SetCatalog>('GET', '/api/sets'),
   saveSet: (s: CustomSet) => call<SetCatalog>('PUT', `/api/sets/${e(s.id)}`, s),
   deleteSet: (id: string) => call<SetCatalog>('DELETE', `/api/sets/${e(id)}`),
+  validatePackage: (text: string) => call<PackageResult>('POST', '/api/packages/validate', { text }),
+  importPackage: (text: string) => call<PackageResult>('POST', '/api/packages/import', { text }),
 }

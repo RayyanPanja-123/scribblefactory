@@ -1339,6 +1339,219 @@
         "title": "Overview",
         "type": "object"
       },
+      "PackageIssue": {
+        "properties": {
+          "line": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "section": {
+            "title": "Section",
+            "type": "string"
+          }
+        },
+        "required": [
+          "section",
+          "line",
+          "message"
+        ],
+        "title": "PackageIssue",
+        "type": "object"
+      },
+      "PackageItem": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "PackageItem",
+        "type": "object"
+      },
+      "PackagePart": {
+        "properties": {
+          "number": {
+            "title": "Number",
+            "type": "integer"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "words": {
+            "title": "Words",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "number",
+          "title",
+          "words"
+        ],
+        "title": "PackagePart",
+        "type": "object"
+      },
+      "PackageResult": {
+        "properties": {
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/PackageItem"
+            },
+            "title": "Actions",
+            "type": "array"
+          },
+          "cast": {
+            "items": {
+              "$ref": "#/components/schemas/PackageItem"
+            },
+            "title": "Cast",
+            "type": "array"
+          },
+          "creatures": {
+            "items": {
+              "$ref": "#/components/schemas/PackageItem"
+            },
+            "title": "Creatures",
+            "type": "array"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/PackageIssue"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "parts": {
+            "items": {
+              "$ref": "#/components/schemas/PackagePart"
+            },
+            "title": "Parts",
+            "type": "array"
+          },
+          "props": {
+            "items": {
+              "$ref": "#/components/schemas/PackageItem"
+            },
+            "title": "Props",
+            "type": "array"
+          },
+          "renames": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Renames",
+            "type": "object"
+          },
+          "series": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PackageSeries"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sets": {
+            "items": {
+              "$ref": "#/components/schemas/PackageItem"
+            },
+            "title": "Sets",
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/PackageIssue"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ok",
+          "series",
+          "props",
+          "sets",
+          "creatures",
+          "actions",
+          "cast",
+          "renames",
+          "parts",
+          "warnings",
+          "errors"
+        ],
+        "title": "PackageResult",
+        "type": "object"
+      },
+      "PackageSeries": {
+        "properties": {
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "was": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Was"
+          }
+        },
+        "required": [
+          "title",
+          "slug",
+          "was"
+        ],
+        "title": "PackageSeries",
+        "type": "object"
+      },
+      "PackageText": {
+        "properties": {
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "PackageText",
+        "type": "object"
+      },
       "PartDetail": {
         "properties": {
           "busy": {
@@ -1400,6 +1613,17 @@
             "title": "Thumbs",
             "type": "array"
           },
+          "tts_script": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tts Script"
+          },
           "upload_md": {
             "anyOf": [
               {
@@ -1430,6 +1654,7 @@
           "qa",
           "upload_md",
           "story_md",
+          "tts_script",
           "voice_duration",
           "frames_bytes",
           "part_bytes",
@@ -3016,6 +3241,84 @@
           }
         },
         "summary": "Overview"
+      }
+    },
+    "/api/packages/import": {
+      "post": {
+        "description": "all or nothing: new assets, then the series with its cast and parts (story.md + script-for-tts.txt).\nNever overwrites: a clashing id or slug gets a suffix. 409 when the package has errors (validate lists them).",
+        "operationId": "import_package_api_packages_import_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PackageText"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Import Package"
+      }
+    },
+    "/api/packages/validate": {
+      "post": {
+        "description": "dry run: what the package would create, its warnings and errors (section + pasted-text line). Writes nothing.",
+        "operationId": "validate_package_api_packages_validate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PackageText"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Validate Package"
       }
     },
     "/api/props": {

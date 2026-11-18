@@ -11,44 +11,17 @@ import { refetchOn } from '../composables/live'
 import { useApi } from '../composables/useApi'
 import { bytes, label } from '../composables/ui'
 import { needsYou } from '../lib/partSteps'
+import { storyGuide } from '../lib/storyGuide'
 
 const { data, error, loading, reload, refresh } = useApi(() => Promise.all([api.overview(), api.series()]))
 
-// docs/STORY_GUIDE.md, bundled at build time and loaded on the first click (the one copy lives in docs/),
-// plus what this library has right now: every set and prop the AI may use, and the creatures cast members can be
+// the story guide with this library's ids (lib/storyGuide)
 const copied = ref(false)
-const ids = (xs: { id: string; name: string }[]) => xs.map((x) => `\`${x.id}\` (${x.name})`).join(', ')
-async function records() {
-  try {
-    const [sets, props, creatures, actions] = await Promise.all([api.sets(), api.props(), api.creatures(), api.actions()])
-    const indoor = sets.custom.filter((s) => s.kind === 'indoor')
-    const outdoor = sets.custom.filter((s) => s.kind === 'outdoor')
-    return [
-      '## Available in this library right now',
-      '',
-      `- **Sets** (${sets.builtin.length + sets.custom.length}): built in ${sets.builtin.map((s) => `\`${s.id}\``).join(', ')}` +
-        (indoor.length ? `; custom indoor ${ids(indoor)}` : '') +
-        (outdoor.length ? `; custom outdoor ${ids(outdoor)}` : ''),
-      `- **Props** (${props.builtin.length + props.custom.length}): built in ${props.builtin.map((p) => `\`${p}\``).join(', ')}` +
-        (props.custom.length ? `; custom ${ids(props.custom)}` : ''),
-      `- **Creatures** (cast bodies, by rig; default \`human\`): ${[...creatures.builtin, ...creatures.custom]
-        .map((c) => `\`${c.id}\` (${c.rig})`).join(', ')}`,
-      `- **Custom actions** (for \`@do\`, humanoids only): ${actions.custom.length ? ids(actions.custom) : 'none yet'}`,
-      '',
-      'Use these sets, props, creatures and actions; anything else goes in the NEW block (section 6).',
-      '',
-      '',
-    ].join('\n')
-  } catch {
-    return '' // offline or API error: the static guide still works on its own
-  }
-}
 async function copyGuide() {
   try {
-    const [{ default: guide }, live] = await Promise.all([import('../../../docs/STORY_GUIDE.md?raw'), records()])
-    await navigator.clipboard.writeText(guide.replace('## Your series', `${live}## Your series`))
+    await navigator.clipboard.writeText(await storyGuide())
     copied.value = true
-    toast('Story guide copied: paste it into any AI, then fill in your cast at the end', 'ok')
+    toast('Story guide copied: paste it into any AI, brainstorm, then paste its Story Package in Story Writer', 'ok')
     setTimeout(() => (copied.value = false), 2500)
   } catch {
     toast('Could not copy to the clipboard. Open docs/STORY_GUIDE.md and copy it from there.', 'error')

@@ -6,20 +6,20 @@ import AiBridge from '../components/AiBridge.vue'
 import ErrorCard from '../components/ErrorCard.vue'
 import { toast } from '../composables/feedback'
 import { useApi } from '../composables/useApi'
-import { buildCreationPrompt, chosen, isKind, needsSeries, parseReply, reviewItems, TYPE_LABEL, TYPES, type Brief, type Item, type Kind, type Library } from '../lib/aiCreations'
+import { buildCreationPrompt, chosen, isKind, parseReply, reviewItems, TYPE_LABEL, TYPES, type Brief, type Item, type Kind, type Library } from '../lib/aiCreations'
 import { DRAWN_RIGS, RIG_NOTES, type CustomCreature, type Rig } from '../lib/creatures'
 import type { CustomProp } from '../lib/props'
 import type { CustomSet } from '../lib/sets'
 
-// One screen to create anything with AI: pick a type, describe it, get a reply (any chat AI, via copy/paste), review what it creates, import. Existing library items are never overwritten.
+// One screen to create library items and cast with AI (a whole series: Story Writer): pick a type, describe it, get a reply (any chat AI, via copy/paste), review what it creates, import. Existing library items are never overwritten.
 const route = useRoute()
 const router = useRouter()
 const { data, error, loading, reload } = useApi(() => Promise.all([api.props(), api.sets(), api.creatures(), api.actions(), api.series()]))
-const lib = computed<Library | null>(() => !data.value ? null : { props: data.value[0], sets: data.value[1], creatures: data.value[2], actions: data.value[3], series: data.value[4].map((s) => s.slug) })
+const lib = computed<Library | null>(() => !data.value ? null : { props: data.value[0], sets: data.value[1], creatures: data.value[2], actions: data.value[3] })
 
 const q = (k: string) => (typeof route.query[k] === 'string' ? (route.query[k] as string) : '')
 const kind = computed<Kind>(() => (isKind(route.query.type) ? route.query.type : 'prop'))
-const brief = reactive<Brief & { rig: Rig; parts: number; series: string }>({ description: '', rig: 'quadruped', parts: 3, series: '' })
+const brief = reactive<Brief & { rig: Rig; series: string }>({ description: '', rig: 'quadruped', series: '' })
 
 const prompt = ref('')
 const reply = ref('')
@@ -49,20 +49,19 @@ const ready = computed(() => !!brief.description.trim() && !!lib.value && (kind.
 let guide = ''
 async function makePrompt() {
   if (!lib.value) return ''
-  if ((kind.value === 'cast' || kind.value === 'series') && !guide) guide = (await import('../../../docs/STORY_GUIDE.md?raw')).default
+  if (kind.value === 'cast' && !guide) guide = (await import('../../../docs/STORY_GUIDE.md?raw')).default
   prompt.value = buildCreationPrompt(kind.value, { ...brief, cast: targetCast.value }, lib.value, guide)
   return prompt.value
 }
 function loadReply() {
   const { plan, error: err } = parseReply(kind.value, reply.value)
   replyError.value = err ?? ''
-  items.value = plan && lib.value ? reviewItems(kind.value, plan, lib.value, targetCast.value) : []
+  items.value = plan && lib.value ? reviewItems(plan, lib.value, targetCast.value) : []
   if (plan) toast('Ready to review: uncheck anything you don\'t want', 'ok')
 }
 
 // ---- review ----
-const KIND_LABEL: Record<Item['kind'], string> = { prop: 'Prop', set: 'Set', creature: 'Creature', action: 'Action', cast: 'Cast', series: 'Series', part: 'Part' }
-const seriesOff = computed(() => items.value.some((i) => i.kind === 'series' && !i.checked))
+const KIND_LABEL: Record<Item['kind'], string> = TYPE_LABEL
 const toImport = computed(() => chosen(items.value))
 
 // ---- import: the editors' own save calls, in dependency order ----
@@ -106,20 +105,9 @@ async function runImport() {
       }
     }
     const cast = go.filter((i) => i.kind === 'cast')
-    const series = go.find((i) => i.kind === 'series')
-    if (kind.value === 'cast' && cast.length) {
+    if (cast.length) {
       await api.addCast(brief.series, cast.map((i) => i.data as Record<string, unknown>))
       cast.forEach((i) => mark(i, `Cast “${i.name}” in ${brief.series}`, `/series/${brief.series}`))
-    }
-    if (series) {
-      const s = series.data as { slug: string; title: string }
-      await api.createSeries({ slug: s.slug, title: s.title, cast: cast.map((i) => i.data as Record<string, unknown>) })
-      cast.forEach((i) => Object.assign(i, { status: 'existing', checked: false }))
-      mark(series, `Series “${s.title}”`, `/series/${s.slug}`)
-      for (const p of go.filter((i) => i.kind === 'part')) {
-        const part = (await api.createPart(s.slug, p.data as { title: string; story: string })).part
-        mark(p, `${s.title}: ${part.title ?? p.name}`, `/series/${s.slug}/${part.id}`)
-      }
     }
     toast(`Created ${done.length} item${done.length === 1 ? '' : 's'}`, 'ok')
   } catch (e) {
@@ -139,7 +127,8 @@ const when = (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyl
   <div class="max-w-4xl space-y-6">
     <div>
       <h2 class="font-display text-2xl font-semibold">AI Creations</h2>
-      <p class="text-sm text-muted">Create anything with AI, from one prop to a whole series. You review it all before anything is written.</p>
+      <p class="text-sm text-muted">Create props, sets, creatures, actions and cast with AI. You review it all before anything is written.
+        A whole series: <RouterLink to="/story-writer" class="underline">Story Writer</RouterLink>.</p>
     </div>
     <ErrorCard v-if="error" :message="error" @retry="reload" />
     <div v-else-if="loading" class="skeleton h-72" aria-busy="true" aria-label="Loading library" />
@@ -157,11 +146,11 @@ const when = (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyl
       <section class="raised space-y-4 p-6" aria-labelledby="ai-brief">
         <h3 id="ai-brief" class="font-display text-xl font-semibold">Brief</h3>
         <p v-if="brief.id" class="text-xs text-muted">For <code>{{ brief.id }}</code>. If that id is taken, the new one gets a suffix: nothing is overwritten.</p>
-        <label class="block text-sm font-semibold" for="ai-desc">{{ kind === 'series' ? 'Story premise' : 'Description' }}
+        <label class="block text-sm font-semibold" for="ai-desc">Description
           <textarea id="ai-desc" v-model="brief.description" rows="5" :class="field" :placeholder="{
             prop: 'A red umbrella with a curved wooden handle', set: 'A rainy bus stop at night with a flickering lamp',
             creature: 'A grumpy goose with a long neck', action: 'A slow, proud bow with one arm across the chest',
-            cast: 'Two rival bakers: one tall in a white apron, one short and cheeky', series: 'A night-shift baker discovers that the town\'s statues move whenever the oven bell rings…' }[kind]" />
+            cast: 'Two rival bakers: one tall in a white apron, one short and cheeky' }[kind]" />
         </label>
         <div v-if="kind === 'creature'" class="max-w-xs">
           <label class="block text-sm font-semibold" for="ai-rig">Rig
@@ -169,9 +158,6 @@ const when = (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyl
           </label>
           <p class="mt-1 text-xs text-muted">{{ RIG_NOTES[brief.rig] }}</p>
         </div>
-        <label v-if="kind === 'series'" class="block max-w-xs text-sm font-semibold" for="ai-parts">Number of parts
-          <select id="ai-parts" v-model.number="brief.parts" :class="field"><option v-for="n in 5" :key="n" :value="n">{{ n }} part{{ n === 1 ? '' : 's' }}</option></select>
-        </label>
         <label v-if="kind === 'cast'" class="block max-w-sm text-sm font-semibold" for="ai-series">Add to series
           <select id="ai-series" v-model="brief.series" :class="field" required>
             <option value="" disabled>Choose a series</option>
@@ -193,7 +179,7 @@ const when = (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyl
         <ul class="divide-y divide-rule">
           <li v-for="i in items" :key="i.key" class="flex flex-wrap items-center gap-3 py-2">
             <input :id="`rv-${i.key}`" v-model="i.checked" type="checkbox" class="size-4"
-              :disabled="i.status === 'existing' || (seriesOff && needsSeries(i, items))" />
+              :disabled="i.status === 'existing'" />
             <label :for="`rv-${i.key}`" class="flex min-w-0 flex-1 flex-wrap items-center gap-2 text-sm">
               <span class="chip">{{ KIND_LABEL[i.kind] }}</span>
               <strong>{{ i.name }}</strong>
@@ -203,7 +189,6 @@ const when = (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyl
             <span class="chip" :class="i.status === 'new' ? 'text-blue-ink' : 'text-muted'">{{ i.status }}</span>
           </li>
         </ul>
-        <p v-if="kind === 'series'" class="text-xs text-muted">This creates scripts and library items only. Record each voice with FreeTTS and upload voice.mp3 on the part page, as before.</p>
         <p v-if="importError" class="text-sm text-red-ink" role="alert">{{ importError }}</p>
         <button v-if="items.length" type="button" class="btn btn-primary" :disabled="!toImport.length || importing" :aria-busy="importing" @click="runImport">
           {{ importing ? 'Importing…' : `Import ${toImport.length} item${toImport.length === 1 ? '' : 's'}` }}</button>

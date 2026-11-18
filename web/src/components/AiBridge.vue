@@ -5,7 +5,7 @@ import { toast } from '../composables/feedback'
 
 // The copy/paste bridge to any chat AI (web or CLI, works offline): the prompt goes out read-only, the reply comes
 // back in. The parent turns the reply into something (emit "load") and passes back any error.
-defineProps<{ prompt: string; error?: string; loadLabel?: string }>()
+defineProps<{ prompt: string; error?: string; loadLabel?: string; replyLabel?: string; replyHint?: string }>()
 const reply = defineModel<string>({ default: '' })
 const emit = defineEmits<{ load: [] }>()
 const promptBox = ref<HTMLTextAreaElement>()
@@ -53,10 +53,10 @@ async function pasteReply() {
       <span class="step-no" aria-hidden="true">2</span>
       <div class="min-w-0 flex-1 space-y-2">
         <div class="flex flex-wrap items-center gap-2">
-          <h3 class="font-semibold"><label for="ai-reply">Paste the AI's JSON reply here</label></h3>
+          <h3 class="font-semibold"><label for="ai-reply">{{ replyLabel ?? "Paste the AI's JSON reply here" }}</label></h3>
           <button type="button" class="btn btn-secondary ml-auto" @click="pasteReply"><ClipboardPaste :size="16" aria-hidden="true" /> Paste</button>
         </div>
-        <p class="text-xs text-muted">The JSON block, or its whole message: the JSON is picked out of it.</p>
+        <p class="text-xs text-muted">{{ replyHint ?? 'The JSON block, or its whole message: the JSON is picked out of it.' }}</p>
         <textarea id="ai-reply" ref="replyBox" v-model="reply" rows="6" spellcheck="false" placeholder="Paste here, e.g.&#10;```json&#10;{ … }&#10;```"
           class="paper block w-full resize-y rounded-md border-2 border-dashed p-4 font-mono text-xs leading-5 text-ink outline-none focus:border-blue focus:border-solid"
           :class="error ? 'border-red-ink' : 'border-blue-ink/60'" :aria-invalid="!!error" />

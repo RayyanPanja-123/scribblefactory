@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Backpack, CircleHelp, ClipboardCheck, Film, History, Layers, LayoutDashboard, Menu, Monitor, Moon, Mountain, PawPrint, PersonStanding, Search, Send, Settings, Sun, X, WandSparkles } from 'lucide-vue-next'
+import { Backpack, CircleHelp, ClipboardCheck, Film, History, Layers, LayoutDashboard, Menu, Monitor, Moon, Mountain, PawPrint, PersonStanding, Search, Send, Settings, Sun, X, WandSparkles, NotebookPen } from 'lucide-vue-next'
 import { AnimatePresence, motion, MotionConfig } from 'motion-v'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -18,6 +18,7 @@ type Tab = { to: string; name: string; icon: typeof Layers; match: (n: string) =
 const groups: { title: string; tabs: Tab[] }[] = [
   { title: 'Studio', tabs: [
     { to: '/', name: 'Overview', icon: LayoutDashboard, match: (n) => n === 'overview' },
+    { to: '/story-writer', name: 'Story Writer', icon: NotebookPen, match: (n) => n === 'story-writer' },
     { to: '/ai-creations', name: 'AI Creations', icon: WandSparkles, match: (n) => n === 'ai-creations' },
     { to: '/series', name: 'Series', icon: Layers, match: (n) => n.startsWith('series') || n === 'part' || n === 'new-series' || n === 'new-part' },
     { to: '/review', name: 'Review', icon: ClipboardCheck, match: (n) => n === 'review' },

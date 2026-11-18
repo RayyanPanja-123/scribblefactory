@@ -197,6 +197,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/packages/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Package
+         * @description all or nothing: new assets, then the series with its cast and parts (story.md + script-for-tts.txt).
+         *     Never overwrites: a clashing id or slug gets a suffix. 409 when the package has errors (validate lists them).
+         */
+        post: operations["import_package_api_packages_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/packages/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Validate Package
+         * @description dry run: what the package would create, its warnings and errors (section + pasted-text line). Writes nothing.
+         */
+        post: operations["validate_package_api_packages_validate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/props": {
         parameters: {
             query?: never;
@@ -1089,6 +1130,73 @@ export interface components {
             /** Waiting */
             waiting: components["schemas"]["Waiting"][];
         };
+        /** PackageIssue */
+        PackageIssue: {
+            /** Line */
+            line: number | null;
+            /** Message */
+            message: string;
+            /** Section */
+            section: string;
+        };
+        /** PackageItem */
+        PackageItem: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+        };
+        /** PackagePart */
+        PackagePart: {
+            /** Number */
+            number: number;
+            /** Title */
+            title: string;
+            /** Words */
+            words: number;
+        };
+        /** PackageResult */
+        PackageResult: {
+            /** Actions */
+            actions: components["schemas"]["PackageItem"][];
+            /** Cast */
+            cast: components["schemas"]["PackageItem"][];
+            /** Creatures */
+            creatures: components["schemas"]["PackageItem"][];
+            /** Errors */
+            errors: components["schemas"]["PackageIssue"][];
+            /** Ok */
+            ok: boolean;
+            /** Parts */
+            parts: components["schemas"]["PackagePart"][];
+            /** Props */
+            props: components["schemas"]["PackageItem"][];
+            /** Renames */
+            renames: {
+                [key: string]: {
+                    [key: string]: string;
+                };
+            };
+            series: components["schemas"]["PackageSeries"] | null;
+            /** Sets */
+            sets: components["schemas"]["PackageItem"][];
+            /** Warnings */
+            warnings: components["schemas"]["PackageIssue"][];
+        };
+        /** PackageSeries */
+        PackageSeries: {
+            /** Slug */
+            slug: string;
+            /** Title */
+            title: string;
+            /** Was */
+            was: string | null;
+        };
+        /** PackageText */
+        PackageText: {
+            /** Text */
+            text: string;
+        };
         /** PartDetail */
         PartDetail: {
             /** Busy */
@@ -1110,6 +1218,8 @@ export interface components {
             story_md: string | null;
             /** Thumbs */
             thumbs: string[];
+            /** Tts Script */
+            tts_script: string | null;
             /** Upload Md */
             upload_md: string | null;
             /** Voice Duration */
@@ -1995,6 +2105,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Overview"];
+                };
+            };
+        };
+    };
+    import_package_api_packages_import_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PackageText"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    validate_package_api_packages_validate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PackageText"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

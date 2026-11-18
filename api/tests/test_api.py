@@ -628,3 +628,17 @@ def test_drop_old_ai_settings(tmp_path, monkeypatch):
     assert m.drop_ai_settings() == []
     f.write_text("{not json", encoding="utf-8")
     assert "could not" in m.drop_ai_settings()[0]  # a broken file never stops startup
+
+
+def test_story_package_validate_then_import(client, lib):
+    from pipeline.tests.test_package import pkg
+    r = client.post("/api/packages/validate", json={"text": pkg()})
+    assert r.status_code == 200 and r.json()["ok"], r.json()["errors"]
+    assert not (lib / "the-liar-lantern").exists()  # dry run
+    assert [p["title"] for p in r.json()["parts"]] == ["Part 1", "Part 2"]
+    r = client.post("/api/packages/import", json={"text": pkg()})
+    assert r.status_code == 200
+    d = client.get("/api/series/the-liar-lantern/parts/part-01").json()
+    assert d["tts_script"].endswith("To be continued.\n")
+    bad = client.post("/api/packages/import", json={"text": pkg().replace("<<<END>>>", "")})
+    assert bad.status_code == 409 and "nothing was written" in bad.json()["detail"]

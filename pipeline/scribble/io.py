@@ -76,9 +76,10 @@ def prop_kinds(library) -> list[str]:
 
 
 def unknown_cast_props(cast, library) -> list[str]:
-    """'<cast id>: <kind>' for each held prop that is neither built in nor in library/props.json"""
+    """'<cast id>: <kind>' for each held prop, its own or a look's, that is neither built in nor in library/props.json"""
     known = set(prop_kinds(library))
-    return [f"{c.id}: {p.kind}" for c in cast for p in c.props if p.kind not in known]
+    return [f"{c.id}: {p.kind}" for c in cast for ps in [c.props, *(lk.props or [] for lk in c.looks.values())]
+            for p in ps if p.kind not in known]
 
 
 def prop_holders(library, kind: str) -> list[tuple[Path, str]]:
