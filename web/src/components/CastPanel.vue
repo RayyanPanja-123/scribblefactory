@@ -2,11 +2,11 @@
 // The series cast: one card per character with its idle pose. Each one renders, is edited (CastEditor page) and is
 // approved on its own, so changing one character never means re-rendering the rest. Approving needs a render of the
 // character's current look (renders[id].current); live job state comes from live.ts.
-import { CheckCheck, ImageOff, Pencil, RefreshCw, TriangleAlert, ZoomIn } from 'lucide-vue-next'
-import { computed } from 'vue'
+import { CheckCheck, Download, FileJson, ImageOff, Pencil, RefreshCw, TriangleAlert, ZoomIn } from 'lucide-vue-next'
+import { computed, ref } from 'vue'
 import { api, type CastMember, type SeriesModel } from '../api/client'
 import type { components } from '../api/types'
-import { act, confirm, zoom } from '../composables/feedback'
+import { act, confirm, toast, zoom } from '../composables/feedback'
 import { castSheetJob, seriesBusy } from '../composables/live'
 import { shortDate } from '../composables/ui'
 import Switch from './Switch.vue'
@@ -57,6 +57,53 @@ async function approveAll() {
   }
   emit('changed')
 }
+
+// ---- JSON round trip for mass edits: export everyone, change the file, import it back ----
+function exportJson() {
+  const entries = cast.value.map(({ approved_at: _, ...c }) => c)
+  const url = URL.createObjectURL(new Blob([JSON.stringify({ cast: entries }, null, 2) + '\n'], { type: 'application/json' }))
+  Object.assign(document.createElement('a'), { href: url, download: `${p.series.slug}-cast.json` }).click()
+  URL.revokeObjectURL(url)
+}
+const importOpen = ref(false)
+const importText = ref('')
+const importError = ref('')
+async function loadFile(e: Event) {
+  const input = e.target as HTMLInputElement
+  const f = input.files?.[0]
+  input.value = ''
+  if (f) importText.value = await f.text()
+}
+async function runImport() {
+  importError.value = ''
+  let entries: unknown
+  try {
+    const j = JSON.parse(importText.value)
+    entries = Array.isArray(j) ? j : j?.cast // an array, {"cast": [...]}, or a whole series.json
+  } catch (e) {
+    importError.value = `Not valid JSON: ${(e as Error).message}`
+    return
+  }
+  if (!Array.isArray(entries) || !entries.length) {
+    importError.value = 'Expected a non-empty array of cast entries, or an object with a "cast" array.'
+    return
+  }
+  const before = new Map(cast.value.map((c) => [c.id, c]))
+  let s: SeriesModel
+  try {
+    s = await api.importCast(p.series.slug, entries as Record<string, unknown>[])
+  } catch (e) {
+    importError.value = e instanceof Error ? e.message : String(e) // shown by the textarea: fix it and import again
+    return
+  }
+  const ids = (entries as { id?: string }[]).map((x) => x.id)
+  const added = ids.filter((id) => id && !before.has(id)).length
+  const cleared = s.cast.filter((c) => before.get(c.id)?.approved_at && !c.approved_at).map((c) => c.name)
+  toast(`${ids.length - added} updated, ${added} added` + (cleared.length ? `. New look, approval cleared: ${cleared.join(', ')}` : ''), 'ok')
+  importOpen.value = false
+  importText.value = ''
+  emit('changed')
+}
 defineExpose({ renderSheet })
 </script>
 
@@ -68,6 +115,12 @@ defineExpose({ renderSheet })
         <span class="num">{{ cast.length - waiting.length }}/{{ cast.length }}</span> approved
       </span>
       <div class="ml-auto flex flex-wrap gap-2">
+        <button v-if="cast.length" class="btn btn-secondary" @click="exportJson">
+          <Download :size="16" aria-hidden="true" /> Export JSON
+        </button>
+        <button class="btn btn-secondary" :aria-expanded="importOpen" aria-controls="cast-import" @click="importOpen = !importOpen">
+          <FileJson :size="16" aria-hidden="true" /> Import JSON
+        </button>
         <button v-if="outdated.length" class="btn btn-secondary" :disabled="!!renderReason()" :title="renderReason() ?? undefined"
           @click="renderCast(outdated, 'Cast render')">
           <RefreshCw :size="16" aria-hidden="true" />
@@ -76,6 +129,26 @@ defineExpose({ renderSheet })
         <button v-if="ready.length > 1" class="btn btn-primary" @click="approveAll">
           <CheckCheck :size="16" aria-hidden="true" /> Approve {{ ready.length }}
         </button>
+      </div>
+    </div>
+
+    <div v-if="importOpen" id="cast-import" class="inset mt-4 space-y-3 p-4">
+      <div class="flex flex-wrap items-center gap-2">
+        <label class="btn btn-secondary cursor-pointer">Choose file
+          <input type="file" accept=".json,application/json" class="sr-only" @change="loadFile" />
+        </label>
+        <a href="/cast-reference.json" download class="btn btn-secondary ml-auto"><Download :size="16" aria-hidden="true" /> Reference JSON</a>
+      </div>
+      <label class="sr-only" for="cast-json">Cast JSON</label>
+      <textarea id="cast-json" v-model="importText" rows="10" spellcheck="false" placeholder='{ "cast": [ ... ] } from Export JSON'
+        class="paper block w-full resize-y rounded-md p-4 font-mono text-xs leading-6 text-ink outline-none focus:border-blue" />
+      <p v-if="importError" class="text-sm text-red-ink" role="alert">{{ importError }}</p>
+      <p class="text-xs text-muted">An entry with an existing id replaces that character; a new id is added. Characters not in the file stay as
+        they are (nothing is deleted). All or nothing: one bad entry and nothing changes. A new look clears that approval and needs a re-render.</p>
+      <div class="flex justify-end gap-2">
+        <button type="button" class="btn btn-secondary" @click="importOpen = false">Cancel</button>
+        <button type="button" class="btn btn-primary" :disabled="!importText.trim() || busy" :title="busy ? 'a job is running in this series' : undefined"
+          @click="runImport">Import</button>
       </div>
     </div>
 

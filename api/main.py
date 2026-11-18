@@ -593,28 +593,46 @@ def add_cast(slug: str, body: NewCast):
     return series_json(d)
 
 
-@app.put("/api/series/{slug}/cast/{cast_id}", response_model=SeriesModel)
-def edit_cast(slug: str, cast_id: str, body: dict):
-    """replace one cast member (same entry shape as NewCast; the id stays). A new look clears its approval and makes
-    its render stale (CastRender.current) until cast-sheet <slug> <id> runs again."""
+def merge_cast(slug: str, entries: list[dict]) -> dict:
+    """all or nothing: each entry replaces the member with its id (a new look clears that approval and makes its
+    render stale until cast-sheet <slug> <id> runs again) or, a new id, is appended. Members not listed stay."""
     d = series_path(slug)
     check_free(slug)
-    series = load_series(d / "series.json")
-    i = next((i for i, c in enumerate(series.cast) if c.id == cast_id), None)
-    if i is None:
-        raise HTTPException(404, f"cast id {cast_id!r} not in {slug}")
-    new = cast_member(i, {**body, "id": cast_id})
-    if unknown := unknown_cast_props([new], lib()):
+    new = [cast_member(i, c) for i, c in enumerate(entries)]  # all checked before anything is written
+    ids = [c.id for c in new]
+    if dupes := sorted({i for i in ids if ids.count(i) > 1}):
+        raise HTTPException(409, f"cast ids must be unique: {', '.join(dupes)}")
+    if unknown := unknown_cast_props(new, lib()):
         raise HTTPException(409, f"unknown prop {unknown[0]} (props: {', '.join(prop_kinds(lib()))})")
-    if problems := cast_body_problems([new], lib()):
+    if problems := cast_body_problems(new, lib()):
         raise HTTPException(409, f"cast: {problems[0]}")
-    old = series.cast[i]
-    new.approved_at = old.approved_at if new.look() == old.look() else None
-    series.cast[i] = new
+    series = load_series(d / "series.json")
+    at = {c.id: i for i, c in enumerate(series.cast)}
+    for c in new:
+        if c.id in at:
+            old = series.cast[at[c.id]]
+            c.approved_at = old.approved_at if c.look() == old.look() else None
+            series.cast[at[c.id]] = c
+        else:
+            series.cast.append(c)
     # written directly: save_series would restore a cleared approval (it only ever adds approvals)
     atomic_write_json(d / "series.json", series.model_dump(mode="json"))
     publish("series-changed", {"slug": slug})
     return series_json(d)
+
+
+@app.put("/api/series/{slug}/cast", response_model=SeriesModel)
+def import_cast(slug: str, body: NewCast):
+    """mass edit (the cast panel's JSON import): update members by id, append new ids; see merge_cast"""
+    return merge_cast(slug, body.cast)
+
+
+@app.put("/api/series/{slug}/cast/{cast_id}", response_model=SeriesModel)
+def edit_cast(slug: str, cast_id: str, body: dict):
+    """replace one cast member (same entry shape as NewCast; the id stays); see merge_cast"""
+    if not any(c.id == cast_id for c in load_series(series_path(slug) / "series.json").cast):
+        raise HTTPException(404, f"cast id {cast_id!r} not in {slug}")
+    return merge_cast(slug, [{**body, "id": cast_id}])
 
 
 # ---------------- props (library/props.json, shared by every series) ----------------

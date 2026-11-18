@@ -174,6 +174,22 @@ def test_edit_cast_needs_that_members_rerender(client, lib):
     assert client.put("/api/series/demo/cast/zed", json=bob).status_code == 404
 
 
+def test_import_cast_updates_by_id_and_appends(client, lib):
+    rendered(lib / "demo")
+    client.post("/api/series/demo/approve-cast", json={"cast_id": "bob"})
+    bob = client.get("/api/series/demo").json()["series"]["cast"][0]
+    r = client.put("/api/series/demo/cast", json={"cast": [{**bob, "name": "Robert"}, {"id": "ann", "name": "Ann", "color": "#00ff00"}]})
+    assert r.status_code == 200 and [(c["id"], c["name"]) for c in r.json()["cast"]] == [("bob", "Robert"), ("ann", "Ann")]
+    assert r.json()["cast"][0]["approved_at"]  # name only: approval kept
+    r = client.put("/api/series/demo/cast", json={"cast": [{**bob, "top": {**bob["top"], "color": "#000000"}}]})
+    assert r.json()["cast"][0]["approved_at"] is None and len(r.json()["cast"]) == 2  # new look; ann stays
+    bad = {"cast": [{**bob, "name": "Changed"}, {"id": "cy", "name": "Cy", "color": "green"}]}
+    assert client.put("/api/series/demo/cast", json=bad).status_code == 409
+    assert client.get("/api/series/demo").json()["series"]["cast"][0]["name"] == "Bob"  # all or nothing: not "Changed"
+    dup = {"cast": [bob, bob]}
+    assert "unique: bob" in client.put("/api/series/demo/cast", json=dup).json()["detail"]
+
+
 def test_add_cast(client, lib):
     r = client.post("/api/series/demo/cast", json={"cast": [{"id": "ann", "name": "Ann", "color": "#00ff00"}]})
     assert r.status_code == 200 and [c["id"] for c in r.json()["cast"]] == ["bob", "ann"]

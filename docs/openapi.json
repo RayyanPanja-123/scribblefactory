@@ -4171,11 +4171,59 @@
           }
         },
         "summary": "Add Cast"
+      },
+      "put": {
+        "description": "mass edit (the cast panel's JSON import): update members by id, append new ids; see merge_cast",
+        "operationId": "import_cast_api_series__slug__cast_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewCast"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesModel"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Import Cast"
       }
     },
     "/api/series/{slug}/cast/{cast_id}": {
       "put": {
-        "description": "replace one cast member (same entry shape as NewCast; the id stays). A new look clears its approval and makes\nits render stale (CastRender.current) until cast-sheet <slug> <id> runs again.",
+        "description": "replace one cast member (same entry shape as NewCast; the id stays); see merge_cast",
         "operationId": "edit_cast_api_series__slug__cast__cast_id__put",
         "parameters": [
           {

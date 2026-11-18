@@ -337,7 +337,11 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put?: never;
+        /**
+         * Import Cast
+         * @description mass edit (the cast panel's JSON import): update members by id, append new ids; see merge_cast
+         */
+        put: operations["import_cast_api_series__slug__cast_put"];
         /**
          * Add Cast
          * @description append cast members to a series; never replaces one (an id already in the series is a 409)
@@ -359,8 +363,7 @@ export interface paths {
         get?: never;
         /**
          * Edit Cast
-         * @description replace one cast member (same entry shape as NewCast; the id stays). A new look clears its approval and makes
-         *     its render stale (CastRender.current) until cast-sheet <slug> <id> runs again.
+         * @description replace one cast member (same entry shape as NewCast; the id stays); see merge_cast
          */
         put: operations["edit_cast_api_series__slug__cast__cast_id__put"];
         post?: never;
@@ -2639,6 +2642,41 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["CastApproval"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesModel"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_cast_api_series__slug__cast_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewCast"];
             };
         };
         responses: {

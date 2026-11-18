@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Check, Copy, Film, HardDrive, NotebookPen, Plus, X } from 'lucide-vue-next'
+import { Check, Copy, Film, HardDrive, List, NotebookPen, Plus, X } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
 import { api, type Overview } from '../api/client'
 import GreaseCircle from '../components/GreaseCircle.vue'
@@ -11,7 +11,7 @@ import { refetchOn } from '../composables/live'
 import { useApi } from '../composables/useApi'
 import { bytes, label } from '../composables/ui'
 import { needsYou } from '../lib/partSteps'
-import { storyGuide } from '../lib/storyGuide'
+import { libraryRecords, storyGuide } from '../lib/storyGuide'
 
 const { data, error, loading, reload, refresh } = useApi(() => Promise.all([api.overview(), api.series()]))
 
@@ -25,6 +25,20 @@ async function copyGuide() {
     setTimeout(() => (copied.value = false), 2500)
   } catch {
     toast('Could not copy to the clipboard. Open docs/STORY_GUIDE.md and copy it from there.', 'error')
+  }
+}
+// just what the library has (sets, props, creatures, actions, wardrobe, cast), without the rest of the guide
+const listCopied = ref(false)
+async function copyList() {
+  const list = await libraryRecords(true)
+  try {
+    if (!list) throw new Error('empty')
+    await navigator.clipboard.writeText(list.trim() + '\n')
+    listCopied.value = true
+    toast('Library list copied: paste it into any AI so it knows what you have', 'ok')
+    setTimeout(() => (listCopied.value = false), 2500)
+  } catch {
+    toast(list ? 'Could not copy to the clipboard.' : 'Could not load the library: is the API running?', 'error')
   }
 }
 refetchOn(() => null, () => null, refresh)
@@ -98,7 +112,11 @@ const diskTotal = computed(() => disk.value.reduce((a, b) => a + b.value, 0))
           <span class="text-sm text-muted">{{ f.note }}</span>
         </p>
       </div>
-      <div class="col-span-2 flex items-center px-4 py-3 sm:px-5 sm:py-4 xl:col-span-1">
+      <div class="col-span-2 flex flex-wrap items-center gap-2 px-4 py-3 sm:px-5 sm:py-4 xl:col-span-1">
+        <button class="btn btn-secondary w-full justify-center xl:w-auto" :aria-label="listCopied ? 'Library list copied' : 'Copy the library list'"
+          title="Every set, prop, creature, action, wardrobe item and cast member you have, as a bullet list for any AI" @click="copyList">
+          <component :is="listCopied ? Check : List" :size="16" aria-hidden="true" /> {{ listCopied ? 'Copied' : 'Copy library list' }}
+        </button>
         <button class="btn btn-primary w-full justify-center xl:w-auto" :aria-label="copied ? 'Story guide copied' : 'Copy the story guide'" @click="copyGuide">
           <component :is="copied ? Check : Copy" :size="16" aria-hidden="true" /> {{ copied ? 'Copied' : 'Copy story guide' }}
         </button>
