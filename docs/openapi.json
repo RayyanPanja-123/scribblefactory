@@ -155,19 +155,48 @@
             "title": "Base Url",
             "type": "string"
           },
+          "gemini_model": {
+            "title": "Gemini Model",
+            "type": "string"
+          },
+          "has_gemini_key": {
+            "title": "Has Gemini Key",
+            "type": "boolean"
+          },
           "has_key": {
             "title": "Has Key",
+            "type": "boolean"
+          },
+          "has_omniroute_key": {
+            "title": "Has Omniroute Key",
             "type": "boolean"
           },
           "model": {
             "title": "Model",
             "type": "string"
+          },
+          "omniroute_model": {
+            "title": "Omniroute Model",
+            "type": "string"
+          },
+          "provider": {
+            "enum": [
+              "omniroute",
+              "gemini"
+            ],
+            "title": "Provider",
+            "type": "string"
           }
         },
         "required": [
+          "provider",
           "base_url",
           "model",
-          "has_key"
+          "omniroute_model",
+          "gemini_model",
+          "has_key",
+          "has_omniroute_key",
+          "has_gemini_key"
         ],
         "title": "AiSettings",
         "type": "object"
@@ -190,9 +219,51 @@
             "title": "Base Url",
             "type": "string"
           },
+          "gemini_api_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gemini Api Key"
+          },
+          "gemini_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gemini Model"
+          },
           "model": {
             "default": "",
             "title": "Model",
+            "type": "string"
+          },
+          "omniroute_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Omniroute Model"
+          },
+          "provider": {
+            "default": "omniroute",
+            "enum": [
+              "omniroute",
+              "gemini"
+            ],
+            "title": "Provider",
             "type": "string"
           }
         },
@@ -2761,7 +2832,7 @@
     },
     "/api/ai/complete": {
       "post": {
-        "description": "One chat completion through the OpenAI-compatible gateway (OmniRoute). Server-side: no CORS, key stays here.",
+        "description": "One completion through the selected provider. Keys stay server-side.",
         "operationId": "ai_complete_api_ai_complete_post",
         "requestBody": {
           "content": {

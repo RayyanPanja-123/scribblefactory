@@ -48,6 +48,8 @@ const reelLabel = computed(() =>
 // AI gateway switch: starts/stops the local OmniRoute so "Build with AI" works
 const aiOn = ref(false)
 const aiBusy = ref(false)
+const aiProvider = ref<'omniroute' | 'gemini'>('omniroute')
+api.settings().then((s) => (aiProvider.value = s.provider), () => {})
 api.gateway().then((g) => (aiOn.value = g.running), () => {}) // ponytail: checked once on load, poll if it gets stopped elsewhere often
 async function toggleAi() {
   aiBusy.value = true
@@ -129,7 +131,7 @@ watch(search, (q) => {
             <input v-model="search" type="search" placeholder="Search series" class="w-full bg-transparent text-sm outline-none placeholder:text-muted" />
           </label>
           <RouterLink to="/series" class="round-btn ml-auto shrink-0 sm:hidden" aria-label="Search series"><Search :size="18" aria-hidden="true" /></RouterLink>
-          <button class="round-btn shrink-0 transition-colors" :class="aiOn ? 'border-ink! bg-ink! text-[var(--on-ink)]!' : ''"
+          <button v-if="aiProvider === 'omniroute'" class="round-btn shrink-0 transition-colors" :class="aiOn ? 'border-ink! bg-ink! text-[var(--on-ink)]!' : ''"
             :aria-pressed="aiOn" :disabled="aiBusy" :title="aiBusy ? 'OmniRoute: working…' : `OmniRoute ${aiOn ? 'on: click to stop' : 'off: click to start'}`"
             aria-label="AI gateway (OmniRoute)" @click="toggleAi">
             <Sparkles :size="18" :class="{ 'animate-pulse': aiBusy }" aria-hidden="true" />

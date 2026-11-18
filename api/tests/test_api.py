@@ -672,11 +672,11 @@ def test_ai_settings_and_complete(tmp_path, monkeypatch):
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     c = TestClient(m.app)
     try:
-        assert c.get("/api/settings").json() == {"base_url": m.DEFAULT_AI_URL, "model": "", "has_key": False}
+        assert c.get("/api/settings").json() == {"provider": "omniroute", "base_url": m.DEFAULT_AI_URL, "model": "", "omniroute_model": "", "gemini_model": "", "has_key": False, "has_omniroute_key": False, "has_gemini_key": False}
         assert c.post("/api/ai/complete", json={"prompt": "hi"}).status_code == 400
         url = f"http://127.0.0.1:{srv.server_port}/v1/"
         r = c.put("/api/settings", json={"base_url": url, "model": "cc/x", "api_key": "sk-1"}).json()
-        assert r == {"base_url": url.rstrip("/"), "model": "cc/x", "has_key": True}  # key never echoed
+        assert r == {"provider": "omniroute", "base_url": url.rstrip("/"), "model": "cc/x", "omniroute_model": "cc/x", "gemini_model": "", "has_key": True, "has_omniroute_key": True, "has_gemini_key": False}  # key never echoed
         assert c.put("/api/settings", json={"base_url": url, "model": "cc/y"}).json()["has_key"]  # omitted key is kept
         assert c.post("/api/ai/complete", json={"prompt": "hi"}).json() == {"text": "```json\n{}\n```"}
         assert seen == {"auth": "Bearer sk-1", "body": {"model": "cc/y", "messages": [{"role": "user", "content": "hi"}]}}

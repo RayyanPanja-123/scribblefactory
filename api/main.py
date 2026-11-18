@@ -1054,22 +1054,31 @@ def _run(job: dict) -> None:
     job["status"] = "done"
 
 
-# ---------------- AI settings (library/settings.json): an OmniRoute key makes "Build with AI" one click ----------------
+# ---------------- AI settings (library/settings.json): provider keys make "Build with AI" one click ----------------
 
 DEFAULT_AI_URL = "http://localhost:20128/v1"
 AI_TIMEOUT_S = 180
 
 
 class AiSettings(BaseModel):
+    provider: Literal["omniroute", "gemini"]
     base_url: str
     model: str
+    omniroute_model: str
+    gemini_model: str
     has_key: bool
+    has_omniroute_key: bool
+    has_gemini_key: bool
 
 
 class AiSettingsIn(BaseModel):
+    provider: Literal["omniroute", "gemini"] = "omniroute"
     base_url: str = DEFAULT_AI_URL
     model: str = ""
+    omniroute_model: str | None = None
+    gemini_model: str | None = None
     api_key: str | None = None  # None keeps the saved key, "" clears it
+    gemini_api_key: str | None = None  # None keeps the saved key, "" clears it
 
 
 class AiPrompt(BaseModel):
@@ -1087,11 +1096,26 @@ def settings_file() -> Path:
 def load_settings() -> dict:
     f = settings_file()
     s = json.loads(f.read_text(encoding="utf-8")) if f.is_file() else {}
-    return {"base_url": s.get("base_url") or DEFAULT_AI_URL, "model": s.get("model", ""), "api_key": s.get("api_key", "")}
+    provider = s.get("provider") if s.get("provider") in ("omniroute", "gemini") else "omniroute"
+    legacy_model = s.get("model", "")
+    omniroute_model = s.get("omniroute_model", legacy_model if provider == "omniroute" else "")
+    gemini_model = s.get("gemini_model", legacy_model if provider == "gemini" else "")
+    return {
+        "provider": provider,
+        "base_url": s.get("base_url") or DEFAULT_AI_URL,
+        "model": omniroute_model if provider == "omniroute" else gemini_model,
+        "omniroute_model": omniroute_model,
+        "gemini_model": gemini_model,
+        "api_key": s.get("api_key", ""),
+        "gemini_api_key": s.get("gemini_api_key", ""),
+    }
 
 
 def public_settings(s: dict) -> AiSettings:
-    return AiSettings(base_url=s["base_url"], model=s["model"], has_key=bool(s["api_key"]))
+    return AiSettings(provider=s["provider"], base_url=s["base_url"], model=s["model"],
+                      omniroute_model=s["omniroute_model"], gemini_model=s["gemini_model"],
+                      has_key=bool(s["gemini_api_key"] if s["provider"] == "gemini" else s["api_key"]),
+                      has_omniroute_key=bool(s["api_key"]), has_gemini_key=bool(s["gemini_api_key"]))
 
 
 @app.get("/api/settings", response_model=AiSettings)
@@ -1104,9 +1128,20 @@ def put_settings(body: AiSettingsIn):
     if not body.base_url.startswith(("http://", "https://")):
         raise HTTPException(422, "base URL must start with http:// or https://")
     s = load_settings()
-    s.update(base_url=body.base_url.strip().rstrip("/"), model=body.model.strip())
+    s.update(provider=body.provider, base_url=body.base_url.strip().rstrip("/"))
+    if body.omniroute_model is not None:
+        s["omniroute_model"] = body.omniroute_model.strip()
+    elif body.provider == "omniroute":
+        s["omniroute_model"] = body.model.strip()
+    if body.gemini_model is not None:
+        s["gemini_model"] = body.gemini_model.strip()
+    elif body.provider == "gemini":
+        s["gemini_model"] = body.model.strip()
+    s["model"] = s["omniroute_model"] if body.provider == "omniroute" else s["gemini_model"]
     if body.api_key is not None:
         s["api_key"] = body.api_key.strip()
+    if body.gemini_api_key is not None:
+        s["gemini_api_key"] = body.gemini_api_key.strip()
     lib().mkdir(parents=True, exist_ok=True)
     atomic_write_json(settings_file(), s)
     return public_settings(s)
@@ -1123,7 +1158,10 @@ class GatewayIn(BaseModel):
 def gateway_port() -> int | None:
     """Port of the gateway in Settings when it's on this machine (the only kind we can start); None otherwise."""
     from urllib.parse import urlsplit
-    u = urlsplit(load_settings()["base_url"])
+    s = load_settings()
+    if s["provider"] != "omniroute":
+        return None
+    u = urlsplit(s["base_url"])
     if u.hostname not in ("localhost", "127.0.0.1", "::1"):
         return None
     return u.port or (443 if u.scheme == "https" else 80)
@@ -1203,28 +1241,39 @@ def put_gateway(body: GatewayIn):
 
 @app.post("/api/ai/complete", response_model=AiReply)
 def ai_complete(body: AiPrompt):
-    """One chat completion through the OpenAI-compatible gateway (OmniRoute). Server-side: no CORS, key stays here."""
+    """One completion through the selected provider. Keys stay server-side."""
     import urllib.error
+    import urllib.parse
     import urllib.request
     s = load_settings()
-    if not s["api_key"]:
+    key = s["gemini_api_key"] if s["provider"] == "gemini" else s["api_key"]
+    if not key:
         raise HTTPException(400, "no API key: add one in Settings")
     if not s["model"]:
         raise HTTPException(400, "no model: set one in Settings")
-    req = urllib.request.Request(
-        f"{s['base_url']}/chat/completions",
-        data=json.dumps({"model": s["model"], "messages": [{"role": "user", "content": body.prompt}]}).encode(),
-        headers={"Authorization": f"Bearer {s['api_key']}", "Content-Type": "application/json"})
+    if s["provider"] == "gemini":
+        model = s["model"].removeprefix("models/")
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{urllib.parse.quote(model, safe='')}:generateContent"
+        payload = {"contents": [{"role": "user", "parts": [{"text": body.prompt}]}]}
+        headers = {"x-goog-api-key": key, "Content-Type": "application/json"}
+    else:
+        url = f"{s['base_url']}/chat/completions"
+        payload = {"model": s["model"], "messages": [{"role": "user", "content": body.prompt}]}
+        headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+    req = urllib.request.Request(url, data=json.dumps(payload).encode(), headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=AI_TIMEOUT_S) as r:
             data = json.loads(r.read())
+        if s["provider"] == "gemini":
+            text = "".join(p.get("text", "") for p in data["candidates"][0]["content"]["parts"])
+            return AiReply(text=text)
         return AiReply(text=data["choices"][0]["message"]["content"] or "")
     except urllib.error.HTTPError as e:
-        raise HTTPException(502, f"AI gateway said {e.code}: {e.read().decode(errors='replace')[:500]}")
+        raise HTTPException(502, f"{s['provider']} said {e.code}: {e.read().decode(errors='replace')[:500]}")
     except (urllib.error.URLError, TimeoutError, OSError) as e:
-        raise HTTPException(502, f"AI gateway not reachable at {s['base_url']}: {getattr(e, 'reason', e)}")
+        raise HTTPException(502, f"{s['provider']} not reachable: {getattr(e, 'reason', e)}")
     except (ValueError, KeyError, IndexError, TypeError):
-        raise HTTPException(502, "AI gateway sent an unexpected reply (not an OpenAI chat completion)")
+        raise HTTPException(502, f"{s['provider']} sent an unexpected reply")
 
 
 # ---------------- live events ----------------

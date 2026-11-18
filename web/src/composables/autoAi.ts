@@ -1,4 +1,4 @@
-// With an OmniRoute API key in Settings, "Build with AI" sends its prompt through the API instead of copy/paste.
+// With a configured provider key in Settings, "Build with AI" sends its prompt instead of copy/paste.
 import { computed, ref } from 'vue'
 import { api, type AiSettings } from '../api/client'
 import { toast } from './feedback'
@@ -14,7 +14,7 @@ export function useAutoAi() {
     busy.value = true
     secs.value = 0
     const tick = setInterval(() => secs.value++, 1000)
-    toast('Sent to OmniRoute: replies can take a minute or two', 'info')
+    toast(`Sent to ${settings.value?.provider === 'gemini' ? 'Gemini' : 'OmniRoute'}: replies can take a minute or two`, 'info')
     try {
       return (await api.aiComplete(prompt)).text
     } catch (e) {

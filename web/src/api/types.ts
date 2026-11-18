@@ -50,7 +50,7 @@ export interface paths {
         put?: never;
         /**
          * Ai Complete
-         * @description One chat completion through the OpenAI-compatible gateway (OmniRoute). Server-side: no CORS, key stays here.
+         * @description One completion through the selected provider. Keys stay server-side.
          */
         post: operations["ai_complete_api_ai_complete_post"];
         delete?: never;
@@ -630,10 +630,23 @@ export interface components {
         AiSettings: {
             /** Base Url */
             base_url: string;
+            /** Gemini Model */
+            gemini_model: string;
+            /** Has Gemini Key */
+            has_gemini_key: boolean;
             /** Has Key */
             has_key: boolean;
+            /** Has Omniroute Key */
+            has_omniroute_key: boolean;
             /** Model */
             model: string;
+            /** Omniroute Model */
+            omniroute_model: string;
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "omniroute" | "gemini";
         };
         /** AiSettingsIn */
         AiSettingsIn: {
@@ -644,11 +657,23 @@ export interface components {
              * @default http://localhost:20128/v1
              */
             base_url: string;
+            /** Gemini Api Key */
+            gemini_api_key?: string | null;
+            /** Gemini Model */
+            gemini_model?: string | null;
             /**
              * Model
              * @default
              */
             model: string;
+            /** Omniroute Model */
+            omniroute_model?: string | null;
+            /**
+             * Provider
+             * @default omniroute
+             * @enum {string}
+             */
+            provider: "omniroute" | "gemini";
         };
         /** Approval */
         Approval: {
