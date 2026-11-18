@@ -1210,6 +1210,13 @@ def openapi_text() -> str:
     return json.dumps(app.openapi(), indent=2, sort_keys=True) + "\n"
 
 
+def dev() -> None:
+    """npm run dev's backend: scripts/dev.sh runs this under watchfiles, which restarts it on code changes. Not
+    uvicorn --reload: on Windows that restarts its worker with a console-wide Ctrl+C, which stops Vite and npm too."""
+    import uvicorn
+    uvicorn.run(app, host="127.0.0.1", port=int(os.environ.get("PORT", "8765")))
+
+
 if __name__ == "__main__":
     OPENAPI.write_text(openapi_text(), encoding="utf-8", newline="\n")
     print(f"wrote {OPENAPI}")
