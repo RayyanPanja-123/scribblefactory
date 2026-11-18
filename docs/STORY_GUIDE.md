@@ -65,11 +65,44 @@ Second narration line.
 - **Hook first, twist last.** Line one is the hook (see **Hook**). The `!!` twist is the last or second-to-last
   narration line (see **Twist and ending**).
 
-### Hook
+### Hook: the slap in the face
 
-The first narration line must state the twist or the most surprising claim of the part. Viewers decide in the
-first second whether to keep watching. Dates, places and backstory go on line two or later, never on line one.
-Never open with "In nineteen...", "In twenty...", "Once upon a time" or any other date or scene-setting phrase.
+Line one is the whole video. Viewers decide in about one second whether to keep scrolling, so the first line has
+to hit before they can look away. It states the twist or the most surprising claim of the part. Dates, places and
+backstory go on line two or later, never on line one. Never open with "In nineteen...", "In twenty...", "Once
+upon a time" or any other date or scene-setting phrase (the story check warns).
+
+What makes a hook land:
+
+- **Short.** At most twelve words, ideally under eight (three seconds of voice). Two punches beat one long
+  sentence: "Victor sold the Eiffel Tower. Twice."
+- **Concrete.** A name, a number, a body, an object. "Thomas drank rat poison to win a race" beats "One runner
+  went to extreme lengths".
+- **Impossible or wrong.** It should sound like it cannot be true, or like the world got something backwards.
+  The viewer stays to find out how.
+- **Opens a loop the `!!` closes.** The hook tells *what* happened; the twist reveals *how* or *who*. Do not spend
+  the twist on line one; tease it.
+- **Strong first word.** Start with the name or the shocking noun, never "So", "This", "There", "It", "Today".
+- **Line two hits again.** It grounds the claim (the date or place goes here) or raises the stakes; it never
+  slows down to explain.
+
+Hook patterns:
+
+| Pattern | Example |
+|---|---|
+| The impossible fact | Victor sold the Eiffel Tower. Twice. |
+| The wrong winner | The man who won the Olympic marathon rode most of it in a car. |
+| The body count | A dance killed fifteen people a day. |
+| The contradiction | The ship nobody could sink sank on its first trip. |
+| The desperate act | Thomas drank rat poison to win a race. |
+
+Never use these openers; they announce a hook instead of being one: "Did you know", "You won't believe",
+"Imagine", "Let me tell you", "This is the story of", "Have you ever", or any question the viewer can answer "no".
+
+**The test:** if the video stopped after line one, would someone repeat that sentence to a friend? If not,
+rewrite it.
+
+A hook line may use `@fx shake` or `@fx drop` for extra punch; that is the one place the effect is always worth it.
 
 Before (slow, the date comes first):
 
@@ -260,7 +293,8 @@ at an exact moment).
 
 ### Pre-publish checklist
 
-- [ ] **Hook in line 1:** the twist or most surprising claim, no date or backstory.
+- [ ] **Hook in line 1:** the twist or most surprising claim, no date or backstory, at most twelve words,
+      concrete, and it opens a question the `!!` answers.
 - [ ] **Word count:** 110 to 140.
 - [ ] **Single `!!`:** exactly one twist line.
 - [ ] **Ends on the twist:** the `!!` line is last, or second-to-last followed only by the pointer line
