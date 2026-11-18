@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Backpack, ClipboardCheck, PawPrint, Film, History, Layers, LayoutDashboard, Mountain, Search, Send } from 'lucide-vue-next'
+import { Backpack, ClipboardCheck, PawPrint, Film, History, Layers, LayoutDashboard, Mountain, Search, Send, Settings } from 'lucide-vue-next'
 import { AnimatePresence, motion, MotionConfig } from 'motion-v'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -20,6 +20,7 @@ const tabs = [
   { to: '/sets', name: 'Sets', icon: Mountain, match: (n: string) => n === 'sets' || n === 'set-edit' },
   { to: '/posted', name: 'Posted', icon: Send, match: (n: string) => n === 'posted' },
   { to: '/history', name: 'History', icon: History, match: (n: string) => n === 'history' },
+  { to: '/settings', name: 'Settings', icon: Settings, match: (n: string) => n === 'settings' },
 ]
 onMounted(startLive)
 const reelLabel = computed(() =>

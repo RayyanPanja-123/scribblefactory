@@ -25,6 +25,7 @@ const router = createRouter({
     { path: '/sets', name: 'sets', component: () => import('./pages/Sets.vue') },
     { path: '/sets/:id', name: 'set-edit', component: () => import('./pages/SetEditor.vue'), props: true },
     { path: '/posted', name: 'posted', component: () => import('./pages/Posted.vue') },
+    { path: '/settings', name: 'settings', component: () => import('./pages/Settings.vue') },
     { path: '/history', name: 'history', component: () => import('./pages/History.vue') },
   ],
 })

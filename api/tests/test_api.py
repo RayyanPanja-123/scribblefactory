@@ -581,3 +581,39 @@ def test_creatures(client, lib):
     r = client.delete("/api/creatures/dog")
     assert r.status_code == 409 and "pets/rex" in r.json()["detail"]
     assert client.delete("/api/creatures/wolf").status_code == 404
+
+
+def test_ai_settings_and_complete(tmp_path, monkeypatch):
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    monkeypatch.setenv("SCRIBBLE_LIBRARY", str(tmp_path))
+    seen = {}
+
+    class Stub(BaseHTTPRequestHandler):
+        def do_POST(self):
+            seen["auth"] = self.headers["Authorization"]
+            seen["body"] = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            out = json.dumps({"choices": [{"message": {"content": "```json\n{}\n```"}}]}).encode()
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(out)))
+            self.end_headers()
+            self.wfile.write(out)
+
+        def log_message(self, *a):
+            pass
+
+    srv = HTTPServer(("127.0.0.1", 0), Stub)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    c = TestClient(m.app)
+    try:
+        assert c.get("/api/settings").json() == {"base_url": m.DEFAULT_AI_URL, "model": "", "has_key": False}
+        assert c.post("/api/ai/complete", json={"prompt": "hi"}).status_code == 400
+        url = f"http://127.0.0.1:{srv.server_port}/v1/"
+        r = c.put("/api/settings", json={"base_url": url, "model": "cc/x", "api_key": "sk-1"}).json()
+        assert r == {"base_url": url.rstrip("/"), "model": "cc/x", "has_key": True}  # key never echoed
+        assert c.put("/api/settings", json={"base_url": url, "model": "cc/y"}).json()["has_key"]  # omitted key is kept
+        assert c.post("/api/ai/complete", json={"prompt": "hi"}).json() == {"text": "```json\n{}\n```"}
+        assert seen == {"auth": "Bearer sk-1", "body": {"model": "cc/y", "messages": [{"role": "user", "content": "hi"}]}}
+        assert not c.put("/api/settings", json={"base_url": url, "model": "cc/y", "api_key": ""}).json()["has_key"]
+        assert c.put("/api/settings", json={"base_url": "ftp://x", "model": "m"}).status_code == 422
+    finally:
+        srv.shutdown()

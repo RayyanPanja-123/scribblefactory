@@ -7,6 +7,7 @@ import CreaturePreview from '../components/CreaturePreview.vue'
 import ErrorCard from '../components/ErrorCard.vue'
 import { act, confirm, toast } from '../composables/feedback'
 import { useApi } from '../composables/useApi'
+import { useAutoAi } from '../composables/autoAi'
 import { RIG_LIST, RIG_NOTES, allCreatures, buildCreaturePrompt, builtinCreatures, importCreature, isBuiltinCreature,
   rigParts, type CustomCreature, type Rig } from '../lib/creatures'
 
@@ -122,6 +123,15 @@ function loadReply() {
   aiReply.value = ''
   toast(`Loaded ${creature.name}: check the poses, then ${isNew.value ? 'create' : 'save'} it`, 'ok')
 }
+// with an API key in Settings: prompt -> AI -> reply -> editor in one click; the reply stays in step 3 if it doesn't load
+const { auto, busy, generate } = useAutoAi()
+async function generateReply() {
+  makePrompt()
+  const text = await generate(aiPrompt.value)
+  if (text === undefined) return
+  aiReply.value = text
+  loadReply()
+}
 const field = 'inset mt-1 block h-11 w-full rounded-full px-4 text-sm text-ink outline-none'
 </script>
 
@@ -150,7 +160,7 @@ const field = 'inset mt-1 block h-11 w-full rounded-full px-4 text-sm text-ink o
                 <div class="grid gap-3 sm:grid-cols-2">
                   <label class="block text-sm font-semibold" for="ai-what">Animal
                     <input id="ai-what" v-model="aiWhat" placeholder="Dog, pigeon, elephant, fish…" maxlength="40" :class="field"
-                      @keydown.enter.prevent="aiWhat.trim() && makePrompt()" />
+                      @keydown.enter.prevent="aiWhat.trim() && (auto ? generateReply() : makePrompt())" />
                   </label>
                   <label class="block text-sm font-semibold" for="ai-rig">Rig
                     <select id="ai-rig" v-model="aiRig" :class="field">
@@ -164,7 +174,17 @@ const field = 'inset mt-1 block h-11 w-full rounded-full px-4 text-sm text-ink o
                   <textarea id="ai-details" v-model="aiDetails" rows="3" placeholder="Long ears, spotted coat, a stump for a headless version…"
                     class="inset mt-1 block w-full rounded-md px-4 py-2 text-sm text-ink outline-none" />
                 </label>
-                <button type="button" class="btn btn-primary" :disabled="!aiWhat.trim()" @click="makePrompt">Prompt for AI</button>
+                <div class="flex flex-wrap items-center gap-2">
+                  <template v-if="auto">
+                    <button type="button" class="btn btn-primary" :disabled="!aiWhat.trim() || busy" :aria-busy="busy" @click="generateReply">
+                      <Sparkles :size="16" aria-hidden="true" /> {{ busy ? 'Generating…' : 'Generate' }}</button>
+                    <button type="button" class="btn btn-secondary" :disabled="!aiWhat.trim() || busy" @click="makePrompt">Prompt only</button>
+                  </template>
+                  <template v-else>
+                    <button type="button" class="btn btn-primary" :disabled="!aiWhat.trim()" @click="makePrompt">Prompt for AI</button>
+                    <RouterLink to="/settings" class="text-xs text-muted underline">Add an API key in Settings to skip copy/paste</RouterLink>
+                  </template>
+                </div>
               </div>
             </li>
             <li class="flex gap-3 py-5" :class="!aiPrompt && 'opacity-50'">

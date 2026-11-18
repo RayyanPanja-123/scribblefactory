@@ -7,6 +7,7 @@ import ErrorCard from '../components/ErrorCard.vue'
 import PropPreview from '../components/PropPreview.vue'
 import { act, confirm, toast } from '../composables/feedback'
 import { useApi } from '../composables/useApi'
+import { useAutoAi } from '../composables/autoAi'
 import { buildPrompt, importProp } from '../lib/propPrompt'
 import { HANDS, type CustomProp, type Hand, type PropShape } from '../lib/props'
 
@@ -119,6 +120,15 @@ function loadReply() {
   aiReply.value = ''
   toast(`Loaded ${prop.shapes.length} shapes: check the preview, then ${isNew.value ? 'create' : 'save'} the prop`, 'ok')
 }
+// with an API key in Settings: prompt -> AI -> reply -> editor in one click; the reply stays in step 3 if it doesn't load
+const { auto, busy, generate } = useAutoAi()
+async function generateReply() {
+  makePrompt()
+  const text = await generate(aiPrompt.value)
+  if (text === undefined) return
+  aiReply.value = text
+  loadReply()
+}
 const field = 'inset mt-1 block h-11 w-full rounded-full px-4 text-sm text-ink outline-none'
 </script>
 
@@ -147,14 +157,24 @@ const field = 'inset mt-1 block h-11 w-full rounded-full px-4 text-sm text-ink o
                 <h3 class="font-semibold">Say what to build</h3>
                 <label class="block text-sm font-semibold" for="ai-what">Name
                   <input id="ai-what" v-model="aiWhat" placeholder="Gun, umbrella, trophy, newspaper…" maxlength="40" :class="field"
-                    @keydown.enter.prevent="aiWhat.trim() && makePrompt()" />
+                    @keydown.enter.prevent="aiWhat.trim() && (auto ? generateReply() : makePrompt())" />
                 </label>
                 <p v-if="aiId" class="text-xs text-muted">Saved as <code>{{ aiId }}</code>. A story needs a different id? Set it in the id field below first.</p>
                 <label class="block text-sm font-semibold" for="ai-details">Details <span class="font-normal text-muted">(optional)</span>
                   <textarea id="ai-details" v-model="aiDetails" rows="3" placeholder="Shape, colours, which end is held…"
                     class="inset mt-1 block w-full rounded-md px-4 py-2 text-sm text-ink outline-none" />
                 </label>
-                <button type="button" class="btn btn-primary" :disabled="!aiWhat.trim()" @click="makePrompt">Prompt for AI</button>
+                <div class="flex flex-wrap items-center gap-2">
+                  <template v-if="auto">
+                    <button type="button" class="btn btn-primary" :disabled="!aiWhat.trim() || busy" :aria-busy="busy" @click="generateReply">
+                      <Sparkles :size="16" aria-hidden="true" /> {{ busy ? 'Generating…' : 'Generate' }}</button>
+                    <button type="button" class="btn btn-secondary" :disabled="!aiWhat.trim() || busy" @click="makePrompt">Prompt only</button>
+                  </template>
+                  <template v-else>
+                    <button type="button" class="btn btn-primary" :disabled="!aiWhat.trim()" @click="makePrompt">Prompt for AI</button>
+                    <RouterLink to="/settings" class="text-xs text-muted underline">Add an API key in Settings to skip copy/paste</RouterLink>
+                  </template>
+                </div>
               </div>
             </li>
             <!-- 2: the prompt, read-only: goes OUT to the AI -->

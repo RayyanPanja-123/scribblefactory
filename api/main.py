@@ -957,6 +957,90 @@ def _run(job: dict) -> None:
     job["status"] = "done"
 
 
+# ---------------- AI settings (library/settings.json): an OmniRoute key makes "Build with AI" one click ----------------
+
+DEFAULT_AI_URL = "http://localhost:20128/v1"
+AI_TIMEOUT_S = 180
+
+
+class AiSettings(BaseModel):
+    base_url: str
+    model: str
+    has_key: bool
+
+
+class AiSettingsIn(BaseModel):
+    base_url: str = DEFAULT_AI_URL
+    model: str = ""
+    api_key: str | None = None  # None keeps the saved key, "" clears it
+
+
+class AiPrompt(BaseModel):
+    prompt: str
+
+
+class AiReply(BaseModel):
+    text: str
+
+
+def settings_file() -> Path:
+    return lib() / "settings.json"
+
+
+def load_settings() -> dict:
+    f = settings_file()
+    s = json.loads(f.read_text(encoding="utf-8")) if f.is_file() else {}
+    return {"base_url": s.get("base_url") or DEFAULT_AI_URL, "model": s.get("model", ""), "api_key": s.get("api_key", "")}
+
+
+def public_settings(s: dict) -> AiSettings:
+    return AiSettings(base_url=s["base_url"], model=s["model"], has_key=bool(s["api_key"]))
+
+
+@app.get("/api/settings", response_model=AiSettings)
+def get_settings():
+    return public_settings(load_settings())
+
+
+@app.put("/api/settings", response_model=AiSettings)
+def put_settings(body: AiSettingsIn):
+    if not body.base_url.startswith(("http://", "https://")):
+        raise HTTPException(422, "base URL must start with http:// or https://")
+    s = load_settings()
+    s.update(base_url=body.base_url.strip().rstrip("/"), model=body.model.strip())
+    if body.api_key is not None:
+        s["api_key"] = body.api_key.strip()
+    lib().mkdir(parents=True, exist_ok=True)
+    atomic_write_json(settings_file(), s)
+    return public_settings(s)
+
+
+@app.post("/api/ai/complete", response_model=AiReply)
+def ai_complete(body: AiPrompt):
+    """One chat completion through the OpenAI-compatible gateway (OmniRoute). Server-side: no CORS, key stays here."""
+    import urllib.error
+    import urllib.request
+    s = load_settings()
+    if not s["api_key"]:
+        raise HTTPException(400, "no API key: add one in Settings")
+    if not s["model"]:
+        raise HTTPException(400, "no model: set one in Settings")
+    req = urllib.request.Request(
+        f"{s['base_url']}/chat/completions",
+        data=json.dumps({"model": s["model"], "messages": [{"role": "user", "content": body.prompt}]}).encode(),
+        headers={"Authorization": f"Bearer {s['api_key']}", "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=AI_TIMEOUT_S) as r:
+            data = json.loads(r.read())
+        return AiReply(text=data["choices"][0]["message"]["content"] or "")
+    except urllib.error.HTTPError as e:
+        raise HTTPException(502, f"AI gateway said {e.code}: {e.read().decode(errors='replace')[:500]}")
+    except (urllib.error.URLError, TimeoutError, OSError) as e:
+        raise HTTPException(502, f"AI gateway not reachable at {s['base_url']}: {getattr(e, 'reason', e)}")
+    except (ValueError, KeyError, IndexError, TypeError):
+        raise HTTPException(502, "AI gateway sent an unexpected reply (not an OpenAI chat completion)")
+
+
 # ---------------- live events ----------------
 
 _subscribers: set[tuple[asyncio.AbstractEventLoop, asyncio.Queue]] = set()

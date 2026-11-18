@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/api/ai/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ai Complete
+         * @description One chat completion through the OpenAI-compatible gateway (OmniRoute). Server-side: no CORS, key stays here.
+         */
+        post: operations["ai_complete_api_ai_complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/creatures": {
         parameters: {
             query?: never;
@@ -468,10 +488,62 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Settings */
+        get: operations["get_settings_api_settings_get"];
+        /** Put Settings */
+        put: operations["put_settings_api_settings_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AiPrompt */
+        AiPrompt: {
+            /** Prompt */
+            prompt: string;
+        };
+        /** AiReply */
+        AiReply: {
+            /** Text */
+            text: string;
+        };
+        /** AiSettings */
+        AiSettings: {
+            /** Base Url */
+            base_url: string;
+            /** Has Key */
+            has_key: boolean;
+            /** Model */
+            model: string;
+        };
+        /** AiSettingsIn */
+        AiSettingsIn: {
+            /** Api Key */
+            api_key?: string | null;
+            /**
+             * Base Url
+             * @default http://localhost:20128/v1
+             */
+            base_url: string;
+            /**
+             * Model
+             * @default
+             */
+            model: string;
+        };
         /** Approval */
         Approval: {
             /** Approved At */
@@ -1401,6 +1473,39 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    ai_complete_api_ai_complete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AiPrompt"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiReply"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_creatures_api_creatures_get: {
         parameters: {
             query?: never;
@@ -2379,6 +2484,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SetCatalog"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_settings_api_settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiSettings"];
+                };
+            };
+        };
+    };
+    put_settings_api_settings_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AiSettingsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiSettings"];
                 };
             };
             /** @description Validation Error */

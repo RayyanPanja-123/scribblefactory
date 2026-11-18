@@ -1,6 +1,82 @@
 {
   "components": {
     "schemas": {
+      "AiPrompt": {
+        "properties": {
+          "prompt": {
+            "title": "Prompt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "title": "AiPrompt",
+        "type": "object"
+      },
+      "AiReply": {
+        "properties": {
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "AiReply",
+        "type": "object"
+      },
+      "AiSettings": {
+        "properties": {
+          "base_url": {
+            "title": "Base Url",
+            "type": "string"
+          },
+          "has_key": {
+            "title": "Has Key",
+            "type": "boolean"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          }
+        },
+        "required": [
+          "base_url",
+          "model",
+          "has_key"
+        ],
+        "title": "AiSettings",
+        "type": "object"
+      },
+      "AiSettingsIn": {
+        "properties": {
+          "api_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key"
+          },
+          "base_url": {
+            "default": "http://localhost:20128/v1",
+            "title": "Base Url",
+            "type": "string"
+          },
+          "model": {
+            "default": "",
+            "title": "Model",
+            "type": "string"
+          }
+        },
+        "title": "AiSettingsIn",
+        "type": "object"
+      },
       "Approval": {
         "additionalProperties": false,
         "properties": {
@@ -2230,6 +2306,45 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/ai/complete": {
+      "post": {
+        "description": "One chat completion through the OpenAI-compatible gateway (OmniRoute). Server-side: no CORS, key stays here.",
+        "operationId": "ai_complete_api_ai_complete_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiPrompt"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiReply"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ai Complete"
+      }
+    },
     "/api/creatures": {
       "get": {
         "operationId": "get_creatures_api_creatures_get",
@@ -3562,6 +3677,60 @@
           }
         },
         "summary": "Put Set"
+      }
+    },
+    "/api/settings": {
+      "get": {
+        "operationId": "get_settings_api_settings_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiSettings"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Settings"
+      },
+      "put": {
+        "operationId": "put_settings_api_settings_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiSettingsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiSettings"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Settings"
       }
     }
   }
