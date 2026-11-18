@@ -32,15 +32,18 @@ Every answer has these parts, in this order:
 1. **Series title**: one line, `**Series title:** <title>` (the same in every part).
 2. **Short description**: two or three plain sentences: what the story is about and what this part covers,
    without giving away its twist.
-3. **New sets and props**: only if this part uses a set or prop that does not exist yet: one fenced `text`
+3. **Cast JSON**: only when **Your series** has no cast yet (a new series), in part 1: one fenced `json` block
+   with the whole cast in the format of section 6b (animals with `body`, changes like a lost head as `looks`).
+   Leave it out when the cast already exists.
+4. **New sets, props and creatures**: only if this part uses one that does not exist yet: one fenced `text`
    block listing them, each with its id and name (section 6). Leave it out otherwise.
-4. **The script**: one fenced `md` code block containing only the complete `story.md`: the `# Part title`
+5. **The script**: one fenced `md` code block containing only the complete `story.md`: the `# Part title`
    line, every `@` directive and the narration (section 3).
-5. **Audio script (TTS)**: one fenced `text` code block with only what the voice reads: the narration lines of
+6. **Audio script (TTS)**: one fenced `text` code block with only what the voice reads: the narration lines of
    the script, in order, one per line, with every `@` line, the `# title` line and the `!!` markers left out.
    Word for word the same as the script's narration: nothing added, removed or reworded (the voice is matched
    to the script word by word, so any difference breaks the captions and shots).
-6. Three short lines: word count, estimated length in seconds (words / 2.6, plus 1 for the end card), and the
+7. Three short lines: word count, estimated length in seconds (words / 2.6, plus 1 for the end card), and the
    cast ids used.
 
 Nothing else inside the blocks: no explanations, no comments. For example:
@@ -50,6 +53,13 @@ Nothing else inside the blocks: no explanations, no comments. For example:
 
 A farm rooster survives the axe and keeps living without a head. Part 1: the night it happens and the trip
 to the university that cannot explain it.
+
+```json
+[
+  { "id": "lloyd", "name": "Lloyd", "color": "#3b6ea5" },
+  { "id": "mike", "name": "Mike", "color": "#f2f2f2", "body": "chicken", "looks": { "headless": { "headless": true } } }
+]
+```
 
 ```md
 # The Chicken That Would Not Die
@@ -280,16 +290,27 @@ narration line. Nothing comes after it except the end line (section 4, **Twist a
 Built in: `clipboard`, `stopwatch`, `bottle`, `syringe`, `apple`, `medal`. A series may define more (listed under
 **Your series**). Only these can be used with `eat` and `give`, plus new ones you list (section 6).
 
-## 6. New sets and props
+### Creatures
 
-Prefer what already exists. When the story really needs a place or an object that is not among the built-ins or
-**Your series**, list it in a block **before the story**, then use its id in `story.md`:
+Animal bodies for cast members (`"body"` in the cast JSON, section 6b), each on a rig that decides how it moves
+(section 5, under `@cast`). Built in: `chicken` (bird), `cat` (quadruped), `horse` (quadruped), `monkey` (biped),
+`snake` (crawler), or the id of a custom creature from the dashboard's **Creatures** page. Each has a `headless`
+version (a neck stump) for a `"headless"` look. An animal that does not exist yet goes in the NEW block
+(section 6).
+
+## 6. New sets, props and creatures
+
+Prefer what already exists. When the story really needs a place, an object or an animal that is not among the
+built-ins or **Your series**, list it in a block **before the story**, then use its id in `story.md` (sets,
+props) or as a cast member's `body` (creatures):
 
 ```text
 NEW SETS
 - id: bakery | name: Corner Bakery | indoor | a small bakery with a glass counter, bread shelves on the back wall and a red awning window
 NEW PROPS
 - id: baguette | name: Baguette | a long golden loaf of bread, held at one end
+NEW CREATURES
+- id: dog | name: Dog | quadruped | a scruffy farm dog with floppy ears and a long tail
 ```
 
 - At most **2** new sets and **3** new props per part. Leave out a heading that has nothing under it, and the
@@ -301,8 +322,44 @@ NEW PROPS
   the 3 to 6 big objects that make the place recognisable, and its main colours.
 - Props: one line on shape and colour, and which end is held. A new prop is only needed for `eat` and `give`
   (or if a cast member should hold it).
-- The user builds each one before rendering (dashboard **Sets** / **Props**, *Build with AI*, with your id and
-  name and the description); until then the story fails as "unknown set" or "unknown prop".
+- Creatures: say the rig (`bird`, `quadruped`, `biped`, `crawler`, section 5 under `@cast`) and describe the
+  look in one line. Say if it needs a headless version (it then gets a neck stump). At most **2** per part.
+- The user builds each one before rendering (dashboard **Sets** / **Props** / **Creatures**, *Build with AI*,
+  with your id and name and the description); until then the story fails as "unknown set", "unknown prop" or
+  "unknown body".
+
+## 6b. Cast JSON (new series only)
+
+When **Your series** has no cast yet, design it and return it as a JSON list, one entry per character, in this
+format (the dashboard imports it when the series is created):
+
+```json
+[
+  { "id": "lloyd", "name": "Lloyd", "color": "#3b6ea5" },
+  { "id": "clara", "name": "Clara", "color": "#c0567a",
+    "top": { "style": "dress", "accent_color": "#f2d16b" }, "headwear": { "kind": "straw_hat", "color": "#e3c27a" } },
+  { "id": "mike", "name": "Mike", "color": "#f2f2f2", "body": "chicken",
+    "looks": { "headless": { "headless": true } } }
+]
+```
+
+- `id`: lowercase a-z, 0-9 and single dashes, used in `@cast`, `@do` and `@look`. `name`: how the narration
+  says it (the planner finds characters by name). `color`: `#rrggbb`, the outfit, or an animal's fur / feathers.
+  Give every character a clearly different colour.
+- **Animals:** `"body": "<creature id>"`: a built-in (`chicken` bird, `cat` and `horse` quadruped, `monkey` biped,
+  `snake` crawler), one listed under *Available in this library*, or one from your NEW CREATURES block. A person
+  has no `body` (it means a stickman).
+- **Changes during the story:** never make a second character for the same one. Give it `"looks"`: named
+  variants that set only what changes, used with `@look` (section 5): `{"headless": {"headless": true}}` for a
+  lost head (creatures only), `{"prison": {"top": {"style": "plain", "color": "#e8e8e8"}}}` for a change of
+  clothes. A creature that is headless from the very start instead gets `"headless": true` on the entry itself.
+- Optional costume for people: `"top": {"style": "plain" | "suit" | "tank" | "shirt" | "dress", "accent_color":
+  "#rrggbb", "number": "31"}`, `"headwear": {"kind": "flat_cap" | "postman_cap" | "bowler" | "straw_hat" |
+  "wide_hat", "color": "#rrggbb"}`, `"legwear": {"kind": "shorts" | "ragged_shorts" | "trousers", "color":
+  "#rrggbb"}`, `"props": [{"kind": "clipboard", "hand": "right"}]` (at most one per hand),
+  `"default_expression": "neutral" | "happy" | "sad" | "angry" | "surprised" | "sleepy" | "cheeky" |
+  "exhausted"`, `"eyes": "dots" | "half_closed"`. Animals ignore costume.
+- Only characters the story shows. Keep ids short; at most 12 on stage at once (section 5).
 
 ## 7. How plain narration is interpreted
 
@@ -353,7 +410,8 @@ at an exact moment).
 5. Each `@cast` has at most 12 ids, at most 6 of them named in that scene; `@car ride` at most 3.
 6. No digits, symbols or markdown formatting in narration.
 7. 110 to 140 words; short lines, no filler transitions.
-8. The answer has the series title, the short description, the script and the audio script (section 2), and
+8. The answer has the series title, the short description, the cast JSON (new series only, animals with
+   `body` and any change as `looks`), the script and the audio script (section 2), and
    the audio script is the script's narration word for word, without `@` lines, the title or `!!`.
 9. Only the part that was asked for (part 1 unless the user asked for a later one).
 
@@ -444,7 +502,8 @@ A woman danced in the street for six days straight.
 - **Series title:**
 - **What the story is about** (the AI writes part 1 first; ask for part 2 when you want it):
 - **Cast** (`id: Name`, one per line; only these ids may be used; for an animal add its creature and rig, and
-  list any named looks, e.g. `mike: Mike (chicken, bird; looks: headless)`):
+  list any named looks, e.g. `mike: Mike (chicken, bird; looks: headless)`). Leave it empty for a new series:
+  the AI designs the cast and returns it as cast JSON (section 6b):
   - `id: Name`
 - **Extra props** (beyond the built-ins), if any:
 - **Tone** (funny, eerie, dramatic...) and anything to avoid:

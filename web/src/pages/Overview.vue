@@ -35,7 +35,7 @@ async function records() {
       `- **Creatures** (animal bodies for cast members, by rig): ${[...creatures.builtin, ...creatures.custom]
         .map((c) => `\`${c.id}\` (${c.rig})`).join(', ')}`,
       '',
-      'Use these sets and props; anything else goes in the NEW block (section 6).',
+      'Use these sets, props and creatures; anything else goes in the NEW block (section 6).',
       '',
       '',
     ].join('\n')
