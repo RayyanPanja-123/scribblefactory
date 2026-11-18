@@ -16,11 +16,11 @@ import re
 from pathlib import Path
 from typing import NamedTuple, get_args
 
-from ..io import atomic_write_text, prop_kinds
-from ..schemas import BuiltinProp
+from ..io import LIBRARY_FILES, atomic_write_text, custom_actions, prop_kinds
+from ..schemas import BuiltinProp, actions_with
 from .runner import StageError
 
-INPUTS = ["story.md", "../../props.json"]
+INPUTS = ["story.md", *(f"../../{f}" for f in LIBRARY_FILES)]
 OUTPUTS = ["script-for-tts.txt"]
 WPM = 150
 MAX_SECONDS = 90  # parts may run ~70 s
@@ -35,8 +35,7 @@ MARKER = "⟦{}⟧"  # a token for the n-th @ line, "!" before a twist line, "/"
 MARKER_RE = re.compile("^⟦([0-9]+|!|/)⟧$")
 
 # @do <cast>[, <cast>]: <action> [<target>|<prop>] [, <cast>: <action> ...]
-DO_ACTIONS = {"idle", "talk", "walk", "run", "point", "react", "wave", "stagger", "lie", "collapse", "eat", "give",
-              "carry", "support", "cheer", "angry", "gasp"}
+DO_ACTIONS = actions_with("do")  # built in; plus the library's custom actions (io.custom_actions)
 DO_CAR = "car"            # "@do car: broken": the car on stage breaks down
 BUILTIN_PROPS = get_args(BuiltinProp)
 HOLDERS = {"carry": (2, 2), "support": (1, 2)}
@@ -49,9 +48,10 @@ class DoClause(NamedTuple):
     prop: str | None = None
 
 
-def parse_do(arg: str, line: int, cast_ids=None, props=BUILTIN_PROPS) -> list[DoClause]:
+def parse_do(arg: str, line: int, cast_ids=None, props=BUILTIN_PROPS, actions=()) -> list[DoClause]:
     """Parse an @do directive (the text after "@do"). With cast_ids, cast and targets must be in the series too.
-    props: the prop kinds eat / give may name (io.prop_kinds: built-ins + library/props.json).
+    props: the prop kinds eat / give may name (io.prop_kinds: built-ins + library/props.json). actions: the
+    library's custom actions (io.custom_actions), in-place moves that take no target or prop.
     Errors name the story.md line."""
     def bad(msg):
         raise StageError(f"story.md line {line}: @do: {msg}")
@@ -76,8 +76,8 @@ def parse_do(arg: str, line: int, cast_ids=None, props=BUILTIN_PROPS) -> list[Do
             out.append(DoClause(who, act))
             who_txt = nxt
             continue
-        if act not in DO_ACTIONS:
-            bad(f"unknown action {act!r} (use {', '.join(sorted(DO_ACTIONS))}, or car: broken)")
+        if act not in DO_ACTIONS and act not in actions:
+            bad(f"unknown action {act!r} (use {', '.join(sorted(DO_ACTIONS | set(actions)))}, or car: broken)")
         target = prop = None
         if act == "eat":
             if len(args) > 1:
@@ -162,12 +162,12 @@ def mark_directives(md: str) -> tuple[str, list[tuple[int, str]]]:
     return "\n".join(out), found
 
 
-def check_do(md: str, props=BUILTIN_PROPS) -> None:
+def check_do(md: str, props=BUILTIN_PROPS, actions=()) -> None:
     """syntax, actions and props of every @do line (cast ids are checked by the shots stage)"""
     for no, d in mark_directives(md)[1]:
         name, _, arg = d.partition(" ")
         if name == "do":
-            parse_do(arg, no, props=props)
+            parse_do(arg, no, props=props, actions=actions)
 
 
 def clean_markdown(md: str) -> str:
@@ -200,7 +200,7 @@ def run(part_dir: Path) -> None:
     if not story.exists():
         raise StageError("story.md not found")
     md = story.read_text(encoding="utf-8")
-    check_do(md, prop_kinds(part_dir.parent.parent))
+    check_do(md, prop_kinds(part_dir.parent.parent), custom_actions(part_dir.parent.parent))
     text = clean_markdown(strip_directives(md))
     if not text:
         raise StageError("story.md has no body text (only a title?)")

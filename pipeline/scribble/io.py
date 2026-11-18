@@ -9,11 +9,14 @@ from pathlib import Path
 
 from typing import get_args
 
-from .schemas import (BUILTIN_CREATURES, BUILTIN_SETS, BuiltinProp, CreatureLibrary, CustomCreature, CustomProp,
-                      CustomSet, PartModel, PropLibrary, SeriesModel, SetLibrary)
+from .schemas import (ACTIONS, BUILTIN_CREATURES, BUILTIN_SETS, ActionLibrary, BuiltinProp, CreatureLibrary,
+                      CustomCreature, CustomProp, CustomSet, PartModel, PropLibrary, SeriesModel, SetLibrary)
 
 # User-owned files a save must never write to.
 PROTECTED = {"story.md", "voice.mp3"}
+# The library's custom items, one file per kind (engine/page/library.js KINDS): every stage that reads one, and the
+# render hash, depends on all of them, so a new kind of custom item is one entry here.
+LIBRARY_FILES = ["props.json", "sets.json", "creatures.json", "actions.json"]
 REPLACE_RETRIES = 5
 
 
@@ -128,7 +131,7 @@ def delete_prop(library, prop_id: str) -> None:
 
 
 def load_creatures(library) -> CreatureLibrary:
-    """library/creatures.json (non-human cast bodies, shared by every series); none yet: an empty library"""
+    """library/creatures.json (custom cast bodies, shared by every series); none yet: an empty library"""
     f = Path(library) / "creatures.json"
     return CreatureLibrary.model_validate_json(f.read_bytes()) if f.exists() else CreatureLibrary()
 
@@ -139,12 +142,12 @@ def creature_bodies(library) -> dict[str, tuple[str, bool]]:
 
 
 def cast_body_problems(cast, library) -> list[str]:
-    """'<cast id>: <problem>' for each body that is not stickman, built in or in library/creatures.json, and each
-    headless cast member whose creature has no stump"""
+    """'<cast id>: <problem>' for each body that is not built in or in library/creatures.json, and each headless cast
+    member whose creature has no stump"""
     bodies, out = creature_bodies(library), []
     for c in cast:
-        if c.body != "stickman" and c.body not in bodies:
-            out.append(f"{c.id}: unknown body {c.body!r} (stickman, {', '.join(bodies)})")
+        if c.body not in bodies:
+            out.append(f"{c.id}: unknown body {c.body!r} ({', '.join(bodies)})")
         elif c.headless and c.body in bodies and not bodies[c.body][1]:
             out.append(f"{c.id}: headless, but creature {c.body!r} has no stump part")
     return out
@@ -184,6 +187,23 @@ def delete_creature(library, creature_id: str) -> None:
         raise ValueError(f"{creature_id} is still the body of " + ", ".join(f"{f.parent.name}/{cid}" for f, cid in used))
     lib.creatures = [c for c in lib.creatures if c.id != creature_id]
     atomic_write_json(Path(library) / "creatures.json", lib.model_dump(mode="json"))
+
+
+def load_actions(library) -> ActionLibrary:
+    """library/actions.json (custom actions: keyframes the stickman plays, shared by every series); none yet: empty"""
+    f = Path(library) / "actions.json"
+    return ActionLibrary.model_validate_json(f.read_bytes()) if f.exists() else ActionLibrary()
+
+
+def custom_actions(library) -> list[str]:
+    """the ids of library/actions.json: what @do may ask for besides the built-in actions"""
+    return [a.id for a in load_actions(library).actions]
+
+
+def unknown_actions(story, library) -> list[str]:
+    """actor actions in a story.json that are neither built in nor in library/actions.json (the engine would throw)"""
+    known = set(ACTIONS) | set(custom_actions(library))
+    return sorted({a.action for s in story.shots for a in s.actors} - known)
 
 
 def load_sets(library) -> SetLibrary:

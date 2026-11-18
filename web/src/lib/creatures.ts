@@ -1,5 +1,5 @@
-// Creatures: non-human cast bodies (library/creatures.json + the engine's built-ins), the "Build with AI" prompt for
-// a new one and the importer for the AI's reply. The server (schema CustomCreature) still checks everything on save.
+// Creatures: cast bodies (library/creatures.json + the engine's built-ins, default human), the "Build with AI" prompt
+// for a new drawn one and the importer for the AI's reply. The server (schema CustomCreature) still checks everything.
 import type { components } from '../api/types'
 // @ts-expect-error plain JS module from the engine, no types
 import { BUILTIN, JOINT_OF, RIGS } from '../../../engine/page/creatures.js'
@@ -12,11 +12,15 @@ export type Rig = CustomCreature['rig']
 export const builtinCreatures = BUILTIN as CustomCreature[]
 export const rigParts = RIGS as Record<Rig, { parts: Record<string, boolean>; hands: boolean }>
 export const jointOf = JOINT_OF as Record<string, string>
-export const RIG_LIST: Rig[] = ['bird', 'quadruped', 'biped', 'crawler']
+export const RIG_LIST: Rig[] = ['humanoid', 'bird', 'quadruped', 'biped', 'crawler']
+/** the rigs drawn from shapes (what "Build with AI" designs); a humanoid is a stickman with a build */
+export const DRAWN_RIGS: Rig[] = RIG_LIST.filter((r) => r !== 'humanoid')
+export const DEFAULT_BUILD = { head: 1, body_w: 1, body_h: 1, leg: 1, arm: 1, head_color: '#ffffff' }
 export const RIG_NOTES: Record<Rig, string> = {
+  humanoid: 'a stickman with its own proportions and head colour: face, expressions, costume and hands, like every human',
   bird: 'two legs and a wing: chicken, duck, penguin, crow. Flaps when startled, pecks to eat',
   quadruped: 'four legs: cat, dog, horse, cow, pig. Hops when excited, wags its tail',
-  biped: 'stands on two legs with arms: monkey, bear, robot, alien. The only rig with hands (props, give, carry)',
+  biped: 'stands on two legs with arms, seen from the side: monkey, bear, robot, alien. Has hands (props, give, carry)',
   crawler: 'no legs: snake, worm, slug, caterpillar. The body ripples as it moves',
 }
 
@@ -35,7 +39,7 @@ export function buildCreaturePrompt(name: string, rig: Rig, taken: string[], det
   const parts = Object.entries(spec).map(([p, need]) => `- ${p}${need ? ' (required)' : ' (optional)'}${p === 'body' ? ': ground space' : `: around joint "${jointOf[p]}"`}`).join('\n')
   const example = builtinCreatures.find((c) => c.rig === rig)!
   const brief = details.trim() ? `\n\nWhat it should look like: ${details.trim()}` : ''
-  return `You are drawing a cartoon animal for a hand-drawn stick-figure video renderer. Design: **${thing}**, on the **${rig}** rig (${RIG_NOTES[rig]}).${brief}
+  return `You are drawing a cartoon character (an animal, a person, a robot…) for a hand-drawn stick-figure video renderer. Design: **${thing}**, on the **${rig}** rig (${RIG_NOTES[rig]}).${brief}
 
 Reply with ONE JSON object in a \`\`\`json code block and nothing else.
 
@@ -72,11 +76,12 @@ Each shape is one of (1 to 60 per part, drawn in order, later on top):
 Flat, bold, readable cartoon: few simple shapes, flat fills, thick black outlines, no gradients, no tiny details. The renderer adds a hand-drawn wobble. Big shapes first, details on top.
 
 ## Example (the built-in ${example.name.toLowerCase()}, a ${rig})
+This shows the format and scale only. Do NOT copy its look: unless you were asked for a ${example.name.toLowerCase()}, nothing about yours should look like one.
 \`\`\`json
 ${compact(example)}
 \`\`\`
 
-Now design **${thing}** and reply with only its JSON object.`
+Now design **${thing}** from scratch${brief ? ` (${details.trim()})` : ''} and reply with only its JSON object.`
 }
 
 /** the AI's reply (raw JSON, a fenced block, or JSON inside other text; a {"creatures": [...]} file takes the first)

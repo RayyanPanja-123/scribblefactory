@@ -116,10 +116,9 @@ test("stills: one image per shot plus a manifest", () => {
   for (const m of manifest.frames) assert.deepEqual(pngSize(fs.readFileSync(path.join(dir, m.file))), [1080, 1920]);
 });
 
-test("unknown set falls back to room with a warning", () => {
-  ok("moon"); ok("room");
-  assert.match(R.stderr, /unknown set "moon", using "room"/);
-  assert.ok(png(path.join(moon, "a"), 10).equals(png(path.join(base, "range"), 10)));
+test("unknown set fails the job (never a silent stand-in room)", () => {
+  assert.equal(R.moon.ok, false);
+  assert.match(R.moon.error, /unknown set "moon": not built in and not in library\/sets\.json/);
 });
 
 test("custom sets (library/sets.json): indoor and outdoor build and travel; a piece on the stage fails", () => {

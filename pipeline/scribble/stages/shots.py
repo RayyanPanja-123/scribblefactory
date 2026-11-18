@@ -12,15 +12,17 @@ import re
 import zlib
 from pathlib import Path
 
-from ..io import atomic_write_json, cast_body_problems, creature_bodies, outdoor_sets, prop_kinds, unknown_cast_props
-from ..schemas import BUILTIN_CREATURES, HAND_RIGS, Actor, Animal, Camera, Cue, EndCard, Extra, PhrasesModel, SeriesModel, Shot, StoryModel, Travel, Vehicle
+from ..io import (LIBRARY_FILES, atomic_write_json, cast_body_problems, creature_bodies, custom_actions, outdoor_sets,
+                  prop_kinds, set_kinds,
+                  unknown_cast_props)
+from ..schemas import BUILTIN_CREATURES, BUILTIN_SETS, HAND_RIGS, actions_with, Actor, Animal, Camera, Cue, EndCard, Extra, PhrasesModel, SeriesModel, Shot, StoryModel, Travel, Vehicle
 from ..validate import (CAR_SPEED, CROWD_Z, DOG_RUN_SPEED, MAX_SHOT_FRAMES, MOODS, OUTDOOR_SETS, SPEEDS,
                         END_CARD_S, end_frame, validate)
 from .prep import BUILTIN_PROPS, DO_CAR, FX_MODES, MARKER_RE, clean_markdown, mark_directives, parse_do, parse_look
 from .runner import StageError
 from .validate import load_model
 
-INPUTS = ["story.md", "phrases.json", "../series.json", "../../props.json", "../../creatures.json"]
+INPUTS = ["story.md", "phrases.json", "../series.json", *(f"../../{f}" for f in LIBRARY_FILES)]
 OUTPUTS = ["story.json"]
 
 FPS = 30
@@ -36,7 +38,7 @@ STAGE_X = 1.0              # starting cast spread across -STAGE_X..STAGE_X, z = 
 BOUNDS = (-2.0, 2.0)       # x range a walk/run must end inside
 MOVE_SPEED = {"walk": 1.2, "run": 2.5, "stagger": 0.6}  # units/s
 MIN_SPEED = {a: SPEEDS[a][0] for a in MOVE_SPEED}  # shortened moves never go slower than the validator allows
-NEEDS_HANDS = {"give", "carry", "support"}  # creatures without hands can still be carried or supported
+NEEDS_HANDS = actions_with("hands")  # creatures without hands can still be carried or supported
 GROUP_SPEED = {"carry": 0.9, "support": 0.8}  # @do carry / support: the group walks toward the stage centre
 HOLD_GAP = 0.42            # carry / support: a holder stands this far (x) beside the held actor (engine actions.js)
 MIN_GAP = 0.8              # actors at least this far apart in x at the start and end of every shot
@@ -115,7 +117,7 @@ def seed_for(slug: str, part_number: int) -> int:
     return zlib.crc32(slug.encode()) + part_number  # stable across runs (unlike hash())
 
 
-def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILTIN_PROPS, looks_of=None):
+def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILTIN_PROPS, looks_of=None, actions=()):
     """Return (words, [(set, cast tuple, twist starts here, dogs, car mode, do, crowd, runners, looks)]) from
     story.md, words as prep's script has them. do: (story.md line, @do clauses) for the words of the line after an
     @do, else None. crowd: (mood, N) or None. A set change resets crowd and runners. looks: {cast id: look name} set
@@ -163,7 +165,7 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
             elif name == "fx" and arg in FX_MODES:
                 pass  # caption effect: finish reads it
             elif name == "do":
-                do = (line, tuple(parse_do(arg, line, cast_ids, props)))
+                do = (line, tuple(parse_do(arg, line, cast_ids, props, actions)))
             elif name == "crowd":
                 crowd = parse_crowd(arg, line)
             elif name == "runners" and arg.isdigit() and int(arg) <= MAX_RUNNERS:
@@ -540,12 +542,13 @@ def _car_move(mode, park, actors, subject, seconds, seed) -> Vehicle:
 
 
 def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, props=BUILTIN_PROPS,
-         outdoor=OUTDOOR_SETS, bodies=BUILTIN_CREATURES) -> StoryModel:
-    """bodies: creature id -> (rig, has a stump), io.creature_bodies (built-ins + library/creatures.json)"""
+         outdoor=OUTDOOR_SETS, bodies=BUILTIN_CREATURES, actions=()) -> StoryModel:
+    """bodies: creature id -> (rig, has a stump), io.creature_bodies (built-ins + library/creatures.json).
+    actions: the library's custom actions (io.custom_actions), which @do may ask for"""
     if not series.cast:
         raise StageError("series.json has no cast: add some with cast-add")
     ids = [c.id for c in series.cast]
-    words, tags = tag_words(md, ids, ids[:DEFAULT_CAST_SIZE], props, {c.id: list(c.looks) for c in series.cast})
+    words, tags = tag_words(md, ids, ids[:DEFAULT_CAST_SIZE], props, {c.id: list(c.looks) for c in series.cast}, actions)
     heard = [w.text for w in phrases.words]
     if words != heard:
         i = next((i for i, (a, b) in enumerate(zip(words, heard)) if a != b), min(len(words), len(heard)))
@@ -556,7 +559,7 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
     seed = seed_for(series.slug, part_number)
     rng = random.Random(seed)
     handless = {c.id: f"a {bodies[c.body][0]}" for c in series.cast
-                if c.body != "stickman" and c.body in bodies and bodies[c.body][0] not in HAND_RIGS}
+                if c.body in bodies and bodies[c.body][0] not in HAND_RIGS}
     final = series.status == "complete" and series.parts[-1:] == [f"part-{part_number:02d}"]
     total = end_frame(phrases, not final, FPS)
     end_card = None if final else EndCard(start_frame=total - round(END_CARD_S * FPS),
@@ -732,7 +735,10 @@ def run(part_dir: Path) -> None:
     if problems := cast_body_problems(series.cast, library):
         raise StageError(f"cast body: {'; '.join(problems)}")
     story = plan(story_md.read_text(encoding="utf-8"), phrases, series, int(part_dir.name.split("-")[1]),
-                 prop_kinds(library), outdoor_sets(library), creature_bodies(library))
+                 prop_kinds(library), outdoor_sets(library), creature_bodies(library), custom_actions(library))
+    if unknown := sorted({s.set for s in story.shots} - set(set_kinds(library))):  # the engine would throw mid-render
+        raise StageError(f"unknown set: {', '.join(unknown)} (built in: {', '.join(BUILTIN_SETS)}, or add it on the "
+                         f"dashboard's Sets page)")
     errors = validate(story, phrases, {c.id for c in series.cast}, outdoor_sets(library))
     for e in errors:
         print(f"  {e.shot_id or '-'}  {e.rule}: {e.message}")

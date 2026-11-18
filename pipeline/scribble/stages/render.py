@@ -24,7 +24,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
-from ..io import atomic_write_json, load_part
+from ..io import LIBRARY_FILES, atomic_write_json, load_part
 from ..schemas import SeriesModel, StoryModel
 from .runner import StageError
 from .validate import load_model
@@ -40,7 +40,8 @@ POLL_S = 0.5           # how often the scheduler wakes up (keeps Ctrl+C responsi
 READY_TIMEOUT_S = 120  # browser start + page build per worker
 EXIT_TIMEOUT_S = 30
 
-INPUTS = ["story.json", "phrases.json", "../series.json", "../../props.json", "../../creatures.json", "voice-tight.wav", *map(str, PAGE_FILES)]
+INPUTS = ["story.json", "phrases.json", "../series.json", *(f"../../{f}" for f in LIBRARY_FILES), "voice-tight.wav",
+          *map(str, PAGE_FILES)]
 OUTPUTS = ["preview.mp4"]
 
 
@@ -73,11 +74,11 @@ def chunk_ranges(total: int, size: int = CHUNK) -> list[tuple[int, int]]:
 
 
 def frames_hash(part_dir: Path) -> str:
-    """sha256 over story.json, phrases.json, series.json, props.json, creatures.json and the engine page code: anything that changes
-    pixels."""
+    """sha256 over story.json, phrases.json, series.json, every library file (props, sets, creatures, actions) and the
+    engine page code: anything that changes pixels."""
     h = hashlib.sha256()
     for f in [part_dir / "story.json", part_dir / "phrases.json", part_dir.parent / "series.json",
-              part_dir.parent.parent / "props.json", part_dir.parent.parent / "creatures.json", *PAGE_FILES]:
+              *(part_dir.parent.parent / f for f in LIBRARY_FILES), *PAGE_FILES]:
         h.update(f.name.encode() + b"\0" + (f.read_bytes() if f.exists() else b"<missing>") + b"\0")
     return h.hexdigest()
 

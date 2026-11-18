@@ -2,7 +2,8 @@
 // two grey stand-ins on the stage for scale. Not used by renders. One WebGL renderer is shared by every preview
 // (browsers cap live contexts); the picture is copied into the caller's 2D canvas.
 import * as THREE from "three";
-import { buildSet, setCustomSets } from "./world.js";
+import { setLibrary } from "./library.js";
+import { buildSet } from "./world.js";
 
 let gl = null;
 const grey = new THREE.MeshBasicMaterial({ color: 0x9a948a });
@@ -32,7 +33,7 @@ export function previewSet(out, name, custom) {
   camera.lookAt(0, 1.35, 0);
   const scene = new THREE.Scene();
   try {
-    setCustomSets(custom);
+    setLibrary({ sets: custom || [] });
     const set = buildSet(name, "preview");
     scene.add(set, standIn(-0.9), standIn(0.9));
     scene.background = set.userData.background;

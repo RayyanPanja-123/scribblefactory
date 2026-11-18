@@ -4,29 +4,8 @@
       "additionalProperties": false,
       "properties": {
         "action": {
-          "enum": [
-            "idle",
-            "walk",
-            "run",
-            "talk",
-            "point",
-            "react",
-            "wave",
-            "ride",
-            "stagger",
-            "lie",
-            "collapse",
-            "eat",
-            "give",
-            "receive",
-            "carry",
-            "carried",
-            "support",
-            "supported",
-            "cheer",
-            "angry",
-            "gasp"
-          ],
+          "description": "a built-in action (ACTIONS: idle, walk, run, talk, point, react, wave, ride, stagger, lie, collapse, eat, give, receive, carry, carried, support, supported, cheer, angry, gasp) or a custom one from library/actions.json",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
           "title": "Action",
           "type": "string"
         },

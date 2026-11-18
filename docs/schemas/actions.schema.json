@@ -1,0 +1,163 @@
+{
+  "$defs": {
+    "ActionKey": {
+      "additionalProperties": false,
+      "description": "one pose of a custom action. Angles in degrees on the stickman's front view: from straight down, + toward +x\n(screen right; the left arm hangs out at about -16, the right at +16)",
+      "properties": {
+        "arms": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "maxItems": 2,
+                  "minItems": 2,
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "type": "array"
+                },
+                {
+                  "maxItems": 2,
+                  "minItems": 2,
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "type": "array"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "[[upper arm, forearm bend] left, [upper arm, forearm bend] right]; none: at rest",
+          "title": "Arms"
+        },
+        "lean": {
+          "default": 0,
+          "description": "whole figure, about the feet; + leans toward +x",
+          "maximum": 30,
+          "minimum": -30,
+          "title": "Lean",
+          "type": "number"
+        },
+        "legs": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "[left, right] leg angles (rest -6, 6); the feet stay on the ground; none: at rest",
+          "title": "Legs"
+        },
+        "t": {
+          "description": "when, as a share of the action's duration",
+          "maximum": 1,
+          "minimum": 0,
+          "title": "T",
+          "type": "number"
+        }
+      },
+      "required": [
+        "t"
+      ],
+      "title": "ActionKey",
+      "type": "object"
+    },
+    "CustomAction": {
+      "additionalProperties": false,
+      "description": "an in-place move for humanoids (salute, bow, dance...): keyframes the engine blends between. @do <cast>:\n<id> plays it; other creatures stand idle through it.",
+      "properties": {
+        "duration": {
+          "description": "seconds for one pass through the keys",
+          "maximum": 10,
+          "minimum": 0.2,
+          "title": "Duration",
+          "type": "number"
+        },
+        "id": {
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "keys": {
+          "description": "in time order",
+          "items": {
+            "$ref": "#/$defs/ActionKey"
+          },
+          "maxItems": 40,
+          "minItems": 1,
+          "title": "Keys",
+          "type": "array"
+        },
+        "loop": {
+          "default": true,
+          "description": "repeat for the whole shot; false: play once and hold the last key",
+          "title": "Loop",
+          "type": "boolean"
+        },
+        "name": {
+          "maxLength": 40,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "duration",
+        "keys"
+      ],
+      "title": "CustomAction",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "actions": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/CustomAction"
+      },
+      "title": "Actions",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    }
+  },
+  "title": "ActionLibrary",
+  "type": "object"
+}

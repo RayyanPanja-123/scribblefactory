@@ -587,7 +587,7 @@ export interface components {
              * Rig
              * @enum {string}
              */
-            rig: "bird" | "quadruped" | "biped" | "crawler";
+            rig: "humanoid" | "bird" | "quadruped" | "biped" | "crawler";
         };
         /** BuiltinSet */
         BuiltinSet: {
@@ -634,8 +634,8 @@ export interface components {
             approved_at?: string | null;
             /**
              * Body
-             * @description stickman, or a creature id (built in or library/creatures.json): drawn in top.color ($main) and top.accent_color ($accent); eyes and mouth only, no costume
-             * @default stickman
+             * @description creature id (built in or library/creatures.json). human (default) and other humanoids are stickmen: face, expressions, costume. Other rigs are drawn in top.color ($main) and top.accent_color ($accent), eyes and mouth only, no costume
+             * @default human
              */
             body: string;
             /**
@@ -774,6 +774,8 @@ export interface components {
              * @default #3a2a1e
              */
             accent: string;
+            /** @description humanoid only: proportions and head colour */
+            build?: components["schemas"]["HumanoidBuild"] | null;
             /** @default {} */
             face: components["schemas"]["CreatureFace"];
             /**
@@ -783,7 +785,8 @@ export interface components {
             id: string;
             /**
              * Joints
-             * @description where each part attaches, ground space: hip, shoulder, neck, wing, tail
+             * @description where each part attaches, ground space: hip, shoulder, neck, wing, tail (not for a humanoid)
+             * @default {}
              */
             joints: {
                 [key: string]: [
@@ -795,17 +798,18 @@ export interface components {
             name: string;
             /**
              * Parts
-             * @description part -> shapes, drawn in order (later on top)
+             * @description part -> shapes, drawn in order (later on top; not for a humanoid)
+             * @default {}
              */
             parts: {
                 [key: string]: components["schemas"]["CreatureShape"][];
             };
             /**
              * Rig
-             * @description how it moves: bird, quadruped, biped (has hands), crawler
+             * @description how it moves: humanoid (a stickman: face, costume, hands), bird, quadruped, biped (has hands), crawler
              * @enum {string}
              */
-            rig: "bird" | "quadruped" | "biped" | "crawler";
+            rig: "humanoid" | "bird" | "quadruped" | "biped" | "crawler";
         };
         /** CustomProp */
         CustomProp: {
@@ -881,6 +885,48 @@ export interface components {
         Health: {
             /** Ok */
             ok: boolean;
+        };
+        /**
+         * HumanoidBuild
+         * @description a humanoid's proportions as factors of the stickman's (1 = the default human), and its head colour
+         */
+        HumanoidBuild: {
+            /**
+             * Arm
+             * @description arm length
+             * @default 1
+             */
+            arm: number;
+            /**
+             * Body H
+             * @description body height
+             * @default 1
+             */
+            body_h: number;
+            /**
+             * Body W
+             * @description body width
+             * @default 1
+             */
+            body_w: number;
+            /**
+             * Head
+             * @description head size
+             * @default 1
+             */
+            head: number;
+            /**
+             * Head Color
+             * @description head fill (skin)
+             * @default #ffffff
+             */
+            head_color: string;
+            /**
+             * Leg
+             * @description leg length
+             * @default 1
+             */
+            leg: number;
         };
         /** Job */
         Job: {

@@ -1,8 +1,9 @@
-// Non-human cast members ("creatures", series.json cast body = a creature id). A creature is a drawing (shapes in
-// the custom-prop format plus ellipse) hung on one of four built-in rigs, which animate it per action:
+// Cast bodies ("creatures", series.json cast body = a creature id, default "human"). A humanoid is the stickman
+// (stickman.js) with a build: proportions and head colour. Every other creature is a drawing (shapes in the
+// custom-prop format plus ellipse) hung on one of four built-in rigs, which animate it per action:
 //   bird      body, head, wing, leg (x2), tail?      chicken, duck, penguin, crow
 //   quadruped body, head, leg_front, leg_back (x2 each), tail?   cat, dog, horse, cow
-//   biped     body, head, arm (x2), leg (x2), tail?  monkey, bear, robot: the only rig with hands (props, give, carry)
+//   biped     body, head, arm (x2), leg (x2), tail?  monkey, bear, robot: with humanoids, the rigs with hands
 //   crawler   body, head?, tail?                     snake, worm, slug: the body ripples as it moves
 // Any rig may add a stump: drawn in place of the head when the cast member is headless.
 // Coordinates: canvas px, facing right, origin on the ground under the creature, y down (up is negative). The body
@@ -11,12 +12,14 @@
 // Drawn on a CRW x CH card (twice the stickman's width, same height and world scale), ground at (CRW/2, FEET_Y).
 // Pure function of its options, like drawStickman.
 import { Pen } from "./borrowed.js";
+import { lookup } from "./library.js";
 import { rng } from "./rng.js";
 import { CH, FEET_Y, drawProp, jitter, wobble } from "./stickman.js";
 
 export const CRW = 1024, GX = CRW / 2;
 const INK = "#1c1a1a", TAU = Math.PI * 2, deg = (d) => (d * Math.PI) / 180;
 export const RIGS = { // part -> required (keep equal to pipeline schemas RIG_PARTS)
+  humanoid: { parts: {}, hands: true }, // a stickman with a build: drawStickman, not drawCreature
   bird: { parts: { body: true, head: true, wing: true, leg: true, tail: false, stump: false }, hands: false },
   quadruped: { parts: { body: true, head: true, leg_front: true, leg_back: true, tail: false, stump: false }, hands: false },
   biped: { parts: { body: true, head: true, arm: true, leg: true, tail: false, stump: false }, hands: true },
@@ -41,6 +44,8 @@ const tube = (pts, w) => [L(pts, null, w + 10), L(pts, "$main", w)]; // a $main 
 const limb = (w, len, foot) => [P([[-w, 0], [w, 0], [w * 0.8, len], [-w * 0.8, len]], "$main", 8), ...foot];
 
 export const BUILTIN = [
+  // the default cast body: a humanoid is drawn by drawStickman (stickman.js) with its build, never by drawCreature
+  { id: "human", name: "Human", rig: "humanoid", accent: "#3a2a1e", joints: {}, face: {}, parts: {}, build: {} },
   { id: "chicken", name: "Chicken", rig: "bird", accent: "#d23c3c",
     joints: { hip: [0, -120], neck: [80, -240], wing: [40, -225], tail: [-120, -230] },
     face: { eye: [44, -132], mouth: [74, -112] },
@@ -103,10 +108,9 @@ export const BUILTIN = [
     } },
 ];
 
-// ---- registry: built-ins + library/creatures.json (set once per page, like setCustomProps) ----
-let ALL = new Map(BUILTIN.map((c) => [c.id, c]));
-export const setCustomCreatures = (list = []) => { ALL = new Map([...BUILTIN, ...list].map((c) => [c.id, c])); };
-export const creature = (id) => ALL.get(id) || null;
+// ---- a body by id: built in, else library/creatures.json through library.js (unknown: throws) ----
+const BUILT = new Map(BUILTIN.map((c) => [c.id, c]));
+export const creature = (id) => BUILT.get(id) ?? lookup("creatures", id);
 
 // ---- geometry of a creature at rest (cached per definition) ----
 const shapeY = (s) => (s.shape === "circle" || s.shape === "ellipse"

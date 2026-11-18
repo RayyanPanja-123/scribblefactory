@@ -9,8 +9,8 @@ import { refetchOn } from '../composables/live'
 import { useApi } from '../composables/useApi'
 import { RIG_NOTES, allCreatures, isBuiltinCreature } from '../lib/creatures'
 
-// Every body a non-human cast member can have: the engine's built-ins and the library's custom creatures, shared by
-// every series, with who uses each.
+// Every body a cast member can have (default human): the engine's built-ins and the library's custom creatures, shared
+// by every series, with who uses each.
 const { data, error, loading, reload, refresh } = useApi(async () => {
   const [catalog, list] = await Promise.all([api.creatures(), api.series()])
   return { catalog, series: await Promise.all(list.map((s) => api.seriesDetail(s.slug))) }
@@ -23,7 +23,7 @@ const users = computed(() => {
   const by: Record<string, { slug: string; title: string; name: string; color: string; headless: boolean }[]> = {}
   for (const d of data.value?.series ?? [])
     for (const c of d.series.cast)
-      if (c.body !== 'stickman') (by[c.body] ??= []).push({ slug: d.series.slug, title: d.series.title, name: c.name, color: c.top.color, headless: c.headless || Object.values(c.looks ?? {}).some((l) => l.headless) })
+      (by[c.body] ??= []).push({ slug: d.series.slug, title: d.series.title, name: c.name, color: c.top.color, headless: c.headless || Object.values(c.looks ?? {}).some((l) => l.headless) })
   return by
 })
 
@@ -40,15 +40,16 @@ async function remove(o: { id: string; name: string }) {
   <div v-else class="space-y-5">
     <div class="flex flex-wrap items-baseline gap-3">
       <h2 class="font-display text-2xl font-semibold">Creatures</h2>
-      <span class="text-sm text-muted">{{ creatures.length }} non-human bodies for cast members · {{ custom }} custom</span>
+      <span class="text-sm text-muted">{{ creatures.length }} bodies for cast members · {{ custom }} custom</span>
       <RouterLink to="/creatures/new#ai" class="btn btn-secondary ml-auto"><Sparkles :size="16" aria-hidden="true" /> Build with AI</RouterLink>
       <RouterLink to="/creatures/new" class="btn btn-primary"><Plus :size="16" aria-hidden="true" /> New creature</RouterLink>
     </div>
     <p class="text-sm text-muted">
-      A cast member becomes a creature with <code>"body": "cat"</code> in its cast entry (or the Body choice when you
-      create a series), drawn in its top colour and accent colour. <code>"headless": true</code> swaps the head for a
-      stump. Creatures have eyes and a mouth only, and only bipeds have hands. Changing a creature’s drawing clears the
-      cast approval of everyone using it.
+      Every cast member has a body: <code>"body": "cat"</code> in its cast entry (or the Body choice when you create a
+      series), <code>human</code> when it says none. Humanoids are stickmen with their own proportions and head colour:
+      face, expressions, costume and hands. Every other creature is drawn in the top colour and accent colour, with eyes
+      and a mouth only; <code>"headless": true</code> swaps its head for a stump, and bipeds have hands. Changing a
+      creature clears the cast approval of everyone using it.
     </p>
     <!-- the creatures sheet: one ruled row per body -->
     <div class="raised overflow-x-auto">

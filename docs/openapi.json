@@ -122,6 +122,7 @@
           },
           "rig": {
             "enum": [
+              "humanoid",
               "bird",
               "quadruped",
               "biped",
@@ -290,8 +291,8 @@
             "title": "Approved At"
           },
           "body": {
-            "default": "stickman",
-            "description": "stickman, or a creature id (built in or library/creatures.json): drawn in top.color ($main) and top.accent_color ($accent); eyes and mouth only, no costume",
+            "default": "human",
+            "description": "creature id (built in or library/creatures.json). human (default) and other humanoids are stickmen: face, expressions, costume. Other rigs are drawn in top.color ($main) and top.accent_color ($accent), eyes and mouth only, no costume",
             "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
             "title": "Body",
             "type": "string"
@@ -580,6 +581,17 @@
             "title": "Accent",
             "type": "string"
           },
+          "build": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HumanoidBuild"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "humanoid only: proportions and head colour"
+          },
           "face": {
             "$ref": "#/components/schemas/CreatureFace",
             "default": {}
@@ -604,7 +616,8 @@
               ],
               "type": "array"
             },
-            "description": "where each part attaches, ground space: hip, shoulder, neck, wing, tail",
+            "default": {},
+            "description": "where each part attaches, ground space: hip, shoulder, neck, wing, tail (not for a humanoid)",
             "title": "Joints",
             "type": "object"
           },
@@ -621,13 +634,15 @@
               },
               "type": "array"
             },
-            "description": "part -> shapes, drawn in order (later on top)",
+            "default": {},
+            "description": "part -> shapes, drawn in order (later on top; not for a humanoid)",
             "title": "Parts",
             "type": "object"
           },
           "rig": {
-            "description": "how it moves: bird, quadruped, biped (has hands), crawler",
+            "description": "how it moves: humanoid (a stickman: face, costume, hands), bird, quadruped, biped (has hands), crawler",
             "enum": [
+              "humanoid",
               "bird",
               "quadruped",
               "biped",
@@ -640,9 +655,7 @@
         "required": [
           "id",
           "name",
-          "rig",
-          "joints",
-          "parts"
+          "rig"
         ],
         "title": "CustomCreature",
         "type": "object"
@@ -819,6 +832,61 @@
           "ok"
         ],
         "title": "Health",
+        "type": "object"
+      },
+      "HumanoidBuild": {
+        "additionalProperties": false,
+        "description": "a humanoid's proportions as factors of the stickman's (1 = the default human), and its head colour",
+        "properties": {
+          "arm": {
+            "default": 1,
+            "description": "arm length",
+            "maximum": 1.3,
+            "minimum": 0.7,
+            "title": "Arm",
+            "type": "number"
+          },
+          "body_h": {
+            "default": 1,
+            "description": "body height",
+            "maximum": 1.3,
+            "minimum": 0.7,
+            "title": "Body H",
+            "type": "number"
+          },
+          "body_w": {
+            "default": 1,
+            "description": "body width",
+            "maximum": 1.3,
+            "minimum": 0.7,
+            "title": "Body W",
+            "type": "number"
+          },
+          "head": {
+            "default": 1,
+            "description": "head size",
+            "maximum": 1.3,
+            "minimum": 0.7,
+            "title": "Head",
+            "type": "number"
+          },
+          "head_color": {
+            "default": "#ffffff",
+            "description": "head fill (skin)",
+            "pattern": "^#[0-9a-fA-F]{6}$",
+            "title": "Head Color",
+            "type": "string"
+          },
+          "leg": {
+            "default": 1,
+            "description": "leg length",
+            "maximum": 1.3,
+            "minimum": 0.7,
+            "title": "Leg",
+            "type": "number"
+          }
+        },
+        "title": "HumanoidBuild",
         "type": "object"
       },
       "Job": {

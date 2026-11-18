@@ -8,12 +8,12 @@ import ErrorCard from '../components/ErrorCard.vue'
 import { act, confirm, toast } from '../composables/feedback'
 import { useApi } from '../composables/useApi'
 import { useAutoAi } from '../composables/autoAi'
-import { RIG_LIST, RIG_NOTES, allCreatures, buildCreaturePrompt, builtinCreatures, importCreature, isBuiltinCreature,
+import { DEFAULT_BUILD, DRAWN_RIGS, RIG_LIST, RIG_NOTES, allCreatures, buildCreaturePrompt, builtinCreatures, importCreature, isBuiltinCreature,
   rigParts, type CustomCreature, type Rig } from '../lib/creatures'
 
 // Create (/creatures/new, ?from=<id> copies one) or edit one custom creature: rig, colours and the drawing as JSON
-// (joints, face, parts), previewed live in every pose by the engine's own drawing code. The server (schema
-// CustomCreature) has the final say on every field.
+// (joints, face, parts), or for a humanoid (a stickman) its build: proportions and head colour. Previewed live in
+// every pose by the engine's own drawing code. The server (schema CustomCreature) has the final say on every field.
 const props = defineProps<{ id: string }>()
 const route = useRoute()
 const router = useRouter()
@@ -24,9 +24,10 @@ const slugify = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0
 // one shape per line, points as [x, y]
 const drawingOf = (c: CustomCreature) => JSON.stringify({ joints: c.joints, face: c.face, parts: c.parts }, null, 2)
   .replace(/\[\s+(-?[\d.]+),\s+(-?[\d.]+)\s+\]/g, '[$1, $2]')
-const form = reactive({ id: '', name: '', idEdited: false, rig: 'bird' as Rig, accent: '#3a2a1e', drawing: '' })
+const form = reactive({ id: '', name: '', idEdited: false, rig: 'bird' as Rig, accent: '#3a2a1e', drawing: '', build: { ...DEFAULT_BUILD } })
 const load = (c: CustomCreature, keepId = false) => Object.assign(form, {
-  ...(keepId ? {} : { id: c.id, idEdited: true }), name: c.name, rig: c.rig, accent: c.accent ?? '#3a2a1e', drawing: drawingOf(c) })
+  ...(keepId ? {} : { id: c.id, idEdited: true }), name: c.name, rig: c.rig, accent: c.accent ?? '#3a2a1e', drawing: drawingOf(c),
+  build: { ...DEFAULT_BUILD, ...(c.build ?? {}) } })
 
 watch(data, (cat) => {
   if (!cat) return
@@ -35,15 +36,17 @@ watch(data, (cat) => {
     if (c) load(c)
     return
   }
-  const from = allCreatures(cat).find((x) => x.id === route.query.from) ?? builtinCreatures[0]
+  const from = allCreatures(cat).find((x) => x.id === route.query.from) ?? builtinCreatures.find((x) => x.rig !== 'humanoid')!
   load(from, true)
   Object.assign(form, { id: '', idEdited: false, name: route.query.from ? `${from.name} copy` : '' })
 }, { immediate: true })
 const missing = computed(() => !isNew.value && data.value && !data.value.custom.some((x) => x.id === props.id))
 watch(() => form.name, (n) => { if (isNew.value && !form.idEdited) form.id = slugify(n) })
 
-/** the drawing JSON -> joints / face / parts, or an error */
+const humanoid = computed(() => form.rig === 'humanoid')
+/** the drawing JSON -> joints / face / parts, or an error. A humanoid has none: it is a stickman with a build */
 const parsed = computed<{ value?: Pick<CustomCreature, 'joints' | 'face' | 'parts'>; err?: string }>(() => {
+  if (humanoid.value) return { value: { joints: {}, face: {}, parts: {} } }
   try {
     const j = JSON.parse(form.drawing)
     if (!j || typeof j !== 'object' || !j.parts?.body) return { err: 'needs "parts" with at least "body"' }
@@ -58,13 +61,16 @@ const parsed = computed<{ value?: Pick<CustomCreature, 'joints' | 'face' | 'part
   }
 })
 const draft = computed<CustomCreature | null>(() => parsed.value.value
-  ? { id: form.id || 'draft', name: form.name, rig: form.rig, accent: form.accent, ...parsed.value.value } : null)
+  ? { id: form.id || 'draft', name: form.name, rig: form.rig, accent: form.accent, ...parsed.value.value,
+      ...(humanoid.value ? { build: { ...form.build } } : {}) } : null)
 const taken = computed(() => isBuiltinCreature(form.id) || form.id === 'stickman' || (isNew.value && data.value?.custom.some((c) => c.id === form.id)))
 const valid = computed(() => form.name.trim() && /^[a-z0-9]+(-[a-z0-9]+)*$/.test(form.id) && !taken.value && draft.value)
 
 const POSES = ['idle', 'walk', 'run', 'talk', 'eat', 'cheer', 'stagger', 'lie']
-// a biped lies down like a stickman: the renderer tips the whole card over, so there is no lying drawing to preview
-const poses = computed(() => (form.rig === 'biped' ? POSES.filter((a) => a !== 'lie') : POSES))
+// a biped or humanoid lies down like a stickman: the renderer tips the whole card over, so there is no lying drawing
+const poses = computed(() => (form.rig === 'biped' || humanoid.value ? POSES.filter((a) => a !== 'lie') : POSES))
+const BUILD_SLIDERS = [['head', 'Head size'], ['body_w', 'Body width'], ['body_h', 'Body height'], ['leg', 'Leg length'],
+  ['arm', 'Arm length']] as const
 const color = ref('#c98a4b')
 
 const saving = ref(false)
@@ -145,12 +151,12 @@ const field = 'inset mt-1 block h-10 w-full rounded-md px-4 text-sm text-ink out
       <div class="min-w-0 space-y-5">
         <div class="flex flex-wrap items-center gap-3">
           <h2 class="font-display text-3xl font-semibold">{{ isNew ? 'New creature' : form.name || id }}</h2>
-          <button type="button" class="btn btn-secondary ml-auto" :aria-expanded="aiOpen" aria-controls="ai-build" @click="aiOpen = !aiOpen">
+          <button v-if="!humanoid" type="button" class="btn btn-secondary ml-auto" :aria-expanded="aiOpen" aria-controls="ai-build" @click="aiOpen = !aiOpen">
             <Sparkles :size="16" aria-hidden="true" /> Build with AI
           </button>
         </div>
 
-        <section v-if="aiOpen" id="ai-build" class="inset rounded-md p-4" aria-label="Build with AI">
+        <section v-if="aiOpen && !humanoid" id="ai-build" class="inset rounded-md p-4" aria-label="Build with AI">
           <p class="pb-4 text-xs text-muted">Three steps. The result loads into this editor, so you check every pose before saving.</p>
           <ol class="divide-y divide-rule">
             <li class="flex gap-3 pb-5">
@@ -164,7 +170,7 @@ const field = 'inset mt-1 block h-10 w-full rounded-md px-4 text-sm text-ink out
                   </label>
                   <label class="block text-sm font-semibold" for="ai-rig">Rig
                     <select id="ai-rig" v-model="aiRig" :class="field">
-                      <option v-for="r in RIG_LIST" :key="r" :value="r">{{ r }}</option>
+                      <option v-for="r in DRAWN_RIGS" :key="r" :value="r">{{ r }}</option>
                     </select>
                   </label>
                 </div>
@@ -237,19 +243,33 @@ const field = 'inset mt-1 block h-10 w-full rounded-md px-4 text-sm text-ink out
             </select>
             <span class="mt-1 block font-normal">{{ RIG_NOTES[form.rig] }}</span>
           </label>
-          <label class="block text-xs font-semibold text-muted">Accent colour ($accent when the cast member has none)
+          <label v-if="humanoid" class="block text-xs font-semibold text-muted">Head colour (skin)
+            <input v-model="form.build.head_color" type="color" class="mt-1 block h-11 w-20 cursor-pointer rounded-md" />
+          </label>
+          <label v-else class="block text-xs font-semibold text-muted">Accent colour ($accent when the cast member has none)
             <input v-model="form.accent" type="color" class="mt-1 block h-11 w-20 cursor-pointer rounded-md" />
           </label>
         </div>
 
-        <label class="block text-xs font-semibold text-muted" for="drawing">Drawing: joints, face and parts (JSON)
-          <textarea id="drawing" v-model="form.drawing" rows="22" spellcheck="false" :aria-invalid="!!parsed.err"
-            class="inset mt-1 block w-full resize-y rounded-md p-4 font-mono text-xs leading-5 text-ink outline-none focus:border-blue" />
-        </label>
-        <p v-if="parsed.err" class="text-sm text-red-ink" role="alert">{{ parsed.err }}</p>
-        <p class="text-xs text-muted">Side view facing right, y down, the ground at y 0. The body is drawn around the ground
-          point; every other part around its joint, at rest (legs hang down to the ground). Fills: <code>$main</code>,
-          <code>$accent</code>, or a fixed colour. Easiest: Build with AI, or copy a built-in from the Creatures page.</p>
+        <fieldset v-if="humanoid" class="grid gap-4 sm:grid-cols-2">
+          <legend class="mb-2 text-xs font-semibold text-muted">Build: proportions of the default human (1×)</legend>
+          <label v-for="[k, label] in BUILD_SLIDERS" :key="k" class="block text-xs font-semibold text-muted">
+            <span class="flex justify-between">{{ label }} <span class="font-mono font-normal">{{ form.build[k].toFixed(2) }}×</span></span>
+            <input v-model.number="form.build[k]" type="range" min="0.7" max="1.3" step="0.05" class="mt-2 block w-full" />
+          </label>
+          <p class="text-xs text-muted sm:col-span-2">A humanoid is a stickman: the cast entry's top, headwear, legwear,
+            props, eyes and expressions all apply. A build taller than the card is drawn a little smaller to fit.</p>
+        </fieldset>
+        <template v-else>
+          <label class="block text-xs font-semibold text-muted" for="drawing">Drawing: joints, face and parts (JSON)
+            <textarea id="drawing" v-model="form.drawing" rows="22" spellcheck="false" :aria-invalid="!!parsed.err"
+              class="inset mt-1 block w-full resize-y rounded-md p-4 font-mono text-xs leading-5 text-ink outline-none focus:border-blue" />
+          </label>
+          <p v-if="parsed.err" class="text-sm text-red-ink" role="alert">{{ parsed.err }}</p>
+          <p class="text-xs text-muted">Side view facing right, y down, the ground at y 0. The body is drawn around the ground
+            point; every other part around its joint, at rest (legs hang down to the ground). Fills: <code>$main</code>,
+            <code>$accent</code>, or a fixed colour. Easiest: Build with AI, or copy a built-in from the Creatures page.</p>
+        </template>
 
         <div class="flex flex-wrap justify-end gap-2">
           <button v-if="!isNew" type="button" class="btn btn-secondary mr-auto text-red-ink" @click="remove"><Trash2 :size="16" aria-hidden="true" /> Delete</button>

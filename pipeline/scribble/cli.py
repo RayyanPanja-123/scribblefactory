@@ -109,8 +109,8 @@ def cmd_cast_edit(args) -> int:
         data["props"] = parse_props(args.props)
     if args.headless is not None:
         data["headless"] = args.headless == "yes"
-    if args.body == "stickman" and args.headless is None:
-        data["headless"] = False  # back to a person: put the head back on
+    if args.body and args.headless is None:
+        data["headless"] = False  # a new body starts with its head on (the new one may have no stump)
     new = CastMember.model_validate(data)  # validates colours, kinds, number
     if problems := cast_body_problems([new], library_root(args)):
         raise UserError(problems[0])
@@ -589,7 +589,7 @@ def build_parser() -> Parser:
     c.add_argument("--name", required=True)
     c.add_argument("--color", required=True, help="outfit colour #rrggbb")
     c.add_argument("--eyes", choices=["dots", "half_closed"], default="dots")
-    c.add_argument("--body", default="stickman", help="stickman or a creature id (built in or library/creatures.json)")
+    c.add_argument("--body", default="human", help="creature id (built in or library/creatures.json); human: the stickman")
     c.add_argument("--headless", choices=["yes", "no"], default="no", help="creatures with a stump: no head")
     c.set_defaults(func=cmd_cast_add)
 
@@ -609,7 +609,7 @@ def build_parser() -> Parser:
                                     'library/props.json), e.g. "clipboard:right,stopwatch:left", or none')
     c.add_argument("--default-expression", choices=list(get_args(Expression)))
     c.add_argument("--eyes", choices=["dots", "half_closed"])
-    c.add_argument("--body", help="stickman or a creature id (built in or library/creatures.json); colour = $main")
+    c.add_argument("--body", help="creature id (built in or library/creatures.json); human: the stickman")
     c.add_argument("--headless", choices=["yes", "no"], help="creatures with a stump: no head")
     c.set_defaults(func=cmd_cast_edit)
 

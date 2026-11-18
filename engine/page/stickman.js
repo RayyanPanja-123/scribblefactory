@@ -2,6 +2,7 @@
 // Pure function of its options: same options -> same pixels. Facing "right" is the base drawing;
 // "left" is the same drawing mirrored; "camera" looks straight out.
 import { Pen, ellPts } from "./borrowed.js";
+import { lookup } from "./library.js";
 import { rng } from "./rng.js";
 
 export const CW = 512, CH = 1024, FEET_Y = 1000;
@@ -50,13 +51,28 @@ const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 // reaches past the head outline on both sides; nothing rises more than HAT_TOP above the head centre
 export const HAT_BRIM = 88, HAT_TOP = 192;
 
-/** Tallest standing figure, feet to the highest point the head outline or any headwear can reach (full breath,
- *  word bob, max wobble), in canvas px. main.js turns it into world units for framing; derived from the drawing's constants. */
-export const FIGURE_PX = (() => {
-  const hip = FEET_Y - LEG * Math.cos(deg(IDLE_LEG)), ry = BODY_RY * (1 + BREATH);
-  const headCy = hip - BOB_PX + HIP_OVERLAP - 2 * ry - HEAD_R + NECK_OVERLAP; // stressed-word bob lifts it too
-  return FEET_Y - (headCy - Math.max(HEAD_R * HEAD_SQUASH * (1 + LUMP * LUMP_SUM + JIT), HAT_TOP));
-})();
+// A humanoid creature's build (creatures.json rig "humanoid", schema HumanoidBuild): factors of the default human's
+// proportions, and its head colour. {} / undefined is the default human.
+const DEFAULT_BUILD = { head: 1, body_w: 1, body_h: 1, leg: 1, arm: 1, head_color: "#ffffff" };
+/** canvas px sizes of a build (before fitting the card) */
+export function sizes(build) {
+  const b = { ...DEFAULT_BUILD, ...build };
+  return { b, head: b.head, headR: HEAD_R * b.head, rx: BODY_RX * b.body_w, ry: BODY_RY * b.body_h, leg: LEG * b.leg,
+    arm: ARM * b.arm, sh: 66 * b.body_w };
+}
+const tallest = (S) => { // feet to the highest point the head or any headwear can reach (full breath, bob, max wobble)
+  const hip = FEET_Y - S.leg * Math.cos(deg(IDLE_LEG)), ry = S.ry * (1 + BREATH);
+  const headCy = hip - BOB_PX + HIP_OVERLAP - 2 * ry - S.headR + NECK_OVERLAP * S.head;
+  return FEET_Y - (headCy - S.head * Math.max(HEAD_R * HEAD_SQUASH * (1 + LUMP * LUMP_SUM + JIT), HAT_TOP));
+};
+const CARD_TOP = FEET_Y - 8; // a build taller than this is drawn smaller (scaled about the feet) to fit the card
+/** scale a build is drawn at to fit the card (1 for every build up to the card height) */
+export const fitOf = (build) => Math.min(1, CARD_TOP / tallest(sizes(build)));
+/** Tallest standing figure of a build in canvas px, fitted to the card. main.js turns it into world units for framing. */
+export const figurePx = (build) => tallest(sizes(build)) * fitOf(build);
+export const FIGURE_PX = figurePx();
+/** standing hip height on the card (canvas px), fitted: car.js seats riders by it */
+export const hipPx = (build) => FEET_Y - sizes(build).leg * Math.cos(deg(IDLE_LEG)) * fitOf(build);
 
 // brows per expression: [outer dy, inner dy, arch] (negative = up)
 const BROWS = {
@@ -94,6 +110,7 @@ const quad = (a, c, b, n = 10) => Array.from({ length: n + 1 }, (_, i) => {
  *  feet when drawing). legs: [[hip, foot] x2], arms: [[shoulder, elbow, hand] left (-x), right (+x)], fore: forearm
  *  angles, head: [hx, hy]. */
 export function skeleton(o) {
+  const S = sizes(o.build), LEG = S.leg, ARM = S.arm;
   const act = o.action, moving = GAITS.has(act), run = act === "run";
   const st = o.stagger || { sway: 0, buckle: 0 }; // stagger / supported: sideways sway and knee dips
   let lean = run ? deg(9) : act === "react" ? deg(-6) : act === "walk" || act === "carry" || act === "support" ? deg(3) : 0;
@@ -103,18 +120,22 @@ export function skeleton(o) {
   const s = Math.sin(TAU * (o.phase || 0));
   const swing = run ? 34 : act === "carried" ? 30 : LOOSE.has(act) ? 18 : 24;
   const A = moving ? deg(swing) * s : deg(IDLE_LEG), B = deg(BUCKLE) * Math.min(1, (o.buckle || 0) + st.buckle);
-  const legA = [-A - B, A + B];
+  const C = o.custom; // a custom action's pose (actions.js customPose): degrees, + toward +x
+  const legA = C ? C.legs.map(deg) : [-A - B, A + B];
+  if (C) lean = deg(C.lean);
   const hipBase = FEET_Y - LEG * Math.max(Math.cos(legA[0]), Math.cos(legA[1])), hipY = hipBase - BOB_PX * (o.bob || 0);
   const legs = [[-18, legA[0]], [18, legA[1]]].map(([dx, a]) => [[CW / 2 + dx, hipY], at([CW / 2 + dx, hipBase], a, LEG)]);
   // body: breathing scales its height from the hips up
-  const ry = BODY_RY * (1 + BREATH * (o.breath || 0)), cy = hipY + HIP_OVERLAP - ry, top = cy - ry;
+  const ry = S.ry * (1 + BREATH * (o.breath || 0)), cy = hipY + HIP_OVERLAP - ry, top = cy - ry;
 
   // arms (screen angles from straight down, + toward +x)
   let lift = 0, aL = deg(-ARM_REST), aR = deg(ARM_REST), bendL = 0, bendR = 0;
   const arm = (side, a, bend, k = 1) => { // blend one arm (side -1 left, +1 right) toward angle a / bend (radians)
     if (side > 0) { aR += (a - aR) * k; bendR += (bend - bendR) * k; } else { aL += (a - aL) * k; bendL += (bend - bendL) * k; }
   };
-  if (LOOSE.has(act)) { // loose arms, swinging out of step with each other
+  if (C) {
+    [[aL, bendL], [aR, bendR]] = C.arms.map((arm) => arm.map(deg));
+  } else if (LOOSE.has(act)) { // loose arms, swinging out of step with each other
     const ph = TAU * 0.5 * (o.phase || 0);
     aL = deg(-24) + deg(16) * Math.sin(ph + 1) + deg(10) * st.sway; bendL = deg(-20);
     aR = deg(24) + deg(16) * Math.sin(ph + 2.4) + deg(10) * st.sway; bendR = deg(20);
@@ -170,18 +191,18 @@ export function skeleton(o) {
     if (pr.hand === "left") { aL = -HOLD[0]; bendL = -HOLD[1]; } else if (o.action !== "wave") { aR = HOLD[0]; bendR = HOLD[1]; }
   }
   const sh = top + 58 - lift;
-  const arms = [[[CW / 2 - 66, sh], aL, bendL], [[CW / 2 + 66, sh], aR, bendR]].map(([shp, a, bend]) => {
+  const arms = [[[CW / 2 - S.sh, sh], aL, bendL], [[CW / 2 + S.sh, sh], aR, bendR]].map(([shp, a, bend]) => {
     const elbow = at(shp, a, ARM * 0.52);
     return [shp, elbow, at(elbow, a + bend, ARM * 0.48)];
   });
-  const head = [CW / 2 + (o.action === "react" ? -10 : 0), top - HEAD_R + NECK_OVERLAP];
+  const hs = S.head, head = [CW / 2 + (o.action === "react" ? -10 : 0), top - S.headR + NECK_OVERLAP * hs];
   // eat: the prop hand comes up to the mouth (two-joint reach); gasp: both hands to the cheeks. Those arms are drawn
   // over the head (late).
   const late = [];
   if (act === "gasp") {
     const tremble = 4 * (o.mood ? o.mood.shake : 0);
     for (const i of [0, 1]) {
-      const side = i ? 1 : -1, [up, bend] = reachFor(arms[i][0], [head[0] + side * 78, head[1] + 52 + tremble], side);
+      const side = i ? 1 : -1, [up, bend] = reachFor(arms[i][0], [head[0] + side * 78 * hs, head[1] + 52 * hs + tremble], side, ARM);
       const elbow = at(arms[i][0], up, ARM * 0.52);
       arms[i] = [arms[i][0], elbow, at(elbow, up + bend, ARM * 0.48)];
       if (i) { aR = up; bendR = bend; } else { aL = up; bendL = bend; }
@@ -190,20 +211,20 @@ export function skeleton(o) {
   }
   if (act === "eat" && o.eat && o.eat.k > 0) {
     const side = o.eat.side ?? 1, i = side > 0 ? 1 : 0, look = o.facing === "camera" ? 0 : 1;
-    const target = [head[0] + 30 * look + (look ? 18 : 30 * side), head[1] + 104];
-    const [up, bend] = reachFor(arms[i][0], target, side);
+    const target = [head[0] + hs * (30 * look + (look ? 18 : 30 * side)), head[1] + 104 * hs];
+    const [up, bend] = reachFor(arms[i][0], target, side, ARM);
     const a0 = i ? aR : aL, b0 = i ? bendR : bendL, ua = a0 + wrap(up - a0) * o.eat.k, ub = b0 + wrap(bend - b0) * o.eat.k;
     const elbow = at(arms[i][0], ua, ARM * 0.52);
     arms[i] = [arms[i][0], elbow, at(elbow, ua + ub, ARM * 0.48)];
     if (i) { aR = ua; bendR = ub; } else { aL = ua; bendL = ub; }
     if (o.eat.k > 0.2) late.push(i);
   }
-  return { lean, legs, hipY, cy, ry, top, arms, fore: [aL + bendL, aR + bendR], head, late };
+  return { lean, legs, hipY, cy, ry, top, arms, fore: [aL + bendL, aR + bendR], head, late, size: S };
 }
 
 /** two-joint reach: upper arm angle and forearm bend (radians, from straight down, + toward +x) that put the hand of
  *  an arm from shoulder s on t (or as close as the arm reaches); the elbow points out to the arm's own side */
-export function reachFor(s, t, side) {
+export function reachFor(s, t, side, ARM = sizes().arm) {
   const L1 = ARM * 0.52, L2 = ARM * 0.48, dx = t[0] - s[0], dy = t[1] - s[1];
   const d = Math.max(1, Math.min(Math.hypot(dx, dy), L1 + L2 - 1)), base = Math.atan2(dx, dy);
   const al = Math.acos(Math.min(1, Math.max(-1, (L1 * L1 + d * d - L2 * L2) / (2 * L1 * d))));
@@ -232,16 +253,16 @@ export function drawStickman(canvas, o) {
   const boil = rng(o.seed, "boil", o.boil);
   const cos = rng(o.seed, "costume", o.boil); // costume jitter: its own stream, so a plain figure draws as before
   const look = o.facing === "camera" ? 0 : 1;
-  const k = skeleton(o);
+  const k = skeleton(o), S = k.size, fit = fitOf(o.build);
 
-  // whole-figure lean about the feet
-  g.translate(CW / 2, FEET_Y); g.rotate(k.lean); g.translate(-CW / 2, -FEET_Y);
+  // a build taller than the card shrinks to fit; whole-figure lean, both about the feet
+  g.translate(CW / 2, FEET_Y); if (fit !== 1) g.scale(fit, fit); g.rotate(k.lean); g.translate(-CW / 2, -FEET_Y);
 
   for (const leg of k.legs) p.stroke(jitter(leg, boil), 10);
   if (o.legwear && o.legwear.kind !== "none") legwear(p, cos, o.legwear, k.legs);
 
   // body: flat outfit-colour blob (covers the top of the legwear)
-  const body = wobble(CW / 2, k.cy, BODY_RX, k.ry, rng(o.seed, "body"), boil), bw = 12 + boil();
+  const body = wobble(CW / 2, k.cy, S.rx, k.ry, rng(o.seed, "body"), boil), bw = 12 + boil();
   const top = o.top || { style: "plain" };
   p.poly(body, top.color || o.color, bw);
   if (top.style !== "plain" || top.number) {
@@ -264,11 +285,16 @@ export function drawStickman(canvas, o) {
   k.arms.forEach((a, i) => { if (!k.late.includes(i)) drawArm(a, i); });
 
   // head last: wobbly white circle, thick outline, sits on the body (raised arms go behind it)
+  // the head, face and headwear are drawn at the default size, scaled about the head centre by the build (only when
+  // it differs: the extra translate pair alone shifts a leaning figure by float rounding)
   const [hx, hy] = k.head;
+  g.save();
+  if (S.head !== 1) { g.translate(hx, hy); g.scale(S.head, S.head); g.translate(-hx, -hy); }
   const headPts = wobble(hx, hy, HEAD_R, HEAD_R * HEAD_SQUASH, rng(o.seed, "head"), boil);
-  p.poly(headPts, "#ffffff", 14 + boil() * 1.5);
+  p.poly(headPts, S.b.head_color, 14 + boil() * 1.5);
   face(p, boil, o, hx + 26 * look, hy, look);
   if (o.headwear && o.headwear.kind !== "none") headwear(p, cos, o.headwear, headPts, hx, hy, look, top.accent_color);
+  g.restore();
   for (const i of k.late) drawArm(k.arms[i], i); // eating / gasping: the hands come up in front of the face
   if (o.zzz != null) zzz(p, g, boil, o, hx, hy);
 }
@@ -340,7 +366,7 @@ function topDetails(p, cos, top, k) {
 /** dress: a flared skirt from the waist (over the fitted top's lower half: the seam reads as a waistline) to the
  *  knee, scalloped hem; stick legs show below it. Walking swings the hem with the stride. */
 export function skirt(p, cos, color, k, o) {
-  const x = CW / 2, waist = k.cy + k.ry * 0.25, hem = k.hipY + LEG * 0.5, wx = BODY_RX * 0.86, hw = BODY_RX * 1.45;
+  const S = k.size || sizes(), x = CW / 2, waist = k.cy + k.ry * 0.25, hem = k.hipY + S.leg * 0.5, wx = S.rx * 0.86, hw = S.rx * 1.45;
   const sway = GAITS.has(o.action) && o.action !== "carried" ? 14 * Math.sin(TAU * (o.phase || 0)) : 3 * (o.breath || 0);
   const pts = [[x - wx, waist], [x + wx, waist]];
   for (let j = 0; j <= 6; j++) pts.push([x + hw + sway - (j * 2 * hw) / 6, hem + (j % 2 ? 12 : 0)]);
@@ -378,9 +404,7 @@ function chestNumber(p, cos, num, k, flip) {
   });
 }
 
-// custom props from library/props.json: id -> shapes (schema PropShape), set once per page by setCustomProps
-let CUSTOM = new Map();
-export const setCustomProps = (list = []) => { CUSTOM = new Map(list.map((c) => [c.id, c.shapes])); };
+// custom props: library/props.json (schema CustomProp: shapes in hand space) through library.js
 const BUILTIN = new Set(["clipboard", "stopwatch", "bottle", "syringe", "apple", "medal"]);
 
 /** prop in a hand: local shapes (hand at 0,0, y down, x away from the body) turned partly with the forearm */
@@ -390,9 +414,7 @@ export function drawProp(p, cos, kind, hand, fore, side) {
   const poly = (pts, fill, w = OL) => p.poly(T(pts), fill, w), line = (pts, w) => p.stroke(T(pts), w);
   const circ = (x, y, r) => ellPts(x, y, r, r, 0, 360, 0, 20);
   if (!BUILTIN.has(kind)) {
-    const shapes = CUSTOM.get(kind);
-    if (!shapes) throw new Error(`unknown prop "${kind}": not built in and not in library/props.json`);
-    for (const s of shapes) {
+    for (const s of lookup("props", kind).shapes) {
       if (s.shape === "line") { line(s.pts, s.width ?? OL); continue; }
       const [[x0, y0], [x1, y1] = [0, 0]] = s.pts;
       const pts = s.shape === "rect" ? rect(x0, y0, x1, y1) : s.shape === "circle" ? circ(x0, y0, s.r) : s.pts;

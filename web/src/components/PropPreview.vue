@@ -3,7 +3,9 @@
 // exactly what renders. The upper body only: the canvas is cropped to where hands and props are.
 import { onMounted, ref, watch } from 'vue'
 // @ts-expect-error plain JS module from the engine, no types
-import { drawStickman, setCustomProps } from '../../../engine/page/stickman.js'
+import { drawStickman } from '../../../engine/page/stickman.js'
+// @ts-expect-error plain JS module from the engine, no types
+import { setLibrary } from '../../../engine/page/library.js'
 import type { CustomProp, Hand } from '../lib/props'
 
 const p = defineProps<{ kind: string; custom: CustomProp[]; hand?: Hand; color?: string; label: string }>()
@@ -18,7 +20,7 @@ function draw() {
   fig.width = 512
   fig.height = 1024
   try {
-    setCustomProps(p.custom)
+    setLibrary({ props: p.custom })
     drawStickman(fig, {
       seed: 'preview:prop', boil: 0, color: p.color ?? '#3a7bd5', eyes: 'dots', expression: 'happy', action: 'idle',
       phase: 0, lid: 0, mouth: 0, breath: 0, facing: 'camera', t: 0, props: [{ kind: p.kind, hand: p.hand ?? 'right' }],

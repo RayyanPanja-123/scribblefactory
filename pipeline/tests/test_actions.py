@@ -1,11 +1,16 @@
 """Step 5c-6: stagger, lie, collapse, eat, give / receive, carry / carried, support / supported, the broken car, and the
 @do directive: planner output, validator rules, parse errors with story.md line numbers, prep leaves the script alone."""
 
+import json
+import subprocess
+from pathlib import Path
+
 import pytest
 
-from pipeline.scribble.io import save_part
-from pipeline.scribble.schemas import PartModel, SeriesModel, StoryModel
-from pipeline.scribble.stages import prep
+from pipeline.scribble.io import save_part, unknown_actions
+from pipeline.scribble.schemas import (ACTIONS, ActionLibrary, CustomAction, PartModel, SeriesModel, StoryModel,
+                                       actions_with)
+from pipeline.scribble.stages import prep, shots
 from pipeline.scribble.stages.prep import clean_markdown, strip_directives
 from pipeline.scribble.stages.runner import StageError, run_stage
 from pipeline.scribble.validate import STAGGER_SPEED, validate
@@ -20,6 +25,7 @@ SERIES = SeriesModel.model_validate({
              for c in ("fred", "amy", "tom", "sue")],
 })
 IDS = {c.id for c in SERIES.cast}
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def planned(md, word_s=0.4):
@@ -263,6 +269,47 @@ def test_schema_accepts_new_actions():
 def test_phrases_helper_ignores_do_lines():
     md = "# T\n\n@do fred: lie\nFred slept.\n"
     assert [w.text for w in phrases_for(md).words] == ["Fred", "slept."]
+
+
+def test_engine_builtin_actions_match_the_schema():
+    """engine/page/actions.js BUILTIN_ACTIONS and schemas ACTIONS each list the built-in actions: they must agree"""
+    js = "import('./engine/page/actions.js').then((m) => console.log(JSON.stringify([...m.BUILTIN_ACTIONS])))"
+    out = subprocess.run(["node", "-e", js], cwd=ROOT, capture_output=True, text=True, check=True).stdout
+    assert sorted(json.loads(out)) == sorted(ACTIONS)
+    assert prep.DO_ACTIONS == actions_with("do") and "receive" not in prep.DO_ACTIONS
+
+
+SALUTE = {"id": "salute", "name": "Salute", "duration": 1.5, "loop": False,
+          "keys": [{"t": 0}, {"t": 0.4, "arms": [[-16, 0], [150, 70]]}]}
+
+
+def test_custom_action_schema():
+    a = CustomAction.model_validate(SALUTE)
+    assert a.keys[1].arms[1] == (150, 70) and a.keys[0].arms is None
+    for bad, msg in [({"id": "wave"}, "built-in action"), ({"keys": [{"t": 0.5}, {"t": 0.1}]}, "time order"),
+                     ({"keys": [{"t": 0, "legs": [-60, 6]}]}, "legs: angles"), ({"keys": []}, "at least 1"),
+                     ({"duration": 0}, "greater than or equal")]:
+        with pytest.raises(ValueError, match=msg):
+            CustomAction.model_validate({**SALUTE, **bad})
+    with pytest.raises(ValueError, match="duplicate action id"):
+        ActionLibrary.model_validate({"actions": [SALUTE, SALUTE]})
+
+
+def test_do_plays_a_custom_action_from_the_library(tmp_path):
+    """@do accepts a library/actions.json id only when it is passed in; the actor gets it, in place, for its line"""
+    with pytest.raises(StageError, match="unknown action 'salute'"):
+        prep.parse_do("fred: salute", 4)
+    with pytest.raises(StageError, match="salute takes no target"):
+        prep.parse_do("fred: salute amy", 4, actions=["salute"])
+    md = "# T\n\n@set office\n@cast fred, amy\n@do fred: salute\nFred stood up straight.\nAmy walked in.\n"
+    ph = phrases_for(md)
+    story = shots.plan(md, ph, SERIES, 1, actions=["salute"])
+    assert validate(story, ph, IDS) == []
+    first = story.shots[0]
+    assert who(first, "fred").action == "salute" and who(first, "fred").end_pos is None
+    (tmp_path / "actions.json").write_text(json.dumps({"actions": [SALUTE]}), encoding="utf-8")
+    assert unknown_actions(story, tmp_path) == []
+    assert unknown_actions(story, tmp_path / "empty") == ["salute"]  # the validate stage refuses it
 
 
 def test_do_takes_custom_props_from_the_library():

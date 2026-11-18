@@ -118,6 +118,12 @@ def test_full_render_writes_chunks_frames_and_preview(part, capsys):
     c1 = json.loads((frames / "chunks" / "c001.json").read_text())
     assert (c1["first"], c1["last"], c1["count"], c1["renderer"]) == (150, 179, 30, GPU)
     assert c1["inputs_hash"] == render.frames_hash(part)
+    before = render.frames_hash(part)
+    for f in ("sets.json", "actions.json"):  # every library file changes pixels: editing one re-renders
+        (part.parent.parent / f).write_text("{}", encoding="utf-8")
+        assert render.frames_hash(part) != before
+        before = render.frames_hash(part)
+        (part.parent.parent / f).unlink()
     assert (part / "preview.mp4").read_bytes() == b"mp4"
     out = capsys.readouterr().out
     assert "chunk 1/2 done" in out and "chunk 2/2 done" in out and "fps overall" in out

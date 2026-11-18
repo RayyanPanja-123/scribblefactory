@@ -126,8 +126,8 @@
           "title": "Approved At"
         },
         "body": {
-          "default": "stickman",
-          "description": "stickman, or a creature id (built in or library/creatures.json): drawn in top.color ($main) and top.accent_color ($accent); eyes and mouth only, no costume",
+          "default": "human",
+          "description": "creature id (built in or library/creatures.json). human (default) and other humanoids are stickmen: face, expressions, costume. Other rigs are drawn in top.color ($main) and top.accent_color ($accent), eyes and mouth only, no costume",
           "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
           "title": "Body",
           "type": "string"

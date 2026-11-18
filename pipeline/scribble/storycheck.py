@@ -14,7 +14,7 @@ import json
 import re
 from pathlib import Path
 
-from .io import cast_body_problems, load_series, prop_kinds, set_kinds, unknown_cast_props
+from .io import cast_body_problems, custom_actions, load_series, prop_kinds, set_kinds, unknown_cast_props
 from .stages.finish import MAX_RUNTIME_S
 from .stages.prep import DO_CAR, FX_MODES, TWIST_PREFIX, clean_markdown, parse_do, parse_look, strip_directives
 from .stages.runner import StageError
@@ -91,7 +91,7 @@ def check_story(part_dir: Path) -> dict:
     md = story.read_text(encoding="utf-8")
     series = load_series(part_dir.parent / "series.json")
     library = part_dir.parent.parent
-    props, sets = prop_kinds(library), list(set_kinds(library))
+    props, sets, actions = prop_kinds(library), list(set_kinds(library)), custom_actions(library)
     ids = [c.id for c in series.cast]
     if not ids:
         bad(None, f"series {series.slug} has no cast: add some with cast-add")
@@ -141,7 +141,7 @@ def check_story(part_dir: Path) -> dict:
                 elif name == "look":
                     parse_look(arg, no, {c.id: list(c.looks) for c in series.cast})
                 elif name == "do":
-                    clauses = parse_do(arg, no, ids, props)
+                    clauses = parse_do(arg, no, ids, props, actions)
                     if pending_do:
                         bad(pending_do[0], f"@do is replaced by the @do on line {no} before any text line uses it")
                     pending_do = (no, clauses)

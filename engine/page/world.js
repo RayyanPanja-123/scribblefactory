@@ -3,6 +3,7 @@
 // Stage clearance (enforced in Builder.add): a prop that reaches into |x| < STAGE.x must sit behind z STAGE.behind,
 // and no prop may come forward of z STAGE.front, so nothing stands on or in front of the actors.
 import * as THREE from "three";
+import { lookup } from "./library.js";
 import { rng } from "./rng.js";
 
 export const SETS = ["room", "office", "street", "dirt_road", "countryside", "orchard", "stadium"];
@@ -384,10 +385,10 @@ const STRENGTH = { office: 2.2, dirt_road: 1.6, countryside: 1.6, orchard: 1.6, 
 const FOG = { dirt_road: [16, 80], countryside: [20, 90], orchard: [18, 80], stadium: [25, 100] }; // near, far
 
 // --- custom sets (library/sets.json, schema CustomSet): floor, back wall or sky, and primitive pieces. Indoor: the
-// room's floor and wall; outdoor: a floor wide enough to scroll (travel shots) and a sky. Set once per page.
-let customSets = new Map();
-export function setCustomSets(list) { customSets = new Map((list || []).map((s) => [s.id, s])); }
-export const isCustomSet = (name) => customSets.has(name);
+// room's floor and wall; outdoor: a floor wide enough to scroll (travel shots) and a sky. From library.js.
+/** "indoor" / "outdoor" for any set, built in or custom; throws for an unknown one */
+export const setKind = (name) => (SETS.includes(name) ? (INDOOR_SETS.has(name) ? "indoor" : "outdoor") : lookup("sets", name).kind);
+const INDOOR_SETS = new Set(["room", "office"]); // built-in sets with a back wall (pipeline: BUILTIN_SETS)
 
 function custom(b, spec) {
   if (spec.kind === "indoor") {
@@ -408,17 +409,12 @@ function custom(b, spec) {
   }
 }
 
-/** build one set (one of its prop variants) into a new group; unknown names fall back to "room" with a warning */
+/** build one set (one of its prop variants) into a new group: built in, else the library's (unknown: throws) */
 export function buildSet(name, seed, variant = 0) {
-  const spec = customSets.get(name);
-  if (spec) {
-    const group = new THREE.Group();
+  if (!SETS.includes(name)) {
+    const spec = lookup("sets", name), group = new THREE.Group();
     custom(new Builder(group, `${seed}:${name}`), spec);
     return finish(group, spec.back, spec.kind === "outdoor" ? [18, 80] : null);
-  }
-  if (!SETS.includes(name)) {
-    console.warn(`unknown set "${name}", using "room"`);
-    name = "room";
   }
   const group = new THREE.Group();
   const b = new Builder(group, `${seed}:${name}`, STRENGTH[name] ?? 1);

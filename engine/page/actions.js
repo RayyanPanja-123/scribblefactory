@@ -19,6 +19,33 @@ export const EAT = { period: 2.6, rise: 0.45, hold: 1.0, fall: 0.45, chewHz: 3 }
 export const GIVE = { reach: 0.3, swap: 0.5, lower: 0.8 };  // shot fractions: arms out by 0.3, prop swaps at 0.5
 export const ZZZ = { every: 3.2, show: 2.2 };             // sleeping: a rising "Z" trail for 2.2 s of every 3.2 s
 
+// every built-in actor action: code in stickman.js / creatures.js / main.js (pipeline schemas ACTIONS: keep equal).
+// Any other action is custom: library/actions.json keyframes (library.js), played by customPose.
+export const BUILTIN_ACTIONS = new Set(["idle", "walk", "run", "talk", "point", "react", "wave", "ride", "stagger", "lie",
+  "collapse", "eat", "give", "receive", "carry", "carried", "support", "supported", "cheer", "angry", "gasp"]);
+
+const REST = { arms: [[-16, 0], [16, 0]], legs: [-6, 6], lean: 0 }; // the idle stickman, degrees (stickman.js)
+const ease = (u) => u * u * (3 - 2 * u);
+/** a custom action (schema CustomAction) at ts seconds into its shot: { arms [[upper, bend] x2], legs [l, r], lean },
+ *  degrees from straight down, + toward +x. Eased between the keys; a key leaving a part out holds it at rest. A
+ *  looping action wraps from its last key back to its first; a once action holds its last key. */
+export function customPose(def, ts) {
+  const d = def.duration, u = def.loop ? (((ts % d) + d) % d) / d : Math.min(1, Math.max(0, ts / d));
+  const keys = def.keys.map((k) => ({ t: k.t, arms: k.arms ?? REST.arms, legs: k.legs ?? REST.legs, lean: k.lean ?? 0 }));
+  let i = keys.findIndex((k) => k.t > u);
+  if (i === -1) { // past the last key: loop back to the first, or hold
+    if (!def.loop || keys.length === 1) return keys[keys.length - 1];
+    const a = keys[keys.length - 1], b = { ...keys[0], t: keys[0].t + 1 };
+    return mix(a, b, ease((u - a.t) / Math.max(1e-6, b.t - a.t)));
+  }
+  if (i === 0) return keys[0];
+  const a = keys[i - 1], b = keys[i];
+  return mix(a, b, ease((u - a.t) / Math.max(1e-6, b.t - a.t)));
+}
+const lerp = (a, b, k) => a + (b - a) * k;
+const mix = (a, b, k) => ({ arms: a.arms.map((arm, s) => arm.map((v, j) => lerp(v, b.arms[s][j], k))),
+  legs: a.legs.map((v, s) => lerp(v, b.legs[s], k)), lean: lerp(a.lean, b.lean, k) });
+
 /** gait phase (cycles): walking gaits from distance travelled (no gliding), carried legs pedal by time */
 export function gaitPhase(action, distance, ts) {
   if (action === "carried") return PEDAL_HZ * ts;

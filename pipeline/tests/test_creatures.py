@@ -38,6 +38,18 @@ def test_creature_must_fit_its_rig():
         CustomCreature.model_validate({**DOG, "parts": {k: v for k, v in DOG["parts"].items() if k != "leg_back"}})
 
 
+def test_humanoid_is_a_stickman_with_a_build():
+    giant = CustomCreature.model_validate({"id": "giant", "name": "Giant", "rig": "humanoid", "build": {"leg": 1.3, "head_color": "#d9a066"}})
+    assert giant.build.leg == 1.3 and giant.build.arm == 1
+    assert CustomCreature.model_validate({"id": "kid", "name": "Kid", "rig": "humanoid"}).build.head == 1  # default build
+    for bad, msg in [({"parts": DOG["parts"]}, "no parts"), ({"build": {"leg": 2}}, "less than or equal"),
+                     ({"id": "human"}, "built-in"), ({"id": "stickman"}, "built-in")]:
+        with pytest.raises(ValueError, match=msg):
+            CustomCreature.model_validate({"id": "x", "name": "X", "rig": "humanoid", **bad})
+    with pytest.raises(ValueError, match="humanoid only"):
+        CustomCreature.model_validate({**DOG, "build": {}})
+
+
 def _series(tmp_path, body, approved=True):
     s = SeriesModel.model_validate({"slug": "pets", "title": "Pets", "created_at": "2026-11-18T10:00:00Z",
                                     "voice": {"voice_name": ""}, "style": {"preset": "default"},

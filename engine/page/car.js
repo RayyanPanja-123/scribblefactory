@@ -3,7 +3,7 @@
 // the card. Riders and the driver are drawStickman figures seated behind the side panel (legs hidden).
 import { Pen, ellPts } from "./borrowed.js";
 import { rng } from "./rng.js";
-import { CH, CW, FEET_Y, drawStickman, jitter, wobble } from "./stickman.js";
+import { CH, CW, drawStickman, hipPx, jitter, wobble } from "./stickman.js";
 import { CRW, drawCreature } from "./creatures.js";
 
 export const VW = 1024, VH = 640, CAR_GROUND = 620;
@@ -15,7 +15,6 @@ const WHEELS = [250, 780], WY = CAR_GROUND - WR;  // wheel centre x (rear, front
 const SEAT_Y = 410;                               // seated hip height
 export const DRIVER_X = 570, RIDER_X = [380, 280, 180]; // seat x (canvas px), riders front to back
 const RIDER_SCALE = PX / (CH / 1.6);              // stickman canvas -> car canvas (same world scale as actors)
-const HIP_PX = FEET_Y - 220 * Math.cos((6 * Math.PI) / 180); // standing hip height on the stickman canvas
 const BOUNCE = { px: 3, every: 0.7 };            // body bobs 3 px per 0.7 world units driven
 const INK = "#1c1a1a", LEATHER = "#4a2e1c", BRASS = "#c9a227", DUST = "#d9c7a0", SMOKE = "#9a9a9a";
 // broken: grey marker puffs rise from the bonnet on a loop (seeded phase), the car shakes a little
@@ -80,11 +79,11 @@ export function drawCar(canvas, o) {
     if (fig.creature) {
       tmpC = tmpC || Object.assign(canvas.ownerDocument.createElement("canvas"), { width: CRW, height: CH });
       drawCreature(tmpC, fig.creature, opts);
-      g.drawImage(tmpC, x - (CRW / 2) * RIDER_SCALE, SEAT_Y - HIP_PX * RIDER_SCALE, CRW * RIDER_SCALE, CH * RIDER_SCALE);
+      g.drawImage(tmpC, x - (CRW / 2) * RIDER_SCALE, SEAT_Y - hipPx() * RIDER_SCALE, CRW * RIDER_SCALE, CH * RIDER_SCALE);
       return;
     }
     drawStickman(tmp, opts);
-    g.drawImage(tmp, x - (CW / 2) * RIDER_SCALE, SEAT_Y - HIP_PX * RIDER_SCALE, CW * RIDER_SCALE, CH * RIDER_SCALE);
+    g.drawImage(tmp, x - (CW / 2) * RIDER_SCALE, SEAT_Y - hipPx(fig.build) * RIDER_SCALE, CW * RIDER_SCALE, CH * RIDER_SCALE);
   };
   // driver first, then riders back to front: a rider's raised (waving) arm stays in front of the driver
   if (o.driver) seat(o.driver, DRIVER_X);

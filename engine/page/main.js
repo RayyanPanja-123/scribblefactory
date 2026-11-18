@@ -2,17 +2,18 @@
 // render.mjs calls setup(data) once, then renderFrame(n) or renderCast(pose) per image (PNG data URL back).
 import * as THREE from "three";
 import { dolly, glide } from "./borrowed.js";
-import { CH, CW, FEET_Y, FIGURE_PX, HAT_TOP, HEAD_R, drawStickman, setCustomProps, skeleton } from "./stickman.js";
-import { CRW, creature, drawCreature, measure as creatureSize, setCustomCreatures } from "./creatures.js";
+import { CH, CW, FEET_Y, FIGURE_PX, HAT_TOP, HEAD_R, drawStickman, figurePx, skeleton } from "./stickman.js";
+import { CRW, creature, drawCreature, measure as creatureSize } from "./creatures.js";
+import { lookup, setLibrary } from "./library.js";
 import { DH, DOG_FEET, DW, barkAmount, drawDog, gallopPhase } from "./dog.js";
 import { gestureAmount, gesturePlan, mouthCurve, mouthCycles, pointAmount, stressBob, waveAmount } from "./motion.js";
-import { CARRIED_LIFT, HELD_Z, HOLD_GAP, LIE, collapseAt, eatAt, gaitPhase, giveAt, handOf, heldPlace, propsByShot, sideToward, staggerAt,
-  withProp, zzzAt } from "./actions.js";
+import { BUILTIN_ACTIONS, CARRIED_LIFT, HELD_Z, HOLD_GAP, LIE, collapseAt, customPose, eatAt, gaitPhase, giveAt, handOf, heldPlace,
+  propsByShot, sideToward, staggerAt, withProp, zzzAt } from "./actions.js";
 import { CAR_CARD_W, CAR_GROUND, DRIVER_X, RIDER_X, VH, VW, carEase, carSpeedShare, drawCar, seatOffset } from "./car.js";
 import { HEAD_GROW, MOOD_EXPRESSION, extraLook, fitCrowd, moodAt, placeExtras } from "./extras.js";
 const growRect = (r, k) => { const mx = (r[2] - r[0]) * k, my = (r[3] - r[1]) * k; return [r[0] - mx, r[1] - my, r[2] + mx, r[3] + my]; };
 import { rng, setVariant } from "./rng.js";
-import { SETS, VARIANTS, buildSet, loopExcess, scrollSet, setCustomSets } from "./world.js";
+import { SETS, VARIANTS, buildSet, loopExcess, scrollSet, setKind } from "./world.js";
 
 const FPS = 30, W = 1080, H = 1920;
 const CARD_H = 1.6, CARD_W = CARD_H * (CW / CH);
@@ -122,19 +123,22 @@ let mouth = new Float32Array(0); // per-frame mouth opening for the whole part (
 /** drawStickman options for cast member id (look from series.json), merged over the per-frame options o */
 function figure(id, o) {
   const cast = castOf(id, o.look);
-  const { top, headwear, legwear, props, eyes, body = "stickman", headless = false } = cast;
+  const { top, headwear, legwear, props, eyes, headless = false } = cast;
   return { seed: charSeed(id), color: top.color, top, headwear, legwear, props, eyes, headless,
-    creature: creatureOf(id), ...o };
+    creature: creatureOf(id), build: bodyOf(id).build, ...o };
 }
 
-/** the cast member's creature definition (creatures.js), or null for a stickman */
-const creatureOf = (id) => { const b = castOf(id).body; return b && b !== "stickman" ? creature(b) : null; };
+/** the cast member's body definition (creatures.js): every cast member has one, default human. A legacy "stickman"
+ *  body is the human. */
+const bodyOf = (id) => { const b = castOf(id).body; return creature(!b || b === "stickman" ? "human" : b); };
+/** the cast member's drawn creature (creatures.js drawCreature), or null for a humanoid (drawStickman with its build) */
+const creatureOf = (id) => { const d = bodyOf(id); return d.rig === "humanoid" ? null : d; };
 /** a creature that sits down for lie / collapse (every rig but biped, which lies down like a stickman) */
 const sits = (id) => creatureOf(id)?.rig !== undefined && creatureOf(id).rig !== "biped";
-/** world units a non-wide camera comes down to frame a creature subject at its own height (0 for a stickman) */
+/** world units a non-wide camera comes down to frame a subject shorter than the default human at its own height */
 const creatureDrop = (id) => {
-  const d = creatureOf(id);
-  return d ? Math.max(0, (CARD_H * (FIGURE_PX - creatureSize(d).top)) / CH * 0.85) : 0;
+  const d = creatureOf(id), top = d ? creatureSize(d).top : figurePx(bodyOf(id).build);
+  return Math.max(0, (CARD_H * (FIGURE_PX - top)) / CH * 0.85);
 };
 const CREATURE_GEO = new THREE.PlaneGeometry(CARD_W * (CRW / CW), CARD_H).translate(0, CARD_H / 2 - CARD_H * (1 - FEET_Y / CH), 0);
 
@@ -200,9 +204,7 @@ const png = () => renderer.domElement.toDataURL("image/png");
 
 window.setup = (d) => {
   data = d; hiddenByShot.clear(); variantByShot.clear(); extrasByShot.clear();
-  setCustomProps(d.props); // library/props.json
-  setCustomCreatures(d.creatures); // library/creatures.json
-  setCustomSets(d.sets); // library/sets.json
+  setLibrary(d); // library/{props,sets,creatures,actions}.json: every custom item, one registry (library.js)
   ownedProps = propsByShot(d.story.shots || [], Object.fromEntries((d.series.cast || []).map((c) => [c.id, castOf(c.id).props])),
     (id, look) => castOf(id, look).props);
   mouth = d.phrases ? mouthCurve(mouthCycles(d.phrases.words, d.phrases.phrases), d.story.duration_frames) : mouth;
@@ -416,6 +418,8 @@ function actionPose(shot, a, o, x, u, ts, n) {
   const partnerX = (b) => (b ? (b.end_pos ? lerp(b.start_pos[0], b.end_pos[0], u) : b.start_pos[0]) : x);
   const sleepy = o.expression === "sleepy";
   let roll = { k: 0, sign: a.facing === "left" ? 1 : -1 }; // head toward the way it faced
+  // a custom action (library/actions.json): its keyframed pose; humanoids play it, other creatures stand idle
+  if (!BUILTIN_ACTIONS.has(a.action)) o.custom = customPose(lookup("actions", a.action), ts);
   if (a.action === "stagger" || a.action === "supported") o.stagger = staggerAt(key, o.phase);
   if (MOOD_EXPRESSION[a.action]) o.mood = moodAt(a.action, n / FPS, charSeed(a.cast_id));
   if (a.action === "carry" || a.action === "support") o.reach = { side: sideToward(x, partnerX(other), a.facing), k: 1 };
@@ -493,7 +497,7 @@ function headRect(x, z, y = 0) {
   return rect(pts);
 }
 
-const INDOOR = new Set(["room", "office"]), INDOOR_BACK = -2.5; // the back wall stands at -2.6
+const INDOOR_BACK = -2.5; // the back wall stands at -2.6
 
 /** x range at depth z where a figure's feet and head both stay in frame, for the whole shot (camera at u 0, .5, 1) */
 function visibleRange(z, camAt) {
@@ -522,7 +526,7 @@ function extrasFor(shot, camAt, placeAt2) {
   const castAt = new Map([0, 0.5, 1].map((uu) => { camAt(uu); return [uu, castRects(uu).map((r) => growRect(r, HEAD_GROW))]; }));
   const free = (x, z) => [0, 0.5, 1].every((uu) => { camAt(uu); const r = headRect(x, z); return !castAt.get(uu).some((c) => overlap(r, c)); });
   const fit = fitCrowd(list.filter((e) => e.kind === "crowd"), (z) => visibleRange(z, camAt),
-    { zBack: INDOOR.has(shot.set) ? INDOOR_BACK : -2.8, free });
+    { zBack: setKind(shot.set) === "indoor" ? INDOOR_BACK : -2.8, free });
   const laid = list.filter((e) => e.kind !== "crowd" || fit.get(e.id))
     .map((e) => (e.kind === "crowd" ? { ...e, start_pos: fit.get(e.id).pos } : e));
   const res = placeExtras(laid, {
@@ -665,7 +669,7 @@ window.renderCast = ({ castId, pose, look: castLook = null, expression = castOf(
     cam = [0, h * 0.5 + 0.02, 2.6 * z]; look = [0, h * 0.5, 0];
   }
   scene.add(drawCard(castId, o));
-  const tall = creatureOf(castId) ? (CARD_H * creatureSize(creatureOf(castId)).top) / CH : FIG_H;
+  const tall = (CARD_H * (cd ? creatureSize(cd).top : figurePx(bodyOf(castId).build))) / CH;
   cards[castId].mesh.position.set(pose === "lie" && !sits(castId) ? -tall / 2 : 0, y, pose === "carried" ? HELD_Z : 0);
   cards[castId].mesh.rotation.set(0, 0, roll);
   camera.fov = 45;

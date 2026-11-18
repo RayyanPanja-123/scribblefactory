@@ -250,8 +250,10 @@ Comma-separated cast ids. Default: the first two cast members of the series.
 - **7 to 12:** the characters *named in that scene's lines* (or used in an `@do`) stand in front and everyone else
   stands further back, smaller, idle. At most 6 may be named in one scene.
 - Never more than **12**. For a large group of people, use `@crowd` instead (extras, not cast).
-- A cast member can be a **creature** (an animal; **Your series** marks it, e.g. `mike: Mike (chicken, bird;
-  looks: headless)`). Creatures have eyes and a mouth only, no facial expressions. By rig:
+- Every cast member has a **body**, a creature type: `human` (the default stickman) unless **Your series** marks
+  another, e.g. `mike: Mike (chicken, bird; looks: headless)`. **humanoid** bodies (`human` and custom ones like
+  a giant or a child) are stickmen with their own proportions: faces, expressions, costume, hands, every action.
+  Every other creature has eyes and a mouth only, no facial expressions. By rig:
   - **bird** (chicken, duck…) flaps its wings to react, cheer, wave or point and pecks to `eat`;
     **quadruped** (cat, horse…) hops and wags its tail, lowers its head to `eat`; **crawler** (snake, worm…)
     ripples along the ground and lifts its head. All three sit down for `lie` / `collapse` and have **no hands**:
@@ -336,11 +338,11 @@ Built in: `clipboard`, `stopwatch`, `bottle`, `syringe`, `apple`, `medal`. A ser
 
 ### Creatures
 
-Animal bodies for cast members (`"body"` in the cast JSON, section 6b), each on a rig that decides how it moves
-(section 5, under `@cast`). Built in: `chicken` (bird), `cat` (quadruped), `horse` (quadruped), `monkey` (biped),
-`snake` (crawler), or the id of a custom creature from the dashboard's **Creatures** page. Each has a `headless`
-version (a neck stump) for a `"headless"` look. An animal that does not exist yet goes in the NEW block
-(section 6).
+Bodies for cast members (`"body"` in the cast JSON, section 6b, default `human`), each on a rig that decides how
+it moves (section 5, under `@cast`). Built in: `human` (humanoid: the stickman), `chicken` (bird), `cat`
+(quadruped), `horse` (quadruped), `monkey` (biped), `snake` (crawler), or the id of a custom creature from the
+dashboard's **Creatures** page. Every creature but a humanoid has a `headless` version (a neck stump) for a
+`"headless"` look. A body that does not exist yet goes in the NEW block (section 6).
 
 ## 6. New sets, props and creatures
 
@@ -350,7 +352,7 @@ version (a neck stump) for a `"headless"` look. An animal that does not exist ye
   eyedropper) must be in the video. If it is not built in or in the library (*Available in this library*), list
   it under `NEW PROPS`, even when no `@do` uses it, and attach it to the character who uses it (below). A
   farmer beheading a chicken needs an `axe`.
-- **Creatures:** an animal cast member needs a creature body; add one only when none fits.
+- **Creatures:** every cast member has a body (default `human`); add a new one only when none fits.
 
 List anything new in a block **before the story**, then use its id in `story.md` and the cast JSON (sets,
 props) or as a cast member's `body` (creatures):
@@ -374,8 +376,9 @@ NEW CREATURES
   the 3 to 6 big objects that make the place recognisable, and its main colours.
 - Props: one line on shape and colour, and which end is held. A new prop is needed for `eat`, `give`, or any
   object a character visibly uses or holds in a story action.
-- Creatures: say the rig (`bird`, `quadruped`, `biped`, `crawler`, section 5 under `@cast`) and describe the
-  look in one line. Say if it needs a headless version (it then gets a neck stump). At most **2** per part.
+- Creatures: say the rig (`humanoid`, `bird`, `quadruped`, `biped`, `crawler`, section 5 under `@cast`) and
+  describe the look in one line: for a humanoid its proportions (tall, short, big head, long arms) and skin colour.
+  Say if it needs a headless version (it then gets a neck stump; not for a humanoid). At most **2** per part.
 - The user builds each one before rendering (dashboard **Sets** / **Props** / **Creatures**, *Build with AI*,
   with your id and name and the description); until then the story fails as "unknown set", "unknown prop" or
   "unknown body".
@@ -393,7 +396,7 @@ A prop shows in a character's hand only in these four ways (there is no other di
 
 - At most two props at once, one per hand (`left` / `right`). A look's `props` replaces the character's own
   props while the look is on; `[]` means empty-handed.
-- Only people (stickmen) and `biped` creatures have hands. A bird, quadruped or crawler cannot hold a prop,
+- Only `humanoid` (people) and `biped` bodies have hands. A bird, quadruped or crawler cannot hold a prop,
   `eat` a prop or take part in `give`.
 - Every held prop must exist: built in, in the library, or in your NEW PROPS.
 
@@ -415,20 +418,20 @@ format (the dashboard imports it when the series is created):
 - `id`: lowercase a-z, 0-9 and single dashes, used in `@cast`, `@do` and `@look`. `name`: how the narration
   says it (the planner finds characters by name). `color`: `#rrggbb`, the outfit, or an animal's fur / feathers.
   Give every character a clearly different colour.
-- **Animals:** `"body": "<creature id>"`: a built-in (`chicken` bird, `cat` and `horse` quadruped, `monkey` biped,
-  `snake` crawler), one listed under *Available in this library*, or one from your NEW CREATURES block. A person
-  has no `body` (it means a stickman).
+- **Body:** `"body": "<creature id>"`: a built-in (`human` humanoid, `chicken` bird, `cat` and `horse`
+  quadruped, `monkey` biped, `snake` crawler), one listed under *Available in this library*, or one from your NEW
+  CREATURES block. Left out, it is `human` (a person: the stickman).
 - **Changes during the story:** never make a second character for the same one. Give it `"looks"`: named
   variants that set only what changes, used with `@look` (section 5): `{"headless": {"headless": true}}` for a
   lost head (creatures only), `{"prison": {"top": {"style": "plain", "color": "#e8e8e8"}}}` for a change of
   clothes. A creature that is headless from the very start instead gets `"headless": true` on the entry itself.
-- Optional costume for people: `"top": {"style": "plain" | "suit" | "tank" | "shirt" | "dress", "accent_color":
+- Optional costume for people (humanoids): `"top": {"style": "plain" | "suit" | "tank" | "shirt" | "dress", "accent_color":
   "#rrggbb", "number": "31"}`, `"headwear": {"kind": "flat_cap" | "postman_cap" | "bowler" | "straw_hat" |
   "wide_hat", "color": "#rrggbb"}`, `"legwear": {"kind": "shorts" | "ragged_shorts" | "trousers", "color":
   "#rrggbb"}`, `"props": [{"kind": "clipboard", "hand": "right"}]` (always held, at most one per hand; for a
   prop held only in some scenes use a look, section 6),
   `"default_expression": "neutral" | "happy" | "sad" | "angry" | "surprised" | "sleepy" | "cheeky" |
-  "exhausted"`, `"eyes": "dots" | "half_closed"`. Animals ignore costume.
+  "exhausted"`, `"eyes": "dots" | "half_closed"`. Other bodies ignore costume.
 - Only characters the whole series shows. Keep ids short; at most 12 on stage at once (section 5).
 
 ## 7. How plain narration is interpreted

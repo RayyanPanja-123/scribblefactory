@@ -3,7 +3,7 @@
   "_values": {
     "id": "lowercase slug, used in @cast / @do: a-z 0-9 and single hyphens",
     "eyes": ["dots", "half_closed"],
-    "body": "stickman (default), or a creature id: built in chicken, cat, horse, monkey, snake, or one from the Creatures page",
+    "body": "creature id, default human (the stickman): built in human, chicken, cat, horse, monkey, snake, or one from the Creatures page (custom humanoids are stickmen with their own proportions)",
     "headless": "true or false (default false): creatures with a stump only, the stump instead of the head",
     "looks": "named variants a story switches to with @look <id>: <name>, each setting only what changes: top, headwear, legwear, props, default_expression, eyes, headless. Example: {\"headless\": {\"headless\": true}}",
     "default_expression": ["neutral", "happy", "sad", "angry", "surprised", "sleepy", "cheeky", "exhausted"],

@@ -220,6 +220,13 @@ def test_stage_fails_and_writes_nothing(part):
     assert "unknown cast id zed" in load_part(part / "part.json").stages.shots.error
 
 
+def test_stage_unknown_set_fails_before_render(part):
+    (part / "story.md").write_text(DIRECTED.replace("@set street", "@set moon"), encoding="utf-8")
+    assert run(part) == "failed"
+    assert "unknown set: moon" in load_part(part / "part.json").stages.shots.error
+    assert not (part / "story.json").exists()
+
+
 def test_stage_invalid_plan_writes_nothing(part, monkeypatch, capsys):
     monkeypatch.setattr(shots, "MOVE_SPEED", {"walk": 0.3, "run": 2.5})  # walk too slow for the validator: gliding
     assert run(part) == "failed"
@@ -707,9 +714,15 @@ def test_chicken_takes_moves_but_has_no_hands():
 
 
 def test_only_a_creature_is_headless():
-    with pytest.raises(ValueError, match="only a creature"):
+    with pytest.raises(ValueError, match="human has no stump"):
         SeriesModel.model_validate({**CHICKEN.model_dump(mode="json"), "cast": [
             {"id": "bob", "name": "Bob", "top": {"color": "#3a7bd5"}, "eyes": "dots", "headless": True}]})
+
+
+def test_every_cast_member_has_a_body_default_human_and_legacy_stickman_is_human():
+    bob = {"id": "bob", "name": "Bob", "top": {"color": "#3a7bd5"}, "eyes": "dots"}
+    cast = SeriesModel.model_validate({**CHICKEN.model_dump(mode="json"), "cast": [bob, {**bob, "id": "al", "body": "stickman"}]}).cast
+    assert [c.body for c in cast] == ["human", "human"]
 
 
 # --- @look: named cast looks ---
