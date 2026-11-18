@@ -13,21 +13,21 @@ Today: one creator running the app locally in a desktop browser, in long working
 A local, offline factory that turns a written story plus a recorded voice track into a finished 9:16 stickman short (1080x1920, 30 fps). The creator plans series and parts, builds reusable assets (props, sets, creatures, cast), writes each part's story, records voice, renders stills, test and final videos, approves each stage, and logs where it was posted. Success: a part moves from idea to posted without the creator losing track of what is waiting on them.
 
 ## Positioning
-Everything runs on the creator's own machine: the renderer (Three.js + Playwright), the Python pipeline and the library on disk. AI is optional and every AI feature has a manual path: copy/paste prompts into any chat AI, or doing the work by hand. With a provider set in Settings (OmniRoute, Google Gemini or OpenRouter; keys stay server-side) the same work takes one click. Stories are a plain-text script format (`docs/STORY_GUIDE.md`) the engine animates directly.
+Everything runs on the creator's own machine: the renderer (Three.js + Playwright), the Python pipeline and the library on disk. Runs fully offline. AI help works via copy/paste with any chat AI (ChatGPT, Claude, Gemini): the app writes the prompt and imports the reply; there are no AI providers, accounts or API keys. Every editor also works by hand. Stories are a plain-text script format (`docs/STORY_GUIDE.md`) the engine animates directly.
 
 ## Operating Context
 - Workflow per part: story -> voice -> stills -> test render -> final -> thumbnail -> upload text -> posted.
 - Human approval gates: stills, test render, final, and per-series cast sheets.
 - Long-running render jobs run one at a time on a worker; the UI shows live job status over SSE.
-- "Build with AI" editors for props, sets, creatures and actions; without a provider they produce a prompt to copy into any chat AI, and every editor also works by hand.
+- AI Creations (`/ai-creations`): one screen to create a prop, set, creature, action, cast or whole series with any chat AI via copy/paste, then review every item (new or existing, uncheck to skip) and import. Never overwrites: a clashing id gets a suffix. Each editor's "Build with AI" opens it pre-filled.
 - Actions page: custom `@do` actions as keyframed poses, facing the camera or sideways, with a move speed (negative glides backwards).
-- Story Writer (Gemini or OpenRouter): plans a multi-part series, creates the props, sets, creatures and actions it needs, then the series and parts. Voice (FreeTTS) and upload stay manual. Manual path: copy the Story Guide into a chat AI, or write stories by hand.
+- Story Writer (the Series type in AI Creations; `/story-writer` redirects there): the chat AI plans a multi-part series from a premise and the library; Import creates the missing props, sets, creatures and actions, then the series and its parts. Voice (FreeTTS) and upload stay manual. Also: copy the Story Guide from the Overview into a chat AI, or write stories by hand.
 - All four jobs are frequent and equally important: pipeline status, building assets, writing parts, reviewing renders.
 
 ## Capabilities and Constraints
 - Vue 3 + Vite + Tailwind 4 SPA (`web/`), FastAPI backend (`api/`), files on disk are the source of truth.
 - Localhost only, no accounts or auth.
-- Routes: Overview, Story Writer, Series list/detail, New series, New part, Part detail, Review, Props, Creatures, Sets, Actions (+ editors), Posted, History, Help, Settings.
+- Routes: Overview, AI Creations, Series list/detail, New series, New part, Part detail, Review, Props, Creatures, Sets, Actions (+ editors), Posted, History, Help.
 
 ## Brand Commitments
 - Name: Scribble Factory.

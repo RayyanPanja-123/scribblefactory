@@ -39,86 +39,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/ai/complete": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Ai Complete
-         * @description One completion through the selected provider. Keys stay server-side.
-         */
-        post: operations["ai_complete_api_ai_complete_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/ai/gemini-models": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Gemini Models
-         * @description List text-generation Gemini models available to the supplied or saved key.
-         */
-        post: operations["gemini_models_api_ai_gemini_models_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/ai/omniroute-models": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Omniroute Models
-         * @description Discover models exposed by the configured OmniRoute gateway.
-         */
-        get: operations["omniroute_models_api_ai_omniroute_models_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/ai/story-writer": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Ai Story Writer
-         * @description Story Writer is intentionally restricted to the dedicated Gemini provider, never OmniRoute.
-         */
-        post: operations["ai_story_writer_api_ai_story_writer_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/creatures": {
         parameters: {
             query?: never;
@@ -164,27 +84,6 @@ export interface paths {
         /** Events */
         get: operations["events_api_events_get"];
         put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/gateway": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Gateway */
-        get: operations["get_gateway_api_gateway_get"];
-        /**
-         * Put Gateway
-         * @description Start (daemon, no browser) or stop the local OmniRoute through its own CLI.
-         */
-        put: operations["put_gateway_api_gateway_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -624,24 +523,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/settings": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Settings */
-        get: operations["get_settings_api_settings_get"];
-        /** Put Settings */
-        put: operations["put_settings_api_settings_put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -695,81 +576,6 @@ export interface components {
              * @description when, as a share of the action's duration
              */
             t: number;
-        };
-        /** AiPrompt */
-        AiPrompt: {
-            /** Prompt */
-            prompt: string;
-        };
-        /** AiReply */
-        AiReply: {
-            /** Text */
-            text: string;
-        };
-        /** AiSettings */
-        AiSettings: {
-            /** Base Url */
-            base_url: string;
-            /** Gemini Key Hint */
-            gemini_key_hint: string;
-            /** Gemini Model */
-            gemini_model: string;
-            /** Has Gemini Key */
-            has_gemini_key: boolean;
-            /** Has Key */
-            has_key: boolean;
-            /** Has Omniroute Key */
-            has_omniroute_key: boolean;
-            /** Has Openrouter Key */
-            has_openrouter_key: boolean;
-            /** Key Hint */
-            key_hint: string;
-            /** Model */
-            model: string;
-            /** Omniroute Key Hint */
-            omniroute_key_hint: string;
-            /** Omniroute Model */
-            omniroute_model: string;
-            /** Openrouter Key Hint */
-            openrouter_key_hint: string;
-            /** Openrouter Model */
-            openrouter_model: string;
-            /**
-             * Provider
-             * @enum {string}
-             */
-            provider: "omniroute" | "gemini" | "openrouter";
-        };
-        /** AiSettingsIn */
-        AiSettingsIn: {
-            /** Api Key */
-            api_key?: string | null;
-            /**
-             * Base Url
-             * @default http://localhost:20128/v1
-             */
-            base_url: string;
-            /** Gemini Api Key */
-            gemini_api_key?: string | null;
-            /** Gemini Model */
-            gemini_model?: string | null;
-            /**
-             * Model
-             * @default
-             */
-            model: string;
-            /** Omniroute Model */
-            omniroute_model?: string | null;
-            /** Openrouter Api Key */
-            openrouter_api_key?: string | null;
-            /** Openrouter Model */
-            openrouter_model?: string | null;
-            /**
-             * Provider
-             * @default omniroute
-             * @enum {string}
-             */
-            provider: "omniroute" | "gemini" | "openrouter";
         };
         /** Approval */
         Approval: {
@@ -1101,28 +907,6 @@ export interface components {
              */
             pieces: components["schemas"]["SetPiece"][];
         };
-        /** Gateway */
-        Gateway: {
-            /** Running */
-            running: boolean;
-        };
-        /** GatewayIn */
-        GatewayIn: {
-            /** On */
-            on: boolean;
-        };
-        /** GeminiModels */
-        GeminiModels: {
-            /** Models */
-            models: string[];
-            /** Recommended */
-            recommended: string;
-        };
-        /** GeminiModelsIn */
-        GeminiModelsIn: {
-            /** Api Key */
-            api_key?: string | null;
-        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -1288,31 +1072,6 @@ export interface components {
             slug: string;
             /** Title */
             title: string;
-        };
-        /** OmniRouteModel */
-        OmniRouteModel: {
-            /** Context Window */
-            context_window?: number | null;
-            /** Id */
-            id: string;
-            /** Is Free */
-            is_free?: boolean | null;
-            /** Max Input Tokens */
-            max_input_tokens?: number | null;
-            /** Max Output Tokens */
-            max_output_tokens?: number | null;
-            /** Owned By */
-            owned_by?: string | null;
-        };
-        /** OmniRouteModels */
-        OmniRouteModels: {
-            /**
-             * Checked At
-             * Format: date-time
-             */
-            checked_at: string;
-            /** Models */
-            models: components["schemas"]["OmniRouteModel"][];
         };
         /** Overview */
         Overview: {
@@ -1945,125 +1704,6 @@ export interface operations {
             };
         };
     };
-    ai_complete_api_ai_complete_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AiPrompt"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AiReply"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    gemini_models_api_ai_gemini_models_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GeminiModelsIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GeminiModels"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    omniroute_models_api_ai_omniroute_models_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OmniRouteModels"];
-                };
-            };
-        };
-    };
-    ai_story_writer_api_ai_story_writer_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AiPrompt"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AiReply"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     get_creatures_api_creatures_get: {
         parameters: {
             query?: never;
@@ -2166,59 +1806,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
-                };
-            };
-        };
-    };
-    get_gateway_api_gateway_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Gateway"];
-                };
-            };
-        };
-    };
-    put_gateway_api_gateway_put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GatewayIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Gateway"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -3130,59 +2717,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SetCatalog"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_settings_api_settings_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AiSettings"];
-                };
-            };
-        };
-    };
-    put_settings_api_settings_put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AiSettingsIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AiSettings"];
                 };
             };
             /** @description Validation Error */

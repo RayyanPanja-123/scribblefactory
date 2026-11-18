@@ -12,13 +12,10 @@ import io
 import itertools
 import json
 import os
-import re
 import shlex
-import socket
 import subprocess
 import sys
 import threading
-import time
 from collections import deque
 from datetime import date, datetime
 from pathlib import Path
@@ -942,9 +939,30 @@ def load_jobs() -> list[str]:
     return notes
 
 
+# library/settings.json held third-party AI provider settings and keys; AI help is copy/paste only now
+OLD_AI_KEYS = {"provider", "base_url", "model", "omniroute_model", "gemini_model", "openrouter_model",
+               "api_key", "gemini_api_key", "openrouter_api_key"}
+
+
+def drop_ai_settings() -> list[str]:
+    """remove the old provider keys from settings.json (the file too, when nothing else is left); never fails startup"""
+    f = lib() / "settings.json"
+    try:
+        s = json.loads(f.read_text(encoding="utf-8"))
+        if not isinstance(s, dict) or not OLD_AI_KEYS & s.keys():
+            return []
+        rest = {k: v for k, v in s.items() if k not in OLD_AI_KEYS}
+        atomic_write_json(f, rest) if rest else f.unlink()
+        return ["settings.json: old AI provider settings and keys removed"]
+    except FileNotFoundError:
+        return []
+    except (OSError, ValueError) as e:
+        return [f"settings.json: could not clean up old AI settings ({e})"]
+
+
 def startup() -> None:
     """API start: jobs from .jobs.json, then every part's stuck stages and stale render locks (orphan workers)."""
-    notes = load_jobs()
+    notes = load_jobs() + drop_ai_settings()
     for d in all_series():
         for pid, p in parts_of(d):
             if p is None:
@@ -1077,349 +1095,6 @@ def _run(job: dict) -> None:
             job["status"] = "failed"
             return
     job["status"] = "done"
-
-
-# ---------------- AI settings (library/settings.json): provider keys make "Build with AI" one click ----------------
-
-DEFAULT_AI_URL = "http://localhost:20128/v1"
-DEFAULT_OPENROUTER_URL = "https://openrouter.ai/api/v1"
-AI_TIMEOUT_S = 180
-
-
-class AiSettings(BaseModel):
-    provider: Literal["omniroute", "gemini", "openrouter"]
-    base_url: str
-    model: str
-    omniroute_model: str
-    gemini_model: str
-    openrouter_model: str
-    has_key: bool
-    key_hint: str
-    has_omniroute_key: bool
-    omniroute_key_hint: str
-    has_gemini_key: bool
-    gemini_key_hint: str
-    has_openrouter_key: bool
-    openrouter_key_hint: str
-
-
-class AiSettingsIn(BaseModel):
-    provider: Literal["omniroute", "gemini", "openrouter"] = "omniroute"
-    base_url: str = DEFAULT_AI_URL
-    model: str = ""
-    omniroute_model: str | None = None
-    gemini_model: str | None = None
-    openrouter_model: str | None = None
-    api_key: str | None = None  # None keeps the saved key, "" clears it
-    gemini_api_key: str | None = None  # None keeps the saved key, "" clears it
-    openrouter_api_key: str | None = None  # None keeps the saved key, "" clears it
-
-
-class AiPrompt(BaseModel):
-    prompt: str
-
-
-class AiReply(BaseModel):
-    text: str
-
-
-class GeminiModelsIn(BaseModel):
-    api_key: str | None = None  # optional typed key; otherwise use the saved Gemini key
-
-
-class GeminiModels(BaseModel):
-    models: list[str]
-    recommended: str
-
-
-def settings_file() -> Path:
-    return lib() / "settings.json"
-
-
-def load_settings() -> dict:
-    f = settings_file()
-    s = json.loads(f.read_text(encoding="utf-8")) if f.is_file() else {}
-    provider = s.get("provider") if s.get("provider") in ("omniroute", "gemini", "openrouter") else "omniroute"
-    legacy_model = s.get("model", "")
-    omniroute_model = s.get("omniroute_model", legacy_model if provider == "omniroute" else "")
-    gemini_model = s.get("gemini_model", legacy_model if provider == "gemini" else "")
-    openrouter_model = s.get("openrouter_model", legacy_model if provider == "openrouter" else "")
-    return {
-        "provider": provider,
-        "base_url": s.get("base_url") or DEFAULT_AI_URL,
-        "model": {"omniroute": omniroute_model, "gemini": gemini_model, "openrouter": openrouter_model}[provider],
-        "omniroute_model": omniroute_model,
-        "gemini_model": gemini_model,
-        "openrouter_model": openrouter_model,
-        "api_key": s.get("api_key", ""),
-        "gemini_api_key": s.get("gemini_api_key", ""),
-        "openrouter_api_key": s.get("openrouter_api_key", ""),
-    }
-
-
-def public_settings(s: dict) -> AiSettings:
-    active_key = {"omniroute": s["api_key"], "gemini": s["gemini_api_key"], "openrouter": s["openrouter_api_key"]}[s["provider"]]
-    return AiSettings(provider=s["provider"], base_url=s["base_url"], model=s["model"],
-                      omniroute_model=s["omniroute_model"], gemini_model=s["gemini_model"],
-                      openrouter_model=s["openrouter_model"],
-                      has_key=bool(active_key), key_hint=active_key[-4:],
-                      has_omniroute_key=bool(s["api_key"]), omniroute_key_hint=s["api_key"][-4:],
-                      has_gemini_key=bool(s["gemini_api_key"]), gemini_key_hint=s["gemini_api_key"][-4:],
-                      has_openrouter_key=bool(s["openrouter_api_key"]), openrouter_key_hint=s["openrouter_api_key"][-4:])
-
-
-@app.get("/api/settings", response_model=AiSettings)
-def get_settings():
-    return public_settings(load_settings())
-
-
-@app.put("/api/settings", response_model=AiSettings)
-def put_settings(body: AiSettingsIn):
-    if not body.base_url.startswith(("http://", "https://")):
-        raise HTTPException(422, "base URL must start with http:// or https://")
-    s = load_settings()
-    s.update(provider=body.provider, base_url=body.base_url.strip().rstrip("/"))
-    if body.omniroute_model is not None:
-        s["omniroute_model"] = body.omniroute_model.strip()
-    elif body.provider == "omniroute":
-        s["omniroute_model"] = body.model.strip()
-    if body.gemini_model is not None:
-        s["gemini_model"] = body.gemini_model.strip()
-    elif body.provider == "gemini":
-        s["gemini_model"] = body.model.strip()
-    if body.openrouter_model is not None:
-        s["openrouter_model"] = body.openrouter_model.strip()
-    elif body.provider == "openrouter":
-        s["openrouter_model"] = body.model.strip()
-    s["model"] = {"omniroute": s["omniroute_model"], "gemini": s["gemini_model"], "openrouter": s["openrouter_model"]}[body.provider]
-    if body.api_key is not None:
-        s["api_key"] = body.api_key.strip()
-    if body.gemini_api_key is not None:
-        s["gemini_api_key"] = body.gemini_api_key.strip()
-    if body.openrouter_api_key is not None:
-        s["openrouter_api_key"] = body.openrouter_api_key.strip()
-    lib().mkdir(parents=True, exist_ok=True)
-    atomic_write_json(settings_file(), s)
-    return public_settings(s)
-
-
-@app.post("/api/ai/gemini-models", response_model=GeminiModels)
-def gemini_models(body: GeminiModelsIn):
-    """List text-generation Gemini models available to the supplied or saved key."""
-    import urllib.error
-    import urllib.request
-    key = (body.api_key or "").strip() or load_settings()["gemini_api_key"]
-    if not key:
-        raise HTTPException(400, "Enter a Gemini API key first")
-    req = urllib.request.Request(
-        "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000",
-        headers={"x-goog-api-key": key})
-    try:
-        with urllib.request.urlopen(req, timeout=20) as r:
-            data = json.loads(r.read())
-        names = [m["name"].removeprefix("models/") for m in data.get("models", [])
-                 if "generateContent" in m.get("supportedGenerationMethods", [])]
-        models = sorted((n for n in names if n.startswith("gemini") and not re.search(r"tts|image|live|embed|audio", n)), reverse=True)
-        if not models:
-            raise HTTPException(502, "That key works but cannot use any Gemini text model")
-        stable = [m for m in models if "flash" in m and not re.search(r"lite|preview|exp", m)]
-        return GeminiModels(models=models, recommended=(stable or models)[0])
-    except urllib.error.HTTPError as e:
-        raise HTTPException(502, f"Gemini said {e.code}: {e.read().decode(errors='replace')[:500]}")
-    except (urllib.error.URLError, TimeoutError, OSError) as e:
-        raise HTTPException(502, f"Gemini not reachable: {getattr(e, 'reason', e)}")
-    except (ValueError, KeyError, TypeError):
-        raise HTTPException(502, "Gemini returned an unexpected model list")
-
-
-class Gateway(BaseModel):
-    running: bool
-
-
-class GatewayIn(BaseModel):
-    on: bool
-
-
-class OmniRouteModel(BaseModel):
-    id: str
-    owned_by: str | None = None
-    is_free: bool | None = None
-    context_window: int | None = None
-    max_input_tokens: int | None = None
-    max_output_tokens: int | None = None
-
-
-class OmniRouteModels(BaseModel):
-    models: list[OmniRouteModel]
-    checked_at: datetime
-
-
-def gateway_port() -> int | None:
-    """Port of the gateway in Settings when it's on this machine (the only kind we can start); None otherwise."""
-    from urllib.parse import urlsplit
-    s = load_settings()
-    if s["provider"] != "omniroute":
-        return None
-    u = urlsplit(s["base_url"])
-    if u.hostname not in ("localhost", "127.0.0.1", "::1"):
-        return None
-    return u.port or (443 if u.scheme == "https" else 80)
-
-
-def gateway_up(port: int | None) -> bool:
-    if port is None:
-        return False
-    with contextlib.suppress(OSError), socket.create_connection(("127.0.0.1", port), timeout=0.5):
-        return True
-    return False
-
-
-# Windows: a launcher starts argv and exits at once, so argv is orphaned: outside the API's process tree (an API
-# reload, or dev.sh's taskkill /T, can't reach it) and, where the job allows breakaway, outside its job object.
-# CREATE_NO_WINDOW gives it a hidden console that the CLIs it spawns inherit.
-_LAUNCHER = """import subprocess, sys
-flags = subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
-for f in (flags | subprocess.CREATE_BREAKAWAY_FROM_JOB, flags):
-    try:
-        subprocess.Popen(sys.argv[1:], creationflags=f, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        break
-    except OSError:  # the job doesn't allow breakaway
-        pass
-"""
-
-
-def spawn_detached(argv: list[str]) -> None:
-    """Start argv so it outlives this process (and its reloads), with no visible window."""
-    if os.name != "nt":
-        subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
-        return
-    subprocess.run([sys.executable, "-c", _LAUNCHER, *argv], timeout=30, creationflags=subprocess.CREATE_NO_WINDOW)
-
-
-@app.get("/api/gateway", response_model=Gateway)
-def get_gateway():
-    return Gateway(running=gateway_up(gateway_port()))
-
-
-@app.put("/api/gateway", response_model=Gateway)
-def put_gateway(body: GatewayIn):
-    """Start (daemon, no browser) or stop the local OmniRoute through its own CLI."""
-    import shutil
-    port = gateway_port()
-    if port is None:
-        raise HTTPException(409, "the AI gateway in Settings isn't on this machine: start it where it runs")
-    if gateway_up(port) == body.on:
-        return Gateway(running=body.on)
-    exe = shutil.which("omniroute")
-    if not exe:
-        raise HTTPException(409, "OmniRoute isn't installed: npm install -g omniroute")
-    no_window = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-    if body.on:
-        # Not --daemon: that detaches the server from any console, so on Windows every CLI provider it runs
-        # (claude, codex, ...) pops its own console window. In a hidden console, they inherit it instead.
-        # `omniroute stop` still finds it (PID file, else the port).
-        spawn_detached([exe, "serve", "--no-open", "--port", str(port)])
-        deadline = time.monotonic() + 60
-        while not gateway_up(port) and time.monotonic() < deadline:
-            time.sleep(0.5)
-        if not gateway_up(port):
-            raise HTTPException(502, "omniroute serve didn't start listening within 60 s: run it in a terminal to see why")
-        return Gateway(running=True)
-    try:
-        r = subprocess.run([exe, "stop", "--port", str(port)], capture_output=True, text=True, encoding="utf-8",
-                           errors="replace", timeout=90, creationflags=no_window)
-    except subprocess.TimeoutExpired:
-        raise HTTPException(502, "omniroute stop took over 90 s")
-    deadline = time.monotonic() + 30  # the CLI can return before the port is released
-    while gateway_up(port) and time.monotonic() < deadline:
-        time.sleep(0.5)
-    if gateway_up(port):
-        raise HTTPException(502, f"omniroute stop failed: {(r.stderr or r.stdout).strip()[-500:] or f'exit {r.returncode}'}")
-    return Gateway(running=False)
-
-
-@app.get("/api/ai/omniroute-models", response_model=OmniRouteModels)
-def omniroute_models():
-    """Discover models exposed by the configured OmniRoute gateway."""
-    import urllib.error
-    import urllib.request
-    s = load_settings()
-    if s["provider"] != "omniroute":
-        raise HTTPException(409, "OmniRoute is not the active AI provider")
-    if not s["api_key"]:
-        raise HTTPException(400, "no OmniRoute API key: add one in Settings")
-    url = f"{s['base_url'].rstrip('/')}/models"
-    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {s['api_key']}"})
-    try:
-        with urllib.request.urlopen(req, timeout=10) as r:
-            payload = json.loads(r.read())
-        models = []
-        for item in payload.get("data", []):
-            if not isinstance(item, dict) or not item.get("id"):
-                continue
-            models.append(OmniRouteModel(
-                id=str(item["id"]),
-                owned_by=item.get("owned_by"),
-                is_free=item.get("is_free", item.get("isFree")),
-                context_window=item.get("context_window", item.get("contextWindow")),
-                max_input_tokens=item.get("max_input_tokens", item.get("maxInputTokens")),
-                max_output_tokens=item.get("max_output_tokens", item.get("maxOutputTokens")),
-            ))
-        return OmniRouteModels(models=sorted(models, key=lambda m: m.id.lower()), checked_at=datetime.now().astimezone())
-    except urllib.error.HTTPError as e:
-        raise HTTPException(502, f"OmniRoute said {e.code}: {e.read().decode(errors='replace')[:500]}")
-    except (urllib.error.URLError, TimeoutError, OSError) as e:
-        raise HTTPException(502, f"OmniRoute not reachable: {getattr(e, 'reason', e)}")
-    except (ValueError, KeyError, TypeError):
-        raise HTTPException(502, "OmniRoute returned an unexpected model list")
-
-
-@app.post("/api/ai/complete", response_model=AiReply)
-def ai_complete(body: AiPrompt):
-    """One completion through the selected provider. Keys stay server-side."""
-    import urllib.error
-    import urllib.parse
-    import urllib.request
-    s = load_settings()
-    key = {"omniroute": s["api_key"], "gemini": s["gemini_api_key"], "openrouter": s["openrouter_api_key"]}[s["provider"]]
-    if not key:
-        raise HTTPException(400, "no API key: add one in Settings")
-    if not s["model"]:
-        raise HTTPException(400, "no model: set one in Settings")
-    if s["provider"] == "gemini":
-        model = s["model"].removeprefix("models/")
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{urllib.parse.quote(model, safe='')}:generateContent"
-        payload = {"contents": [{"role": "user", "parts": [{"text": body.prompt}]}]}
-        headers = {"x-goog-api-key": key, "Content-Type": "application/json"}
-    else:
-        url = f"{s['base_url']}/chat/completions"
-        payload = {"model": s["model"], "messages": [{"role": "user", "content": body.prompt}]}
-        if s["provider"] == "openrouter":
-            # OpenRouter may reject its 16k default when a free key has only a smaller remaining limit.
-            payload["max_tokens"] = 4000
-        headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
-    req = urllib.request.Request(url, data=json.dumps(payload).encode(), headers=headers)
-    try:
-        with urllib.request.urlopen(req, timeout=AI_TIMEOUT_S) as r:
-            data = json.loads(r.read())
-        if s["provider"] == "gemini":
-            text = "".join(p.get("text", "") for p in data["candidates"][0]["content"]["parts"])
-            return AiReply(text=text)
-        return AiReply(text=data["choices"][0]["message"]["content"] or "")
-    except urllib.error.HTTPError as e:
-        raise HTTPException(502, f"{s['provider']} said {e.code}: {e.read().decode(errors='replace')[:500]}")
-    except (urllib.error.URLError, TimeoutError, OSError) as e:
-        raise HTTPException(502, f"{s['provider']} not reachable: {getattr(e, 'reason', e)}")
-    except (ValueError, KeyError, IndexError, TypeError):
-        raise HTTPException(502, f"{s['provider']} sent an unexpected reply")
-
-
-@app.post("/api/ai/story-writer", response_model=AiReply)
-def ai_story_writer(body: AiPrompt):
-    """Story Writer is intentionally restricted to the dedicated Gemini provider, never OmniRoute."""
-    if load_settings()["provider"] == "omniroute":
-        raise HTTPException(409, "Story Writer requires Gemini or OpenRouter as the active provider")
-    return ai_complete(body)
 
 
 # ---------------- live events ----------------

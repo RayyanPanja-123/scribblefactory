@@ -18,8 +18,6 @@ export type CustomProp = S['CustomProp']
 export type ActionCatalog = S['ActionCatalog']
 export type CustomAction = S['CustomAction']
 export type StoryCheck = S['StoryCheck']
-export type AiSettings = S['AiSettings']
-export type OmniRouteModels = S['OmniRouteModels']
 export type Approval = 'stills' | 'test_render' | 'final'
 export type Platform = 'youtube' | 'instagram'
 
@@ -93,11 +91,4 @@ export const api = {
   sets: () => call<SetCatalog>('GET', '/api/sets'),
   saveSet: (s: CustomSet) => call<SetCatalog>('PUT', `/api/sets/${e(s.id)}`, s),
   deleteSet: (id: string) => call<SetCatalog>('DELETE', `/api/sets/${e(id)}`),
-  settings: () => call<AiSettings>('GET', '/api/settings'),
-  saveSettings: (body: S['AiSettingsIn']) => call<AiSettings>('PUT', '/api/settings', body),
-  aiComplete: (prompt: string) => call<S['AiReply']>('POST', '/api/ai/complete', { prompt }),
-  geminiModels: (api_key?: string | null) => call<S['GeminiModels']>('POST', '/api/ai/gemini-models', { api_key }),
-  gateway: () => call<S['Gateway']>('GET', '/api/gateway'),
-  setGateway: (on: boolean) => call<S['Gateway']>('PUT', '/api/gateway', { on }),
-  omnirouteModels: () => call<OmniRouteModels>('GET', '/api/ai/omniroute-models'),
 }

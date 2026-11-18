@@ -1,7 +1,8 @@
 # scribblefactory
 
 Local, offline factory for stickman animated shorts (9:16, 1080x1920, 30fps).
-Personal use. Runs fully offline. AI providers are optional add-ons; voice is recorded manually.
+Personal use. Runs fully offline. AI help works via copy/paste with any chat AI (ChatGPT, Claude, Gemini).
+Voice is recorded manually.
 
 ## Layout
 
@@ -41,18 +42,24 @@ The Actions page (`/actions`) holds custom `@do` actions: keyframed arm, leg and
 An action can face the camera or sideways (turning left/right with the direction of travel), and sideways actions
 take a move speed in units/second; a negative speed glides backwards (moonwalk).
 
-## Optional AI features
+## AI help (copy/paste)
 
-Nothing below is required: every AI feature has a manual path, and the app works the same without a provider.
+There is no AI provider and no API key: the app writes a prompt, you paste it into any chat AI, then paste the
+reply back. Everything goes through **AI Creations** (`/ai-creations`, Studio in the sidebar):
 
-Providers (Settings): OmniRoute (local gateway, started and stopped from the navbar switch), Google Gemini and
-OpenRouter. API keys stay on the server; the UI only shows their last four characters.
+1. Pick a type: Prop, Set, Creature, Action, Cast or Series. Each editor's "Build with AI" opens it pre-filled.
+2. Describe it. Only the fields a type needs are added (Creature: rig, Cast: which series, Series: number of parts).
+3. Make the prompt, copy it into any chat AI, paste its JSON reply back.
+4. Review everything it would create, each marked new or existing; uncheck what you don't want.
+5. Import: one button writes it to the library and links to each new item. Nothing existing is overwritten: a
+   clashing id gets a suffix (a series reuses library items its stories already name).
 
-| Feature | With a provider | Without one |
-|---|---|---|
-| AI Creations (props, sets, creatures, actions, cast, series; each editor's "Build with AI" opens it) | "Generate" sends the brief to the configured provider (OmniRoute, Gemini or OpenRouter); for a series it plans the parts, creates the missing assets, then the series and parts | "Use any chat AI": copy the prompt into any chat AI and paste the reply back. Either way you review every item before import, and an id that already exists gets a suffix instead of being overwritten |
+**Story Writer** is the Series type (the old `/story-writer` link redirects there): the AI plans a multi-part series
+from a premise and your library, and Import creates the missing props, sets, creatures and actions, then the series
+with its cast, then its parts. Voice (FreeTTS) and uploading stay manual.
 
-Voice (FreeTTS) and uploading stay manual either way.
+"Copy story guide" on the Overview copies docs/STORY_GUIDE.md plus your library's ids, for writing one part with any
+chat AI.
 
 ## Tests
 

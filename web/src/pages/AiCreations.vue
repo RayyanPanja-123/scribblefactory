@@ -1,11 +1,9 @@
 <script setup lang="ts">
-import { Sparkles } from 'lucide-vue-next'
 import { computed, reactive, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { api } from '../api/client'
 import AiBridge from '../components/AiBridge.vue'
 import ErrorCard from '../components/ErrorCard.vue'
-import { useAutoAi } from '../composables/autoAi'
 import { toast } from '../composables/feedback'
 import { useApi } from '../composables/useApi'
 import { buildCreationPrompt, chosen, isKind, needsSeries, parseReply, reviewItems, TYPE_LABEL, TYPES, type Brief, type Item, type Kind, type Library } from '../lib/aiCreations'
@@ -13,8 +11,7 @@ import { DRAWN_RIGS, RIG_NOTES, type CustomCreature, type Rig } from '../lib/cre
 import type { CustomProp } from '../lib/props'
 import type { CustomSet } from '../lib/sets'
 
-// One screen to create anything with AI: pick a type, describe it, get a reply (configured provider or any chat AI
-// via copy/paste), review what it creates, import. Existing library items are never overwritten.
+// One screen to create anything with AI: pick a type, describe it, get a reply (any chat AI, via copy/paste), review what it creates, import. Existing library items are never overwritten.
 const route = useRoute()
 const router = useRouter()
 const { data, error, loading, reload } = useApi(() => Promise.all([api.props(), api.sets(), api.creatures(), api.actions(), api.series()]))
@@ -23,9 +20,6 @@ const lib = computed<Library | null>(() => !data.value ? null : { props: data.va
 const q = (k: string) => (typeof route.query[k] === 'string' ? (route.query[k] as string) : '')
 const kind = computed<Kind>(() => (isKind(route.query.type) ? route.query.type : 'prop'))
 const brief = reactive<Brief & { rig: Rig; parts: number; series: string }>({ description: '', rig: 'quadruped', parts: 3, series: '' })
-const mode = ref<'generate' | 'bridge'>('bridge')
-const { auto, busy, generate, label, provider } = useAutoAi()
-watch(auto, (a) => a && (mode.value = 'generate'), { immediate: true })
 
 const prompt = ref('')
 const reply = ref('')
@@ -64,12 +58,6 @@ function loadReply() {
   replyError.value = err ?? ''
   items.value = plan && lib.value ? reviewItems(kind.value, plan, lib.value, targetCast.value) : []
   if (plan) toast('Ready to review: uncheck anything you don\'t want', 'ok')
-}
-async function generateReply() {
-  const text = await generate(await makePrompt())
-  if (text === undefined) return
-  reply.value = text
-  loadReply()
 }
 
 // ---- review ----
@@ -192,25 +180,11 @@ const when = (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyl
         </label>
       </section>
 
-      <!-- 3: mode -->
+      <!-- 3: the reply, from any chat AI -->
       <section class="raised space-y-4 p-6" aria-labelledby="ai-mode">
         <h3 id="ai-mode" class="font-display text-xl font-semibold">Get the reply</h3>
-        <div class="flex flex-wrap gap-2" role="group" aria-label="Mode">
-          <button type="button" class="btn" :class="mode === 'generate' ? 'btn-primary' : 'btn-secondary'" :aria-pressed="mode === 'generate'"
-            :disabled="!auto" @click="mode = 'generate'"><Sparkles :size="16" aria-hidden="true" /> Generate{{ auto ? ` with ${provider}` : '' }}</button>
-          <button type="button" class="btn" :class="mode === 'bridge' ? 'btn-primary' : 'btn-secondary'" :aria-pressed="mode === 'bridge'"
-            @click="mode = 'bridge'">Use any chat AI</button>
-        </div>
-        <p v-if="!auto" class="text-xs text-muted">Generate needs a provider: <RouterLink to="/settings" class="underline">set up OmniRoute, Gemini or OpenRouter in Settings</RouterLink>. Any chat AI always works, even offline.</p>
-        <template v-if="mode === 'generate'">
-          <button type="button" class="btn btn-primary" :disabled="!ready || busy" :aria-busy="busy" @click="generateReply">
-            <Sparkles :size="16" aria-hidden="true" /> {{ label }}</button>
-          <p v-if="replyError" class="text-sm text-red-ink" role="alert">{{ replyError }} <button type="button" class="underline" @click="mode = 'bridge'">Fix the reply by hand</button></p>
-        </template>
-        <template v-else>
-          <button type="button" class="btn btn-primary" :disabled="!ready" @click="makePrompt">Make prompt</button>
-          <AiBridge v-model="reply" :prompt="prompt" :error="replyError" load-label="Review" @load="loadReply" />
-        </template>
+        <button type="button" class="btn btn-primary" :disabled="!ready" @click="makePrompt">Make prompt</button>
+        <AiBridge v-model="reply" :prompt="prompt" :error="replyError" load-label="Review" @load="loadReply" />
       </section>
 
       <!-- 4 + 5: review and import -->

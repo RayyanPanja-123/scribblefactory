@@ -30,7 +30,6 @@ const router = createRouter({
     { path: '/actions/:id', name: 'action-edit', component: () => import('./pages/ActionEditor.vue'), props: true },
     { path: '/help', name: 'help', component: () => import('./pages/Help.vue') },
     { path: '/posted', name: 'posted', component: () => import('./pages/Posted.vue') },
-    { path: '/settings', name: 'settings', component: () => import('./pages/Settings.vue') },
     { path: '/history', name: 'history', component: () => import('./pages/History.vue') },
   ],
 })

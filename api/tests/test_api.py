@@ -616,82 +616,15 @@ def test_creatures(client, lib):
     assert client.delete("/api/creatures/wolf").status_code == 404
 
 
-def test_spawn_detached_outlives_its_launcher():
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        port = s.getsockname()[1]
-    # listens until its first connection, then exits: the connect below is also the cleanup
-    m.spawn_detached([sys.executable, "-c", f"import socket; socket.create_server(('127.0.0.1', {port})).accept()"])
-    deadline = time.monotonic() + 15
-    while not m.gateway_up(port) and time.monotonic() < deadline:  # gateway_up's probe connects: it exits
-        time.sleep(0.2)
-    assert time.monotonic() < deadline, "the detached process never listened"
-
-
-def test_gateway_switch(tmp_path, monkeypatch):
+def test_drop_old_ai_settings(tmp_path, monkeypatch):
     monkeypatch.setenv("SCRIBBLE_LIBRARY", str(tmp_path))
-    c = TestClient(m.app)
-    srv = None
-    with socket.socket() as s:  # a free port, closed: the gateway starts "off"
-        s.bind(("127.0.0.1", 0))
-        port = s.getsockname()[1]
-    c.put("/api/settings", json={"base_url": f"http://127.0.0.1:{port}/v1", "model": "x"})
-    calls = []
-
-    def fake_serve(argv):  # stands in for the long-running `omniroute serve`: it listens
-        nonlocal srv
-        calls.append(argv[1:])
-        srv = socket.create_server(("127.0.0.1", port))
-
-    def fake_run(argv, **kw):  # `omniroute stop`: closes it
-        calls.append(argv[1:])
-        srv.close()
-        return subprocess.CompletedProcess(argv, 0, "", "")
-
-    monkeypatch.setattr("shutil.which", lambda _: "omniroute")
-    monkeypatch.setattr(m, "spawn_detached", fake_serve)
-    monkeypatch.setattr(m.subprocess, "run", fake_run)
-    assert c.get("/api/gateway").json() == {"running": False}
-    assert c.put("/api/gateway", json={"on": True}).json() == {"running": True}
-    assert c.get("/api/gateway").json() == {"running": True}
-    assert c.put("/api/gateway", json={"on": True}).json() == {"running": True}  # already on: no second serve
-    assert c.put("/api/gateway", json={"on": False}).json() == {"running": False}
-    assert calls == [["serve", "--no-open", "--port", str(port)], ["stop", "--port", str(port)]]
-    c.put("/api/settings", json={"base_url": "https://api.example.com/v1", "model": "x"})
-    assert c.put("/api/gateway", json={"on": True}).status_code == 409  # remote gateway: not ours to start
-
-
-def test_ai_settings_and_complete(tmp_path, monkeypatch):
-    from http.server import BaseHTTPRequestHandler, HTTPServer
-    monkeypatch.setenv("SCRIBBLE_LIBRARY", str(tmp_path))
-    seen = {}
-
-    class Stub(BaseHTTPRequestHandler):
-        def do_POST(self):
-            seen["auth"] = self.headers["Authorization"]
-            seen["body"] = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-            out = json.dumps({"choices": [{"message": {"content": "```json\n{}\n```"}}]}).encode()
-            self.send_response(200)
-            self.send_header("Content-Length", str(len(out)))
-            self.end_headers()
-            self.wfile.write(out)
-
-        def log_message(self, *a):
-            pass
-
-    srv = HTTPServer(("127.0.0.1", 0), Stub)
-    threading.Thread(target=srv.serve_forever, daemon=True).start()
-    c = TestClient(m.app)
-    try:
-        assert c.get("/api/settings").json() == {"provider": "omniroute", "base_url": m.DEFAULT_AI_URL, "model": "", "omniroute_model": "", "gemini_model": "", "openrouter_model": "", "has_key": False, "key_hint": "", "has_omniroute_key": False, "omniroute_key_hint": "", "has_gemini_key": False, "gemini_key_hint": "", "has_openrouter_key": False, "openrouter_key_hint": ""}
-        assert c.post("/api/ai/complete", json={"prompt": "hi"}).status_code == 400
-        url = f"http://127.0.0.1:{srv.server_port}/v1/"
-        r = c.put("/api/settings", json={"base_url": url, "model": "cc/x", "api_key": "sk-1"}).json()
-        assert r == {"provider": "omniroute", "base_url": url.rstrip("/"), "model": "cc/x", "omniroute_model": "cc/x", "gemini_model": "", "openrouter_model": "", "has_key": True, "key_hint": "sk-1", "has_omniroute_key": True, "omniroute_key_hint": "sk-1", "has_gemini_key": False, "gemini_key_hint": "", "has_openrouter_key": False, "openrouter_key_hint": ""}  # key never echoed
-        assert c.put("/api/settings", json={"base_url": url, "model": "cc/y"}).json()["has_key"]  # omitted key is kept
-        assert c.post("/api/ai/complete", json={"prompt": "hi"}).json() == {"text": "```json\n{}\n```"}
-        assert seen == {"auth": "Bearer sk-1", "body": {"model": "cc/y", "messages": [{"role": "user", "content": "hi"}]}}
-        assert not c.put("/api/settings", json={"base_url": url, "model": "cc/y", "api_key": ""}).json()["has_key"]
-        assert c.put("/api/settings", json={"base_url": "ftp://x", "model": "m"}).status_code == 422
-    finally:
-        srv.shutdown()
+    f = tmp_path / "settings.json"
+    assert m.drop_ai_settings() == []  # no file: nothing to do
+    f.write_text(json.dumps({"provider": "gemini", "gemini_api_key": "k", "api_key": "s", "model": "x"}), encoding="utf-8")
+    assert m.drop_ai_settings() and not f.exists()  # only provider keys: the file goes
+    f.write_text(json.dumps({"openrouter_api_key": "k", "other": 1}), encoding="utf-8")
+    m.drop_ai_settings()
+    assert json.loads(f.read_text(encoding="utf-8")) == {"other": 1}  # anything else is kept
+    assert m.drop_ai_settings() == []
+    f.write_text("{not json", encoding="utf-8")
+    assert "could not" in m.drop_ai_settings()[0]  # a broken file never stops startup
