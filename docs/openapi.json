@@ -417,6 +417,24 @@
         "title": "Job",
         "type": "object"
       },
+      "JobCleanup": {
+        "properties": {
+          "before": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Before"
+          }
+        },
+        "title": "JobCleanup",
+        "type": "object"
+      },
       "JobRequest": {
         "properties": {
           "part": {
@@ -1885,6 +1903,49 @@
           }
         },
         "summary": "Submit Job"
+      }
+    },
+    "/api/jobs/cleanup": {
+      "post": {
+        "description": "delete job history; queued and running jobs are never touched. Returns the jobs that are left.",
+        "operationId": "cleanup_jobs_api_jobs_cleanup_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobCleanup"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Job"
+                  },
+                  "title": "Response Cleanup Jobs Api Jobs Cleanup Post",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cleanup Jobs"
       }
     },
     "/api/jobs/{job_id}": {

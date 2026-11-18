@@ -9,7 +9,7 @@ export type LiveEvent =
   | { type: 'series-changed'; slug: string }
   | { type: 'resync' } // reconnected after a drop: anything may have changed
 
-const TYPES = ['job-queued', 'job-started', 'job-step', 'job-output', 'job-finished', 'part-changed', 'series-changed']
+const TYPES = ['job-queued', 'job-started', 'job-step', 'job-output', 'job-finished', 'part-changed', 'series-changed', 'jobs-cleaned']
 const listeners = new Set<(e: LiveEvent) => void>()
 const MAX_LINES = 200
 
@@ -51,6 +51,9 @@ function patch(id: number, fields: Partial<Job>) {
 
 function onEvent(type: string, d: any) {
   switch (type) {
+    case 'jobs-cleaned': // history deleted (any tab): reload the list
+      loadJobs()
+      break
     case 'job-queued':
       jobs.value.push(d)
       break

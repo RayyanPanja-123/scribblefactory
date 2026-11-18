@@ -17,7 +17,7 @@ import subprocess
 import sys
 import threading
 from collections import deque
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Literal, get_args
 
@@ -45,7 +45,7 @@ COVER_W = 360  # dashboard cover width (px): a small cached JPEG instead of the 
 PART_FILES = ["story.md", "voice.mp3", "preview.mp4", "test-render.mp4", "final.mp4", "stills-sheet.png", "cast-sheet.png"]
 APPROVE_NEEDS = {"stills": "stills-sheet.png", "test_render": "test-render.mp4", "final": "final.mp4"}
 JOB_COMMANDS = {"run", "render-stills", "test-render", "render", "cast-sheet"}
-KEEP_JOBS = 50
+KEEP_JOBS = 500  # finished jobs kept as history (oldest dropped first); the History page cleans up sooner
 OUTPUT_LINES = 200
 HEARTBEAT_S = 15
 
@@ -804,6 +804,24 @@ def submit_job(body: JobRequest):
 @app.get("/api/jobs", response_model=list[Job])
 def list_jobs():
     return [public(j) for j in list(JOBS)]
+
+
+class JobCleanup(BaseModel):
+    before: date | None = None  # delete finished jobs that finished before this day (UTC); None: every finished job
+
+
+@app.post("/api/jobs/cleanup", response_model=list[Job])
+def cleanup_jobs(body: JobCleanup):
+    """delete job history; queued and running jobs are never touched. Returns the jobs that are left."""
+    cut = body.before.isoformat() if body.before else None
+    with _cv:
+        gone = [j for j in JOBS if j["status"] not in ("queued", "running")
+                and (cut is None or (j["finished_at"] or j["queued_at"])[:10] < cut)]
+        for j in gone:
+            JOBS.remove(j)
+    save_jobs()
+    publish("jobs-cleaned", {"removed": len(gone)})
+    return list_jobs()
 
 
 @app.delete("/api/jobs/{job_id}", response_model=Job)

@@ -74,6 +74,7 @@ export const api = {
   jobs: () => call<Job[]>('GET', '/api/jobs'),
   submitJob: (slug: string, p: string, steps: string[]) => call<Job>('POST', '/api/jobs', { slug, part: p, steps }),
   cancelJob: (id: number) => call<Job>('DELETE', `/api/jobs/${id}`),
+  cleanupJobs: (before: string | null) => call<Job[]>('POST', '/api/jobs/cleanup', { before }),
   props: () => call<PropCatalog>('GET', '/api/props'),
   saveProp: (p: CustomProp) => call<PropCatalog>('PUT', `/api/props/${e(p.id)}`, p),
   deleteProp: (id: string) => call<PropCatalog>('DELETE', `/api/props/${e(id)}`),

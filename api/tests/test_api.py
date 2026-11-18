@@ -540,3 +540,20 @@ def test_delete_series(client, lib):
     assert client.delete("/api/series/demo").json() == {"ok": True}
     assert not (lib / "demo").exists() and client.get("/api/series").json() == []
     assert client.delete("/api/series/demo").status_code == 404
+
+
+def test_job_history_cleanup(client, lib):
+    mk = lambda i, status, finished: {"id": i, "slug": "demo", "part": "part-01", "steps": ["render-stills"], "argv": [],
+                                      "current_step": None, "status": status, "queued_at": "2026-01-01T00:00:00Z",
+                                      "started_at": None, "finished_at": finished, "returncode": 0, "output": []}
+    with m._cv:
+        m.JOBS[:] = [mk(1, "done", "2026-01-05T10:00:00Z"), mk(2, "failed", "2026-02-05T10:00:00Z"),
+                     mk(3, "cancelled", "2026-03-05T10:00:00Z"), mk(4, "queued", None)]
+    try:
+        r = client.post("/api/jobs/cleanup", json={"before": "2026-02-05"})
+        assert r.status_code == 200 and [j["id"] for j in r.json()] == [2, 3, 4]      # the day itself is kept
+        assert [j["id"] for j in client.post("/api/jobs/cleanup", json={}).json()] == [4]  # all history; queued stays
+        assert client.post("/api/jobs/cleanup", json={"before": "05.02.2026"}).status_code == 422
+    finally:
+        with m._cv:
+            m.JOBS.clear()  # the fake queued job must not block later tests
