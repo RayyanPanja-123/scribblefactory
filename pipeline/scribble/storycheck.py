@@ -16,12 +16,12 @@ from pathlib import Path
 
 from .io import cast_body_problems, load_series, prop_kinds, set_kinds, unknown_cast_props
 from .stages.finish import MAX_RUNTIME_S
-from .stages.prep import DO_CAR, FX_MODES, TWIST_PREFIX, clean_markdown, parse_do, strip_directives
+from .stages.prep import DO_CAR, FX_MODES, TWIST_PREFIX, clean_markdown, parse_do, parse_look, strip_directives
 from .stages.runner import StageError
 from .stages.shots import CAR_MODES, CAR_SEATS, DEFAULT_CAST_SIZE, MAX_CAST, MAX_DOGS, MAX_ON_STAGE, MAX_RUNNERS, parse_crowd
 from .validate import END_CARD_S
 
-DIRECTIVES = ("set", "cast", "dogs", "car", "fx", "do", "crowd", "runners")
+DIRECTIVES = ("set", "cast", "dogs", "car", "fx", "do", "look", "crowd", "runners")
 LINE_PREFIX = re.compile(r"^story\.md line [0-9]+: ")
 FALLBACK_WPS = 2.6  # words per second before any part has been finished
 # a first line that opens on a date or backstory instead of the hook
@@ -138,6 +138,8 @@ def check_story(part_dir: Path) -> dict:
                         bad(no, f"@car takes {' | '.join(CAR_MODES)}, got {arg!r}")
                 elif name == "crowd":
                     parse_crowd(arg, no)
+                elif name == "look":
+                    parse_look(arg, no, {c.id: list(c.looks) for c in series.cast})
                 elif name == "do":
                     clauses = parse_do(arg, no, ids, props)
                     if pending_do:

@@ -710,3 +710,39 @@ def test_only_a_creature_is_headless():
     with pytest.raises(ValueError, match="only a creature"):
         SeriesModel.model_validate({**CHICKEN.model_dump(mode="json"), "cast": [
             {"id": "bob", "name": "Bob", "top": {"color": "#3a7bd5"}, "eyes": "dots", "headless": True}]})
+
+
+# --- @look: named cast looks ---
+
+LOOKS = SeriesModel.model_validate({**SERIES.model_dump(mode="json"), "cast": [
+    *SERIES.model_dump(mode="json")["cast"],
+    {"id": "mike", "name": "Mike", "top": {"color": "#f2f2f2"}, "eyes": "dots", "body": "chicken",
+     "looks": {"headless": {"headless": True}, "red": {"top": {"color": "#ff0000"}}}}]})
+
+
+def test_look_holds_from_its_line_across_scenes_until_default():
+    md = ("# L\n\n@cast bob, mike\nMike stood there.\n@look mike: headless\nThe head dropped.\n\n@set street\n"
+          "Mike ran.\n@look mike: default\nIt was a dream.\n")
+    story, _ = plan(md, series=LOOKS)
+    looks = [next(a.look for a in s.actors if a.cast_id == "mike") for s in story.shots]
+    runs = [k for i, k in enumerate(looks) if i == 0 or k != looks[i - 1]]
+    assert runs == [None, "headless", None]  # own look, headless from its line, back at @look default
+    street = [s for s in story.shots if s.set == "street"]
+    assert any(next(a.look for a in s.actors if a.cast_id == "mike") == "headless" for s in street)  # kept over @set
+
+
+def test_look_errors_name_the_line():
+    for line, msg in [("@look mike: wings", "mike has no look 'wings'"), ("@look zed: red", "unknown cast id 'zed'"),
+                      ("@look mike", "expected")]:
+        with pytest.raises(StageError, match=msg):
+            plan(f"# L\n\n@cast bob, mike\n{line}\nHi.\n", series=LOOKS)
+
+
+def test_with_look_overrides_only_what_it_sets():
+    mike = next(c for c in LOOKS.cast if c.id == "mike")
+    assert mike.with_look("headless").headless and not mike.headless
+    assert mike.with_look("red").top.color == "#ff0000" and mike.with_look("red").headless is False
+    assert mike.with_look("default") is mike
+    with pytest.raises(ValueError, match="default is reserved"):
+        SeriesModel.model_validate({**LOOKS.model_dump(mode="json"), "cast": [
+            {**LOOKS.model_dump(mode="json")["cast"][-1], "looks": {"default": {}}}]})

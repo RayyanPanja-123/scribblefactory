@@ -6,6 +6,7 @@ story.md directives (one per line) are stripped from the script:
   @dogs 4            dog pack size (0-6) for the following lines
   @fx drop           caption effect for the next line's chunks: drop | shake | pop | none
   @do fred: collapse actions for the next line's shots, overriding keyword guessing (see parse_do)
+  @look mike: headless  a cast member's named look from the next line on (default: its own; see parse_look)
   @crowd cheer 10    crowd extras behind the stage: cheer | angry | gasp | neutral [N, default 8, max 12] | off
   @runners 4         background runner extras (0-6)
   !! text            this line is the twist (prefix stripped, text kept)
@@ -111,6 +112,25 @@ def parse_do(arg: str, line: int, cast_ids=None, props=BUILTIN_PROPS) -> list[Do
         out.append(DoClause(who, act, target, prop))
         who_txt = nxt
     return out
+
+
+
+def parse_look(arg: str, line: int, looks_of=None) -> tuple[tuple[str, ...], str]:
+    """@look <cast>[, <cast>]: <look> -> (cast ids, look name); "default" is the cast member's own look. looks_of:
+    cast id -> its look names (series.json), or None to check the syntax only. Errors name the story.md line."""
+    def bad(msg):
+        raise StageError(f"story.md line {line}: @look: {msg}")
+    who_txt, sep, name = arg.partition(":")
+    who, name = tuple(w.strip() for w in who_txt.split(",") if w.strip()), name.strip()
+    if not sep or not who or not name or " " in name:
+        bad('expected "@look <cast>: <look>", e.g. "@look mike: headless" (or "@look mike: default")')
+    for w in who if looks_of is not None else ():
+        if w not in looks_of:
+            bad(f"unknown cast id {w!r} (series cast: {', '.join(looks_of)})")
+        if name != "default" and name not in looks_of[w]:
+            bad(f"{w} has no look {name!r} (its looks: {', '.join(['default', *looks_of[w]])}; add one under "
+                f'"looks" in its series.json cast entry)')
+    return who, name
 
 
 def _is_directive(line: str) -> bool:

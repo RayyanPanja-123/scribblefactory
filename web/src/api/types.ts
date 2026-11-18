@@ -511,6 +511,30 @@ export interface components {
             /** Cast Id */
             cast_id: string;
         };
+        /**
+         * CastLook
+         * @description a named variant of a cast member's look (story: @look <cast>: <name>). Only what it sets changes; everything
+         *     else stays the cast member's own. The character keeps its id, name, approval and drawing seed.
+         */
+        CastLook: {
+            /** Default Expression */
+            default_expression?: ("neutral" | "happy" | "sad" | "angry" | "surprised" | "sleepy" | "cheeky" | "exhausted") | null;
+            /** Eyes */
+            eyes?: ("dots" | "half_closed") | null;
+            /**
+             * Headless
+             * @description creatures with a stump only
+             */
+            headless?: boolean | null;
+            headwear?: components["schemas"]["Headwear"] | null;
+            legwear?: components["schemas"]["Legwear"] | null;
+            /**
+             * Props
+             * @description held props, one per hand ([]: none)
+             */
+            props?: components["schemas"]["Prop"][] | null;
+            top?: components["schemas"]["Top"] | null;
+        };
         /** CastMember */
         CastMember: {
             /** Approved At */
@@ -552,6 +576,14 @@ export interface components {
              *     }
              */
             legwear: components["schemas"]["Legwear"];
+            /**
+             * Looks
+             * @description named variants a story switches to with @look <cast>: <name> (default: back to this entry's own)
+             * @default {}
+             */
+            looks: {
+                [key: string]: components["schemas"]["CastLook"];
+            };
             /** Name */
             name: string;
             /**

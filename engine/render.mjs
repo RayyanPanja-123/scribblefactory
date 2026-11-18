@@ -31,6 +31,7 @@ export const POSES = [["idle", "idle"], ["walk", "walk"], ["talk", "talk"],
   ...["neutral", "happy", "sad", "angry", "surprised", "sleepy", "cheeky", "exhausted"].map((e) => [e, "idle", e]),
   ...["stagger", "lie", "eat", "give", "carried"].map((a) => [a, a]),
   ["cheer", "cheer", "happy"], ["angry mood", "angry", "angry"]]; // crowd moods (label: "angry" is an expression column)
+export const LOOK_POSES = ["idle", "walk", "talk", "stagger"]; // cast sheet: per named look
 // Software GL (SwiftShader): output does not depend on the machine's GPU or driver.
 const SWIFTSHADER_ARGS = ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"];
 // Chromium's default ANGLE backend on the real GPU (D3D11 on Windows).
@@ -165,6 +166,11 @@ function castJobs(a) {
   for (const c of data.series.cast) for (const [label, pose, expression] of POSES) {
     jobs.push({ label: `${c.id} ${label}`, file: path.join(manifestDir, `${c.id}-${label}.png`),
       call: ["renderCast", { castId: c.id, pose, expression }] });
+  }
+  // named looks (@look) after everyone's full rows, so those rows stay aligned: a few poses each
+  for (const c of data.series.cast) for (const look of Object.keys(c.looks || {})) for (const pose of LOOK_POSES) {
+    jobs.push({ label: `${c.id} ${look} ${pose}`, file: path.join(manifestDir, `${c.id}-${look}-${pose}.png`),
+      call: ["renderCast", { castId: c.id, pose, look }] });
   }
   return { data, jobs, manifestDir };
 }

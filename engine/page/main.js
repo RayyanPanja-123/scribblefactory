@@ -90,13 +90,16 @@ function card(id, geo = CARD_GEO, w = CW, h = CH) {
 const NO_COSTUME = { headwear: { kind: "none" }, legwear: { kind: "none" }, props: [], default_expression: "neutral" };
 /** cast entry with every v3 field; older files read the same as the pipeline migrates them: a v1 entry
  *  (outfit_color) is a plain top in that colour, a v2 single prop becomes the props list */
-const castOf = (id) => {
+const castOf = (id, look) => {
   const c = data.series.cast.find((c) => c.id === id) || { id, outfit_color: "#888888", eyes: "dots" };
   const props = c.props || (c.prop && c.prop.kind !== "none" ? [c.prop] : []);
-  return { ...NO_COSTUME, top: { style: "plain", color: c.outfit_color }, ...c, props };
+  const base = { ...NO_COSTUME, top: { style: "plain", color: c.outfit_color }, ...c, props };
+  // a named look (@look) replaces only the fields it sets
+  const L = look && c.looks?.[look];
+  return L ? { ...base, ...Object.fromEntries(Object.entries(L).filter(([, v]) => v != null)) } : base;
 };
-/** story expression "neutral" means the cast member's default expression */
-const expressionOf = (id, e) => (!e || e === "neutral" ? castOf(id).default_expression : e);
+/** story expression "neutral" means the cast member's default expression (in its current look) */
+const expressionOf = (id, e, look) => (!e || e === "neutral" ? castOf(id, look).default_expression : e);
 const charSeed = (id) => `${data.series.slug}:${id}`; // same look in every part and on the cast sheet
 
 function lidAt(f, key) {
@@ -118,7 +121,7 @@ let mouth = new Float32Array(0); // per-frame mouth opening for the whole part (
 
 /** drawStickman options for cast member id (look from series.json), merged over the per-frame options o */
 function figure(id, o) {
-  const cast = castOf(id);
+  const cast = castOf(id, o.look);
   const { top, headwear, legwear, props, eyes, body = "stickman", headless = false } = cast;
   return { seed: charSeed(id), color: top.color, top, headwear, legwear, props, eyes, headless,
     creature: creatureOf(id), ...o };
@@ -200,7 +203,8 @@ window.setup = (d) => {
   setCustomProps(d.props); // library/props.json
   setCustomCreatures(d.creatures); // library/creatures.json
   setCustomSets(d.sets); // library/sets.json
-  ownedProps = propsByShot(d.story.shots || [], Object.fromEntries((d.series.cast || []).map((c) => [c.id, castOf(c.id).props])));
+  ownedProps = propsByShot(d.story.shots || [], Object.fromEntries((d.series.cast || []).map((c) => [c.id, castOf(c.id).props])),
+    (id, look) => castOf(id, look).props);
   mouth = d.phrases ? mouthCurve(mouthCycles(d.phrases.words, d.phrases.phrases), d.story.duration_frames) : mouth;
   for (const k of Object.keys(sets)) delete sets[k];
   let runStart = null; // variant = hash(set, first shot id of the run): props never jump between cuts on one set
@@ -365,14 +369,14 @@ function drawShot(shot, n) {
     const feet = new THREE.Vector3(x, 0, z).project(camera), head = new THREE.Vector3(x, FIG_H, z).project(camera);
     const px = (((head.y - feet.y) / 2) * H) / FIGURE_PX; // screen px per card canvas px
     const o = {
-      boil: Math.floor(n / BOIL_FRAMES), action: a.action, expression: expressionOf(a.cast_id, a.expression), facing: a.facing, t, phase, px,
+      boil: Math.floor(n / BOIL_FRAMES), action: a.action, expression: expressionOf(a.cast_id, a.expression, a.look), facing: a.facing, t, phase, px, look: a.look,
       lid: lidAt(n, key),
       breath: Math.sin((2 * Math.PI * t) / 3.4 + 2 * Math.PI * rng(key, "breath")()),
       mouth: a.action === "talk" && n === kf ? mouth[n] : 0, // shut while drawn outside its shot (wipe)
       bob: a.action === "talk" && !seated.has(a.cast_id) ? stressBob(t, shotWords(shot)) : 0,
       gesture, pointK: a.action === "point" ? pointAmount(ts) : 1,
       wave: a.action === "wave" ? waveAmount(ts) : null,
-      props: owned[a.cast_id] || castOf(a.cast_id).props,
+      props: owned[a.cast_id] || castOf(a.cast_id, a.look).props,
     };
     const roll = actionPose(shot, a, o, x, u, ts, n);
     if (seated.has(a.cast_id)) { riders.set(a.cast_id, figure(a.cast_id, o)); continue; }
@@ -621,11 +625,11 @@ const EXTRA = { color: "#8a8a8a", eyes: "dots" }; // generic grey extras (cast s
 
 /** cast sheet image: one character on a plain background. pose: idle | walk | talk | stagger | lie | eat | give |
  *  carried (between two grey extras); expression for the face (none given: the cast member's default) */
-window.renderCast = ({ castId, pose, expression = castOf(castId).default_expression }) => {
+window.renderCast = ({ castId, pose, look: castLook = null, expression = castOf(castId, castLook).default_expression }) => {
   scene = new THREE.Scene();
   scene.background = new THREE.Color("#f4f1ea");
-  const props = castOf(castId).props;
-  const o = { boil: 0, lid: 0, breath: 0, mouth: 0, t: 0.3, phase: 0, action: "idle", facing: "camera", expression, props };
+  const props = castOf(castId, castLook).props;
+  const o = { boil: 0, lid: 0, breath: 0, mouth: 0, t: 0.3, phase: 0, action: "idle", facing: "camera", expression, props, look: castLook };
   let cam = [0, 0.82, 2.6], look = [0, 0.8, 0], y = 0, roll = 0;
   if (pose === "walk") Object.assign(o, { action: "walk", facing: "right", phase: 0.25 });
   if (pose === "talk") Object.assign(o, { action: "talk", mouth: 0.8 });

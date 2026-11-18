@@ -1,5 +1,114 @@
 {
   "$defs": {
+    "CastLook": {
+      "additionalProperties": false,
+      "description": "a named variant of a cast member's look (story: @look <cast>: <name>). Only what it sets changes; everything\nelse stays the cast member's own. The character keeps its id, name, approval and drawing seed.",
+      "properties": {
+        "default_expression": {
+          "anyOf": [
+            {
+              "enum": [
+                "neutral",
+                "happy",
+                "sad",
+                "angry",
+                "surprised",
+                "sleepy",
+                "cheeky",
+                "exhausted"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Default Expression"
+        },
+        "eyes": {
+          "anyOf": [
+            {
+              "enum": [
+                "dots",
+                "half_closed"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Eyes"
+        },
+        "headless": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "creatures with a stump only",
+          "title": "Headless"
+        },
+        "headwear": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Headwear"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "legwear": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Legwear"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "props": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/Prop"
+              },
+              "maxItems": 2,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "held props, one per hand ([]: none)",
+          "title": "Props"
+        },
+        "top": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Top"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "CastLook",
+      "type": "object"
+    },
     "CastMember": {
       "additionalProperties": false,
       "properties": {
@@ -70,6 +179,17 @@
             "color": null,
             "kind": "none"
           }
+        },
+        "looks": {
+          "default": {},
+          "description": "named variants a story switches to with @look <cast>: <name> (default: back to this entry's own)",
+          "patternProperties": {
+            "^[a-z0-9]+(-[a-z0-9]+)*$": {
+              "$ref": "#/$defs/CastLook"
+            }
+          },
+          "title": "Looks",
+          "type": "object"
         },
         "name": {
           "title": "Name",

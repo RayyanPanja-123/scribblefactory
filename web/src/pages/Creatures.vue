@@ -24,7 +24,7 @@ const users = computed(() => {
   const by: Record<string, { slug: string; title: string; name: string; color: string; headless: boolean }[]> = {}
   for (const d of data.value?.series ?? [])
     for (const c of d.series.cast)
-      if (c.body !== 'stickman') (by[c.body] ??= []).push({ slug: d.series.slug, title: d.series.title, name: c.name, color: c.top.color, headless: c.headless })
+      if (c.body !== 'stickman') (by[c.body] ??= []).push({ slug: d.series.slug, title: d.series.title, name: c.name, color: c.top.color, headless: c.headless || Object.values(c.looks ?? {}).some((l) => l.headless) })
   return by
 })
 

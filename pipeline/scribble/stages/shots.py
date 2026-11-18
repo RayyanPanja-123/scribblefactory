@@ -16,7 +16,7 @@ from ..io import atomic_write_json, cast_body_problems, creature_bodies, outdoor
 from ..schemas import BUILTIN_CREATURES, HAND_RIGS, Actor, Animal, Camera, Cue, EndCard, Extra, PhrasesModel, SeriesModel, Shot, StoryModel, Travel, Vehicle
 from ..validate import (CAR_SPEED, CROWD_Z, DOG_RUN_SPEED, MAX_SHOT_FRAMES, MOODS, OUTDOOR_SETS, SPEEDS,
                         END_CARD_S, end_frame, validate)
-from .prep import BUILTIN_PROPS, DO_CAR, FX_MODES, MARKER_RE, clean_markdown, mark_directives, parse_do
+from .prep import BUILTIN_PROPS, DO_CAR, FX_MODES, MARKER_RE, clean_markdown, mark_directives, parse_do, parse_look
 from .runner import StageError
 from .validate import load_model
 
@@ -115,19 +115,21 @@ def seed_for(slug: str, part_number: int) -> int:
     return zlib.crc32(slug.encode()) + part_number  # stable across runs (unlike hash())
 
 
-def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILTIN_PROPS):
-    """Return (words, [(set, cast tuple, twist starts here, dogs, car mode, do, crowd, runners)]) from story.md,
-    words as prep's script has them. do: (story.md line, @do clauses) for the words of the line after an @do, else
-    None. crowd: (mood, N) or None. A set change resets crowd and runners."""
+def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILTIN_PROPS, looks_of=None):
+    """Return (words, [(set, cast tuple, twist starts here, dogs, car mode, do, crowd, runners, looks)]) from
+    story.md, words as prep's script has them. do: (story.md line, @do clauses) for the words of the line after an
+    @do, else None. crowd: (mood, N) or None. A set change resets crowd and runners. looks: {cast id: look name} set
+    by @look, kept for the rest of the part (default drops it). looks_of: cast id -> its look names."""
     text, directives = mark_directives(md)
     set_, cast, twist_next, dogs, car, do = DEFAULT_SET, tuple(default_cast), False, 0, "off", None
-    crowd, runners = None, 0
+    crowd, runners, looks = None, 0, {}
+    looks_of = looks_of if looks_of is not None else {c: [] for c in cast_ids}
     words, tags = [], []
     for tok in clean_markdown(text).split():
         m = MARKER_RE.match(tok)
         if not m:
             words.append(tok)
-            tags.append((set_, cast, twist_next, dogs, car, do, crowd, runners))
+            tags.append((set_, cast, twist_next, dogs, car, do, crowd, runners, looks))
             twist_next = False
         elif m[1] == "!":
             twist_next = True
@@ -166,10 +168,13 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
                 crowd = parse_crowd(arg, line)
             elif name == "runners" and arg.isdigit() and int(arg) <= MAX_RUNNERS:
                 runners = int(arg)
+            elif name == "look":
+                who, look = parse_look(arg, line, looks_of)
+                looks = {**{k: v for k, v in looks.items() if k not in who}, **({w: look for w in who} if look != "default" else {})}
             else:
                 raise StageError(f"story.md line {line}: bad directive @{d.strip()} (use @set <name>, @cast a, b, "
                                  f"@dogs 0-{MAX_DOGS}, @car {' | '.join(CAR_MODES)}, @fx {' | '.join(FX_MODES)}, "
-                                 f"@do <cast>: <action>, @crowd <mood> [N] | off or @runners 0-{MAX_RUNNERS})")
+                                 f"@do <cast>: <action>, @look <cast>: <look>, @crowd <mood> [N] | off or @runners 0-{MAX_RUNNERS})")
     return words, tags
 
 
@@ -540,7 +545,7 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
     if not series.cast:
         raise StageError("series.json has no cast: add some with cast-add")
     ids = [c.id for c in series.cast]
-    words, tags = tag_words(md, ids, ids[:DEFAULT_CAST_SIZE], props)
+    words, tags = tag_words(md, ids, ids[:DEFAULT_CAST_SIZE], props, {c.id: list(c.looks) for c in series.cast})
     heard = [w.text for w in phrases.words]
     if words != heard:
         i = next((i for i, (a, b) in enumerate(zip(words, heard)) if a != b), min(len(words), len(heard)))
@@ -593,7 +598,7 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
     pos: dict[str, float] = {}  # where each actor stands now; reset on a set change
     fallen: set = set()  # (@do line, cast id) that already collapsed
     for i, p in enumerate(phrases.phrases):
-        set_, cast, _, dogs, mode, do, crowd, runners = tags[p.word_start]
+        set_, cast, _, dogs, mode, do, crowd, runners, looks = tags[p.word_start]
         if (set_, cast) != scene_key:
             scene_key, back_pos = (set_, cast), {}
         cast, back = rows[i]  # from here on, cast is the front row
@@ -705,6 +710,8 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
                 runners, seed, sid, seconds, [a for a in actors if not ride], way, tspeed if travel else 0.0, set_ not in outdoor)
             if bark:
                 cues.append(bark)
+            for ac in actors:  # @look: the look each cast member has on this line
+                ac.look = looks.get(ac.cast_id)
             shots.append(Shot(id=sid, start_frame=s0, end_frame=s1, set=set_,
                               phrase_range=(i, i), camera=Camera(angle=angle, move=move, speed=speed, roll_deg=roll),
                               actors=actors, animals=animals, vehicles=vehicles, extras=extras, twist=is_twist,

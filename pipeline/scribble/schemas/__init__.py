@@ -88,6 +88,28 @@ class Prop(Strict):
     hand: Literal["left", "right"] = "right"
 
 
+def _one_hand_each(v):
+    if v is not None and len({p.hand for p in v}) != len(v):
+        raise ValueError("props: one per hand")
+    return v
+
+
+class CastLook(Strict):
+    """a named variant of a cast member's look (story: @look <cast>: <name>). Only what it sets changes; everything
+    else stays the cast member's own. The character keeps its id, name, approval and drawing seed."""
+    top: Top | None = None
+    headwear: Headwear | None = None
+    legwear: Legwear | None = None
+    props: list[Prop] | None = Field(default=None, max_length=2, description="held props, one per hand ([]: none)")
+    default_expression: Expression | None = None
+    eyes: Literal["dots", "half_closed"] | None = None
+    headless: bool | None = Field(default=None, description="creatures with a stump only")
+    @field_validator("props")
+    @classmethod
+    def _one_per_hand(cls, v):
+        return _one_hand_each(v)
+
+
 class CastMember(Strict):
     id: Slug
     name: str
@@ -101,20 +123,31 @@ class CastMember(Strict):
                                                        " drawn in top.color ($main) and top.accent_color ($accent); "
                                                        "eyes and mouth only, no costume")
     headless: bool = Field(default=False, description="creatures with a stump only: the stump instead of the head")
+    looks: dict[Slug, CastLook] = Field(default={}, description="named variants a story switches to with @look "
+                                                               "<cast>: <name> (default: back to this entry's own)")
     approved_at: UtcDateTime | None = None
 
     @field_validator("props")
     @classmethod
     def _one_per_hand(cls, v):
-        if len({p.hand for p in v}) != len(v):
-            raise ValueError("props: one per hand")
-        return v
+        return _one_hand_each(v)
 
     @model_validator(mode="after")
     def _headless_creature(self):
         if self.headless and self.body == "stickman":
             raise ValueError("headless: only a creature can be headless (set body to a creature id)")
+        if "default" in self.looks:
+            raise ValueError("looks: default is reserved (it means the cast member's own look)")
+        if bad := [k for k, v in self.looks.items() if v.headless and self.body == "stickman"]:
+            raise ValueError(f"looks: {', '.join(bad)}: only a creature can be headless")
         return self
+
+    def with_look(self, name: str | None) -> "CastMember":
+        """this cast member as it looks in a named look (None / default: as is)"""
+        if not name or name == "default":
+            return self
+        look = self.looks[name]
+        return self.model_copy(update={k: v for k in look.model_fields_set if (v := getattr(look, k)) is not None})
 
     def look(self) -> str:
         """everything the cast sheet shows (hex case ignored): a change here needs a new approval"""
@@ -517,6 +550,7 @@ class Actor(Strict):
     target: str | None = Field(default=None, description="give / receive: the other actor; carry / support: the "
                                                          "actor carried / supported")
     prop: PropKind | None = Field(default=None, description="eat / give: the prop eaten / handed over")
+    look: Slug | None = Field(default=None, description="the cast member's named look (@look), none: its own")
 
 
 class Travel(Strict):

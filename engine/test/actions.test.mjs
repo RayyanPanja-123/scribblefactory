@@ -143,3 +143,11 @@ test("every new action renders, and the same frame renders to the same bytes", (
   }
   assert.match(R.a3.out, /car1 broken/);
 });
+
+test("propsByShot: a new @look brings its props, a set change goes back to the cast props", () => {
+  const sh = (id, set, look) => ({ id, set, actors: [{ cast_id: "bob", action: "idle", look }] });
+  const cast = { bob: [{ kind: "apple", hand: "right" }] };
+  const lookProps = (id, look) => (look === "medic" ? [{ kind: "syringe", hand: "right" }] : cast[id]);
+  const m = propsByShot([sh("s1", "room"), sh("s2", "room", "medic"), sh("s3", "room", "medic"), sh("s4", "street")], cast, lookProps);
+  assert.deepEqual(["s1", "s2", "s3", "s4"].map((s) => m.get(s).bob[0].kind), ["apple", "syringe", "syringe", "apple"]);
+});

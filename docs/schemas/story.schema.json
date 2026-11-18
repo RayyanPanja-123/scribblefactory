@@ -80,6 +80,20 @@
           "title": "Facing",
           "type": "string"
         },
+        "look": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "the cast member's named look (@look), none: its own",
+          "title": "Look"
+        },
         "prop": {
           "anyOf": [
             {

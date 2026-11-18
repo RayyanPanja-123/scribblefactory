@@ -159,8 +159,8 @@ Comma-separated cast ids. Default: the first two cast members of the series.
 - **7 to 12:** the characters *named in that scene's lines* (or used in an `@do`) stand in front and everyone else
   stands further back, smaller, idle. At most 6 may be named in one scene.
 - Never more than **12**. For a large group of people, use `@crowd` instead (extras, not cast).
-- A cast member can be a **creature** (an animal; **Your series** marks it, e.g. `mike: Mike (chicken, bird,
-  headless)`). Creatures have eyes and a mouth only, no facial expressions. By rig:
+- A cast member can be a **creature** (an animal; **Your series** marks it, e.g. `mike: Mike (chicken, bird;
+  looks: headless)`). Creatures have eyes and a mouth only, no facial expressions. By rig:
   - **bird** (chicken, duck…) flaps its wings to react, cheer, wave or point and pecks to `eat`;
     **quadruped** (cat, horse…) hops and wags its tail, lowers its head to `eat`; **crawler** (snake, worm…)
     ripples along the ground and lifts its head. All three sit down for `lie` / `collapse` and have **no hands**:
@@ -190,6 +190,22 @@ Several clauses are comma-separated: `@do fred: lie, amy: wave`.
 | car: broken | `@do car: broken` | only when a car is on stage |
 
 The target of give / carry / support cannot have its own action in the same `@do`.
+
+### `@look <cast>: <look>`: change how someone looks
+
+From the next narration line on, the cast member wears one of its named looks (listed in **Your series**, e.g.
+`mike: Mike (chicken, bird; looks: headless)`) until another `@look` for them, for the rest of the part, across
+`@set` changes. `@look mike: default` brings back their own look. Several at once: `@look amy, bob: wedding`.
+Use it for a change the viewer should see: a lost head, a costume, a disguise, prison clothes. Only looks listed
+for that cast member exist. A new part starts in everyone's own look, so repeat the `@look` at its top if the
+change still holds.
+
+```text
+Lloyd grabbed a young rooster named Mike and swung his axe.
+@look mike: headless
+@do mike: stagger
+The head dropped. Mike did not.
+```
 
 ### `@car arrive | ride | leave | off`
 
@@ -293,7 +309,7 @@ at an exact moment).
 
 1. Line 1 is `# Title`; every directive is alone on its line.
 2. A `@set` comes before the first narration line.
-3. Only cast ids, sets, actions and props from this guide and **Your series**, plus new sets and props listed
+3. Only cast ids, looks, sets, actions and props from this guide and **Your series**, plus new sets and props listed
    in the NEW block (at most 2 sets, 3 props).
 4. Every `@do` is directly followed by a narration line, and everyone in it is in the current `@cast`.
 5. Each `@cast` has at most 12 ids, at most 6 of them named in that scene; `@car ride` at most 3.
@@ -386,8 +402,8 @@ A woman danced in the street for six days straight.
 
 - **Series title:**
 - **Part number and what happens in it:**
-- **Cast** (`id: Name`, one per line; only these ids may be used; for an animal add its creature and rig, e.g.
-  `mike: Mike (chicken, bird, headless)`):
+- **Cast** (`id: Name`, one per line; only these ids may be used; for an animal add its creature and rig, and
+  list any named looks, e.g. `mike: Mike (chicken, bird; looks: headless)`):
   - `id: Name`
 - **Extra props** (beyond the built-ins), if any:
 - **Tone** (funny, eerie, dramatic...) and anything to avoid:
