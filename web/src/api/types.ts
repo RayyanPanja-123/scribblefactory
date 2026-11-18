@@ -59,6 +59,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/ai/gemini-models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Gemini Models
+         * @description List text-generation Gemini models available to the supplied or saved key.
+         */
+        post: operations["gemini_models_api_ai_gemini_models_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ai/story-writer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ai Story Writer
+         * @description Story Writer is intentionally restricted to the dedicated Gemini provider, never OmniRoute.
+         */
+        post: operations["ai_story_writer_api_ai_story_writer_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/creatures": {
         parameters: {
             query?: never;
@@ -630,6 +670,8 @@ export interface components {
         AiSettings: {
             /** Base Url */
             base_url: string;
+            /** Gemini Key Hint */
+            gemini_key_hint: string;
             /** Gemini Model */
             gemini_model: string;
             /** Has Gemini Key */
@@ -638,15 +680,25 @@ export interface components {
             has_key: boolean;
             /** Has Omniroute Key */
             has_omniroute_key: boolean;
+            /** Has Openrouter Key */
+            has_openrouter_key: boolean;
+            /** Key Hint */
+            key_hint: string;
             /** Model */
             model: string;
+            /** Omniroute Key Hint */
+            omniroute_key_hint: string;
             /** Omniroute Model */
             omniroute_model: string;
+            /** Openrouter Key Hint */
+            openrouter_key_hint: string;
+            /** Openrouter Model */
+            openrouter_model: string;
             /**
              * Provider
              * @enum {string}
              */
-            provider: "omniroute" | "gemini";
+            provider: "omniroute" | "gemini" | "openrouter";
         };
         /** AiSettingsIn */
         AiSettingsIn: {
@@ -668,12 +720,16 @@ export interface components {
             model: string;
             /** Omniroute Model */
             omniroute_model?: string | null;
+            /** Openrouter Api Key */
+            openrouter_api_key?: string | null;
+            /** Openrouter Model */
+            openrouter_model?: string | null;
             /**
              * Provider
              * @default omniroute
              * @enum {string}
              */
-            provider: "omniroute" | "gemini";
+            provider: "omniroute" | "gemini" | "openrouter";
         };
         /** Approval */
         Approval: {
@@ -1014,6 +1070,18 @@ export interface components {
         GatewayIn: {
             /** On */
             on: boolean;
+        };
+        /** GeminiModels */
+        GeminiModels: {
+            /** Models */
+            models: string[];
+            /** Recommended */
+            recommended: string;
+        };
+        /** GeminiModelsIn */
+        GeminiModelsIn: {
+            /** Api Key */
+            api_key?: string | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1806,6 +1874,72 @@ export interface operations {
         };
     };
     ai_complete_api_ai_complete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AiPrompt"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiReply"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    gemini_models_api_ai_gemini_models_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GeminiModelsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GeminiModels"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ai_story_writer_api_ai_story_writer_post: {
         parameters: {
             query?: never;
             header?: never;

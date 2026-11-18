@@ -94,6 +94,8 @@ export const api = {
   settings: () => call<AiSettings>('GET', '/api/settings'),
   saveSettings: (body: S['AiSettingsIn']) => call<AiSettings>('PUT', '/api/settings', body),
   aiComplete: (prompt: string) => call<S['AiReply']>('POST', '/api/ai/complete', { prompt }),
+  storyWriter: (prompt: string) => call<S['AiReply']>('POST', '/api/ai/story-writer', { prompt }),
+  geminiModels: (api_key?: string | null) => call<S['GeminiModels']>('POST', '/api/ai/gemini-models', { api_key }),
   gateway: () => call<S['Gateway']>('GET', '/api/gateway'),
   setGateway: (on: boolean) => call<S['Gateway']>('PUT', '/api/gateway', { on }),
 }

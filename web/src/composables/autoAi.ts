@@ -14,7 +14,8 @@ export function useAutoAi() {
     busy.value = true
     secs.value = 0
     const tick = setInterval(() => secs.value++, 1000)
-    toast(`Sent to ${settings.value?.provider === 'gemini' ? 'Gemini' : 'OmniRoute'}: replies can take a minute or two`, 'info')
+    const provider = settings.value?.provider === 'gemini' ? 'Gemini' : settings.value?.provider === 'openrouter' ? 'OpenRouter' : 'OmniRoute'
+    toast(`Sent to ${provider}: replies can take a minute or two`, 'info')
     try {
       return (await api.aiComplete(prompt)).text
     } catch (e) {

@@ -12,6 +12,7 @@ import io
 import itertools
 import json
 import os
+import re
 import shlex
 import socket
 import subprocess
@@ -1057,28 +1058,37 @@ def _run(job: dict) -> None:
 # ---------------- AI settings (library/settings.json): provider keys make "Build with AI" one click ----------------
 
 DEFAULT_AI_URL = "http://localhost:20128/v1"
+DEFAULT_OPENROUTER_URL = "https://openrouter.ai/api/v1"
 AI_TIMEOUT_S = 180
 
 
 class AiSettings(BaseModel):
-    provider: Literal["omniroute", "gemini"]
+    provider: Literal["omniroute", "gemini", "openrouter"]
     base_url: str
     model: str
     omniroute_model: str
     gemini_model: str
+    openrouter_model: str
     has_key: bool
+    key_hint: str
     has_omniroute_key: bool
+    omniroute_key_hint: str
     has_gemini_key: bool
+    gemini_key_hint: str
+    has_openrouter_key: bool
+    openrouter_key_hint: str
 
 
 class AiSettingsIn(BaseModel):
-    provider: Literal["omniroute", "gemini"] = "omniroute"
+    provider: Literal["omniroute", "gemini", "openrouter"] = "omniroute"
     base_url: str = DEFAULT_AI_URL
     model: str = ""
     omniroute_model: str | None = None
     gemini_model: str | None = None
+    openrouter_model: str | None = None
     api_key: str | None = None  # None keeps the saved key, "" clears it
     gemini_api_key: str | None = None  # None keeps the saved key, "" clears it
+    openrouter_api_key: str | None = None  # None keeps the saved key, "" clears it
 
 
 class AiPrompt(BaseModel):
@@ -1089,6 +1099,15 @@ class AiReply(BaseModel):
     text: str
 
 
+class GeminiModelsIn(BaseModel):
+    api_key: str | None = None  # optional typed key; otherwise use the saved Gemini key
+
+
+class GeminiModels(BaseModel):
+    models: list[str]
+    recommended: str
+
+
 def settings_file() -> Path:
     return lib() / "settings.json"
 
@@ -1096,26 +1115,33 @@ def settings_file() -> Path:
 def load_settings() -> dict:
     f = settings_file()
     s = json.loads(f.read_text(encoding="utf-8")) if f.is_file() else {}
-    provider = s.get("provider") if s.get("provider") in ("omniroute", "gemini") else "omniroute"
+    provider = s.get("provider") if s.get("provider") in ("omniroute", "gemini", "openrouter") else "omniroute"
     legacy_model = s.get("model", "")
     omniroute_model = s.get("omniroute_model", legacy_model if provider == "omniroute" else "")
     gemini_model = s.get("gemini_model", legacy_model if provider == "gemini" else "")
+    openrouter_model = s.get("openrouter_model", legacy_model if provider == "openrouter" else "")
     return {
         "provider": provider,
         "base_url": s.get("base_url") or DEFAULT_AI_URL,
-        "model": omniroute_model if provider == "omniroute" else gemini_model,
+        "model": {"omniroute": omniroute_model, "gemini": gemini_model, "openrouter": openrouter_model}[provider],
         "omniroute_model": omniroute_model,
         "gemini_model": gemini_model,
+        "openrouter_model": openrouter_model,
         "api_key": s.get("api_key", ""),
         "gemini_api_key": s.get("gemini_api_key", ""),
+        "openrouter_api_key": s.get("openrouter_api_key", ""),
     }
 
 
 def public_settings(s: dict) -> AiSettings:
+    active_key = {"omniroute": s["api_key"], "gemini": s["gemini_api_key"], "openrouter": s["openrouter_api_key"]}[s["provider"]]
     return AiSettings(provider=s["provider"], base_url=s["base_url"], model=s["model"],
                       omniroute_model=s["omniroute_model"], gemini_model=s["gemini_model"],
-                      has_key=bool(s["gemini_api_key"] if s["provider"] == "gemini" else s["api_key"]),
-                      has_omniroute_key=bool(s["api_key"]), has_gemini_key=bool(s["gemini_api_key"]))
+                      openrouter_model=s["openrouter_model"],
+                      has_key=bool(active_key), key_hint=active_key[-4:],
+                      has_omniroute_key=bool(s["api_key"]), omniroute_key_hint=s["api_key"][-4:],
+                      has_gemini_key=bool(s["gemini_api_key"]), gemini_key_hint=s["gemini_api_key"][-4:],
+                      has_openrouter_key=bool(s["openrouter_api_key"]), openrouter_key_hint=s["openrouter_api_key"][-4:])
 
 
 @app.get("/api/settings", response_model=AiSettings)
@@ -1137,14 +1163,49 @@ def put_settings(body: AiSettingsIn):
         s["gemini_model"] = body.gemini_model.strip()
     elif body.provider == "gemini":
         s["gemini_model"] = body.model.strip()
-    s["model"] = s["omniroute_model"] if body.provider == "omniroute" else s["gemini_model"]
+    if body.openrouter_model is not None:
+        s["openrouter_model"] = body.openrouter_model.strip()
+    elif body.provider == "openrouter":
+        s["openrouter_model"] = body.model.strip()
+    s["model"] = {"omniroute": s["omniroute_model"], "gemini": s["gemini_model"], "openrouter": s["openrouter_model"]}[body.provider]
     if body.api_key is not None:
         s["api_key"] = body.api_key.strip()
     if body.gemini_api_key is not None:
         s["gemini_api_key"] = body.gemini_api_key.strip()
+    if body.openrouter_api_key is not None:
+        s["openrouter_api_key"] = body.openrouter_api_key.strip()
     lib().mkdir(parents=True, exist_ok=True)
     atomic_write_json(settings_file(), s)
     return public_settings(s)
+
+
+@app.post("/api/ai/gemini-models", response_model=GeminiModels)
+def gemini_models(body: GeminiModelsIn):
+    """List text-generation Gemini models available to the supplied or saved key."""
+    import urllib.error
+    import urllib.request
+    key = (body.api_key or "").strip() or load_settings()["gemini_api_key"]
+    if not key:
+        raise HTTPException(400, "Enter a Gemini API key first")
+    req = urllib.request.Request(
+        "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000",
+        headers={"x-goog-api-key": key})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            data = json.loads(r.read())
+        names = [m["name"].removeprefix("models/") for m in data.get("models", [])
+                 if "generateContent" in m.get("supportedGenerationMethods", [])]
+        models = sorted((n for n in names if n.startswith("gemini") and not re.search(r"tts|image|live|embed|audio", n)), reverse=True)
+        if not models:
+            raise HTTPException(502, "That key works but cannot use any Gemini text model")
+        stable = [m for m in models if "flash" in m and not re.search(r"lite|preview|exp", m)]
+        return GeminiModels(models=models, recommended=(stable or models)[0])
+    except urllib.error.HTTPError as e:
+        raise HTTPException(502, f"Gemini said {e.code}: {e.read().decode(errors='replace')[:500]}")
+    except (urllib.error.URLError, TimeoutError, OSError) as e:
+        raise HTTPException(502, f"Gemini not reachable: {getattr(e, 'reason', e)}")
+    except (ValueError, KeyError, TypeError):
+        raise HTTPException(502, "Gemini returned an unexpected model list")
 
 
 class Gateway(BaseModel):
@@ -1246,7 +1307,7 @@ def ai_complete(body: AiPrompt):
     import urllib.parse
     import urllib.request
     s = load_settings()
-    key = s["gemini_api_key"] if s["provider"] == "gemini" else s["api_key"]
+    key = {"omniroute": s["api_key"], "gemini": s["gemini_api_key"], "openrouter": s["openrouter_api_key"]}[s["provider"]]
     if not key:
         raise HTTPException(400, "no API key: add one in Settings")
     if not s["model"]:
@@ -1274,6 +1335,14 @@ def ai_complete(body: AiPrompt):
         raise HTTPException(502, f"{s['provider']} not reachable: {getattr(e, 'reason', e)}")
     except (ValueError, KeyError, IndexError, TypeError):
         raise HTTPException(502, f"{s['provider']} sent an unexpected reply")
+
+
+@app.post("/api/ai/story-writer", response_model=AiReply)
+def ai_story_writer(body: AiPrompt):
+    """Story Writer is intentionally restricted to the dedicated Gemini provider, never OmniRoute."""
+    if load_settings()["provider"] == "omniroute":
+        raise HTTPException(409, "Story Writer requires Gemini or OpenRouter as the active provider")
+    return ai_complete(body)
 
 
 # ---------------- live events ----------------

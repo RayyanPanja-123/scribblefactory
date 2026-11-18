@@ -155,6 +155,10 @@
             "title": "Base Url",
             "type": "string"
           },
+          "gemini_key_hint": {
+            "title": "Gemini Key Hint",
+            "type": "string"
+          },
           "gemini_model": {
             "title": "Gemini Model",
             "type": "string"
@@ -171,18 +175,39 @@
             "title": "Has Omniroute Key",
             "type": "boolean"
           },
+          "has_openrouter_key": {
+            "title": "Has Openrouter Key",
+            "type": "boolean"
+          },
+          "key_hint": {
+            "title": "Key Hint",
+            "type": "string"
+          },
           "model": {
             "title": "Model",
+            "type": "string"
+          },
+          "omniroute_key_hint": {
+            "title": "Omniroute Key Hint",
             "type": "string"
           },
           "omniroute_model": {
             "title": "Omniroute Model",
             "type": "string"
           },
+          "openrouter_key_hint": {
+            "title": "Openrouter Key Hint",
+            "type": "string"
+          },
+          "openrouter_model": {
+            "title": "Openrouter Model",
+            "type": "string"
+          },
           "provider": {
             "enum": [
               "omniroute",
-              "gemini"
+              "gemini",
+              "openrouter"
             ],
             "title": "Provider",
             "type": "string"
@@ -194,9 +219,15 @@
           "model",
           "omniroute_model",
           "gemini_model",
+          "openrouter_model",
           "has_key",
+          "key_hint",
           "has_omniroute_key",
-          "has_gemini_key"
+          "omniroute_key_hint",
+          "has_gemini_key",
+          "gemini_key_hint",
+          "has_openrouter_key",
+          "openrouter_key_hint"
         ],
         "title": "AiSettings",
         "type": "object"
@@ -257,11 +288,34 @@
             ],
             "title": "Omniroute Model"
           },
+          "openrouter_api_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Openrouter Api Key"
+          },
+          "openrouter_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Openrouter Model"
+          },
           "provider": {
             "default": "omniroute",
             "enum": [
               "omniroute",
-              "gemini"
+              "gemini",
+              "openrouter"
             ],
             "title": "Provider",
             "type": "string"
@@ -1033,6 +1087,44 @@
           "on"
         ],
         "title": "GatewayIn",
+        "type": "object"
+      },
+      "GeminiModels": {
+        "properties": {
+          "models": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Models",
+            "type": "array"
+          },
+          "recommended": {
+            "title": "Recommended",
+            "type": "string"
+          }
+        },
+        "required": [
+          "models",
+          "recommended"
+        ],
+        "title": "GeminiModels",
+        "type": "object"
+      },
+      "GeminiModelsIn": {
+        "properties": {
+          "api_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key"
+          }
+        },
+        "title": "GeminiModelsIn",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -2867,6 +2959,84 @@
           }
         },
         "summary": "Ai Complete"
+      }
+    },
+    "/api/ai/gemini-models": {
+      "post": {
+        "description": "List text-generation Gemini models available to the supplied or saved key.",
+        "operationId": "gemini_models_api_ai_gemini_models_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeminiModelsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeminiModels"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Gemini Models"
+      }
+    },
+    "/api/ai/story-writer": {
+      "post": {
+        "description": "Story Writer is intentionally restricted to the dedicated Gemini provider, never OmniRoute.",
+        "operationId": "ai_story_writer_api_ai_story_writer_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiPrompt"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiReply"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ai Story Writer"
       }
     },
     "/api/creatures": {
