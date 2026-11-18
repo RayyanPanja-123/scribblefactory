@@ -142,7 +142,6 @@ def test_duration_rule():
     def m(d):
         d["duration_frames"] = 181
         shot(d, 2)["end_frame"] = 181
-        d["end_card"]["start_frame"] = 151
     assert rules(m) == {"duration"}
 
 

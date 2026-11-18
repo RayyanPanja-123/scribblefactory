@@ -107,7 +107,7 @@ def test_ready_story_and_cast_approvals(tmp_path, capsys):
     r = check_story(pdir)
     assert [(p["line"], p["message"].split(" (")[0]) for p in r["problems"]] == [(4, "cast fred is not approved yet")]
     assert cli(["approve-cast", "demo", "fred", "--library", str(tmp_path)]) == 0
-    assert check_story(pdir) == {"ok": True, "problems": [], "warnings": [], "words": 3, "seconds": 2.2,
+    assert check_story(pdir) == {"ok": True, "problems": [], "warnings": [], "words": 3, "seconds": 3.9,
                                  "wps": 2.6}  # 3 words / 2.6 per s + 1 s end card
     assert cli(["check-story", "demo", "part-01", "--library", str(tmp_path)]) == 0
     assert capsys.readouterr().out.rstrip().endswith("ready")
@@ -147,7 +147,7 @@ def test_too_many_on_stage(tmp_path):
 def test_duration_estimate_uses_measured_words_per_second(tmp_path):
     from pipeline.scribble.storycheck import FALLBACK_WPS, estimate_runtime, measured_wps
     assert measured_wps(tmp_path) == FALLBACK_WPS  # nothing finished yet
-    assert estimate_runtime(130, FALLBACK_WPS) == 51.0  # 130 / 2.6 + the 1 s end card
+    assert estimate_runtime(130, FALLBACK_WPS) == 52.8  # 130 / 2.6 + the 1.75 s sign-off pause + the 1 s end card
     for n, (words, speech) in enumerate([(120, 40.0), (180, 60.0)], 1):  # 300 words in 100 s: 3 per s
         d = tmp_path / "demo" / f"part-0{n}"
         d.mkdir(parents=True)
@@ -161,9 +161,9 @@ def test_duration_estimate_uses_measured_words_per_second(tmp_path):
 def test_runtime_warning_over_58_seconds(tmp_path):
     pdir = setup(tmp_path, "# T\n\n" + "Bob met Amy. " * 50 + "\n")  # 150 words / 2.6 + 1 = 58.7 s
     r = check_story(pdir)
-    assert r["ok"] and r["seconds"] == 58.7
+    assert r["ok"] and r["seconds"] == 60.4
     assert [w["message"] for w in r["warnings"]] == [
-        "estimated 58.7 s is 0.7 s over 58 s (150 words at 2.60 words/s): cut about 2 words"]
+        "estimated 60.4 s is 2.4 s over 58 s (150 words at 2.60 words/s): cut about 6 words"]
     (pdir / "story.md").write_text("# T\n\n" + "Bob met Amy. " * 40 + "\n", encoding="utf-8")
     assert check_story(pdir)["warnings"] == []
 

@@ -1,4 +1,4 @@
-// Our stickman (docs/brief.md "Stickman style"), drawn on a 512 x 1024 canvas, feet at y = FEET_Y.
+// Our stickman (docs/brief.md "Stickman style"), drawn on a 1024 x 1024 canvas (wide so held props fit; the body uses the middle 512), feet at y = FEET_Y.
 // Pure function of its options: same options -> same pixels. Facing "right" is the base drawing;
 // "left" is the same drawing mirrored; "camera" looks straight out.
 import { Pen, ellPts } from "./borrowed.js";
@@ -6,7 +6,8 @@ import { lookup } from "./library.js";
 import { rng } from "./rng.js";
 import { BUILTIN_WARDROBE, HEAD_ANCHORS, layerFill, layerPoints, slotValue, wearing } from "./wardrobe.js";
 
-export const CW = 512, CH = 1024, FEET_Y = 1000;
+export const CW = 1024, CH = 1024, FEET_Y = 1000;
+export const BODY_W = 512; // the figure's own width on the card: framing and set-prop hiding measure this, not CW
 const INK = "#1c1a1a";
 export const HEAD_R = 150;
 const HEAD_SQUASH = 0.97; // head height / width

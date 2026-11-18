@@ -2228,7 +2228,7 @@
       },
       "PropShape": {
         "additionalProperties": false,
-        "description": "one piece of a custom prop, in hand space: the hand at (0, 0), y down, x away from the body (canvas px; the\nfigure is 512 x 1024, the built-in props span about -40..110). Drawn with the same wobbly ink as the built-ins.",
+        "description": "one piece of a custom prop, in hand space: the hand at (0, 0), y down, x away from the body (canvas px; the\ncard is 1024 x 1024 with the figure in the middle 512, the built-in props span about -40..110). Drawn with the same wobbly ink as the built-ins.",
         "properties": {
           "fill": {
             "anyOf": [

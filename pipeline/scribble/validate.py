@@ -6,10 +6,11 @@ and audio levels (the mix stage owns them).
 """
 
 import math
+import re
 from itertools import groupby
 from typing import NamedTuple
 
-from .schemas import BUILTIN_SETS, PhrasesModel, StoryModel
+from .schemas import BUILTIN_SETS, PhrasesModel, SeriesModel, StoryModel
 
 MAX_SHOT_FRAMES = 90
 WALK_SPEED = (0.6, 1.8)   # units/s, inclusive
@@ -41,6 +42,31 @@ class Error(NamedTuple):
 
 END_CARD_S = 1.0          # non-final parts end on "Part n+1 on my profile" for this long after the last word
 FINAL_TAIL_S = 0.3        # the final part cuts this long after the last word
+# Non-final parts: the last sentence is the sign-off ("To be continued.", "Part two is on my profile."). timing
+# stretches the pause before it to SIGN_OFF_PAUSE_S, and the black end card cuts in SIGN_OFF_HOLD_S after the
+# sentence before it, so the sign-off is heard on black.
+SIGN_OFF_PAUSE_S = 1.75
+SIGN_OFF_HOLD_S = 0.3
+SENTENCE_END = re.compile(r"[.!?…][\"')\]]*$")
+
+
+def is_final(series: SeriesModel, part: str) -> bool:
+    """the last part of a complete series: no end card, no sign-off"""
+    return series.status == "complete" and series.parts[-1:] == [part]
+
+
+def sign_off(texts: list[str]) -> int | None:
+    """index of the first word of the last sentence; None when there is only one sentence"""
+    ends = [i for i, t in enumerate(texts[:-1]) if SENTENCE_END.search(t)]
+    return ends[-1] + 1 if ends else None
+
+
+def end_card_start(phrases: PhrasesModel, total: int, fps: int) -> int:
+    """the frame the black end card cuts in: just after the sentence before the sign-off, else the last END_CARD_S"""
+    i = sign_off([w.text for w in phrases.words])
+    if i is None:
+        return total - round(END_CARD_S * fps)
+    return min(round((phrases.words[i - 1].end + SIGN_OFF_HOLD_S) * fps), total - 1)
 
 
 def duration_frames(seconds: float, fps: int) -> int:
@@ -70,8 +96,8 @@ def validate(story: StoryModel, phrases: PhrasesModel, cast_ids: set[str], outdo
     if story.duration_frames != want:
         err(None, "duration", f"duration_frames {story.duration_frames} != {want} (last word "
                               f"{phrases.words[-1].end} s + {'end card' if story.end_card else 'tail'}, x {fps})")
-    if story.end_card and story.end_card.start_frame != story.duration_frames - round(END_CARD_S * fps):
-        err(None, "end_card", f"end card starts at {story.end_card.start_frame}, expected the last {END_CARD_S} s")
+    if story.end_card and story.end_card.start_frame != (at := end_card_start(phrases, story.duration_frames, fps)):
+        err(None, "end_card", f"end card starts at {story.end_card.start_frame}, expected {at} (before the sign-off)")
 
     expected_start, prev, seen = 0, None, set()
     for s in story.shots:

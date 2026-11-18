@@ -167,15 +167,17 @@ The first one never went to the police. He was too ashamed.
 ### Twist and ending
 
 - The `!!` twist line is the **last or second-to-last** narration line. Nothing comes after it except the end line.
-- **Non-final parts** end with the line "To be continued." right after the twist. The video then shows "Part 2 on
-  my profile" over the last second and cuts.
+- **Non-final parts** end with the line "To be continued." right after the twist. That last sentence is the
+  sign-off: the video cuts to a black card reading "Part 2 on my profile" after the line before it, holds a
+  1.75 s pause, the voice reads the sign-off over the black card, and the video ends a second later. So the
+  sign-off must be one short sentence of its own, and the twist must come before it.
 - **The final part** ends on the twist itself: no "To be continued.". The video cuts right after the last word.
 - Each part should still make sense on its own.
 
 ### Target runtime
 
 **45 to 58 seconds per part**, never over 58. The voice reads about 2.6 words a second, and every non-final part
-adds a one-second end card. Write 110 to 175 words; past about 145 the story check warns that the part runs long,
+adds the sign-off pause and the end card (about three seconds). Write 110 to 175 words; past about 145 the story check warns that the part runs long,
 so stay near the low end unless the story needs the room. The dashboard's story check estimates the runtime
 from the speed of past renders and warns above 58 seconds; after rendering, QA warns with the exact overage.
 
@@ -492,7 +494,7 @@ at an exact moment).
 - [ ] **Single `!!`:** at most one twist line per part.
 - [ ] **Ends on the twist:** the `!!` line is last, or second-to-last followed only by
       "To be continued." (every part but the last).
-- [ ] **Runtime under 58 seconds:** words / 2.6, plus 1 for the end card.
+- [ ] **Runtime under 58 seconds:** words / 2.6, plus about 3 for the sign-off pause and end card.
 
 ## 10. Examples
 

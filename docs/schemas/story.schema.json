@@ -291,7 +291,7 @@
       "additionalProperties": false,
       "properties": {
         "start_frame": {
-          "description": "shown from this frame to the end, over the last shot",
+          "description": "a black card shown from this frame to the end: non-final parts cut to it after the line before the sign-off (validate.end_card_start)",
           "minimum": 0,
           "title": "Start Frame",
           "type": "integer"

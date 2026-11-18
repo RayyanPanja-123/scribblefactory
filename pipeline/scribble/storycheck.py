@@ -20,7 +20,7 @@ from .stages.prep import (DO_CAR, FX_LIGHTNING, FX_MODES, MAX_LIGHTNING, TWIST_P
                           parse_lightning, parse_look, parse_weather, strip_directives)
 from .stages.runner import StageError
 from .stages.shots import CAR_MODES, CAR_SEATS, DEFAULT_CAST_SIZE, MAX_CAST, MAX_DOGS, MAX_ON_STAGE, MAX_RUNNERS, parse_crowd
-from .validate import END_CARD_S
+from .validate import END_CARD_S, SIGN_OFF_PAUSE_S
 
 DIRECTIVES = ("set", "cast", "dogs", "car", "fx", "do", "look", "crowd", "runners", "weather")
 LINE_PREFIX = re.compile(r"^story\.md line [0-9]+: ")
@@ -45,8 +45,8 @@ def measured_wps(library: Path) -> float:
 
 
 def estimate_runtime(words: int, wps: float) -> float:
-    """seconds of video for this many words: the speech, then the end card"""
-    return round(words / wps + END_CARD_S, 1)
+    """seconds of video for this many words: the speech, the pause before the sign-off, then the end card"""
+    return round(words / wps + SIGN_OFF_PAUSE_S + END_CARD_S, 1)
 
 
 def slow_open(md: str) -> tuple[int, str] | None:

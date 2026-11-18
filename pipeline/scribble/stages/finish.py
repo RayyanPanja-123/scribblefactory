@@ -4,8 +4,8 @@ Captions: phrases split into chunks of <= CAP_MAX_WORDS words (never inside a na
 the word being spoken is yellow. Effects (pop, drop, shake, punch) are written as one event per video frame while
 they animate: \\t restarts with every event, so it can't carry an animation across the per-word events.
 Rendered by ffmpeg's subtitles filter (libass) with the vendored font only.
-End card (non-final parts): story.json's end_card text drawn by Pillow (emoji from the system emoji font) and
-overlaid from its start frame to the end.
+End card (non-final parts): story.json's end_card text on black, drawn by Pillow (emoji from the system emoji
+font) and overlaid from its start frame (before the sign-off line) to the end, over picture and captions.
 QA also records the runtime (seconds, words) and warns when it is over MAX_RUNTIME_S; that never fails the stage.
 QA failure fails the stage but keeps final.mp4 for inspection.
 """
@@ -73,7 +73,7 @@ MAX_RUNTIME_S = 58         # Shorts / Reels: warn above this
 
 # --- end card ---
 CARD_SIZE = 76
-CARD_Y = 0.42              # of frame height: the card's vertical centre, clear of the captions
+CARD_Y = 0.5               # of frame height: the text's vertical centre (the card is black and covers the captions)
 EMOJI_FONTS = ("C:/Windows/Fonts/seguiemj.ttf", "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
                "/usr/share/fonts/noto/NotoColorEmoji.ttf", "/System/Library/Fonts/Apple Color Emoji.ttc")
 
@@ -328,7 +328,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 # ---------------- end card ----------------
 
 def end_card_png(text: str, out: Path) -> None:
-    """a transparent 1080x1920 PNG: text on a dark rounded pill at CARD_Y. Trailing emoji come from the first
+    """a black 1080x1920 PNG with the text at CARD_Y (the sign-off is heard over it). Trailing emoji come from the first
     EMOJI_FONTS found (Pillow draws colour emoji at 109 px, scaled to the text); none found -> left out"""
     from PIL import Image, ImageDraw, ImageFont
 
@@ -348,14 +348,11 @@ def end_card_png(text: str, out: Path) -> None:
         glyph = g.resize((round(g.width * size / g.height), size), Image.LANCZOS)
     elif emoji:
         print("warning: no colour emoji font found; end card drawn without the emoji")
-    gap, pad_x, pad_y = CARD_SIZE // 4, 48, 36
+    gap = CARD_SIZE // 4
     w = tw + (gap + glyph.width if glyph else 0)
-    box_h = max(th, glyph.height if glyph else 0) + 2 * pad_y
     cx, cy = W // 2, round(H * CARD_Y)
-    img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    img = Image.new("RGBA", (W, H), (0, 0, 0, 255))
     d = ImageDraw.Draw(img)
-    d.rounded_rectangle((cx - w // 2 - pad_x, cy - box_h // 2, cx - w // 2 + w + pad_x, cy + box_h // 2),
-                        radius=box_h // 2, fill=(0, 0, 0, 190))
     left = cx - w // 2
     d.text((left - x0, cy - th // 2 - y0), body, font=font, fill=(255, 255, 255, 255))
     if glyph:

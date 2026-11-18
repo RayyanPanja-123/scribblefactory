@@ -30,10 +30,10 @@ def probe_duration(path: Path) -> float:
         raise StageError(f"ffprobe could not read voice.mp3: {r.stderr.strip() or 'no duration'}")
 
 
-def silences(path: Path, duration: float) -> list[tuple[float, float]]:
-    """(start, end) of each silence of at least MAX_EDGE_SILENCE seconds."""
+def silences(path: Path, duration: float, min_len: float = MAX_EDGE_SILENCE) -> list[tuple[float, float]]:
+    """(start, end) of each silence of at least min_len seconds."""
     r = _run("ffmpeg", "-hide_banner", "-nostats", "-i", str(path),
-             "-af", f"silencedetect=noise={SILENCE_DB}dB:d={MAX_EDGE_SILENCE}", "-f", "null", "-")
+             "-af", f"silencedetect=noise={SILENCE_DB}dB:d={min_len}", "-f", "null", "-")
     starts = [float(x) for x in re.findall(r"silence_start: (-?[\d.]+)", r.stderr)]
     ends = [float(x) for x in re.findall(r"silence_end: (-?[\d.]+)", r.stderr)]
     ends += [duration] * (len(starts) - len(ends))  # silence running to EOF may have no end line

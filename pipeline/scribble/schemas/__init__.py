@@ -323,7 +323,7 @@ Point = tuple[float, float]
 
 class PropShape(Strict):
     """one piece of a custom prop, in hand space: the hand at (0, 0), y down, x away from the body (canvas px; the
-    figure is 512 x 1024, the built-in props span about -40..110). Drawn with the same wobbly ink as the built-ins."""
+    card is 1024 x 1024 with the figure in the middle 512, the built-in props span about -40..110). Drawn with the same wobbly ink as the built-ins."""
     shape: Literal["rect", "circle", "line", "poly"]
     pts: list[Point] = Field(min_length=1, max_length=24, description="rect: 2 corners; circle: the centre; "
                                                                       "line: 2+ points; poly: 3+ points (closed)")
@@ -918,7 +918,7 @@ class Strike(Strict):
 
 
 class EndCard(Strict):
-    start_frame: int = Field(ge=0, description="shown from this frame to the end, over the last shot")
+    start_frame: int = Field(ge=0, description="a black card shown from this frame to the end: non-final parts cut to it after the line before the sign-off (validate.end_card_start)")
     text: str = Field(description='e.g. "Part 2 on my profile 👆"')
 
 

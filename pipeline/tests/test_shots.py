@@ -690,7 +690,8 @@ def test_end_card_on_non_final_parts_and_hard_cut_on_the_last():
     last = ph.words[-1].end
     assert story.duration_frames == math.ceil(round((last + 1.0) * 30, 6))
     assert story.end_card.text == "Part 2 on my profile 👆"
-    assert story.end_card.start_frame == story.duration_frames - 30
+    # the black card cuts in 0.3 s after "Bob sat down.", before the sign-off "Amy smiled."
+    assert story.end_card.start_frame == round((ph.words[2].end + 0.3) * 30)
     story, ph = plan(SHORT, series=FINAL)
     assert story.end_card is None and story.duration_frames == math.ceil(round((last + 0.3) * 30, 6))
     assert validate(story, ph, {c.id for c in SERIES.cast}) == []

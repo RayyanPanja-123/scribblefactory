@@ -2,7 +2,7 @@
 // render.mjs calls setup(data) once, then renderFrame(n) or renderCast(pose) per image (PNG data URL back).
 import * as THREE from "three";
 import { dolly, glide } from "./borrowed.js";
-import { CH, CW, FEET_Y, FIGURE_PX, HAT_TOP, HEAD_R, drawStickman, figurePx, skeleton } from "./stickman.js";
+import { BODY_W, CH, CW, FEET_Y, FIGURE_PX, HAT_TOP, HEAD_R, drawStickman, figurePx, skeleton } from "./stickman.js";
 import { CRW, creature, drawCreature, measure as creatureSize } from "./creatures.js";
 import { lookup, setLibrary } from "./library.js";
 import { DH, DOG_FEET, DW, barkAmount, drawDog, gallopPhase } from "./dog.js";
@@ -17,7 +17,8 @@ import { SETS, VARIANTS, buildSet, loopExcess, scrollSet, setKind } from "./worl
 import { fadePlan, fogAlpha, fogCanvas, layersAt, paint, strikeAt } from "./weather.js";
 
 const FPS = 30, W = 1080, H = 1920;
-const CARD_H = 1.6, CARD_W = CARD_H * (CW / CH);
+const CARD_H = 1.6, CARD_W = CARD_H * (CW / CH); // the whole canvas, held props included
+const BODY_CARD_W = CARD_H * (BODY_W / CH);       // just the figure: what framing and set-prop hiding measure
 const FIG_H = (CARD_H * FIGURE_PX) / CH; // tallest standing figure in world units, from stickman.js
 const BOIL_FRAMES = 4;                 // marker jitter changes every 4 frames (7.5 fps "boil")
 const LID = [0.5, 1, 1, 0.5];          // 4-frame blink: half, shut, shut, half
@@ -261,7 +262,7 @@ function hiddenFor(shot, subject, span, group) {
       const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0).setY(0).normalize();
       const c = new THREE.Vector3(x, 0, z), pts = [];
       for (const sx of [-1, 1]) for (const y of [bottom, bottom + CARD_H]) {
-        pts.push(c.clone().addScaledVector(right, (sx * CARD_W) / 2).setY(y));
+        pts.push(c.clone().addScaledVector(right, (sx * BODY_CARD_W) / 2).setY(y));
       }
       const r = rect(pts), mx = (r[2] - r[0]) * SUBJECT_MARGIN, my = (r[3] - r[1]) * SUBJECT_MARGIN;
       const card = [r[0] - mx, r[1] - my, r[2] + mx, r[3] + my];
@@ -681,7 +682,7 @@ function measure(spots) {
   for (const [x, z] of spots) {
     const feet = new THREE.Vector3(x, 0, z).project(camera), head = new THREE.Vector3(x, FIG_H, z).project(camera);
     figure = Math.min(figure, (head.y - feet.y) / 2);
-    const half = (CARD_W / 2) * (head.y - feet.y) / FIG_H; // card half-width in NDC-ish units at that depth
+    const half = (BODY_CARD_W / 2) * (head.y - feet.y) / FIG_H; // figure half-width in NDC-ish units at that depth
     inFrame &&= feet.y >= -1 && head.y <= 1 && Math.abs(feet.x) + half * (H / W) <= 1;
   }
   return { figure, inFrame };

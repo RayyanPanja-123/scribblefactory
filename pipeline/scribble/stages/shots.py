@@ -18,7 +18,7 @@ from ..io import (LIBRARY_FILES, atomic_write_json, cast_body_problems, creature
                   unknown_cast_props)
 from ..schemas import BUILTIN_CREATURES, BUILTIN_SETS, HAND_RIGS, actions_with, Actor, Animal, Camera, Cue, EndCard, Extra, PhrasesModel, SeriesModel, Shot, StoryModel, Strike, Travel, Vehicle
 from ..validate import (CAR_SPEED, CROWD_Z, DOG_RUN_SPEED, MAX_SHOT_FRAMES, MOODS, OUTDOOR_SETS, SPEEDS,
-                        END_CARD_S, custom_speeds, end_frame, validate)
+                        custom_speeds, end_card_start, end_frame, is_final, validate)
 from .prep import (BUILTIN_PROPS, DO_CAR, FX_LIGHTNING, FX_MODES, MARKER_RE, clean_markdown, mark_directives, parse_do,
                    parse_lightning, parse_look, parse_weather)
 from .runner import StageError
@@ -584,9 +584,9 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
     rng = random.Random(seed)
     handless = {c.id: f"a {bodies[c.body][0]}" for c in series.cast
                 if c.body in bodies and bodies[c.body][0] not in HAND_RIGS}
-    final = series.status == "complete" and series.parts[-1:] == [f"part-{part_number:02d}"]
+    final = is_final(series, f"part-{part_number:02d}")
     total = end_frame(phrases, not final, FPS)
-    end_card = None if final else EndCard(start_frame=total - round(END_CARD_S * FPS),
+    end_card = None if final else EndCard(start_frame=end_card_start(phrases, total, FPS),
                                           text=f"Part {part_number + 1} on my profile 👆")
     starts = []
     for i, p in enumerate(phrases.phrases):  # strictly increasing so every phrase keeps >= 1 frame
