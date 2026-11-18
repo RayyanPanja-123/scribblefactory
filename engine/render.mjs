@@ -60,6 +60,11 @@ const customProps = (library) => {
   const f = path.join(library, "props.json");
   return fs.existsSync(f) ? readJson(f).props : [];
 };
+/** the library's creatures (library/creatures.json; none yet: []) */
+const customCreatures = (library) => {
+  const f = path.join(library, "creatures.json");
+  return fs.existsSync(f) ? readJson(f).creatures : [];
+};
 /** the library's custom sets (library/sets.json; none yet: []) */
 const customSets = (library) => {
   const f = path.join(library, "sets.json");
@@ -130,7 +135,7 @@ function frameJobs(a) {
   const part = path.resolve(a.part);
   const data = { story: readJson(path.join(part, "story.json")), phrases: readJson(path.join(part, "phrases.json")),
     series: readJson(path.join(part, "..", "series.json")), props: customProps(path.join(part, "..", "..")),
-    sets: customSets(path.join(part, "..", "..")) };
+    sets: customSets(path.join(part, "..", "..")), creatures: customCreatures(path.join(part, "..", "..")) };
   if (a.stills) {
     const dir = path.join(part, "frames", "stills");
     return { data, manifestDir: dir, jobs: data.story.shots.map((s) => ({ label: s.id, file: path.join(dir, `${s.id}.png`),
@@ -153,7 +158,8 @@ function frameJobs(a) {
 
 function castJobs(a) {
   const dir = path.resolve(a.series);
-  const data = { series: readJson(path.join(dir, "series.json")), story: { seed: 0 }, props: customProps(path.join(dir, "..")), sets: customSets(path.join(dir, "..")) };
+  const data = { series: readJson(path.join(dir, "series.json")), story: { seed: 0 }, props: customProps(path.join(dir, "..")), sets: customSets(path.join(dir, "..")),
+    creatures: customCreatures(path.join(dir, "..")) };
   if (!data.series.cast.length) throw new Error("series.json has no cast");
   const manifestDir = path.join(dir, "cast-frames"), jobs = [];
   for (const c of data.series.cast) for (const [label, pose, expression] of POSES) {

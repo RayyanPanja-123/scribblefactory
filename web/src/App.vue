@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Backpack, ClipboardCheck, Film, History, Layers, LayoutDashboard, Mountain, Search, Send } from 'lucide-vue-next'
+import { Backpack, ClipboardCheck, PawPrint, Film, History, Layers, LayoutDashboard, Mountain, Search, Send } from 'lucide-vue-next'
 import { AnimatePresence, motion, MotionConfig } from 'motion-v'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -16,6 +16,7 @@ const tabs = [
   { to: '/series', name: 'Series', icon: Layers, match: (n: string) => n.startsWith('series') || n === 'part' || n === 'new-series' || n === 'new-part' },
   { to: '/review', name: 'Review', icon: ClipboardCheck, match: (n: string) => n === 'review' },
   { to: '/props', name: 'Props', icon: Backpack, match: (n: string) => n.startsWith('prop') },
+  { to: '/creatures', name: 'Creatures', icon: PawPrint, match: (n: string) => n.startsWith('creature') },
   { to: '/sets', name: 'Sets', icon: Mountain, match: (n: string) => n === 'sets' || n === 'set-edit' },
   { to: '/posted', name: 'Posted', icon: Send, match: (n: string) => n === 'posted' },
   { to: '/history', name: 'History', icon: History, match: (n: string) => n === 'history' },
@@ -85,7 +86,7 @@ function onScroll() {
             </main>
 
             <!-- floating tab bar: the dark pill slides between tabs (shared layout) -->
-            <nav class="absolute bottom-2 left-1/2 flex h-14 w-[calc(100%-16px)] max-w-[560px] -translate-x-1/2 items-center gap-0 rounded-full border border-white/60 bg-white/45 p-1 shadow-[0_10px_30px_rgb(120_104_82/0.25)] backdrop-blur-xl lg:bottom-5 lg:h-[var(--tabbar-h)] lg:w-auto lg:gap-1 lg:p-1.5"
+            <nav class="absolute bottom-2 left-1/2 flex h-14 w-[calc(100%-16px)] max-w-[560px] -translate-x-1/2 items-center gap-0 rounded-full border border-white/60 bg-white/45 p-1 shadow-[0_10px_30px_rgb(120_104_82/0.25)] backdrop-blur-xl lg:bottom-5 lg:h-[var(--tabbar-h)] lg:w-auto lg:max-w-none lg:gap-1 lg:p-1.5"
               aria-label="Tabs">
               <RouterLink v-for="t in tabs" :key="t.to" :to="t.to"
                 class="relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-full px-1 py-1 text-[10px] font-semibold lg:flex-row lg:gap-2 lg:px-4 lg:py-2.5 lg:text-sm"

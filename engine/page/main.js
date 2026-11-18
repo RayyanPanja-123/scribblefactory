@@ -3,7 +3,7 @@
 import * as THREE from "three";
 import { dolly, glide } from "./borrowed.js";
 import { CH, CW, FEET_Y, FIGURE_PX, HAT_TOP, HEAD_R, drawStickman, setCustomProps, skeleton } from "./stickman.js";
-import { CHICKEN_PX, drawChicken } from "./chicken.js";
+import { CRW, creature, drawCreature, measure as creatureSize, setCustomCreatures } from "./creatures.js";
 import { DH, DOG_FEET, DW, barkAmount, drawDog, gallopPhase } from "./dog.js";
 import { gestureAmount, gesturePlan, mouthCurve, mouthCycles, pointAmount, stressBob, waveAmount } from "./motion.js";
 import { CARRIED_LIFT, HELD_Z, HOLD_GAP, LIE, collapseAt, eatAt, gaitPhase, giveAt, handOf, heldPlace, propsByShot, sideToward, staggerAt,
@@ -120,17 +120,24 @@ let mouth = new Float32Array(0); // per-frame mouth opening for the whole part (
 function figure(id, o) {
   const cast = castOf(id);
   const { top, headwear, legwear, props, eyes, body = "stickman", headless = false } = cast;
-  return { seed: charSeed(id), color: top.color, top, headwear, legwear, props, eyes, body, headless, ...o };
+  return { seed: charSeed(id), color: top.color, top, headwear, legwear, props, eyes, headless,
+    creature: creatureOf(id), ...o };
 }
 
-const isChicken = (id) => castOf(id).body === "chicken";
-/** world units a non-wide camera comes down to frame a chicken subject at its own height (0 for a stickman) */
-const chickenDrop = (id) => (isChicken(id)
-  ? (CARD_H * (FIGURE_PX - CHICKEN_PX[castOf(id).headless ? "headless" : "head"])) / CH * 0.85 : 0);
+/** the cast member's creature definition (creatures.js), or null for a stickman */
+const creatureOf = (id) => { const b = castOf(id).body; return b && b !== "stickman" ? creature(b) : null; };
+/** a creature that sits down for lie / collapse (every rig but biped, which lies down like a stickman) */
+const sits = (id) => creatureOf(id)?.rig !== undefined && creatureOf(id).rig !== "biped";
+/** world units a non-wide camera comes down to frame a creature subject at its own height (0 for a stickman) */
+const creatureDrop = (id) => {
+  const d = creatureOf(id);
+  return d ? Math.max(0, (CARD_H * (FIGURE_PX - creatureSize(d).top)) / CH * 0.85) : 0;
+};
+const CREATURE_GEO = new THREE.PlaneGeometry(CARD_W * (CRW / CW), CARD_H).translate(0, CARD_H / 2 - CARD_H * (1 - FEET_Y / CH), 0);
 
 function drawCard(id, o) {
-  const c = card(id);
-  (isChicken(id) ? drawChicken : drawStickman)(c.cv, figure(id, o));
+  const d = creatureOf(id), c = d ? card(id, CREATURE_GEO, CRW, CH) : card(id);
+  if (d) drawCreature(c.cv, d, figure(id, o)); else drawStickman(c.cv, figure(id, o));
   c.tex.needsUpdate = true;
   return c.mesh;
 }
@@ -191,6 +198,7 @@ const png = () => renderer.domElement.toDataURL("image/png");
 window.setup = (d) => {
   data = d; hiddenByShot.clear(); variantByShot.clear(); extrasByShot.clear();
   setCustomProps(d.props); // library/props.json
+  setCustomCreatures(d.creatures); // library/creatures.json
   setCustomSets(d.sets); // library/sets.json
   ownedProps = propsByShot(d.story.shots || [], Object.fromEntries((d.series.cast || []).map((c) => [c.id, castOf(c.id).props])));
   mouth = d.phrases ? mouthCurve(mouthCycles(d.phrases.words, d.phrases.phrases), d.story.duration_frames) : mouth;
@@ -333,7 +341,7 @@ function drawShot(shot, n) {
   const pair = subject && (subject.action === "give" || subject.action === "receive")
     ? shot.actors.find((b) => b.cast_id === subject.target) : null;
   const focusX = (pl) => (pair ? (pl(subject)[0] + pl(pair)[0]) / 2 : pl(subject)[0]);
-  const drop = (kk) => (subject ? Math.max(LIE.drop * lying(subject, kk, shot), wide || seated.has(subject.cast_id) ? 0 : chickenDrop(subject.cast_id)) : 0);
+  const drop = (kk) => (subject ? Math.max(LIE.drop * lying(subject, kk, shot), wide || seated.has(subject.cast_id) ? 0 : creatureDrop(subject.cast_id)) : 0);
   const camAt = (uu) => shotCamera(shot, subject ? focusX((a) => placeAt2(a, uu)) : 0, span, uu,
     drop(shot.start_frame + uu * (shot.end_frame - shot.start_frame - 1)));
   const placeAt2 = (a, uu) => seated.get(a.cast_id) || heldPlace(a, shot.actors, placeAt, uu) || placeAt(a, uu);
@@ -422,7 +430,7 @@ function actionPose(shot, a, o, x, u, ts, n) {
     const mine = (a.action === "give") === (g.held === "giver"), kind = a.action === "give" ? a.prop : other?.prop;
     if (kind) o.props = mine ? withProp(o.props, kind, handOf(side)) : o.props.filter((p) => p.kind !== kind);
   }
-  if ((a.action === "collapse" || a.action === "lie") && isChicken(a.cast_id)) {
+  if ((a.action === "collapse" || a.action === "lie") && sits(a.cast_id)) {
     o.buckle = a.action === "collapse" ? collapseAt(ts).fall : 1; // sinks onto its belly, no roll
   } else if (a.action === "collapse" || a.action === "lie") {
     const c = a.action === "collapse" ? collapseAt(ts) : { buckle: 0, fall: 1 };
@@ -624,7 +632,7 @@ window.renderCast = ({ castId, pose, expression = castOf(castId).default_express
   if (pose === "cheer") Object.assign(o, { action: "cheer", mood: { k: 1, bounce: 0, shake: 0 } });
   if (pose === "angry") Object.assign(o, { action: "angry", mood: { k: 1, bounce: 0, shake: 0.5 } });
   if (pose === "stagger") Object.assign(o, { action: "stagger", facing: "right", phase: 0.3, stagger: { sway: 0.7, buckle: 0.6 } });
-  if (pose === "lie" && isChicken(castId)) Object.assign(o, { action: "lie" });
+  if (pose === "lie" && sits(castId)) Object.assign(o, { action: "lie" });
   else if (pose === "lie") { Object.assign(o, { action: "lie" }); roll = -Math.PI / 2; y = LIE.lift; cam = [0, 0.62, 2.9]; look = [0, 0.3, 0]; }
   if (pose === "eat") {
     const kind = "apple", has = props.find((p) => p.kind === kind);
@@ -647,9 +655,14 @@ window.renderCast = ({ castId, pose, expression = castOf(castId).default_express
       scene.add(c.mesh);
     }
   }
-  if (isChicken(castId)) { const d = chickenDrop(castId); cam[1] = Math.max(0.3, cam[1] - d); look[1] -= d; }
+  const cd = creatureOf(castId);
+  if (cd && pose !== "carried") { // frame the creature at its own size: centred on it, backed off for a big one
+    const m = creatureSize(cd), h = (CARD_H * m.top) / CH, w = (CARD_H * m.half) / CH, z = Math.max(1, w / 0.42, h / 1.3);
+    cam = [0, h * 0.5 + 0.02, 2.6 * z]; look = [0, h * 0.5, 0];
+  }
   scene.add(drawCard(castId, o));
-  cards[castId].mesh.position.set(pose === "lie" && !isChicken(castId) ? -FIG_H / 2 : 0, y, pose === "carried" ? HELD_Z : 0);
+  const tall = creatureOf(castId) ? (CARD_H * creatureSize(creatureOf(castId)).top) / CH : FIG_H;
+  cards[castId].mesh.position.set(pose === "lie" && !sits(castId) ? -tall / 2 : 0, y, pose === "carried" ? HELD_Z : 0);
   cards[castId].mesh.rotation.set(0, 0, roll);
   camera.fov = 45;
   camera.position.set(...cam);

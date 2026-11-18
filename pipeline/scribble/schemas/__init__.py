@@ -97,10 +97,10 @@ class CastMember(Strict):
     props: list[Prop] = Field(default=[], max_length=2, description="held props, one per hand")
     default_expression: Expression = "neutral"
     eyes: Literal["dots", "half_closed"]
-    body: Literal["stickman", "chicken"] = Field(
-        default="stickman", description="drawing: stickman, or a side-view chicken (feathers = top.color; no "
-                                        "costume, props or face expressions; cannot give, carry or support)")
-    headless: bool = Field(default=False, description="chicken only: a neck stump instead of a head")
+    body: Slug = Field(default="stickman", description="stickman, or a creature id (built in or library/creatures.json):"
+                                                       " drawn in top.color ($main) and top.accent_color ($accent); "
+                                                       "eyes and mouth only, no costume")
+    headless: bool = Field(default=False, description="creatures with a stump only: the stump instead of the head")
     approved_at: UtcDateTime | None = None
 
     @field_validator("props")
@@ -111,9 +111,9 @@ class CastMember(Strict):
         return v
 
     @model_validator(mode="after")
-    def _headless_chicken(self):
-        if self.headless and self.body != "chicken":
-            raise ValueError("headless: only a chicken can be headless (set body to chicken)")
+    def _headless_creature(self):
+        if self.headless and self.body == "stickman":
+            raise ValueError("headless: only a creature can be headless (set body to a creature id)")
         return self
 
     def look(self) -> str:
@@ -282,6 +282,104 @@ class SetLibrary(Strict):
     def _unique(cls, v):
         if dupes := sorted({p.id for p in v if sum(q.id == p.id for q in v) > 1}):
             raise ValueError(f"set ids must be unique: {', '.join(dupes)}")
+        return v
+
+
+# --- library/creatures.json (non-human cast bodies, shared by every series) ---
+
+CreatureRig = Literal["bird", "quadruped", "biped", "crawler"]
+# part -> required, per rig (keep equal to engine/page/creatures.js RIGS)
+RIG_PARTS: dict[str, dict[str, bool]] = {
+    "bird": {"body": True, "head": True, "wing": True, "leg": True, "tail": False, "stump": False},
+    "quadruped": {"body": True, "head": True, "leg_front": True, "leg_back": True, "tail": False, "stump": False},
+    "biped": {"body": True, "head": True, "arm": True, "leg": True, "tail": False, "stump": False},
+    "crawler": {"body": True, "head": False, "tail": False, "stump": False},
+}
+JOINT_OF = {"head": "neck", "stump": "neck", "wing": "wing", "tail": "tail", "leg": "hip", "leg_front": "shoulder",
+            "leg_back": "hip", "arm": "shoulder"}
+HAND_RIGS = {"biped"}  # the only rig that holds props, gives, carries and supports
+# engine/page/creatures.js BUILTIN: id -> (rig, has a stump)
+BUILTIN_CREATURES = {"chicken": ("bird", True), "cat": ("quadruped", True), "horse": ("quadruped", True),
+                     "monkey": ("biped", True), "snake": ("crawler", True)}
+
+
+class CreatureShape(Strict):
+    """one piece of a creature part, in canvas px, facing right, y down: the body around the ground point under the
+    creature, every other part around its joint, at rest (legs and arms hang down from it). A stickman stands about
+    950 px tall; the card is 1024 px wide (x -512..512) and tall (y -1000..24 for the body)."""
+    shape: Literal["rect", "circle", "ellipse", "line", "poly"]
+    pts: list[Point] = Field(min_length=1, max_length=40, description="rect: 2 corners; circle / ellipse: the centre; "
+                                                                      "line: 2+ points; poly: 3+ points (closed)")
+    r: float | None = Field(default=None, gt=0, le=600, description="circle: radius; ellipse: x radius")
+    ry: float | None = Field(default=None, gt=0, le=600, description="ellipse: y radius")
+    rot: float = Field(default=0, ge=-180, le=180, description="ellipse: turn in degrees, clockwise")
+    fill: HexColor | Literal["$main", "$accent"] | None = Field(
+        default=None, description="$main: the cast member's top colour; $accent: its accent colour (else the "
+                                  "creature's); none: outline only. For a line: its colour (default ink)")
+    width: float = Field(default=8, ge=0, le=40, description="outline / line width; 0: no outline")
+
+    @model_validator(mode="after")
+    def _fits(self):
+        need = {"rect": (2, 2), "circle": (1, 1), "ellipse": (1, 1), "line": (2, 40), "poly": (3, 40)}[self.shape]
+        if not need[0] <= len(self.pts) <= need[1]:
+            raise ValueError(f"{self.shape} takes {need[0] if need[0] == need[1] else f'{need[0]}+'} points")
+        if (self.shape in ("circle", "ellipse")) != (self.r is not None):
+            raise ValueError("r is for circles and ellipses, and each needs one")
+        if (self.shape == "ellipse") != (self.ry is not None):
+            raise ValueError("ry is for ellipses, and every ellipse needs one")
+        if any(abs(v) > 1024 for p in self.pts for v in p):
+            raise ValueError("points must stay within 1024 px")
+        return self
+
+
+class CreatureFace(Strict):
+    eye: Point | None = Field(default=None, description="eye centre (head space; body space without a head): a dot "
+                                                        "that blinks")
+    mouth: Point | None = Field(default=None, description="mouth centre: opens while talking, hidden when shut")
+
+
+class CustomCreature(Strict):
+    id: Slug = Field(description="the body name used in series.json cast")  # checked: _not_builtin
+    name: str = Field(min_length=1, max_length=40)
+    rig: CreatureRig = Field(description="how it moves: bird, quadruped, biped (has hands), crawler")
+    accent: HexColor = Field(default="#3a2a1e", description="$accent when the cast member has no accent colour")
+    joints: dict[str, Point] = Field(description="where each part attaches, ground space: hip, shoulder, neck, wing, tail")
+    face: CreatureFace = CreatureFace()
+    parts: dict[str, list[CreatureShape]] = Field(description="part -> shapes, drawn in order (later on top)")
+
+    @field_validator("id")
+    @classmethod
+    def _not_builtin(cls, v):
+        if v in BUILTIN_CREATURES or v == "stickman":
+            raise ValueError(f"{v} is a built-in body")
+        return v
+
+    @model_validator(mode="after")
+    def _fits_rig(self):
+        spec = RIG_PARTS[self.rig]
+        if bad := sorted(set(self.parts) - set(spec)):
+            raise ValueError(f"{', '.join(bad)}: not a {self.rig} part (parts: {', '.join(spec)})")
+        if missing := [p for p, need in spec.items() if need and not self.parts.get(p)]:
+            raise ValueError(f"a {self.rig} needs {', '.join(missing)}")
+        if too_big := [p for p, shapes in self.parts.items() if not 1 <= len(shapes) <= 60]:
+            raise ValueError(f"{', '.join(too_big)}: 1 to 60 shapes per part")
+        need = {JOINT_OF[p] for p in self.parts if p != "body"} | ({"hip"} if self.rig != "crawler" else set())
+        if missing := sorted(need - set(self.joints)):
+            raise ValueError(f"joints: {', '.join(missing)} missing")
+        if extra := sorted(set(self.joints) - need):
+            raise ValueError(f"joints: {', '.join(extra)} not used by any part")
+        return self
+
+
+class CreatureLibrary(Strict):
+    schema_version: Literal[1] = 1
+    creatures: list[CustomCreature] = []
+
+    @field_validator("creatures")
+    @classmethod
+    def _unique(cls, v):
+        if dupes := sorted({p.id for p in v if sum(q.id == p.id for q in v) > 1}):
+            raise ValueError(f"creature ids must be unique: {', '.join(dupes)}")
         return v
 
 

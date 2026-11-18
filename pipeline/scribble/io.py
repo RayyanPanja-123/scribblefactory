@@ -9,7 +9,8 @@ from pathlib import Path
 
 from typing import get_args
 
-from .schemas import BUILTIN_SETS, BuiltinProp, CustomProp, CustomSet, PartModel, PropLibrary, SeriesModel, SetLibrary
+from .schemas import (BUILTIN_CREATURES, BUILTIN_SETS, BuiltinProp, CreatureLibrary, CustomCreature, CustomProp,
+                      CustomSet, PartModel, PropLibrary, SeriesModel, SetLibrary)
 
 # User-owned files a save must never write to.
 PROTECTED = {"story.md", "voice.mp3"}
@@ -123,6 +124,66 @@ def delete_prop(library, prop_id: str) -> None:
         raise ValueError(f"{prop_id} is still used by @do in " + ", ".join(used))
     lib.props = [p for p in lib.props if p.id != prop_id]
     atomic_write_json(Path(library) / "props.json", lib.model_dump(mode="json"))
+
+
+
+def load_creatures(library) -> CreatureLibrary:
+    """library/creatures.json (non-human cast bodies, shared by every series); none yet: an empty library"""
+    f = Path(library) / "creatures.json"
+    return CreatureLibrary.model_validate_json(f.read_bytes()) if f.exists() else CreatureLibrary()
+
+
+def creature_bodies(library) -> dict[str, tuple[str, bool]]:
+    """every creature a cast member can be: id -> (rig, has a stump); built-ins first, then library/creatures.json"""
+    return {**BUILTIN_CREATURES, **{c.id: (c.rig, bool(c.parts.get("stump"))) for c in load_creatures(library).creatures}}
+
+
+def cast_body_problems(cast, library) -> list[str]:
+    """'<cast id>: <problem>' for each body that is not stickman, built in or in library/creatures.json, and each
+    headless cast member whose creature has no stump"""
+    bodies, out = creature_bodies(library), []
+    for c in cast:
+        if c.body != "stickman" and c.body not in bodies:
+            out.append(f"{c.id}: unknown body {c.body!r} (stickman, {', '.join(bodies)})")
+        elif c.headless and c.body in bodies and not bodies[c.body][1]:
+            out.append(f"{c.id}: headless, but creature {c.body!r} has no stump part")
+    return out
+
+
+def creature_users(library, creature_id: str) -> list[tuple[Path, str]]:
+    """(series.json, cast id) for every cast member, in every series of the library, with this body"""
+    return [(f, c.id) for f in sorted(Path(library).glob("*/series.json")) for c in load_series(f).cast
+            if c.body == creature_id]
+
+
+def save_creature(library, creature: CustomCreature) -> list[str]:
+    """add or replace a creature. A changed drawing changes the look of every cast member with that body, so their
+    approvals are cleared (like save_prop). Returns "<slug>/<cast id>" for each approval cleared."""
+    lib = load_creatures(library)
+    old = next((c for c in lib.creatures if c.id == creature.id), None)
+    lib.creatures = [creature if c.id == creature.id else c for c in lib.creatures] if old else [*lib.creatures, creature]
+    atomic_write_json(Path(library) / "creatures.json", lib.model_dump(mode="json"))
+    cleared = []
+    if old and old.model_dump(exclude={"name"}) != creature.model_dump(exclude={"name"}):
+        for f, cid in creature_users(library, creature.id):
+            series = load_series(f)
+            c = next(c for c in series.cast if c.id == cid)
+            if c.approved_at:
+                c.approved_at = None
+                atomic_write_json(f, series.model_dump(mode="json"))  # directly: save_series keeps approvals
+                cleared.append(f"{series.slug}/{cid}")
+    return cleared
+
+
+def delete_creature(library, creature_id: str) -> None:
+    """remove a creature; refused (ValueError) while any cast member has it as its body"""
+    lib = load_creatures(library)
+    if not any(c.id == creature_id for c in lib.creatures):
+        raise KeyError(creature_id)
+    if used := creature_users(library, creature_id):
+        raise ValueError(f"{creature_id} is still the body of " + ", ".join(f"{f.parent.name}/{cid}" for f, cid in used))
+    lib.creatures = [c for c in lib.creatures if c.id != creature_id]
+    atomic_write_json(Path(library) / "creatures.json", lib.model_dump(mode="json"))
 
 
 def load_sets(library) -> SetLibrary:

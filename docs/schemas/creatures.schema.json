@@ -1,0 +1,266 @@
+{
+  "$defs": {
+    "CreatureFace": {
+      "additionalProperties": false,
+      "properties": {
+        "eye": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "eye centre (head space; body space without a head): a dot that blinks",
+          "title": "Eye"
+        },
+        "mouth": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "mouth centre: opens while talking, hidden when shut",
+          "title": "Mouth"
+        }
+      },
+      "title": "CreatureFace",
+      "type": "object"
+    },
+    "CreatureShape": {
+      "additionalProperties": false,
+      "description": "one piece of a creature part, in canvas px, facing right, y down: the body around the ground point under the\ncreature, every other part around its joint, at rest (legs and arms hang down from it). A stickman stands about\n950 px tall; the card is 1024 px wide (x -512..512) and tall (y -1000..24 for the body).",
+      "properties": {
+        "fill": {
+          "anyOf": [
+            {
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "type": "string"
+            },
+            {
+              "enum": [
+                "$main",
+                "$accent"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "$main: the cast member's top colour; $accent: its accent colour (else the creature's); none: outline only. For a line: its colour (default ink)",
+          "title": "Fill"
+        },
+        "pts": {
+          "description": "rect: 2 corners; circle / ellipse: the centre; line: 2+ points; poly: 3+ points (closed)",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "maxItems": 40,
+          "minItems": 1,
+          "title": "Pts",
+          "type": "array"
+        },
+        "r": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 600,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "circle: radius; ellipse: x radius",
+          "title": "R"
+        },
+        "rot": {
+          "default": 0,
+          "description": "ellipse: turn in degrees, clockwise",
+          "maximum": 180,
+          "minimum": -180,
+          "title": "Rot",
+          "type": "number"
+        },
+        "ry": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 600,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ellipse: y radius",
+          "title": "Ry"
+        },
+        "shape": {
+          "enum": [
+            "rect",
+            "circle",
+            "ellipse",
+            "line",
+            "poly"
+          ],
+          "title": "Shape",
+          "type": "string"
+        },
+        "width": {
+          "default": 8,
+          "description": "outline / line width; 0: no outline",
+          "maximum": 40,
+          "minimum": 0,
+          "title": "Width",
+          "type": "number"
+        }
+      },
+      "required": [
+        "shape",
+        "pts"
+      ],
+      "title": "CreatureShape",
+      "type": "object"
+    },
+    "CustomCreature": {
+      "additionalProperties": false,
+      "properties": {
+        "accent": {
+          "default": "#3a2a1e",
+          "description": "$accent when the cast member has no accent colour",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "title": "Accent",
+          "type": "string"
+        },
+        "face": {
+          "$ref": "#/$defs/CreatureFace",
+          "default": {
+            "eye": null,
+            "mouth": null
+          }
+        },
+        "id": {
+          "description": "the body name used in series.json cast",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "joints": {
+          "additionalProperties": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "description": "where each part attaches, ground space: hip, shoulder, neck, wing, tail",
+          "title": "Joints",
+          "type": "object"
+        },
+        "name": {
+          "maxLength": 40,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "parts": {
+          "additionalProperties": {
+            "items": {
+              "$ref": "#/$defs/CreatureShape"
+            },
+            "type": "array"
+          },
+          "description": "part -> shapes, drawn in order (later on top)",
+          "title": "Parts",
+          "type": "object"
+        },
+        "rig": {
+          "description": "how it moves: bird, quadruped, biped (has hands), crawler",
+          "enum": [
+            "bird",
+            "quadruped",
+            "biped",
+            "crawler"
+          ],
+          "title": "Rig",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "rig",
+        "joints",
+        "parts"
+      ],
+      "title": "CustomCreature",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "creatures": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/CustomCreature"
+      },
+      "title": "Creatures",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    }
+  },
+  "title": "CreatureLibrary",
+  "type": "object"
+}

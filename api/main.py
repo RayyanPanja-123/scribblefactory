@@ -30,8 +30,10 @@ from sse_starlette import EventSourceResponse
 
 from pipeline.scribble import cli, storycheck
 from pipeline.scribble.io import (atomic_write_bytes, atomic_write_json, atomic_write_text, delete_prop, delete_set, load_part, load_props,
-                                  load_series, load_sets, prop_kinds, save_prop, save_series, save_set, unknown_cast_props)
-from pipeline.scribble.schemas import (BUILTIN_SETS, BuiltinProp, CastMember, CustomProp, CustomSet, PartModel, Posted, SeriesModel, SetKind, Slug,
+                                  load_series, load_sets, prop_kinds, save_prop, save_series, save_set, unknown_cast_props,
+                                  cast_body_problems, delete_creature, load_creatures, save_creature)
+from pipeline.scribble.schemas import (BUILTIN_CREATURES, BUILTIN_SETS, BuiltinProp, CastMember, CreatureRig, CustomCreature,
+                                       CustomProp, CustomSet, PartModel, Posted, SeriesModel, SetKind, Slug,
                                        Stage, Stages,
                                        utcnow)
 from pipeline.scribble.stages import render as render_stage
@@ -492,6 +494,8 @@ def create_series(body: NewSeries):
         raise HTTPException(409, f"cast ids must be unique: {', '.join(dupes)}")
     if unknown := unknown_cast_props(cast, lib()):
         raise HTTPException(409, f"unknown prop {unknown[0]} (props: {', '.join(prop_kinds(lib()))})")
+    if problems := cast_body_problems(cast, lib()):
+        raise HTTPException(409, f"cast body: {problems[0]}")
     cli_call("new-series", body.slug, f"--title={body.title}")
     d = series_path(body.slug)
     if cast:
@@ -550,6 +554,55 @@ def remove_prop(prop_id: Slug):
     publish("props-changed", {"id": prop_id})
     return prop_catalog()
 
+
+
+# ---------------- creatures (library/creatures.json, shared by every series) ----------------
+
+class BuiltinCreature(BaseModel):
+    id: str
+    rig: CreatureRig
+
+
+class CreatureCatalog(BaseModel):
+    builtin: list[BuiltinCreature]  # drawn by engine/page/creatures.js BUILTIN (the editor previews them from there)
+    custom: list[CustomCreature]
+    cleared: list[str] = []  # after a save: "<slug>/<cast id>" approvals cleared because the drawing changed
+
+
+def creature_catalog(cleared=()) -> CreatureCatalog:
+    return CreatureCatalog(builtin=[BuiltinCreature(id=k, rig=v[0]) for k, v in BUILTIN_CREATURES.items()],
+                           custom=load_creatures(lib()).creatures, cleared=list(cleared))
+
+
+@app.get("/api/creatures", response_model=CreatureCatalog)
+def get_creatures():
+    return creature_catalog()
+
+
+@app.put("/api/creatures/{creature_id}", response_model=CreatureCatalog)
+def put_creature(creature_id: Slug, body: CustomCreature):
+    if body.id != creature_id:
+        raise HTTPException(409, f"body id {body.id!r} does not match {creature_id!r}")
+    check_no_jobs()  # creatures.json feeds every render, like props.json
+    lib().mkdir(parents=True, exist_ok=True)
+    cleared = save_creature(lib(), body)
+    publish("creatures-changed", {"id": creature_id})
+    for slug in {c.split("/")[0] for c in cleared}:
+        publish("series-changed", {"slug": slug})
+    return creature_catalog(cleared)
+
+
+@app.delete("/api/creatures/{creature_id}", response_model=CreatureCatalog)
+def remove_creature(creature_id: Slug):
+    check_no_jobs()
+    try:
+        delete_creature(lib(), creature_id)
+    except KeyError:
+        raise HTTPException(404, f"no custom creature {creature_id!r}")
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+    publish("creatures-changed", {"id": creature_id})
+    return creature_catalog()
 
 
 # ---------------- sets (library/sets.json, shared by every series) ----------------

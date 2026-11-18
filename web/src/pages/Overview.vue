@@ -16,12 +16,12 @@ import { label } from '../composables/ui'
 const { data, error, loading, reload, refresh } = useApi(() => Promise.all([api.overview(), api.series()]))
 
 // docs/STORY_GUIDE.md, bundled at build time and loaded on the first click (the one copy lives in docs/),
-// plus what this library has right now: every set and prop the AI may use
+// plus what this library has right now: every set and prop the AI may use, and the creatures cast members can be
 const copied = ref(false)
 const ids = (xs: { id: string; name: string }[]) => xs.map((x) => `\`${x.id}\` (${x.name})`).join(', ')
 async function records() {
   try {
-    const [sets, props] = await Promise.all([api.sets(), api.props()])
+    const [sets, props, creatures] = await Promise.all([api.sets(), api.props(), api.creatures()])
     const indoor = sets.custom.filter((s) => s.kind === 'indoor')
     const outdoor = sets.custom.filter((s) => s.kind === 'outdoor')
     return [
@@ -32,6 +32,8 @@ async function records() {
         (outdoor.length ? `; custom outdoor ${ids(outdoor)}` : ''),
       `- **Props** (${props.builtin.length + props.custom.length}): built in ${props.builtin.map((p) => `\`${p}\``).join(', ')}` +
         (props.custom.length ? `; custom ${ids(props.custom)}` : ''),
+      `- **Creatures** (animal bodies for cast members, by rig): ${[...creatures.builtin, ...creatures.custom]
+        .map((c) => `\`${c.id}\` (${c.rig})`).join(', ')}`,
       '',
       'Use these sets and props; anything else goes in the NEW block (section 6).',
       '',

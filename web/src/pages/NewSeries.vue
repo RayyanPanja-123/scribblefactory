@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router'
 import { api } from '../api/client'
 import { useApi } from '../composables/useApi'
 import { HANDS, propOptions, type Hand, type Prop } from '../lib/props'
+import { allCreatures } from '../lib/creatures'
 import { act, toast } from '../composables/feedback'
 
 const router = useRouter()
@@ -19,16 +20,20 @@ watch(title, (t) => { if (!slugEdited.value) slug.value = slugify(t) })
 type Obj = Record<string, unknown>
 type Eyes = 'dots' | 'half_closed'
 // look: everything else an imported entry carries (top style, headwear, ...), sent back untouched
-type Row = { name: string; id: string; idEdited: boolean; color: string; eyes: Eyes; hands: Record<Hand, string>; look: Obj }
+type Row = { name: string; id: string; idEdited: boolean; color: string; eyes: Eyes; hands: Record<Hand, string>; body: string; headless: boolean; look: Obj }
 // built-in + custom props (library/props.json); an imported kind not in the list still shows, the server checks it
 const { data: catalog } = useApi(() => api.props())
+// bodies: stickman, or a creature (built in + library/creatures.json); headless only where it has a stump
+const { data: creatureCatalog } = useApi(() => api.creatures())
+const creatures = computed(() => allCreatures(creatureCatalog.value))
+const hasStump = (body: string) => !!creatures.value.find((c) => c.id === body)?.parts.stump
 const options = (r: Row) => {
   const o = propOptions(catalog.value)
   return [...o, ...HANDS.map((h) => r.hands[h]).filter((k) => k && !o.some((x) => x.id === k)).map((k) => ({ id: k, name: `${k} (unknown)` }))]
 }
 const cast = reactive<Row[]>([])
 const nextColor = () => PALETTE[cast.length % PALETTE.length]
-const addCast = () => cast.push({ name: '', id: '', idEdited: false, color: nextColor(), eyes: 'dots', hands: { left: '', right: '' }, look: {} })
+const addCast = () => cast.push({ name: '', id: '', idEdited: false, color: nextColor(), eyes: 'dots', hands: { left: '', right: '' }, body: 'stickman', headless: false, look: {} })
 const propsOf = (r: Row): Prop[] => HANDS.filter((h) => r.hands[h]).map((h) => ({ kind: r.hands[h], hand: h }))
 addCast()
 const onName = (r: Row) => { if (!r.idEdited) r.id = slugify(r.name) }
@@ -80,12 +85,13 @@ function runImport() {
   }
   cast.splice(0, cast.length, ...cast.filter((r) => r.name.trim() || r.id.trim())) // drop empty rows
   for (const x of entries as Obj[]) {
-    const { id, name, color, eyes, props, approved_at: _approved, ...look } = x
+    const { id, name, color, eyes, props, body, headless, approved_at: _approved, ...look } = x
     const top = (look.top ?? {}) as Obj
     const hands: Row['hands'] = { left: '', right: '' }
     for (const p of (props ?? []) as Partial<Prop>[]) if (p.kind) hands[p.hand ?? 'right'] = p.kind
     const row: Row = {
       id: id as string, name: name as string, idEdited: true, eyes: (eyes as Eyes | undefined) ?? 'dots', hands,
+      body: (body as string | undefined) ?? 'stickman', headless: headless === true,
       color: ((color ?? top.color) as string | undefined)?.toLowerCase() ?? nextColor(), look,
     }
     const at = cast.findIndex((r) => r.id === row.id) // same id: the import replaces that row
@@ -105,7 +111,8 @@ async function create() {
   saving.value = true
   const body = {
     slug: slug.value, title: title.value.trim(),
-    cast: filled.value.map((r) => ({ ...r.look, id: r.id, name: r.name.trim(), eyes: r.eyes, props: propsOf(r), top: { ...(r.look.top as Obj), color: r.color } })),
+    cast: filled.value.map((r) => ({ ...r.look, id: r.id, name: r.name.trim(), eyes: r.eyes, props: propsOf(r), top: { ...(r.look.top as Obj), color: r.color },
+      body: r.body, headless: r.body !== 'stickman' && r.headless && hasStump(r.body) })),
   }
   const s = await act(() => api.createSeries(body), `Series “${body.title}” created`)
   saving.value = false
@@ -190,6 +197,16 @@ const field = 'inset mt-1 block h-11 w-full rounded-full px-4 text-sm text-ink o
             <Trash2 :size="16" aria-hidden="true" />
           </button>
           <div v-if="customizeCast" class="flex flex-wrap gap-3 sm:col-span-5">
+            <label class="block min-w-40 flex-1 text-xs font-semibold text-muted">Body
+              <select v-model="r.body" :class="field">
+                <option value="stickman">stickman</option>
+                <option v-for="c in creatures" :key="c.id" :value="c.id">{{ c.name }} ({{ c.rig }})</option>
+                <option v-if="r.body !== 'stickman' && !creatures.some((c) => c.id === r.body)" :value="r.body">{{ r.body }} (unknown)</option>
+              </select>
+            </label>
+            <label v-if="r.body !== 'stickman' && hasStump(r.body)" class="flex h-11 items-center gap-2 self-end text-sm">
+              <input v-model="r.headless" type="checkbox" class="size-4" /> Headless
+            </label>
             <label v-for="h in HANDS" :key="h" class="block min-w-40 flex-1 text-xs font-semibold text-muted">{{ h === 'left' ? 'Left hand' : 'Right hand' }}
               <select v-model="r.hands[h]" :class="field">
                 <option value="">nothing</option>

@@ -272,3 +272,25 @@ describe('build a set with AI', () => {
     expect(importSet('{"pieces": [{"shape": "box", "at": [0, 0, -2], "size": [1, 1]}]}').error).toMatch(/Piece #1/)
   })
 })
+
+describe('creature prompt', () => {
+  it('teaches the chosen rig with its parts and a built-in example, and avoids taken ids', async () => {
+    const { buildCreaturePrompt } = await import('./creatures')
+    const p = buildCreaturePrompt('Dog', 'quadruped', ['cat', 'horse'], 'floppy ears')
+    expect(p).toContain('"id": "dog"')
+    expect(p).toContain('leg_front (required)')
+    expect(p).toContain('must NOT be one of: cat, horse')
+    expect(p).toContain('floppy ears')
+    expect(p).toContain('"id":"cat"') // the built-in quadruped as the example
+  })
+  it('imports a fenced reply, a {"creatures": [...]} file, and refuses a bad rig', async () => {
+    const { importCreature } = await import('./creatures')
+    const body = '"parts": {"body": [{"shape": "circle", "pts": [[0, -50]], "r": 40, "fill": "$main"}]}'
+    const { creature } = importCreature(`Here:\n\`\`\`json\n{"id": "Blob Fish", "name": "Blob", "rig": "crawler", ${body}}\n\`\`\``)
+    expect(creature?.id).toBe('blob-fish')
+    expect(creature?.accent).toBe('#3a2a1e')
+    expect(importCreature(`{"creatures": [{"name": "Worm", "rig": "crawler", ${body}}]}`).creature?.id).toBe('worm')
+    expect(importCreature(`{"name": "X", "rig": "fish", ${body}}`).error).toMatch(/rig/)
+    expect(importCreature('{"name": "X", "rig": "bird"}').error).toMatch(/body/)
+  })
+})

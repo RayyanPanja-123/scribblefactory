@@ -702,11 +702,11 @@ def test_chicken_takes_moves_but_has_no_hands():
     acts = {(a.cast_id, a.action) for s in story.shots for a in s.actors}
     assert ("mike", "stagger") in acts and ("mike", "supported") in acts  # a chicken can be held up
     for do in ("mike: give medal bob", "bob: give medal mike", "mike: support bob"):
-        with pytest.raises(StageError, match="mike is a chicken"):
+        with pytest.raises(StageError, match="mike is a bird"):
             plan(f"# C\n\n@cast bob, mike\n@do {do}\nHere.\n", series=CHICKEN)
 
 
-def test_only_a_chicken_is_headless():
-    with pytest.raises(ValueError, match="only a chicken"):
+def test_only_a_creature_is_headless():
+    with pytest.raises(ValueError, match="only a creature"):
         SeriesModel.model_validate({**CHICKEN.model_dump(mode="json"), "cast": [
             {"id": "bob", "name": "Bob", "top": {"color": "#3a7bd5"}, "eyes": "dots", "headless": True}]})

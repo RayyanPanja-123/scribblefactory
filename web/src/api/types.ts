@@ -4,6 +4,41 @@
  */
 
 export interface paths {
+    "/api/creatures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Creatures */
+        get: operations["get_creatures_api_creatures_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/creatures/{creature_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put Creature */
+        put: operations["put_creature_api_creatures__creature_id__put"];
+        post?: never;
+        /** Remove Creature */
+        delete: operations["remove_creature_api_creatures__creature_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/events": {
         parameters: {
             query?: never;
@@ -451,6 +486,16 @@ export interface components {
             /** @default {} */
             test_render: components["schemas"]["Approval"];
         };
+        /** BuiltinCreature */
+        BuiltinCreature: {
+            /** Id */
+            id: string;
+            /**
+             * Rig
+             * @enum {string}
+             */
+            rig: "bird" | "quadruped" | "biped" | "crawler";
+        };
         /** BuiltinSet */
         BuiltinSet: {
             /** Id */
@@ -472,11 +517,10 @@ export interface components {
             approved_at?: string | null;
             /**
              * Body
-             * @description drawing: stickman, or a side-view chicken (feathers = top.color; no costume, props or face expressions; cannot give, carry or support)
+             * @description stickman, or a creature id (built in or library/creatures.json): drawn in top.color ($main) and top.accent_color ($accent); eyes and mouth only, no costume
              * @default stickman
-             * @enum {string}
              */
-            body: "stickman" | "chicken";
+            body: string;
             /**
              * Default Expression
              * @default neutral
@@ -490,7 +534,7 @@ export interface components {
             eyes: "dots" | "half_closed";
             /**
              * Headless
-             * @description chicken only: a neck stump instead of a head
+             * @description creatures with a stump only: the stump instead of the head
              * @default false
              */
             headless: boolean;
@@ -517,6 +561,126 @@ export interface components {
              */
             props: components["schemas"]["Prop"][];
             top: components["schemas"]["Top"];
+        };
+        /** CreatureCatalog */
+        CreatureCatalog: {
+            /** Builtin */
+            builtin: components["schemas"]["BuiltinCreature"][];
+            /**
+             * Cleared
+             * @default []
+             */
+            cleared: string[];
+            /** Custom */
+            custom: components["schemas"]["CustomCreature"][];
+        };
+        /** CreatureFace */
+        CreatureFace: {
+            /**
+             * Eye
+             * @description eye centre (head space; body space without a head): a dot that blinks
+             */
+            eye?: [
+                number,
+                number
+            ] | null;
+            /**
+             * Mouth
+             * @description mouth centre: opens while talking, hidden when shut
+             */
+            mouth?: [
+                number,
+                number
+            ] | null;
+        };
+        /**
+         * CreatureShape
+         * @description one piece of a creature part, in canvas px, facing right, y down: the body around the ground point under the
+         *     creature, every other part around its joint, at rest (legs and arms hang down from it). A stickman stands about
+         *     950 px tall; the card is 1024 px wide (x -512..512) and tall (y -1000..24 for the body).
+         */
+        CreatureShape: {
+            /**
+             * Fill
+             * @description $main: the cast member's top colour; $accent: its accent colour (else the creature's); none: outline only. For a line: its colour (default ink)
+             */
+            fill?: string | ("$main" | "$accent") | null;
+            /**
+             * Pts
+             * @description rect: 2 corners; circle / ellipse: the centre; line: 2+ points; poly: 3+ points (closed)
+             */
+            pts: [
+                number,
+                number
+            ][];
+            /**
+             * R
+             * @description circle: radius; ellipse: x radius
+             */
+            r?: number | null;
+            /**
+             * Rot
+             * @description ellipse: turn in degrees, clockwise
+             * @default 0
+             */
+            rot: number;
+            /**
+             * Ry
+             * @description ellipse: y radius
+             */
+            ry?: number | null;
+            /**
+             * Shape
+             * @enum {string}
+             */
+            shape: "rect" | "circle" | "ellipse" | "line" | "poly";
+            /**
+             * Width
+             * @description outline / line width; 0: no outline
+             * @default 8
+             */
+            width: number;
+        };
+        /** CustomCreature */
+        CustomCreature: {
+            /**
+             * Accent
+             * @description $accent when the cast member has no accent colour
+             * @default #3a2a1e
+             */
+            accent: string;
+            /** @default {} */
+            face: components["schemas"]["CreatureFace"];
+            /**
+             * Id
+             * @description the body name used in series.json cast
+             */
+            id: string;
+            /**
+             * Joints
+             * @description where each part attaches, ground space: hip, shoulder, neck, wing, tail
+             */
+            joints: {
+                [key: string]: [
+                    number,
+                    number
+                ];
+            };
+            /** Name */
+            name: string;
+            /**
+             * Parts
+             * @description part -> shapes, drawn in order (later on top)
+             */
+            parts: {
+                [key: string]: components["schemas"]["CreatureShape"][];
+            };
+            /**
+             * Rig
+             * @description how it moves: bird, quadruped, biped (has hands), crawler
+             * @enum {string}
+             */
+            rig: "bird" | "quadruped" | "biped" | "crawler";
         };
         /** CustomProp */
         CustomProp: {
@@ -1205,6 +1369,92 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    get_creatures_api_creatures_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatureCatalog"];
+                };
+            };
+        };
+    };
+    put_creature_api_creatures__creature_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                creature_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomCreature"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatureCatalog"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_creature_api_creatures__creature_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                creature_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatureCatalog"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     events_api_events_get: {
         parameters: {
             query?: never;

@@ -18,11 +18,8 @@
         },
         "body": {
           "default": "stickman",
-          "description": "drawing: stickman, or a side-view chicken (feathers = top.color; no costume, props or face expressions; cannot give, carry or support)",
-          "enum": [
-            "stickman",
-            "chicken"
-          ],
+          "description": "stickman, or a creature id (built in or library/creatures.json): drawn in top.color ($main) and top.accent_color ($accent); eyes and mouth only, no costume",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
           "title": "Body",
           "type": "string"
         },
@@ -51,7 +48,7 @@
         },
         "headless": {
           "default": false,
-          "description": "chicken only: a neck stump instead of a head",
+          "description": "creatures with a stump only: the stump instead of the head",
           "title": "Headless",
           "type": "boolean"
         },

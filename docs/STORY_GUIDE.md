@@ -159,10 +159,15 @@ Comma-separated cast ids. Default: the first two cast members of the series.
 - **7 to 12:** the characters *named in that scene's lines* (or used in an `@do`) stand in front and everyone else
   stands further back, smaller, idle. At most 6 may be named in one scene.
 - Never more than **12**. For a large group of people, use `@crowd` instead (extras, not cast).
-- A cast member can be a **chicken** (series.json `"body": "chicken"`, optionally `"headless": true`). A chicken
-  walks, runs, staggers, pecks (`eat`), flaps its wings (react, cheer, angry, gasp, wave, point), sits down (`lie`,
-  `collapse`), rides in the car and can be supported or carried. It has no hands: it cannot `give`, be given
-  things, `carry` or `support`. When the chicken is the focus, the camera comes down to its height.
+- A cast member can be a **creature** (an animal; **Your series** marks it, e.g. `mike: Mike (chicken, bird,
+  headless)`). Creatures have eyes and a mouth only, no facial expressions. By rig:
+  - **bird** (chicken, duck…) flaps its wings to react, cheer, wave or point and pecks to `eat`;
+    **quadruped** (cat, horse…) hops and wags its tail, lowers its head to `eat`; **crawler** (snake, worm…)
+    ripples along the ground and lifts its head. All three sit down for `lie` / `collapse` and have **no hands**:
+    they cannot `give`, be given things, `carry` or `support` (they can be carried or supported).
+  - **biped** (monkey, bear…) has arms and hands and can do everything a person can.
+  - Every creature walks, runs, staggers, talks (mouth moves) and rides in the car. When one is the focus, the
+    camera comes down to its height.
 
 ### `@do <cast>: <action> [target | prop]`: force an action
 
@@ -381,7 +386,8 @@ A woman danced in the street for six days straight.
 
 - **Series title:**
 - **Part number and what happens in it:**
-- **Cast** (`id: Name`, one per line; only these ids may be used):
+- **Cast** (`id: Name`, one per line; only these ids may be used; for an animal add its creature and rig, e.g.
+  `mike: Mike (chicken, bird, headless)`):
   - `id: Name`
 - **Extra props** (beyond the built-ins), if any:
 - **Tone** (funny, eerie, dramatic...) and anything to avoid:

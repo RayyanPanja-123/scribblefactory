@@ -12,15 +12,15 @@ import re
 import zlib
 from pathlib import Path
 
-from ..io import atomic_write_json, outdoor_sets, prop_kinds, unknown_cast_props
-from ..schemas import Actor, Animal, Camera, Cue, EndCard, Extra, PhrasesModel, SeriesModel, Shot, StoryModel, Travel, Vehicle
+from ..io import atomic_write_json, cast_body_problems, creature_bodies, outdoor_sets, prop_kinds, unknown_cast_props
+from ..schemas import BUILTIN_CREATURES, HAND_RIGS, Actor, Animal, Camera, Cue, EndCard, Extra, PhrasesModel, SeriesModel, Shot, StoryModel, Travel, Vehicle
 from ..validate import (CAR_SPEED, CROWD_Z, DOG_RUN_SPEED, MAX_SHOT_FRAMES, MOODS, OUTDOOR_SETS, SPEEDS,
                         END_CARD_S, end_frame, validate)
 from .prep import BUILTIN_PROPS, DO_CAR, FX_MODES, MARKER_RE, clean_markdown, mark_directives, parse_do
 from .runner import StageError
 from .validate import load_model
 
-INPUTS = ["story.md", "phrases.json", "../series.json", "../../props.json"]
+INPUTS = ["story.md", "phrases.json", "../series.json", "../../props.json", "../../creatures.json"]
 OUTPUTS = ["story.json"]
 
 FPS = 30
@@ -36,7 +36,7 @@ STAGE_X = 1.0              # starting cast spread across -STAGE_X..STAGE_X, z = 
 BOUNDS = (-2.0, 2.0)       # x range a walk/run must end inside
 MOVE_SPEED = {"walk": 1.2, "run": 2.5, "stagger": 0.6}  # units/s
 MIN_SPEED = {a: SPEEDS[a][0] for a in MOVE_SPEED}  # shortened moves never go slower than the validator allows
-CHICKEN_CANNOT = {"give", "carry", "support"}  # no hands; a chicken can still be carried or supported
+NEEDS_HANDS = {"give", "carry", "support"}  # creatures without hands can still be carried or supported
 GROUP_SPEED = {"carry": 0.9, "support": 0.8}  # @do carry / support: the group walks toward the stage centre
 HOLD_GAP = 0.42            # carry / support: a holder stands this far (x) beside the held actor (engine actions.js)
 MIN_GAP = 0.8              # actors at least this far apart in x at the start and end of every shot
@@ -381,11 +381,12 @@ def _group_move(xs: list[float], role: str, seconds: float) -> float:
     return 0.0
 
 
-def _apply_do(clauses, line, cast, pos, actors, vehicles, seconds, fallen, chickens=frozenset()) -> list[Actor]:
+def _apply_do(clauses, line, cast, pos, actors, vehicles, seconds, fallen, handless=None) -> list[Actor]:
     """@do for one shot: the named actors get the given action (others keep the planner's choice); "car: broken"
     stops the car on stage. pos is updated to where everyone ends. fallen: (line, cast id) already collapsed or
     gave on this line: a collapse or a give happens once, in the line's first shot; later shots lie / carry on.
-    chickens: cast ids drawn as chickens (no hands: no give, receive, carry or support)."""
+    handless: cast id -> "a <rig>" for creatures without hands (no give, receive, carry or support)."""
+    handless = handless or {}
     def bad(msg):
         raise StageError(f"story.md line {line}: @do: {msg}")
     by = {a.cast_id: a for a in actors}
@@ -402,11 +403,10 @@ def _apply_do(clauses, line, cast, pos, actors, vehicles, seconds, fallen, chick
                 bad(f"{w} is not on stage on this line (@cast {', '.join(cast)})")
         if c.target in named:
             bad(f"{c.target} is the target of {c.action} and has its own action too")
-        if c.action in CHICKEN_CANNOT:
+        if c.action in NEEDS_HANDS:
             hands = c.who + ((c.target,) if c.action == "give" else ())
-            if birds := [w for w in hands if w in chickens]:
-                bad(f"{', '.join(birds)} is a chicken and cannot {c.action}"
-                    + (" or be given things" if c.action == "give" else ""))
+            for w in (w for w in hands if w in handless):
+                bad(f"{w} is {handless[w]} (no hands) and cannot {c.action}" + (" or be given things" if c.action == "give" else ""))
     for cid in named & set(by):  # undo the planner's move for every actor @do takes over
         pos[cid] = by[cid].start_pos[0]
     face = lambda d: "left" if d < 0 else "right"
@@ -535,7 +535,8 @@ def _car_move(mode, park, actors, subject, seconds, seed) -> Vehicle:
 
 
 def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, props=BUILTIN_PROPS,
-         outdoor=OUTDOOR_SETS) -> StoryModel:
+         outdoor=OUTDOOR_SETS, bodies=BUILTIN_CREATURES) -> StoryModel:
+    """bodies: creature id -> (rig, has a stump), io.creature_bodies (built-ins + library/creatures.json)"""
     if not series.cast:
         raise StageError("series.json has no cast: add some with cast-add")
     ids = [c.id for c in series.cast]
@@ -549,6 +550,8 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
 
     seed = seed_for(series.slug, part_number)
     rng = random.Random(seed)
+    handless = {c.id: f"a {bodies[c.body][0]}" for c in series.cast
+                if c.body != "stickman" and c.body in bodies and bodies[c.body][0] not in HAND_RIGS}
     final = series.status == "complete" and series.parts[-1:] == [f"part-{part_number:02d}"]
     total = end_frame(phrases, not final, FPS)
     end_card = None if final else EndCard(start_frame=total - round(END_CARD_S * FPS),
@@ -679,8 +682,7 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
                     elif v.action == "leave":
                         car_left, park = True, None
                 if do:
-                    actors = _apply_do(do[1], do[0], cast, pos, actors, vehicles, seconds, fallen,
-                                      {c.id for c in series.cast if c.body == "chicken"})
+                    actors = _apply_do(do[1], do[0], cast, pos, actors, vehicles, seconds, fallen, handless)
                     if any(ac.action == "give" for ac in actors):  # a hand-over needs both people in frame: wide
                         angle = "wide" if prev_angle != "wide" else "medium"  # fits everyone; medium: the pair (engine)
                     for v in vehicles:
@@ -720,8 +722,10 @@ def run(part_dir: Path) -> None:
     library = part_dir.parent.parent
     if unknown := unknown_cast_props(series.cast, library):
         raise StageError(f"cast holds a prop that is not in library/props.json: {', '.join(unknown)}")
+    if problems := cast_body_problems(series.cast, library):
+        raise StageError(f"cast body: {'; '.join(problems)}")
     story = plan(story_md.read_text(encoding="utf-8"), phrases, series, int(part_dir.name.split("-")[1]),
-                 prop_kinds(library), outdoor_sets(library))
+                 prop_kinds(library), outdoor_sets(library), creature_bodies(library))
     errors = validate(story, phrases, {c.id for c in series.cast}, outdoor_sets(library))
     for e in errors:
         print(f"  {e.shot_id or '-'}  {e.rule}: {e.message}")

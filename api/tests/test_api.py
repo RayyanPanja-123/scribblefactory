@@ -557,3 +557,27 @@ def test_job_history_cleanup(client, lib):
     finally:
         with m._cv:
             m.JOBS.clear()  # the fake queued job must not block later tests
+
+
+DOG = {"id": "dog", "name": "Dog", "rig": "quadruped",
+       "joints": {"hip": [-80, -110], "shoulder": [80, -110], "neck": [100, -150]},
+       "parts": {"body": [{"shape": "ellipse", "pts": [[0, -130]], "r": 120, "ry": 50, "fill": "$main"}],
+                 "head": [{"shape": "circle", "pts": [[30, -40]], "r": 50, "fill": "$main"}],
+                 "leg_front": [{"shape": "rect", "pts": [[-10, 0], [10, 110]], "fill": "$main"}],
+                 "leg_back": [{"shape": "rect", "pts": [[-10, 0], [10, 110]], "fill": "$main"}]}}
+
+
+def test_creatures(client, lib):
+    r = client.get("/api/creatures").json()
+    assert {"id": "chicken", "rig": "bird"} in r["builtin"] and r["custom"] == []
+    assert client.put("/api/creatures/cat", json={**DOG, "id": "cat"}).status_code == 422  # built-in id
+    assert client.put("/api/creatures/dog", json={**DOG, "rig": "bird"}).status_code == 422  # wrong parts for the rig
+    pets = {"slug": "pets", "title": "Pets", "cast": [{"id": "rex", "name": "Rex", "color": "#aa5500", "body": "dog"}]}
+    assert "unknown body 'dog'" in client.post("/api/series", json=pets).json()["detail"]
+    assert client.put("/api/creatures/dog", json=DOG).json()["custom"][0]["id"] == "dog"
+    assert client.post("/api/series", json=pets).status_code == 200
+    headless = {**pets, "slug": "pets2", "cast": [{**pets["cast"][0], "headless": True}]}
+    assert "no stump" in client.post("/api/series", json=headless).json()["detail"]
+    r = client.delete("/api/creatures/dog")
+    assert r.status_code == 409 and "pets/rex" in r.json()["detail"]
+    assert client.delete("/api/creatures/wolf").status_code == 404

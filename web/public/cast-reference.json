@@ -3,8 +3,8 @@
   "_values": {
     "id": "lowercase slug, used in @cast / @do: a-z 0-9 and single hyphens",
     "eyes": ["dots", "half_closed"],
-    "body": ["stickman", "chicken"],
-    "headless": "true or false (default false): chicken only, a neck stump instead of a head",
+    "body": "stickman (default), or a creature id: built in chicken, cat, horse, monkey, snake, or one from the Creatures page",
+    "headless": "true or false (default false): creatures with a stump only, the stump instead of the head",
     "default_expression": ["neutral", "happy", "sad", "angry", "surprised", "sleepy", "cheeky", "exhausted"],
     "top.style": ["plain", "suit", "tank", "shirt", "dress"],
     "top.color": "#rrggbb (required)",

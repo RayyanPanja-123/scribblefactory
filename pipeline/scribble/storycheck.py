@@ -14,7 +14,7 @@ import json
 import re
 from pathlib import Path
 
-from .io import load_series, prop_kinds, set_kinds, unknown_cast_props
+from .io import cast_body_problems, load_series, prop_kinds, set_kinds, unknown_cast_props
 from .stages.finish import MAX_RUNTIME_S
 from .stages.prep import DO_CAR, FX_MODES, TWIST_PREFIX, clean_markdown, parse_do, strip_directives
 from .stages.runner import StageError
@@ -97,6 +97,8 @@ def check_story(part_dir: Path) -> dict:
         bad(None, f"series {series.slug} has no cast: add some with cast-add")
     for u in unknown_cast_props(series.cast, library):
         bad(None, f"cast holds a prop that is neither built in nor in library/props.json: {u}")
+    for u in cast_body_problems(series.cast, library):
+        bad(None, f"cast body: {u}")
 
     cast, car, pending_do = tuple(ids[:DEFAULT_CAST_SIZE]), "off", None
     first_seen: dict[str, int] = {}  # cast id -> first line it is on stage

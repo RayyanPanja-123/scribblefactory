@@ -17,8 +17,8 @@ from pathlib import Path
 from pydantic import TypeAdapter, ValidationError
 
 from . import sheet, storycheck
-from .io import (atomic_write_json, load_part, load_series, prop_kinds, replace_file, save_part, save_series,
-                 unknown_cast_props)
+from .io import (atomic_write_json, cast_body_problems, load_part, load_series, prop_kinds, replace_file, save_part,
+                 save_series, unknown_cast_props)
 from .schemas import CastMember, Expression, PartId, PartModel, Post, SeriesModel, Slug, Stages, StoryModel, Style, Voice, utcnow
 from .stages import STAGES
 from .stages import render as render_stage
@@ -76,8 +76,11 @@ def cmd_cast_add(args) -> int:
     f, series = load_existing_series(args)
     if any(c.id == args.id for c in series.cast):
         raise UserError(f"cast id {args.id!r} already exists in {args.slug}")
-    series.cast.append(CastMember(id=args.id, name=args.name, top={"color": args.color}, eyes=args.eyes, body=args.body,
-                                  headless=args.headless == "yes"))
+    new = CastMember(id=args.id, name=args.name, top={"color": args.color}, eyes=args.eyes, body=args.body,
+                     headless=args.headless == "yes")
+    if problems := cast_body_problems([new], library_root(args)):
+        raise UserError(problems[0])
+    series.cast.append(new)
     save_series(f, series)
     print(f"added {args.id} to {args.slug} cast")
     return 0
@@ -109,6 +112,8 @@ def cmd_cast_edit(args) -> int:
     if args.body == "stickman" and args.headless is None:
         data["headless"] = False  # back to a person: put the head back on
     new = CastMember.model_validate(data)  # validates colours, kinds, number
+    if problems := cast_body_problems([new], library_root(args)):
+        raise UserError(problems[0])
     if unknown := unknown_cast_props([new], library_root(args)):
         raise UserError(f"unknown prop {unknown[0].split(': ')[1]!r} (props: {', '.join(prop_kinds(library_root(args)))})")
     if new.look() != old.look() and old.approved_at:
@@ -584,8 +589,8 @@ def build_parser() -> Parser:
     c.add_argument("--name", required=True)
     c.add_argument("--color", required=True, help="outfit colour #rrggbb")
     c.add_argument("--eyes", choices=["dots", "half_closed"], default="dots")
-    c.add_argument("--body", choices=["stickman", "chicken"], default="stickman", help="drawing (colour = feathers)")
-    c.add_argument("--headless", choices=["yes", "no"], default="no", help="chicken only: no head, a neck stump")
+    c.add_argument("--body", default="stickman", help="stickman or a creature id (built in or library/creatures.json)")
+    c.add_argument("--headless", choices=["yes", "no"], default="no", help="creatures with a stump: no head")
     c.set_defaults(func=cmd_cast_add)
 
     c = sub.add_parser("cast-edit", parents=[common], help="change a cast member (a new look clears its approval)")
@@ -604,8 +609,8 @@ def build_parser() -> Parser:
                                     'library/props.json), e.g. "clipboard:right,stopwatch:left", or none')
     c.add_argument("--default-expression", choices=list(get_args(Expression)))
     c.add_argument("--eyes", choices=["dots", "half_closed"])
-    c.add_argument("--body", choices=["stickman", "chicken"], help="drawing (a chicken's feathers are the top colour)")
-    c.add_argument("--headless", choices=["yes", "no"], help="chicken only: no head, a neck stump")
+    c.add_argument("--body", help="stickman or a creature id (built in or library/creatures.json); colour = $main")
+    c.add_argument("--headless", choices=["yes", "no"], help="creatures with a stump: no head")
     c.set_defaults(func=cmd_cast_edit)
 
     c = sub.add_parser("set-voice", parents=[common], help="set the series voice name")
