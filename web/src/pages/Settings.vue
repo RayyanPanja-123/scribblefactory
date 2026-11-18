@@ -57,7 +57,8 @@ const block = 'inset my-1.5 overflow-x-auto rounded-md px-3 py-2 font-mono text-
       </ul></nav>
 
       <div class="space-y-10">
-        <section id="preferences" class="scroll-mt-4">
+        <Transition name="settings-panel" mode="out-in">
+        <section v-if="active === 'preferences'" id="preferences">
           <h3 class="border-b border-rule pb-2 text-xl font-semibold">Preferences</h3>
           <form class="mt-4 max-w-md space-y-5" @submit.prevent="save()">
             <p class="text-sm text-muted">Select which configured provider powers “Build with AI”. Configure each provider in its own tab.</p>
@@ -69,7 +70,7 @@ const block = 'inset my-1.5 overflow-x-auto rounded-md px-3 py-2 font-mono text-
           </form>
         </section>
 
-        <section id="omniroute" class="scroll-mt-4">
+        <section v-else-if="active === 'omniroute'" id="omniroute">
           <h3 class="border-b border-rule pb-2 text-xl font-semibold">OmniRoute</h3>
           <form class="mt-4 max-w-md space-y-5" @submit.prevent="save(form.api_key.trim() || null)">
             <p class="text-sm text-muted">Use your local or remote OmniRoute gateway for OpenAI-compatible model routing.</p>
@@ -81,7 +82,7 @@ const block = 'inset my-1.5 overflow-x-auto rounded-md px-3 py-2 font-mono text-
           <div class="mt-8 max-w-2xl text-sm"><h4 class="border-b border-rule pb-2 font-semibold">OmniRoute setup</h4><ol class="mt-4 list-decimal space-y-2 pl-5 text-muted"><li>Install and start it:<pre :class="block">npm install -g omniroute</pre><pre :class="block">omniroute</pre></li><li>Open <a class="underline" href="http://localhost:20128" target="_blank" rel="noopener">localhost:20128</a> and create an API key from the Endpoints page.</li><li>Connect a provider in OmniRoute, then paste its endpoint key above.</li></ol></div>
         </section>
 
-        <section id="gemini" class="scroll-mt-4">
+        <section v-else-if="active === 'gemini'" id="gemini">
           <h3 class="border-b border-rule pb-2 text-xl font-semibold">Gemini</h3>
           <form class="mt-4 max-w-md space-y-5" @submit.prevent="save(form.gemini_api_key.trim() || null)">
             <p class="text-sm text-muted">Call Google Gemini directly with your Gemini API key. The key remains on the local API server.</p>
@@ -96,7 +97,7 @@ const block = 'inset my-1.5 overflow-x-auto rounded-md px-3 py-2 font-mono text-
           <p class="mt-8 text-sm text-muted">Create a key in <a class="underline" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>, then paste it above.</p>
         </section>
 
-        <section id="openrouter" class="scroll-mt-4">
+        <section v-else-if="active === 'openrouter'" id="openrouter">
           <h3 class="border-b border-rule pb-2 text-xl font-semibold">OpenRouter</h3>
           <form class="mt-4 max-w-md space-y-5" @submit.prevent="save(form.openrouter_api_key.trim() || null)">
             <p class="text-sm text-muted">Use OpenRouter’s OpenAI-compatible API with free or paid models from multiple providers.</p>
@@ -106,7 +107,25 @@ const block = 'inset my-1.5 overflow-x-auto rounded-md px-3 py-2 font-mono text-
           </form>
           <p class="mt-8 text-sm text-muted">Create a key at <a class="underline" href="https://openrouter.ai/keys" target="_blank" rel="noopener">OpenRouter Keys</a>.</p>
         </section>
+        </Transition>
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+.settings-panel-enter-active,
+.settings-panel-leave-active {
+  transition: opacity 180ms ease, transform 220ms cubic-bezier(.2, .8, .2, 1);
+}
+
+.settings-panel-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.settings-panel-leave-to {
+  opacity: 0;
+  transform: translateY(-5px);
+}
+</style>
