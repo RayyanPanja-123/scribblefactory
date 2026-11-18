@@ -2,7 +2,8 @@
 
 Share this whole file with an AI (paste it, or attach it), fill in **Your series** at the end, and ask for a story.
 The AI writes **part 1 only**, then waits until you ask for part 2 (and so on).
-Every rule below is what the software actually enforces; a story that follows it renders without edits.
+The format rules below are what the software enforces; the writing rules (hook, pacing, key props) keep the video
+looking right. A story that follows both renders without edits.
 
 ---
 
@@ -40,15 +41,17 @@ Every answer has these parts, in this order:
    lines at the end of the answer.
 4. **Cast JSON**: only when **Your series** has no cast yet (a new series), in part 1: one fenced `json` block
    with the whole cast in the format of section 6b (animals with `body`, changes like a lost head or picking up
-   an axe as `looks`). Leave it out when the cast already exists.
+   an axe as `looks`). It must include **every character of the whole series**, also those who first appear in
+   later parts: the dashboard imports the cast only when the series is created, and adding characters later
+   needs the command line. Leave it out when the cast already exists.
 5. **The script**: one fenced `md` code block containing only the complete `story.md`: the `# Part title`
    line, every `@` directive and the narration (section 3).
 6. **Audio script (TTS)**: one fenced `text` code block with only what the voice reads: the narration lines of
    the script, in order, one per line, with every `@` line, the `# title` line and the `!!` markers left out.
    Word for word the same as the script's narration: nothing added, removed or reworded (the voice is matched
    to the script word by word, so any difference breaks the captions and shots).
-7. Three short lines: word count, estimated length in seconds (words / 2.6, plus 1 for the end card), and the
-   cast ids used.
+7. Three lines: `Words: <count>`, `Length: about <seconds> seconds` (words / 2.6, plus 1 for the end card),
+   and `Cast: <ids used, comma-separated>`.
 8. **Prop lines**: one line per required prop, after the three summary lines, saying which cast id holds it and
    how: `Prop axe: lloyd, look "axe" (@look lloyd: axe)`, `Prop clipboard: sullivan, always (cast props)`,
    `Prop apple: bob, @do eat`. For a series whose cast already exists, these lines tell the user what to add to
@@ -71,7 +74,9 @@ NEW PROPS
 [
   { "id": "lloyd", "name": "Lloyd", "color": "#3b6ea5",
     "looks": { "axe": { "props": [{ "kind": "axe", "hand": "right" }] } } },
-  { "id": "mike", "name": "Mike", "color": "#f2f2f2", "body": "chicken", "looks": { "headless": { "headless": true } } }
+  { "id": "clara", "name": "Clara", "color": "#c0567a" },
+  { "id": "mike", "name": "Mike", "color": "#f2f2f2", "body": "chicken", "looks": { "headless": { "headless": true } } },
+  { "id": "scientist", "name": "Scientist", "color": "#7a8b99" }
 ]
 ```
 
@@ -94,7 +99,9 @@ A chicken lived eighteen months without a head.
 ...
 ```
 
-Words: 128 · about 50 seconds · cast: lloyd, clara, mike, scientist
+Words: 128
+Length: about 50 seconds
+Cast: lloyd, clara, mike, scientist
 Prop axe: lloyd, look "axe" (@look lloyd: axe)
 ````
 
@@ -264,9 +271,9 @@ The target of give / carry / support cannot have its own action in the same `@do
 From the next narration line on, the cast member wears one of its named looks (listed in **Your series**, e.g.
 `mike: Mike (chicken, bird; looks: headless)`) until another `@look` for them, for the rest of the part, across
 `@set` changes. `@look mike: default` brings back their own look. Several at once: `@look amy, bob: wedding`.
-Use it for a change the viewer should see: a lost head, a costume, a disguise, prison clothes. Only looks listed
-for that cast member exist. A new part starts in everyone's own look, so repeat the `@look` at its top if the
-change still holds.
+Use it for a change the viewer should see: a lost head, a costume, a disguise, prison clothes, or an object in
+hand (a look with props, e.g. `@look lloyd: axe`; section 6). Only looks listed for that cast member exist. A
+new part starts in everyone's own look, so repeat the `@look` at its top if the change still holds.
 
 ```text
 Lloyd grabbed a young rooster named Mike and swung his axe.
@@ -452,8 +459,8 @@ at an exact moment).
 
 1. Line 1 is `# Title`; every directive is alone on its line.
 2. A `@set` comes before the first narration line.
-3. Only cast ids, looks, sets, actions and props from this guide and **Your series**, plus new sets and props listed
-   in the NEW block (at most 2 sets, 3 props).
+3. Only cast ids, looks, sets, actions, props and creatures from this guide and **Your series**, plus new sets,
+   props and creatures listed in the NEW block (at most 2 sets, 3 props, 2 creatures).
 4. Every `@do` is directly followed by a narration line, and everyone in it is in the current `@cast`.
 5. Each `@cast` has at most 12 ids, at most 6 of them named in that scene; `@car ride` at most 3.
 6. No digits, symbols or markdown formatting in narration.
