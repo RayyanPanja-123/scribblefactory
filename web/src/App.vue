@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Backpack, CircleHelp, ClipboardCheck, Film, History, Layers, LayoutDashboard, Menu, Monitor, Moon, Mountain, PawPrint, PersonStanding, Search, Send, Settings, Sparkles, Sun, X } from 'lucide-vue-next'
+import { Backpack, CircleHelp, ClipboardCheck, Film, History, Layers, LayoutDashboard, Menu, Monitor, Moon, Mountain, PawPrint, PersonStanding, Search, Send, Settings, Sparkles, Sun, X, WandSparkles } from 'lucide-vue-next'
 import { AnimatePresence, motion, MotionConfig } from 'motion-v'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -18,12 +18,11 @@ const route = useRoute()
 const router = useRouter()
 type Tab = { to: string; name: string; icon: typeof Layers; match: (n: string) => boolean }
 const groups: { title: string; tabs: Tab[] }[] = [
-  { title: 'Production', tabs: [
+  { title: 'Studio', tabs: [
     { to: '/', name: 'Overview', icon: LayoutDashboard, match: (n) => n === 'overview' },
+    { to: '/story-writer', name: 'Story Writer', icon: WandSparkles, match: (n) => n === 'story-writer' },
     { to: '/series', name: 'Series', icon: Layers, match: (n) => n.startsWith('series') || n === 'part' || n === 'new-series' || n === 'new-part' },
     { to: '/review', name: 'Review', icon: ClipboardCheck, match: (n) => n === 'review' },
-    { to: '/posted', name: 'Posted', icon: Send, match: (n) => n === 'posted' },
-    { to: '/history', name: 'History', icon: History, match: (n) => n === 'history' },
   ] },
   { title: 'Library', tabs: [
     { to: '/props', name: 'Props', icon: Backpack, match: (n) => n.startsWith('prop') },
@@ -31,10 +30,12 @@ const groups: { title: string; tabs: Tab[] }[] = [
     { to: '/sets', name: 'Sets', icon: Mountain, match: (n) => n === 'sets' || n === 'set-edit' },
     { to: '/actions', name: 'Actions', icon: PersonStanding, match: (n) => n.startsWith('action') },
   ] },
-  { title: 'Setup', tabs: [
-    { to: '/help', name: 'Help', icon: CircleHelp, match: (n) => n === 'help' },
-    { to: '/settings', name: 'Settings', icon: Settings, match: (n) => n === 'settings' },
-  ] },
+]
+const utilityLinks = [
+  { to: '/posted', name: 'Posted', icon: Send, position: 'translate(-148px, -18px)' },
+  { to: '/history', name: 'History', icon: History, position: 'translate(-124px, -82px)' },
+  { to: '/help', name: 'Help', icon: CircleHelp, position: 'translate(-74px, -132px)' },
+  { to: '/settings', name: 'Settings', icon: Settings, position: 'translate(-10px, -158px)' },
 ]
 const THEMES: { id: Theme; label: string; icon: typeof Sun }[] = [
   { id: 'light', label: 'Light', icon: Sun },
@@ -48,7 +49,7 @@ const reelLabel = computed(() =>
 // AI gateway switch: starts/stops the local OmniRoute so "Build with AI" works
 const aiOn = ref(false)
 const aiBusy = ref(false)
-const aiProvider = ref<'omniroute' | 'gemini'>('omniroute')
+const aiProvider = ref<'omniroute' | 'gemini' | 'openrouter'>('omniroute')
 api.settings().then((s) => (aiProvider.value = s.provider), () => {})
 api.gateway().then((g) => (aiOn.value = g.running), () => {}) // ponytail: checked once on load, poll if it gets stopped elsewhere often
 async function toggleAi() {
@@ -63,10 +64,13 @@ async function toggleAi() {
   }
 }
 const isActive = (t: Tab) => t.match(String(route.name ?? ''))
+const isUtilityActive = (link: { to: string }) => route.path === link.to
+const utilityPageActive = computed(() => utilityLinks.some((link) => isUtilityActive(link)))
 const current = computed(() => groups.flatMap((g) => g.tabs).find(isActive))
 
 const menuOpen = ref(false)
-watch(() => route.fullPath, () => (menuOpen.value = false))
+const utilityOpen = ref(false)
+watch(() => route.fullPath, () => { menuOpen.value = false; utilityOpen.value = false })
 
 // searching jumps to the series list, where the filter applies
 watch(search, (q) => {
@@ -121,6 +125,24 @@ watch(search, (q) => {
         </fieldset>
       </aside>
 
+      <!-- radial utility menu: publishing and app utilities stay available without lengthening the main rail -->
+      <div id="utility-links" class="fixed right-5 bottom-5 z-50 size-14 sm:right-8 sm:bottom-8" aria-label="Utilities">
+        <TransitionGroup name="utility-orb">
+          <RouterLink v-for="link in utilityLinks" v-if="utilityOpen" :key="link.to" :to="link.to"
+            class="absolute right-0 bottom-0 grid size-12 place-items-center rounded-full border text-muted shadow-[var(--shadow-pop)] transition-colors hover:bg-well hover:text-ink"
+            :class="isUtilityActive(link) ? 'border-blue bg-blue text-white' : 'border-rule bg-panel'"
+            :style="{ transform: link.position }" :aria-current="isUtilityActive(link) ? 'page' : undefined" :aria-label="link.name" :title="link.name">
+            <component :is="link.icon" :size="19" aria-hidden="true" />
+            <span class="sr-only">{{ link.name }}</span>
+          </RouterLink>
+        </TransitionGroup>
+        <button class="round-btn absolute inset-0 m-auto grid place-items-center size-14! rounded-full! border-2 bg-ink p-0 text-[var(--on-ink)] shadow-[var(--shadow-pop)] transition-transform hover:scale-105"
+          :class="utilityOpen ? 'rotate-45' : ''" aria-label="Utilities" :aria-expanded="utilityOpen" aria-controls="utility-links"
+          @click="utilityOpen = !utilityOpen">
+          <Settings :size="22" :class="utilityOpen || utilityPageActive ? 'animate-spin' : ''" aria-hidden="true" />
+        </button>
+      </div>
+
       <div class="flex min-w-0 flex-1 flex-col">
         <header class="flex items-center gap-3 border-b border-rule bg-panel px-4 py-3 lg:px-8">
           <button class="round-btn shrink-0 lg:hidden" aria-label="Open menu" :aria-expanded="menuOpen" @click="menuOpen = true"><Menu :size="18" /></button>
@@ -162,3 +184,16 @@ watch(search, (q) => {
     <Overlays />
   </MotionConfig>
 </template>
+
+<style scoped>
+.utility-orb-enter-active,
+.utility-orb-leave-active {
+  transition: opacity 180ms ease, transform 240ms cubic-bezier(.2, .9, .2, 1);
+}
+
+.utility-orb-enter-from,
+.utility-orb-leave-to {
+  opacity: 0;
+  transform: translate(0, 0) scale(.45) !important;
+}
+</style>
