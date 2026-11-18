@@ -1,4 +1,5 @@
 from pipeline.scribble.cli import main as cli
+import json
 import re
 from pathlib import Path
 
@@ -104,7 +105,8 @@ def test_ready_story_and_cast_approvals(tmp_path, capsys):
     r = check_story(pdir)
     assert [(p["line"], p["message"].split(" (")[0]) for p in r["problems"]] == [(4, "cast fred is not approved yet")]
     assert cli(["approve-cast", "demo", "fred", "--library", str(tmp_path)]) == 0
-    assert check_story(pdir) == {"ok": True, "problems": [], "warnings": [], "words": 3, "seconds": 1.2}
+    assert check_story(pdir) == {"ok": True, "problems": [], "warnings": [], "words": 3, "seconds": 2.2,
+                                 "wps": 2.6}  # 3 words / 2.6 per s + 1 s end card
     assert cli(["check-story", "demo", "part-01", "--library", str(tmp_path)]) == 0
     assert capsys.readouterr().out.rstrip().endswith("ready")
 
@@ -136,3 +138,49 @@ def test_too_many_on_stage(tmp_path):
     (pdir / "story.md").write_text("# T\n\n@cast bob, amy, fred, " + ", ".join(extra) + "\nThey met.\n", encoding="utf-8")
     msgs = [(p["line"], p["message"].split(" (")[0]) for p in check_story(pdir)["problems"]]
     assert (3, "@cast: 13 on stage, at most 12 fit") in msgs
+
+
+# --- runtime estimate and hook ---
+
+def test_duration_estimate_uses_measured_words_per_second(tmp_path):
+    from pipeline.scribble.storycheck import FALLBACK_WPS, estimate_runtime, measured_wps
+    assert measured_wps(tmp_path) == FALLBACK_WPS  # nothing finished yet
+    assert estimate_runtime(130, FALLBACK_WPS) == 51.0  # 130 / 2.6 + the 1 s end card
+    for n, (words, speech) in enumerate([(120, 40.0), (180, 60.0)], 1):  # 300 words in 100 s: 3 per s
+        d = tmp_path / "demo" / f"part-0{n}"
+        d.mkdir(parents=True)
+        (d / "qa.json").write_text(json.dumps({"runtime": {"seconds": speech + 1, "words": words,
+                                                            "speech_seconds": speech}}), encoding="utf-8")
+    (tmp_path / "demo" / "part-03").mkdir()
+    (tmp_path / "demo" / "part-03" / "qa.json").write_text("{}", encoding="utf-8")  # older qa.json: ignored
+    assert measured_wps(tmp_path) == 3.0
+
+
+def test_runtime_warning_over_58_seconds(tmp_path):
+    pdir = setup(tmp_path, "# T\n\n" + "Bob met Amy. " * 50 + "\n")  # 150 words / 2.6 + 1 = 58.7 s
+    r = check_story(pdir)
+    assert r["ok"] and r["seconds"] == 58.7
+    assert [w["message"] for w in r["warnings"]] == [
+        "estimated 58.7 s is 0.7 s over 58 s (150 words at 2.60 words/s): cut about 2 words"]
+    (pdir / "story.md").write_text("# T\n\n" + "Bob met Amy. " * 40 + "\n", encoding="utf-8")
+    assert check_story(pdir)["warnings"] == []
+
+
+@pytest.mark.parametrize("first,slow", [
+    ("In nineteen twenty-five, Victor sold the Eiffel Tower.", True),
+    ("In twenty twelve, a man walked in.", True),
+    ("Once upon a time, a man sold a tower.", True),
+    ("!! In July of fifteen eighteen, a woman began to dance.", True),
+    ("A man sold the Eiffel Tower. Twice.", False),
+    ("Inside the tower, nobody noticed.", False),
+])
+def test_hook_check(tmp_path, first, slow):
+    from pipeline.scribble.storycheck import slow_open
+    md = f"# T\n\n@set office\n@cast bob\n{first}\nIt was nineteen twenty-five.\n"
+    assert slow_open(md) == ((5, first.removeprefix("!! ")) if slow else None)
+
+
+def test_hook_warning_in_check_story(tmp_path):
+    pdir = setup(tmp_path, "# T\n\n@cast bob\nOnce upon a time Bob met Amy.\n")
+    assert [(w["line"], w["message"].split(":")[0]) for w in check_story(pdir)["warnings"]] == [
+        (4, "the first line opens on a date or backstory")]

@@ -26,8 +26,8 @@ that already exist, by their **id**.
 - First, only if the story uses a set or prop that does not exist yet: one fenced `text` block listing them, each
   with its id and name (see section 6).
 - Then one fenced `md` code block containing only the complete `story.md`.
-- After the blocks, three short lines: word count, estimated length in seconds (words / 150 x 60), and the cast
-  ids used.
+- After the blocks, three short lines: word count, estimated length in seconds (words / 2.6, plus 1 for the end
+  card), and the cast ids used.
 - Nothing else inside the blocks: no explanations, no comments.
 
 ## 3. File format
@@ -52,10 +52,9 @@ Second narration line.
 
 ## 4. Narration: length and style
 
-- **Length:** aim for 45 to 70 seconds, about **110 to 175 words** (the voice reads about 150 words a minute).
-  Never more than 90 seconds (225 words).
-- **Short sentences, one idea per line.** Every line becomes at least one shot; long lines are split into
-  several shots automatically.
+- **Length:** **110 to 140 words** per part (see **Target runtime** below).
+- **Short sentences, one idea per line** (see **Pacing**). Every line becomes at least one shot; long lines are
+  split into several shots automatically.
 - **Write numbers as words:** "fifteen eighteen", "four hundred", "the third day". Digits break the word-by-word
   alignment between the voice and the text, and they make poor captions.
 - **No symbols or abbreviations:** no %, &, $, "Dr.", "St.", "e.g.", no parentheses, no quotes inside quotes.
@@ -63,8 +62,51 @@ Second narration line.
 - **Name characters by their name** as given in the cast list. The planner recognises names (and ids) to decide
   who the shot is about.
 - Captions show at most five words at a time; plain wording reads best.
-- **Hook early, twist late.** First line: a strong hook. Near the end: one twist line (see `!!`).
-- **Multi-part stories:** each part should stand alone; end parts with a cliffhanger such as "To be continued."
+- **Hook first, twist last.** Line one is the hook (see **Hook**). The `!!` twist is the last or second-to-last
+  narration line (see **Twist and ending**).
+
+### Hook
+
+The first narration line must state the twist or the most surprising claim of the part. Viewers decide in the
+first second whether to keep watching. Dates, places and backstory go on line two or later, never on line one.
+Never open with "In nineteen...", "In twenty...", "Once upon a time" or any other date or scene-setting phrase.
+
+Before (slow, the date comes first):
+
+```md
+In nineteen twenty-five, a con man named Victor arrived in Paris.
+He read that the Eiffel Tower needed costly repairs.
+```
+
+After (the claim comes first, the date follows):
+
+```md
+Victor sold the Eiffel Tower. Twice.
+It was nineteen twenty-five, and the tower needed costly repairs.
+```
+
+### Pacing
+
+- Short sentences. One idea per line.
+- No filler transitions: never start a line with "Then", "After that", "So", "Next" or "Later". Cut straight to
+  the next beat.
+- Every line should move the story forward; if a line only sets up the next one, merge or cut it.
+- Long pauses in the voice are trimmed automatically (any pause over 0.4 seconds becomes 0.3), so the delivery
+  stays tight; the writing must be tight too.
+
+### Twist and ending
+
+- The `!!` twist line is the **last or second-to-last** narration line. Nothing comes after it except the end line.
+- **Non-final parts** end with a short pointer line right after the twist, for example "Part two is on my
+  profile." The video then shows "Part 2 on my profile" over the last second and cuts.
+- **The final part** ends on the twist itself: no pointer line. The video cuts right after the last word.
+- Each part should still make sense on its own.
+
+### Target runtime
+
+**45 to 58 seconds per part**, never over 58. The voice reads about 2.6 words a second, and every non-final part
+adds a one-second end card, so 110 to 140 words lands in range. The dashboard's story check estimates the runtime
+from the speed of past renders and warns above 58 seconds; after rendering, QA warns with the exact overage.
 
 ## 5. Directives
 
@@ -134,7 +176,8 @@ Caption effect for the next narration line (for emphasis). Use sparingly.
 ### `!! <text>`: the twist
 
 Starts a narration line (the text is read aloud). That moment gets a dramatic push-in, the music stops and a
-low hit sounds. Use it **at most once per part**, on the single biggest reveal, usually near the end.
+low hit sounds. Use it **exactly once per part**, on the single biggest reveal, on the **last or second-to-last**
+narration line. Nothing comes after it except the end line (section 4, **Twist and ending**).
 
 ### Props
 
@@ -198,7 +241,10 @@ at an exact moment).
 | `@car ride` with more than 3 in `@cast` | The car seats 3 |
 | `@do car: broken` with no car on stage | Nothing to break down |
 | Digits, symbols, abbreviations in narration | The voice and captions drift apart |
-| Over 225 words | Too long for a Short |
+| Over 140 words, or over 58 seconds | Too long for a Short (the story check warns) |
+| A date or backstory on line 1 | Viewers scroll away before the hook (the story check warns) |
+| Lines after the `!!` other than the end line | The payoff fades before the cut |
+| Filler transitions ("Then", "After that", "So") | Dead air between beats |
 | More than one `!!` | Only one twist per part |
 
 ## 9. Checklist before answering
@@ -210,11 +256,23 @@ at an exact moment).
 4. Every `@do` is directly followed by a narration line, and everyone in it is in the current `@cast`.
 5. Each `@cast` has at most 12 ids, at most 6 of them named in that scene; `@car ride` at most 3.
 6. No digits, symbols or markdown formatting in narration.
-7. 110 to 175 words; at most one `!!` line.
+7. 110 to 140 words; short lines, no filler transitions.
+
+### Pre-publish checklist
+
+- [ ] **Hook in line 1:** the twist or most surprising claim, no date or backstory.
+- [ ] **Word count:** 110 to 140.
+- [ ] **Single `!!`:** exactly one twist line.
+- [ ] **Ends on the twist:** the `!!` line is last, or second-to-last followed only by the pointer line
+      (non-final parts).
+- [ ] **Runtime under 58 seconds:** words / 2.6, plus 1 for the end card.
 
 ## 10. Examples
 
 ### A complete part
+
+Part one of a series: hook on line one, the date on line two, the twist second-to-last, then the pointer line.
+125 words, about 49 seconds.
 
 ```md
 # The Fake Finish
@@ -222,33 +280,38 @@ at an exact moment).
 @set dirt_road
 @cast fred
 @car ride
-After riding eleven miles in a car, Fred rejoined the marathon.
-
+The man who won the Olympic marathon rode most of it in a car.
+It was nineteen oh four, in Saint Louis, and the heat was brutal.
+Fred quit after nine miles and climbed into his manager's car.
 @do car: broken
-His car broke down just outside the stadium.
+Eleven miles later, the car broke down.
+
 @set stadium
 @car off
 @cast fred, daughter, sullivan
 @crowd cheer
-So Fred calmly stepped out and jogged across the finish line.
+Fred stepped out fresh and jogged into the stadium.
 @do daughter: give medal fred
-He accepted a gold medal from the president's daughter.
+The president's daughter handed him the gold medal.
 @crowd angry
-The crowd was furious, and Fred was banned for life.
+A spectator had spotted him in the car.
+The crowd turned furious, and Fred was banned for life.
 
 @set dirt_road
 @crowd off
 @cast thomas, trainer1, trainer2
 @do thomas: stagger
-That left the real race to Thomas, who was staggering miles behind.
+Miles behind, Thomas was staggering through the dust.
 @do trainer1, trainer2: support thomas
-His trainers dragged him upright and kept him moving.
+His trainers fed him egg whites and brandy to keep him moving.
+He begged to lie down. They refused.
 
 @set stadium
 @cast thomas, trainer1, trainer2
 @crowd cheer
 @do trainer1, trainer2: carry thomas
-!! Two men carried Thomas across the line, and officials crowned him champion.
+!! Two men carried Thomas across the line, and he was crowned champion.
+Part two is on my profile.
 ```
 
 ### A crowded scene (front and back rows)
@@ -266,12 +329,12 @@ Troffea and her husband are named, so they stand in front; the other seven stand
 ### Wrong, then right
 
 ```md
-@set streetIn July of fifteen eighteen, a woman began to dance.   <- wrong: narration on a directive line
+@set streetA woman danced in the street for six days straight.   <- wrong: narration on a directive line
 ```
 
 ```md
 @set street
-In July of fifteen eighteen, a woman began to dance.
+A woman danced in the street for six days straight.
 ```
 
 ---

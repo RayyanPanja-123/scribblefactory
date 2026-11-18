@@ -394,9 +394,9 @@ def cmd_approve(args) -> int:
 
 
 # Only there to make final.mp4: once it is approved they are dead weight (frames alone are 1-2 GB a part).
-# Kept: story.md, voice.mp3, script-for-tts.txt, phrases.json, story.json, part.json, final.mp4, qa.json, thumbs/,
-# upload.md, stills-sheet.png. Changing an approved video afterwards means rendering it again.
-DISPOSABLE = ["frames", "audio", "preview.mp4", "test-render.mp4", "captions.ass"]
+# Kept: story.md, voice.mp3, voice-tight.wav, script-for-tts.txt, phrases.json, story.json, part.json, final.mp4,
+# qa.json, thumbs/, upload.md, stills-sheet.png. Changing an approved video afterwards means rendering it again.
+DISPOSABLE = ["frames", "audio", "preview.mp4", "test-render.mp4", "captions.ass", "end-card.png"]
 
 
 def cleanup(pdir: Path) -> int | None:

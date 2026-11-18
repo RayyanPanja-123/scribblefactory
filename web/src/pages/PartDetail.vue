@@ -247,7 +247,7 @@ async function pick(n: number) {
 
 // ---- QA ----
 type Check = { ok: boolean; value: unknown; want: unknown }
-const qa = computed(() => d.value?.qa as { ok: boolean; checks: Record<string, Check> } | null | undefined)
+const qa = computed(() => d.value?.qa as { ok: boolean; checks: Record<string, Check>; warnings?: string[] } | null | undefined)
 const lufs = computed(() => {
   const v = qa.value?.checks.loudness?.value
   return typeof v === 'number' ? v : null
@@ -440,7 +440,7 @@ watch(() => props.part, () => { chosen.value = null })
             <span class="chip" :class="story.ok ? 'chip-green' : 'chip-red'">
               {{ story.ok ? 'story ready' : `${story.problems.length} problem${story.problems.length === 1 ? '' : 's'}` }}
             </span>
-            <span class="text-muted">{{ story.words }} words · about {{ story.seconds }} s spoken</span>
+            <span class="text-muted">{{ story.words }} words · about {{ story.seconds }} s of video</span>
             <button class="btn btn-secondary ml-auto" @click="story = null">Close</button>
           </div>
           <ul v-if="story.problems.length || story.warnings.length" class="mt-3 space-y-1.5">
@@ -517,6 +517,12 @@ watch(() => props.part, () => { chosen.value = null })
               </ul>
               <VuMeter v-if="lufs !== null" :lufs="lufs" />
             </div>
+            <ul v-if="qa?.warnings?.length" class="mt-4 space-y-1.5 text-sm">
+              <li v-for="(w, i) in qa.warnings" :key="i" class="flex items-start gap-2">
+                <CircleAlert :size="16" class="mt-0.5 shrink-0 text-amber-ink" aria-label="warning" />
+                <span>{{ w }}</span>
+              </li>
+            </ul>
           </section>
         </div>
       </div>

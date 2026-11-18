@@ -13,9 +13,9 @@ import zlib
 from pathlib import Path
 
 from ..io import atomic_write_json, outdoor_sets, prop_kinds, unknown_cast_props
-from ..schemas import Actor, Animal, Camera, Cue, Extra, PhrasesModel, SeriesModel, Shot, StoryModel, Travel, Vehicle
+from ..schemas import Actor, Animal, Camera, Cue, EndCard, Extra, PhrasesModel, SeriesModel, Shot, StoryModel, Travel, Vehicle
 from ..validate import (CAR_SPEED, CROWD_Z, DOG_RUN_SPEED, MAX_SHOT_FRAMES, MOODS, OUTDOOR_SETS, SPEEDS,
-                        duration_frames, validate)
+                        END_CARD_S, end_frame, validate)
 from .prep import BUILTIN_PROPS, DO_CAR, FX_MODES, MARKER_RE, clean_markdown, mark_directives, parse_do
 from .runner import StageError
 from .validate import load_model
@@ -542,7 +542,10 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
 
     seed = seed_for(series.slug, part_number)
     rng = random.Random(seed)
-    total = duration_frames(phrases.duration, FPS)
+    final = series.status == "complete" and series.parts[-1:] == [f"part-{part_number:02d}"]
+    total = end_frame(phrases, not final, FPS)
+    end_card = None if final else EndCard(start_frame=total - round(END_CARD_S * FPS),
+                                          text=f"Part {part_number + 1} on my profile 👆")
     starts = []
     for i, p in enumerate(phrases.phrases):  # strictly increasing so every phrase keeps >= 1 frame
         starts.append(0 if i == 0 else max(round(p.start * FPS), starts[-1] + 1))
@@ -697,7 +700,7 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
                               actors=actors, animals=animals, vehicles=vehicles, extras=extras, twist=is_twist,
                               travel=Travel(speed=tspeed) if travel else None))
             prev_angle, prev_set = angle, set_
-    return StoryModel(duration_frames=total, seed=seed, shots=shots, cues=cues)
+    return StoryModel(duration_frames=total, seed=seed, shots=shots, cues=cues, end_card=end_card)
 
 
 def run(part_dir: Path) -> None:

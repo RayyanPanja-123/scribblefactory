@@ -3,22 +3,60 @@
 Reports, with story.md line numbers: unknown @ directives and bad arguments, unknown cast ids, sets, actions and
 props, @do conflicts (actor not on stage, target with its own action, @do during @car ride, car: broken with no car,
 an @do with no line to apply to or replaced before it was used), cast not approved yet, and words changed against an
-existing script-for-tts.txt (an existing voice.mp3 would no longer match). Plus the word count and estimated duration.
+existing script-for-tts.txt (an existing voice.mp3 would no longer match). Plus the word count and estimated duration:
+words / the words per second measured over the library's finished parts (qa.json runtime; FALLBACK_WPS without any),
+plus the end card, with a warning over MAX_RUNTIME_S. And a warning when narration opens on a date or backstory.
 Problems mean the pipeline would fail or produce a wrong video; warnings do not stop anything.
 """
 
 import difflib
+import json
 import re
 from pathlib import Path
 
 from .io import load_series, prop_kinds, set_kinds, unknown_cast_props
-from .stages.prep import (DO_CAR, FX_MODES, MAX_SECONDS, TWIST_PREFIX, WPM, clean_markdown, estimate_seconds,
-                          parse_do, strip_directives)
+from .stages.finish import MAX_RUNTIME_S
+from .stages.prep import DO_CAR, FX_MODES, TWIST_PREFIX, clean_markdown, parse_do, strip_directives
 from .stages.runner import StageError
 from .stages.shots import CAR_MODES, CAR_SEATS, DEFAULT_CAST_SIZE, MAX_CAST, MAX_DOGS, MAX_ON_STAGE, MAX_RUNNERS, parse_crowd
+from .validate import END_CARD_S
 
 DIRECTIVES = ("set", "cast", "dogs", "car", "fx", "do", "crowd", "runners")
 LINE_PREFIX = re.compile(r"^story\.md line [0-9]+: ")
+FALLBACK_WPS = 2.6  # words per second before any part has been finished
+# a first line that opens on a date or backstory instead of the hook
+SLOW_OPEN = re.compile(r"^\W*(once upon|(in|on|by|during|back in) (the (year|summer|winter|spring|autumn|fall) (of )?)?"
+                       r"(the )?(early |late )?(\d{3,4}|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|"
+                       r"eighteen|nineteen|twenty|january|february|march|april|may|june|july|august|september|"
+                       r"october|november|december)\b)", re.I)
+
+
+def measured_wps(library: Path) -> float:
+    """words per second of speech over every finished part's qa.json runtime, else FALLBACK_WPS"""
+    words = seconds = 0.0
+    for f in library.glob("*/part-*/qa.json"):
+        try:
+            r = json.loads(f.read_bytes()).get("runtime") or {}
+            words, seconds = words + r["words"], seconds + r["speech_seconds"]
+        except (ValueError, KeyError, TypeError):
+            continue
+    return words / seconds if words and seconds else FALLBACK_WPS
+
+
+def estimate_runtime(words: int, wps: float) -> float:
+    """seconds of video for this many words: the speech, then the end card"""
+    return round(words / wps + END_CARD_S, 1)
+
+
+def slow_open(md: str) -> tuple[int, str] | None:
+    """(line number, text) of the first narration line when it opens on a date or backstory, else None"""
+    for no, line in enumerate(md.replace("\r\n", "\n").split("\n"), 1):
+        if line.lstrip().startswith("@"):
+            continue
+        text = clean_markdown(TWIST_PREFIX.sub(r"\1", line))
+        if text:
+            return (no, text) if SLOW_OPEN.match(text) else None
+    return None
 
 
 def _words_by_line(md: str) -> list[int]:
@@ -49,7 +87,7 @@ def check_story(part_dir: Path) -> dict:
     story = part_dir / "story.md"
     if not story.is_file():
         bad(None, "story.md not found")
-        return {"ok": False, "problems": problems, "warnings": warnings, "words": 0, "seconds": 0.0}
+        return {"ok": False, "problems": problems, "warnings": warnings, "words": 0, "seconds": 0.0, "wps": FALLBACK_WPS}
     md = story.read_text(encoding="utf-8")
     series = load_series(part_dir.parent / "series.json")
     library = part_dir.parent.parent
@@ -135,10 +173,18 @@ def check_story(part_dir: Path) -> dict:
                 bad(line, f"changed since voice.mp3 was recorded: {msg} (re-record the voice, or undo the edit)")
             else:
                 warnings.append({"line": line, "message": f"changed since script-for-tts.txt: {msg} (prep rewrites it)"})
-    seconds = round(estimate_seconds(script), 1)
-    if seconds > MAX_SECONDS:
-        warnings.append({"line": None, "message": f"estimated {seconds} s is over {MAX_SECONDS} s"})
-    return {"ok": not problems, "problems": problems, "warnings": warnings, "words": len(words), "seconds": seconds}
+    if hook := slow_open(md):
+        warnings.append({"line": hook[0], "message": "the first line opens on a date or backstory: lead with the twist "
+                                                     "or the most surprising claim, and move the date to line two"})
+    wps = measured_wps(library)
+    seconds = estimate_runtime(len(words), wps)
+    if seconds > MAX_RUNTIME_S:
+        cut = round((seconds - MAX_RUNTIME_S) * wps)
+        warnings.append({"line": None, "message": f"estimated {seconds} s is {seconds - MAX_RUNTIME_S:.1f} s over "
+                                                  f"{MAX_RUNTIME_S} s ({len(words)} words at {wps:.2f} words/s): "
+                                                  f"cut about {cut} words"})
+    return {"ok": not problems, "problems": problems, "warnings": warnings, "words": len(words), "seconds": seconds,
+            "wps": round(wps, 2)}
 
 
 def _check_do(line: int, clauses, cast: tuple, car: str, bad) -> None:
@@ -164,7 +210,7 @@ def report(result: dict) -> str:
     at = lambda x: f"line {x['line']}: " if x["line"] else ""
     out = [f"problem: {at(p)}{p['message']}" for p in result["problems"]]
     out += [f"warning: {at(w)}{w['message']}" for w in result["warnings"]]
-    out.append(f"words: {result['words']}, estimated duration: {result['seconds']} s at {WPM} wpm")
+    out.append(f"words: {result['words']}, estimated duration: {result['seconds']} s at {result['wps']} words/s")
     n = len(result["problems"])
     out.append("ready" if result["ok"] else f"{n} problem{'s' * (n != 1)}")
     return "\n".join(out)

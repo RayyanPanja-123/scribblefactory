@@ -342,7 +342,7 @@ class StoryCheck(BaseModel):
     problems: list[StoryIssue]
     warnings: list[StoryIssue]
     words: int
-    seconds: float  # estimated spoken duration
+    seconds: float  # estimated video duration (speech at the measured words/s + end card)
 
 
 @app.get("/api/series/{slug}/parts/{part}/check-story", response_model=StoryCheck)

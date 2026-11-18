@@ -6,11 +6,11 @@
     {"text": "works.", "start": 0.5, "end": 1.6},
     {"text": "He", "start": 2.1, "end": 2.4},
     {"text": "naps.", "start": 2.4, "end": 3.5},
-    {"text": "Fired!", "start": 4.0, "end": 5.6}
+    {"text": "Fired!", "start": 4.0, "end": 5.0}
   ],
   "phrases": [
     {"text": "Bob works.", "start": 0.1, "end": 1.6, "word_start": 0, "word_end": 1},
     {"text": "He naps.", "start": 2.1, "end": 3.5, "word_start": 2, "word_end": 3},
-    {"text": "Fired!", "start": 4.0, "end": 5.6, "word_start": 4, "word_end": 4}
+    {"text": "Fired!", "start": 4.0, "end": 5.0, "word_start": 4, "word_end": 4}
   ]
 }

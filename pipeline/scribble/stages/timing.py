@@ -1,4 +1,8 @@
-"""timing: voice.mp3 + script-for-tts.txt -> phrases.json via local faster-whisper, aligned to the script."""
+"""timing: voice.mp3 + script-for-tts.txt -> phrases.json via local faster-whisper, aligned to the script.
+
+Pauses between words longer than GAP_MAX are clamped to GAP_KEEP: voice-tight.wav is voice.mp3 with that silence
+cut out (voice.mp3 is protected, never rewritten), and phrases.json is timed on voice-tight.wav. Later stages use it.
+"""
 
 import re
 import shutil
@@ -12,7 +16,8 @@ from .prep import WPM
 from .runner import StageError
 
 INPUTS = ["voice.mp3", "script-for-tts.txt"]
-OUTPUTS = ["phrases.json"]
+VOICE = "voice-tight.wav"   # the voice every later stage uses
+OUTPUTS = ["phrases.json", VOICE]
 MODEL_DIR = Path(__file__).resolve().parents[3] / "models" / "faster-whisper-base.en"
 SAMPLE_RATE = 16000
 PAUSE = 0.35            # seconds of gap that ends a phrase
@@ -24,6 +29,8 @@ CONJUNCTIONS = {"and", "but", "so", "while", "until", "which"}     # a forced sp
 NO_BREAK_AFTER = {"a", "an", "the", "in", "on", "at", "of", "to", "by", "from", "with"}
 MIN_MATCH = 0.85        # below this, the voice probably doesn't match the script
 SECONDS_PER_WORD = 60 / WPM
+GAP_MAX = 0.4           # a pause between words longer than this...
+GAP_KEEP = 0.3          # ...is cut down to this (the middle of it is removed)
 SENTENCE_END = re.compile(r"[.!?…][\"')\]]*$")
 
 
@@ -158,6 +165,38 @@ def split_phrases(words: list[dict]) -> list[dict]:
              "word_start": a, "word_end": b} for a, b in merged]
 
 
+def gap_cuts(words: list[dict]) -> list[tuple[float, float]]:
+    """(start, end) spans to cut: the middle of every pause > GAP_MAX, leaving GAP_KEEP (half on each side)"""
+    half = GAP_KEEP / 2
+    return [(round(a["end"] + half, 3), round(b["start"] - half, 3))
+            for a, b in zip(words, words[1:]) if b["start"] - a["end"] > GAP_MAX]
+
+
+def shift(t: float, cuts: list[tuple[float, float]]) -> float:
+    """time t on the tightened voice (t is never inside a cut: cuts are in pauses)"""
+    return round(t - sum(min(t, b) - a for a, b in cuts if t > a), 3)
+
+
+def clamp_gaps(words: list[dict], phrases: list[dict], duration: float):
+    """-> (words, phrases, duration, cuts) retimed for the voice with every pause > GAP_MAX clamped to GAP_KEEP"""
+    cuts = gap_cuts(words)
+    move = lambda xs: [{**x, "start": shift(x["start"], cuts), "end": shift(x["end"], cuts)} for x in xs]  # noqa: E731
+    return move(words), move(phrases), shift(duration, cuts), cuts
+
+
+def tighten(voice: Path, out: Path, cuts: list[tuple[float, float]]) -> None:
+    """voice with the cut spans removed -> 48 kHz 16-bit WAV (written atomically)"""
+    keep = "+".join(f"between(t,{a},{b})" for a, b in cuts)
+    af = ["-af", f"aselect='not({keep})',asetpts=N/SR/TB"] if cuts else []
+    tmp = out.with_name(f".{out.name}.tmp.wav")
+    r = subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(voice), *af, "-ar", "48000", "-ac", "2",
+                        "-c:a", "pcm_s16le", str(tmp)], capture_output=True)
+    if r.returncode != 0:
+        tmp.unlink(missing_ok=True)
+        raise StageError(f"ffmpeg could not write {out.name}: {r.stderr.decode(errors='replace').strip()[:300]}")
+    tmp.replace(out)
+
+
 def run(part_dir: Path) -> None:
     voice, script = part_dir / "voice.mp3", part_dir / "script-for-tts.txt"
     if not voice.exists():
@@ -170,9 +209,12 @@ def run(part_dir: Path) -> None:
 
     heard, duration = transcribe(voice)
     words, matched = align(script_words, heard, duration)
-    phrases = split_phrases(words)
-    model = PhrasesModel(duration=round(duration, 3), words=words, phrases=phrases)  # validates times
+    phrases = split_phrases(words)  # on the real pauses: clamped ones would no longer end a phrase
+    words, phrases, duration, cuts = clamp_gaps(words, phrases, round(duration, 3))
+    model = PhrasesModel(duration=duration, words=words, phrases=phrases)  # validates times
+    tighten(voice, part_dir / VOICE, cuts)
     atomic_write_json(part_dir / "phrases.json", model.model_dump(mode="json"))
+    print(f"pauses clamped: {len(cuts)}, {sum(b - a for a, b in cuts):.1f} s cut")
 
     rate = matched / len(script_words)
     print(f"words: {len(words)}, match rate: {rate:.0%}, phrases: {len(phrases)}")

@@ -40,7 +40,7 @@ POLL_S = 0.5           # how often the scheduler wakes up (keeps Ctrl+C responsi
 READY_TIMEOUT_S = 120  # browser start + page build per worker
 EXIT_TIMEOUT_S = 30
 
-INPUTS = ["story.json", "phrases.json", "../series.json", "../../props.json", "voice.mp3", *map(str, PAGE_FILES)]
+INPUTS = ["story.json", "phrases.json", "../series.json", "../../props.json", "voice-tight.wav", *map(str, PAGE_FILES)]
 OUTPUTS = ["preview.mp4"]
 
 
@@ -436,7 +436,7 @@ def run(part_dir: Path, workers: int = WORKERS, swiftshader: bool = False, force
     with render_lock(part_dir):
         render_chunks(part_dir, story.duration_frames, workers, swiftshader, force)
         check_frames(part_dir / "frames", 0, story.duration_frames)
-        out = encode(part_dir / "frames", 0, story.duration_frames, part_dir / "voice.mp3", part_dir / "preview.mp4")
+        out = encode(part_dir / "frames", 0, story.duration_frames, part_dir / "voice-tight.wav", part_dir / "preview.mp4")
     print(f"preview: {out}")
 
 
@@ -458,5 +458,5 @@ def test_render(part_dir: Path, at: float = 0.0, swiftshader: bool = False) -> P
         secs = max(time.monotonic() - t0, 1e-3)
         print(f"rendered frames {first}-{first + count - 1} in {secs:.1f} s ({count / secs:.1f} fps)")
         check_frames(test, first, count)
-        return encode(test, first, count, part_dir / "voice.mp3", part_dir / "test-render.mp4")
+        return encode(test, first, count, part_dir / "voice-tight.wav", part_dir / "test-render.mp4")
 

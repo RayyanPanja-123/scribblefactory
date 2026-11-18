@@ -38,5 +38,6 @@
     {"frame": 0, "kind": "music_start"},
     {"frame": 120, "kind": "music_stop"},
     {"frame": 121, "kind": "low_hit"}
-  ]
+  ],
+  "end_card": {"start_frame": 150, "text": "Part 2 on my profile"}
 }

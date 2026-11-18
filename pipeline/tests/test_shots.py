@@ -1,4 +1,5 @@
 import json
+import math
 
 import pytest
 
@@ -118,8 +119,11 @@ def test_long_phrase_splits_with_new_angles():
     assert all(a.camera.angle != b.camera.angle for a, b in zip(first, first[1:]))
 
 
-def _subject(md):
-    story, _ = plan("# K\n\n@cast bob, amy\n" + md + "\n", word_s=0.15)  # short shot (~1.55 s): a run fits on stage
+FINAL = SERIES.model_copy(update={"status": "complete", "parts": ["part-01"]})  # last part: no end card
+
+
+def _subject(md, word_s=0.15):  # short shot (final part, no end card): a run fits on stage
+    story, _ = plan("# K\n\n@cast bob, amy\n" + md + "\n", word_s=word_s, series=FINAL)
     s = story.shots[0]
     return next(a for a in s.actors if a.action != "idle"), s
 
@@ -152,7 +156,7 @@ def test_walk_direction_distance_and_facing():
     # full walk would end 0.56 from bob (at -STAGE_X): it stops MIN_GAP short of him instead
     assert shots.STAGE_X - 1.2 * secs < -shots.STAGE_X + shots.MIN_GAP
     assert a.end_pos[0] == pytest.approx(-shots.STAGE_X + shots.MIN_GAP, abs=1e-3)
-    a, s = _subject("Amy ran right.")  # 4.25 units fits neither way: flipped, shortened to the left edge
+    a, s = _subject("Amy ran right.", 0.3)  # ~1.5 s, 4.25 units fits neither way: flipped, shortened to the left edge
     assert a.facing == "left" and a.end_pos == (shots.BOUNDS[0], 0.0)
     a, _ = _subject("Amy left.")  # "left": walk keyword and direction (amy at STAGE_X has room to the left)
     assert (a.action, a.facing) == ("walk", "left") and a.end_pos[0] < a.start_pos[0]
@@ -672,3 +676,14 @@ def test_six_fit_even_after_walks_left_odd_spots():
     xs = sorted(a.start_pos[0] for a in last.actors)
     assert len(xs) == 6 and all(b - a >= shots.MIN_GAP - 1e-9 for a, b in zip(xs, xs[1:]))
     assert validate(story, phrases_for(md), {c.id for c in CROWD9.cast}) == []
+
+
+def test_end_card_on_non_final_parts_and_hard_cut_on_the_last():
+    story, ph = plan(SHORT)
+    last = ph.words[-1].end
+    assert story.duration_frames == math.ceil(round((last + 1.0) * 30, 6))
+    assert story.end_card.text == "Part 2 on my profile 👆"
+    assert story.end_card.start_frame == story.duration_frames - 30
+    story, ph = plan(SHORT, series=FINAL)
+    assert story.end_card is None and story.duration_frames == math.ceil(round((last + 0.3) * 30, 6))
+    assert validate(story, ph, {c.id for c in SERIES.cast}) == []

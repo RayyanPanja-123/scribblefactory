@@ -223,3 +223,35 @@ def test_timing_real_model(part, capsys):
     assert run(part) == "skipped"
     assert (part / "voice.mp3").read_bytes() == voice
     assert json.loads((part / "phrases.json").read_text())["schema_version"] == 1
+    from pipeline.scribble.stages.import_check import probe_duration
+    assert abs(probe_duration(part / timing.VOICE) - doc.duration) < 0.05  # the tight voice is what was timed
+
+
+# --- pause clamping ---
+
+def test_clamp_gaps_cuts_long_pauses_to_gap_keep():
+    words = [w("a", 0.0, 0.5), w("b", 0.8, 1.2), w("c", 2.2, 2.5), w("d", 2.9, 3.0), w("e", 5.0, 5.5)]
+    phrases = [{"text": "a b", "start": 0.0, "end": 1.2, "word_start": 0, "word_end": 1},
+               {"text": "c d e", "start": 2.2, "end": 5.5, "word_start": 2, "word_end": 4}]
+    out_w, out_p, dur, cuts = timing.clamp_gaps(words, phrases, 6.0)
+    # 0.3 kept as is, 1.0 -> 0.3, 0.4 is not over GAP_MAX: kept, 2.0 -> 0.3
+    assert cuts == [(1.35, 2.05), (3.15, 4.85)]
+    assert [(x["start"], x["end"]) for x in out_w] == [(0.0, 0.5), (0.8, 1.2), (1.5, 1.8), (2.2, 2.3), (2.6, 3.1)]
+    assert [(p["start"], p["end"]) for p in out_p] == [(0.0, 1.2), (1.5, 3.1)]
+    assert dur == 3.6  # 6.0 - 0.7 - 1.7
+    gaps = [b["start"] - a["end"] for a, b in zip(out_w, out_w[1:])]
+    assert max(gaps) <= timing.GAP_MAX + 1e-9
+
+
+def test_clamp_gaps_no_long_pause_changes_nothing():
+    words = [w("a", 0.0, 0.5), w("b", 0.9, 1.2)]
+    assert timing.clamp_gaps(words, [], 1.5) == (words, [], 1.5, [])
+
+
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg not on PATH")
+def test_tighten_removes_the_cut_audio(tmp_path):
+    from pipeline.scribble.stages.import_check import probe_duration
+    src = tmp_path / "v.mp3"
+    subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "sine=f=220:d=4", str(src)], check=True)
+    timing.tighten(src, tmp_path / "t.wav", [(1.0, 1.5), (2.0, 2.7)])
+    assert abs(probe_duration(tmp_path / "t.wav") - (probe_duration(src) - 1.2)) < 0.03

@@ -1,4 +1,4 @@
-"""audio: synth music + SFX from story.json cues, mixed under voice.mp3 -> audio/{music,sfx,mix}.wav.
+"""audio: synth music + SFX from story.json cues, mixed under voice-tight.wav (timing) -> audio/{music,sfx,mix}.wav.
 
 Our own synth (numpy + stdlib wave only): the reference repo's audio kit needs scipy and is built for one story.
 music.wav and sfx.wav are deterministic from story.json (seed, cues, shots) and the voice length.
@@ -26,7 +26,7 @@ LOUDNORM_TP = -1.5   # aim under -1 dBTP: loudnorm's true peak lands a few tenth
 # undershoots on short parts) gets its peaks limited by these amounts in turn, until one lands on the target
 PEAK_ROOM_DB = (3.0, 6.0, 9.0)
 
-INPUTS = ["story.json", "voice.mp3"]
+INPUTS = ["story.json", "voice-tight.wav"]
 OUTPUTS = ["audio/music.wav", "audio/sfx.wav", "audio/mix.wav"]
 
 SR, FPS = 48000, 30
@@ -337,11 +337,12 @@ def limit_peaks(x: np.ndarray, db: float) -> np.ndarray:
 
 def run(part_dir: Path) -> None:
     story = StoryModel.model_validate_json((part_dir / "story.json").read_bytes())
-    voice_mp3 = part_dir / "voice.mp3"
+    voice_mp3 = part_dir / "voice-tight.wav"
     if not voice_mp3.exists():
-        raise StageError("voice.mp3 not found")
-    voice = decode(voice_mp3)
-    n = len(voice)
+        raise StageError("voice-tight.wav not found: run --stage timing")
+    n = story.duration_frames * SPF  # the video's length: the voice is cut or padded to it
+    voice = decode(voice_mp3)[:n]
+    voice = np.pad(voice, ((0, n - len(voice)), (0, 0)))
     d = part_dir / "audio"
     d.mkdir(exist_ok=True)
     atomic_write_bytes(d / "music.wav", wav_bytes(_peak_norm(render_music(story, n))))
@@ -349,7 +350,7 @@ def run(part_dir: Path) -> None:
 
     v_lufs, _ = loudness(voice_mp3)
     if v_lufs <= -69:
-        raise StageError("voice.mp3 is silent")
+        raise StageError("the voice is silent")
     music, sfx = decode(d / "music.wav"), decode(d / "sfx.wav")
     g_m = _gain(v_lufs + MUSIC_UNDER_DB, loudness(d / "music.wav")[0])
     g_s = _gain(v_lufs + SFX_UNDER_DB, loudness(d / "sfx.wav")[0])

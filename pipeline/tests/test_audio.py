@@ -40,7 +40,7 @@ def make_part(lib):
     # speech-ish: a 3 Hz syllable-gated tone
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i",
                     "aevalsrc='0.3*sin(220*2*PI*t)*(0.5+0.5*sin(6*PI*t))':d=6:s=44100",
-                    "-c:a", "libmp3lame", "-b:a", "128k", str(d / "voice.mp3")], check=True)
+                    "-c:a", "pcm_s16le", str(d / "voice-tight.wav")], check=True)
     return d
 
 
@@ -55,7 +55,7 @@ VOICE_HASH = []
 def part(tmp_path_factory):
     lib = tmp_path_factory.mktemp("lib")
     d = make_part(lib)
-    VOICE_HASH.append(hashlib.sha256((d / "voice.mp3").read_bytes()).hexdigest())
+    VOICE_HASH.append(hashlib.sha256((d / "voice-tight.wav").read_bytes()).hexdigest())
     assert run(lib) == 0
     return d
 
@@ -68,15 +68,15 @@ def test_outputs_status_and_voice_untouched(part):
     for name in audio.OUTPUTS:
         assert (part / name).stat().st_size > 1000, name
     assert load_part(part / "part.json").stages.audio.status == "done"
-    assert hashlib.sha256((part / "voice.mp3").read_bytes()).hexdigest() == VOICE_HASH[0]
+    assert hashlib.sha256((part / "voice-tight.wav").read_bytes()).hexdigest() == VOICE_HASH[0]
     music = audio.decode(part / "audio/music.wav")
-    voice = audio.decode(part / "voice.mp3")
-    assert len(music) == len(voice)  # music runs the voice's length
+    voice = audio.decode(part / "voice-tight.wav")
+    assert len(music) == len(voice)  # music runs the video length (the voice is cut or padded to it)
 
 
 def test_deterministic(part, tmp_path):
     d = make_part(tmp_path)
-    shutil.copy(part / "voice.mp3", d / "voice.mp3")  # same input bytes
+    shutil.copy(part / "voice-tight.wav", d / "voice-tight.wav")  # same input bytes
     assert run(tmp_path) == 0
     for name in ("audio/music.wav", "audio/sfx.wav"):
         assert (d / name).read_bytes() == (part / name).read_bytes(), name
@@ -133,8 +133,8 @@ def test_peaky_voice_still_reaches_the_target(tmp_path):
     true-peak ceiling, so the stage falls back to loudnorm's dynamic mode (its limiter)"""
     d = make_part(tmp_path)
     fixture = __import__("pathlib").Path(__file__).parent / "fixtures" / "hello.wav"
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(fixture), "-c:a", "libmp3lame", "-b:a", "128k",
-                    str(d / "voice.mp3")], check=True)
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(fixture), "-c:a", "pcm_s16le",
+                    str(d / "voice-tight.wav")], check=True)
     assert run(tmp_path) == 0, load_part(d / "part.json").stages.audio.error
     lufs, tp = audio.loudness(d / "audio/mix.wav")
     assert abs(lufs - audio.TARGET_LUFS) <= audio.LUFS_TOL and tp <= audio.TARGET_TP

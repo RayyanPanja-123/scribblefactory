@@ -469,6 +469,11 @@ class Cue(Strict):
     kind: Literal["music_stop", "music_start", "low_hit", "whoosh", "pop", "bark"]
 
 
+class EndCard(Strict):
+    start_frame: int = Field(ge=0, description="shown from this frame to the end, over the last shot")
+    text: str = Field(description='e.g. "Part 2 on my profile 👆"')
+
+
 class StoryModel(Strict):
     schema_version: Literal[1] = 1
     fps: Literal[30] = 30
@@ -478,3 +483,4 @@ class StoryModel(Strict):
     seed: int
     shots: list[Shot]
     cues: list[Cue] = []
+    end_card: EndCard | None = Field(default=None, description="non-final parts only; the final part has none")

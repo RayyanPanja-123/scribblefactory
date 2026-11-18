@@ -29,7 +29,7 @@ STORY = {"duration_frames": FRAMES, "seed": 7, "shots": [
     {"id": "s03", "start_frame": 40, "end_frame": 60, "set": "office", "phrase_range": [2, 2], "twist": True,
      "camera": {**CAM, "angle": "low"},
      "actors": [{**ACTOR, "cast_id": "bob"}, {**ACTOR, "cast_id": "amy", "expression": "surprised"}]},
-]}
+], "end_card": {"start_frame": 45, "text": "Part 2 on my profile"}}
 
 
 def phrases(text=TEXT, ranges=((0, 6), (7, 7), (8, 11)), step=0.155) -> PhrasesModel:
@@ -167,6 +167,7 @@ def test_finish_ok(lib, capsys):
     report = qa(lib)
     assert report["ok"], report
     assert (d / "captions.ass").exists() and (d / "final.mp4").stat().st_size > 10_000
+    assert (d / "end-card.png").exists() and "end card: Part 2 on my profile" in capsys.readouterr().out
     part = load_part(d / "part.json")
     assert part.stages.finish.status == "done" and part.approvals.final.approved_at is None  # never approves
     # frame count off: QA sees it (no re-encode needed)
@@ -213,6 +214,7 @@ def test_captions_off(lib, monkeypatch):
     assert stage(lib, "finish") == 0
     encode = next(a for a in calls if "libx264" in a)
     assert not any("subtitles=" in str(x) for x in encode)
+    assert any("overlay=0:0:enable='gte(n,45)'" in str(x) for x in encode)  # the end card without captions
     assert not (pdir(lib) / "captions.ass").exists()
     assert qa(lib)["checks"]["captions"]["value"] == "off"
     # the setting is part of the inputs hash: back on -> finish runs again
@@ -379,3 +381,11 @@ def test_finish_reruns_only_for_what_it_uses(lib, capsys):
     assert "finish: skipped" in capsys.readouterr().out
     assert stage(lib, "finish", "--force") == 0
     assert (pdir(lib) / "captions.ass").read_bytes() == first  # same captions.ass bytes
+
+
+def test_runtime_warning_only_over_the_limit():
+    from pipeline.scribble.stages.finish import runtime
+    assert runtime(57.9, 140, 56.9)["warnings"] == []
+    r = runtime(61.0, 150, 60.0)
+    assert r["runtime"] == {"seconds": 61.0, "words": 150, "speech_seconds": 60.0}
+    assert r["warnings"] == ["runtime 61.0 s is 3.0 s over 58 s (150 words): cut about 8 words"]

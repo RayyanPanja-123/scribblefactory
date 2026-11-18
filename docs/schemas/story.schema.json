@@ -294,6 +294,28 @@
       "title": "Cue",
       "type": "object"
     },
+    "EndCard": {
+      "additionalProperties": false,
+      "properties": {
+        "start_frame": {
+          "description": "shown from this frame to the end, over the last shot",
+          "minimum": 0,
+          "title": "Start Frame",
+          "type": "integer"
+        },
+        "text": {
+          "description": "e.g. \"Part 2 on my profile \ud83d\udc46\"",
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "start_frame",
+        "text"
+      ],
+      "title": "EndCard",
+      "type": "object"
+    },
     "Extra": {
       "additionalProperties": false,
       "description": "non-cast stickman: crowd (stands behind the stage in a mood) or runner (background runner); seeded look",
@@ -619,6 +641,18 @@
       "minimum": 1,
       "title": "Duration Frames",
       "type": "integer"
+    },
+    "end_card": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/EndCard"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "non-final parts only; the final part has none"
     },
     "fps": {
       "const": 30,

@@ -39,8 +39,17 @@ class Error(NamedTuple):
     message: str
 
 
+END_CARD_S = 1.0          # non-final parts end on "Part n+1 on my profile" for this long after the last word
+FINAL_TAIL_S = 0.3        # the final part cuts this long after the last word
+
+
 def duration_frames(seconds: float, fps: int) -> int:
     return math.ceil(round(seconds * fps, 6))  # round() guards float noise like 2.0000000001 * 30
+
+
+def end_frame(phrases: PhrasesModel, end_card: bool, fps: int) -> int:
+    """the video's length: the last word, then the end card (or the final part's short tail), then a hard cut"""
+    return duration_frames(phrases.words[-1].end + (END_CARD_S if end_card else FINAL_TAIL_S), fps)
 
 
 def validate(story: StoryModel, phrases: PhrasesModel, cast_ids: set[str], outdoor=OUTDOOR_SETS) -> list[Error]:
@@ -48,9 +57,12 @@ def validate(story: StoryModel, phrases: PhrasesModel, cast_ids: set[str], outdo
     err = lambda sid, rule, msg: errs.append(Error(sid, rule, msg))
     fps = story.fps
 
-    want = duration_frames(phrases.duration, fps)
+    want = end_frame(phrases, story.end_card is not None, fps)
     if story.duration_frames != want:
-        err(None, "duration", f"duration_frames {story.duration_frames} != ceil({phrases.duration} s x {fps}) = {want}")
+        err(None, "duration", f"duration_frames {story.duration_frames} != {want} (last word "
+                              f"{phrases.words[-1].end} s + {'end card' if story.end_card else 'tail'}, x {fps})")
+    if story.end_card and story.end_card.start_frame != story.duration_frames - round(END_CARD_S * fps):
+        err(None, "end_card", f"end card starts at {story.end_card.start_frame}, expected the last {END_CARD_S} s")
 
     expected_start, prev, seen = 0, None, set()
     for s in story.shots:

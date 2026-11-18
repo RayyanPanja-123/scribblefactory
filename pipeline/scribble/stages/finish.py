@@ -4,6 +4,9 @@ Captions: phrases split into chunks of <= CAP_MAX_WORDS words (never inside a na
 the word being spoken is yellow. Effects (pop, drop, shake, punch) are written as one event per video frame while
 they animate: \\t restarts with every event, so it can't carry an animation across the per-word events.
 Rendered by ffmpeg's subtitles filter (libass) with the vendored font only.
+End card (non-final parts): story.json's end_card text drawn by Pillow (emoji from the system emoji font) and
+overlaid from its start frame to the end.
+QA also records the runtime (seconds, words) and warns when it is over MAX_RUNTIME_S; that never fails the stage.
 QA failure fails the stage but keeps final.mp4 for inspection.
 """
 
@@ -18,7 +21,6 @@ from pathlib import Path
 from ..io import atomic_write_json, atomic_write_text, load_part, replace_file
 from ..schemas import PhrasesModel, SeriesModel, StoryModel
 from .audio import loudness
-from .import_check import probe_duration
 from .prep import FX_MODES, TWIST_PREFIX, _is_directive, clean_markdown
 from .render import FPS, check_frames
 from .runner import StageError
@@ -67,6 +69,13 @@ QA_FREEZE_NOISE = "-60dB"
 QA_BLACK_S = 0.2
 QA_DURATION_TOL = 0.1
 QA_LUFS, QA_LUFS_TOL, QA_TRUE_PEAK = -14.0, 1.0, -1.0
+MAX_RUNTIME_S = 58         # Shorts / Reels: warn above this
+
+# --- end card ---
+CARD_SIZE = 76
+CARD_Y = 0.42              # of frame height: the card's vertical centre, clear of the captions
+EMOJI_FONTS = ("C:/Windows/Fonts/seguiemj.ttf", "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
+               "/usr/share/fonts/noto/NotoColorEmoji.ttf", "/System/Library/Fonts/Apple Color Emoji.ttc")
 
 
 # ---------------- captions ----------------
@@ -316,6 +325,44 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     return head + "\n".join(events) + "\n"
 
 
+# ---------------- end card ----------------
+
+def end_card_png(text: str, out: Path) -> None:
+    """a transparent 1080x1920 PNG: text on a dark rounded pill at CARD_Y. Trailing emoji come from the first
+    EMOJI_FONTS found (Pillow draws colour emoji at 109 px, scaled to the text); none found -> left out"""
+    from PIL import Image, ImageDraw, ImageFont
+
+    body, emoji = text.rstrip(), ""
+    while body and ord(body[-1]) >= 0x2600:
+        emoji, body = body[-1] + emoji, body[:-1]
+    body = body.rstrip()
+    font = ImageFont.truetype(str(FONTS / "FredokaOne-Regular.ttf"), CARD_SIZE)
+    x0, y0, x1, y1 = font.getbbox(body)
+    tw, th = x1 - x0, y1 - y0
+    glyph, path = None, next((f for f in EMOJI_FONTS if Path(f).is_file()), None) if emoji else None
+    if path:
+        g = Image.new("RGBA", (218 * len(emoji), 160), (0, 0, 0, 0))
+        ImageDraw.Draw(g).text((0, 0), emoji, font=ImageFont.truetype(path, 109), embedded_color=True)
+        g = g.crop(g.getbbox())
+        size = round(th * 1.25)
+        glyph = g.resize((round(g.width * size / g.height), size), Image.LANCZOS)
+    elif emoji:
+        print("warning: no colour emoji font found; end card drawn without the emoji")
+    gap, pad_x, pad_y = CARD_SIZE // 4, 48, 36
+    w = tw + (gap + glyph.width if glyph else 0)
+    box_h = max(th, glyph.height if glyph else 0) + 2 * pad_y
+    cx, cy = W // 2, round(H * CARD_Y)
+    img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    d.rounded_rectangle((cx - w // 2 - pad_x, cy - box_h // 2, cx - w // 2 + w + pad_x, cy + box_h // 2),
+                        radius=box_h // 2, fill=(0, 0, 0, 190))
+    left = cx - w // 2
+    d.text((left - x0, cy - th // 2 - y0), body, font=font, fill=(255, 255, 255, 255))
+    if glyph:
+        img.alpha_composite(glyph, (left + tw + gap, cy - glyph.height // 2))
+    img.save(out)
+
+
 # ---------------- ffmpeg ----------------
 
 def _ffmpeg(*args) -> subprocess.CompletedProcess:
@@ -341,14 +388,17 @@ def subtitles_filter(captions: Path) -> str:
     return f"subtitles=filename={_filter_path(captions)}:fontsdir={_filter_path(FONTS)}"
 
 
-def encode(part_dir: Path, frames: int, captions: Path | None) -> None:
-    """frames/%06d.png + audio/mix.wav (+ burned-in captions) -> final.mp4, atomically"""
+def encode(part_dir: Path, frames: int, captions: Path | None, card: tuple[Path, int] | None = None) -> None:
+    """frames/%06d.png + audio/mix.wav (+ burned-in captions, + end card (png, start frame) on top) -> final.mp4"""
     out, tmp = part_dir / "final.mp4", part_dir / ".final.tmp.mp4"
-    vf = ["-vf", subtitles_filter(captions)] if captions else []
+    chain = [f"[0:v]{subtitles_filter(captions)}[c]"] if captions else []
+    if card:
+        chain.append(f"[{'c' if captions else '0:v'}][2:v]overlay=0:0:enable='gte(n,{card[1]})'[c]")
+    graph = ["-filter_complex", ";".join(chain), "-map", "[c]"] if chain else ["-map", "0:v"]
     try:
         _ffmpeg("-v", "error", "-y", "-framerate", FPS, "-i", part_dir / "frames" / "%06d.png",
-                "-i", part_dir / "audio" / "mix.wav", "-map", "0:v", "-map", "1:a", "-frames:v", frames,
-                "-t", f"{frames / FPS:.3f}", *vf,
+                "-i", part_dir / "audio" / "mix.wav", *(["-loop", "1", "-i", card[0]] if card else []),
+                *graph, "-map", "1:a", "-frames:v", frames, "-t", f"{frames / FPS:.3f}",
                 "-c:v", "libx264", "-profile:v", "high", "-preset", PRESET, "-crf", CRF, "-pix_fmt", "yuv420p",
                 "-r", FPS, "-s", f"{W}x{H}", "-c:a", "aac", "-b:a", AUDIO_BITRATE, "-ar", AUDIO_RATE,
                 "-movflags", "+faststart", tmp)
@@ -406,10 +456,10 @@ def qa(part_dir: Path, story: StoryModel, phrases: PhrasesModel, captions_on: bo
     p = probe(final)
     num, den = (p.get("r_frame_rate") or "0/1").split("/")
     fps, duration = float(num) / float(den), float(p.get("duration", 0))
-    voice = probe_duration(part_dir / "voice.mp3")
     frozen, black = scan(part_dir / "frames", story.duration_frames)
     lufs, tp = loudness(final)
     cap = caption_check(phrases, chunks(phrases)) if captions_on else None
+    want_s = story.duration_frames / FPS
 
     def check(ok, value, want):
         return {"ok": bool(ok), "value": value, "want": want}
@@ -419,15 +469,24 @@ def qa(part_dir: Path, story: StoryModel, phrases: PhrasesModel, captions_on: bo
         "fps": check(abs(fps - FPS) < 0.01, round(fps, 3), FPS),
         "frame_count": check(p.get("nb_frames") == str(story.duration_frames), int(p.get("nb_frames", 0)),
                              story.duration_frames),
-        "duration": check(abs(duration - voice) <= QA_DURATION_TOL, round(duration, 3),
-                          f"{voice:.3f} +/-{QA_DURATION_TOL}"),
+        "duration": check(abs(duration - want_s) <= QA_DURATION_TOL, round(duration, 3),
+                          f"{want_s:.3f} +/-{QA_DURATION_TOL}"),
         "frozen": check(frozen <= QA_FREEZE_S, frozen, f"<= {QA_FREEZE_S} s"),
         "black": check(black <= QA_BLACK_S, black, f"<= {QA_BLACK_S} s"),
         "loudness": check(abs(lufs - QA_LUFS) <= QA_LUFS_TOL, lufs, f"{QA_LUFS} +/-{QA_LUFS_TOL} LUFS"),
         "true_peak": check(tp <= QA_TRUE_PEAK, tp, f"<= {QA_TRUE_PEAK} dBTP"),
         "captions": check(cap is None, cap or ("ok" if captions_on else "off"), "every word once, no overlaps"),
     }
-    return {"ok": all(c["ok"] for c in checks.values()), "checks": checks}
+    return {"ok": all(c["ok"] for c in checks.values()), "checks": checks,
+            **runtime(duration, len(phrases.words), phrases.words[-1].end)}
+
+
+def runtime(seconds: float, words: int, speech: float) -> dict:
+    """qa.json's runtime record (check-story measures words per second from it) and the over-length warning"""
+    over = round(seconds - MAX_RUNTIME_S, 1)
+    warn = [f"runtime {seconds:.1f} s is {over} s over {MAX_RUNTIME_S} s ({words} words): cut about "
+            f"{math.ceil(over * words / speech)} words"] if over > 0 else []
+    return {"runtime": {"seconds": round(seconds, 3), "words": words, "speech_seconds": speech}, "warnings": warn}
 
 
 # ---------------- entry ----------------
@@ -467,7 +526,14 @@ def run(part_dir: Path) -> None:
     else:
         captions.unlink(missing_ok=True)  # stale from when captions were on
     print(f"captions: {'on' if captions_on else 'off'}")
-    encode(part_dir, story.duration_frames, captions if captions_on else None)
+    card = part_dir / "end-card.png"
+    if story.end_card:
+        end_card_png(story.end_card.text, card)
+    else:
+        card.unlink(missing_ok=True)
+    print(f"end card: {story.end_card.text if story.end_card else 'none (final part)'}")
+    encode(part_dir, story.duration_frames, captions if captions_on else None,
+           (card, story.end_card.start_frame) if story.end_card else None)
 
     report = qa(part_dir, story, phrases, captions_on)
     atomic_write_json(part_dir / "qa.json", report)
@@ -476,4 +542,6 @@ def run(part_dir: Path) -> None:
     if not report["ok"]:
         failed = [n for n, c in report["checks"].items() if not c["ok"]]
         raise StageError(f"QA failed: {', '.join(failed)} (final.mp4 kept for inspection; see qa.json)")
+    for w in report["warnings"]:
+        print(f"warning: {w}")
     print(f"final: {part_dir / 'final.mp4'}")

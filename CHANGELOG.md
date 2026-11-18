@@ -1,6 +1,15 @@
 # Changelog
 
 ## Unreleased
+- Tighter pacing for Shorts / Reels: timing clamps every pause over 0.4 s to 0.3 s and writes voice-tight.wav
+  (voice.mp3 untouched); phrases, shots, audio and the preview all follow the tightened voice.
+- End card: non-final parts end with "Part n+1 on my profile 👆" over the last second, then a hard cut; the final
+  part (series complete, last part) cuts 0.3 s after the last word. Replaces ending on "To be continued.".
+- Runtime guard: QA records runtime and word count in qa.json and the dashboard warns above 58 s with the overage;
+  check-story estimates runtime from the words per second of past renders (2.6 before any) and warns too.
+- check-story warns when the first narration line opens on a date or backstory ("In nineteen...", "Once upon").
+- Story Guide: 110 to 140 words, 45 to 58 s, Hook and Pacing sections, the twist last or second-to-last, a
+  pointer line instead of "To be continued.", a pre-publish checklist, and an updated example.
 - Sets page: custom `@set` locations (library/sets.json, shared by every series). Indoor or outdoor, floor and
   wall/sky colours, box/cylinder/ball/mound pieces, a live preview built by the engine, and Build with AI.
   Stage clearance and travel shots work as for the built-in sets; a set in use by a story can't be deleted.
