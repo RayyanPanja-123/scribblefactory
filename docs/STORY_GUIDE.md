@@ -137,10 +137,21 @@ Second narration line.
 - **Name characters by their name** as given in the cast list. The planner recognises names (and ids) to decide
   who the shot is about.
 - Captions show at most five words at a time; plain wording reads best.
-- **Hook first, twist last.** Line one is the hook (see **Hook**). The `!!` twist is the last or second-to-last
+- **Hook first, twist last.** Lines one to three are the hook (see **Hook**). The `!!` twist is the last or second-to-last
   narration line (see **Twist and ending**).
 
-### Hook: the slap in the face
+### Hook: the triple hook (first three lines)
+
+The first three narration lines form one hook, about eight seconds, at most thirty words together:
+
+- **Line 1, Context:** says what the video is about immediately, plus the shocking claim. No delay: every word
+  before the subject raises skip rates. (The line-1 rules below apply.)
+- **Line 2, Lean:** builds curiosity with proof. Use one of: a hard number or stat, a specific pain or cost, or an
+  unexpected detail. It never explains or slows down. A date or place may go here only if it adds proof;
+  otherwise move it to line 4 or later.
+- **Line 3, Snapback:** pulls the viewer toward an obvious expectation, then flips it (a pattern interrupt).
+  Forms: "You'd think X. Wrong.", "Everyone blamed X. It was Y.", "X should have ended it. It didn't." The flip
+  sends the story a new way but must **not** reveal the `!!` twist; the twist still closes the loop at the end.
 
 Line one is the whole video. Viewers decide in about one second whether to keep scrolling, so the first line has
 to hit before they can look away. It states the twist or the most surprising claim of the part. Dates, places and
@@ -158,15 +169,14 @@ What makes a hook land:
 - **Opens a loop the `!!` closes.** The hook tells *what* happened; the twist reveals *how* or *who*. Do not spend
   the twist on line one; tease it.
 - **Strong first word.** Start with the name or the shocking noun, never "So", "This", "There", "It", "Today".
-- **Line two hits again.** It grounds the claim (the date or place goes here) or raises the stakes; it never
-  slows down to explain.
+- **Line two hits again.** It follows the **Lean** rule above: proof, never explanation.
 
 Hook patterns:
 
 | Pattern | Example |
 |---|---|
 | The impossible fact | Victor sold the Eiffel Tower. Twice. |
-| The wrong winner | The man who won the Olympic marathon rode most of it in a car. |
+| The wrong winner | The Olympic marathon winner rode most of it in a car. |
 | The body count | A dance killed fifteen people a day. |
 | The contradiction | The ship nobody could sink sank on its first trip. |
 | The desperate act | Thomas drank rat poison to win a race. |
@@ -177,7 +187,8 @@ Never use these openers; they announce a hook instead of being one: "Did you kno
 **The test:** if the video stopped after line one, would someone repeat that sentence to a friend? If not,
 rewrite it.
 
-A hook line may use `@fx shake` or `@fx drop` for extra punch; that is the one place the effect is always worth it.
+Line one may use `@fx shake` or `@fx drop`, and the Snapback line `@fx pop`, for extra punch; those are the
+places the effect is always worth it.
 
 Before (slow, the date comes first):
 
@@ -186,18 +197,23 @@ In nineteen twenty-five, a con man named Victor arrived in Paris.
 He read that the Eiffel Tower needed costly repairs.
 ```
 
-After (the claim comes first, the date follows):
+After (Context, Lean, Snapback):
 
 ```md
 Victor sold the Eiffel Tower. Twice.
-It was nineteen twenty-five, and the tower needed costly repairs.
+Both buyers paid him in cash.
+The first one never went to the police. He was too ashamed.
 ```
+
+1. **Context:** Victor sold the Eiffel Tower. Twice.
+2. **Lean:** Both buyers paid him in cash.
+3. **Snapback:** The first one never went to the police. He was too ashamed.
 
 ### Pacing
 
 - Short sentences. One idea per line.
 - No filler transitions: never start a line with "Then", "After that", "So", "Next" or "Later". Cut straight to
-  the next beat.
+  the next beat. "But" is allowed only at the start of the Snapback line (line 3).
 - Every line should move the story forward; if a line only sets up the next one, merge or cut it.
 - Long pauses in the voice are trimmed automatically (any pause over 0.4 seconds becomes 0.3), so the delivery
   stays tight; the writing must be tight too.
@@ -450,6 +466,8 @@ at an exact moment).
 | Digits, symbols, abbreviations in narration | The voice and captions drift apart |
 | Over 140 words, or over 58 seconds | Too long for a Short (the story check warns) |
 | A date or backstory on line 1 | Viewers scroll away before the hook (the story check warns) |
+| Line 2 or 3 spends the twist | The `!!` has nothing left to reveal |
+| No flip in the first three lines | Viewers predict the story and scroll |
 | Lines after the `!!` other than the end line | The payoff fades before the cut |
 | Filler transitions ("Then", "After that", "So") | Dead air between beats |
 | More than one `!!` | Only one twist per part |
@@ -472,11 +490,13 @@ at an exact moment).
 9. Only the part that was asked for (part 1 unless the user asked for a later one).
 10. Every object a character uses in a key action exists: built in, in the library, or in the NEW block, and it
     is attached to that character (cast `props`, a look, or `@do eat` / `give`), with a prop line for each.
+11. Triple hook: line 1 Context (subject plus shock, at most twelve words), line 2 Lean (proof, stat or
+    unexpected detail), line 3 Snapback (expectation flipped), at most thirty words together, twist not spent.
 
 ### Pre-publish checklist
 
-- [ ] **Hook in line 1:** the twist or most surprising claim, no date or backstory, at most twelve words,
-      concrete, and it opens a question the `!!` answers.
+- [ ] **Triple hook:** line 1 Context (subject plus shock, at most twelve words), line 2 Lean (proof, stat or
+      unexpected detail), line 3 Snapback (expectation flipped), at most thirty words together, twist not spent.
 - [ ] **Word count:** 110 to 140.
 - [ ] **Key props:** every object central to an action is present (e.g. the axe in a beheading).
 - [ ] **Single `!!`:** exactly one twist line.
@@ -488,8 +508,8 @@ at an exact moment).
 
 ### A complete part
 
-Part one of a series: hook on line one, the date on line two, the twist second-to-last, then the pointer line.
-125 words, about 49 seconds.
+Part one of a series: the triple hook on lines one to three (Context, Lean, Snapback), the date on line four, the
+twist second-to-last, then the pointer line. 133 words, about 52 seconds.
 
 ```md
 # The Fake Finish
@@ -497,9 +517,11 @@ Part one of a series: hook on line one, the date on line two, the twist second-t
 @set dirt_road
 @cast fred
 @car ride
-The man who won the Olympic marathon rode most of it in a car.
+The Olympic marathon winner rode most of it in a car.
+He rode eleven miles in his manager's car.
+Cheating should have ended his race. It didn't.
 It was nineteen oh four, in Saint Louis, and the heat was brutal.
-Fred quit after nine miles and climbed into his manager's car.
+Fred had quit after nine miles.
 @do car: broken
 Eleven miles later, the car broke down.
 
