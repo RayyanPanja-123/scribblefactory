@@ -89,11 +89,11 @@ function onScroll() {
             <nav class="absolute bottom-2 left-1/2 flex h-14 w-[calc(100%-16px)] max-w-[560px] -translate-x-1/2 items-center gap-0 rounded-full border border-white/60 bg-white/45 p-1 shadow-[0_10px_30px_rgb(120_104_82/0.25)] backdrop-blur-xl lg:bottom-5 lg:h-[var(--tabbar-h)] lg:w-auto lg:max-w-none lg:gap-1 lg:p-1.5"
               aria-label="Tabs">
               <RouterLink v-for="t in tabs" :key="t.to" :to="t.to"
-                class="relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-full px-1 py-1 text-[10px] font-semibold lg:flex-row lg:gap-2 lg:px-4 lg:py-2.5 lg:text-sm"
+                class="relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-full px-1 py-1 text-[10px] font-semibold lg:flex-none lg:flex-row lg:gap-2 lg:px-4 lg:py-2.5 lg:text-sm"
                 :class="active === t ? 'text-white' : 'text-ink'" :aria-current="active === t ? 'page' : undefined">
                 <motion.span v-if="active === t" layout-id="tab-pill" class="absolute inset-0 rounded-full bg-ink shadow-[var(--shadow-dark)]"
                   :transition="SPRING" />
-                <component :is="t.icon" :size="16" class="relative" aria-hidden="true" />
+                <component :is="t.icon" :size="16" class="relative shrink-0" aria-hidden="true" />
                 <span class="relative">{{ t.name }}</span>
               </RouterLink>
             </nav>

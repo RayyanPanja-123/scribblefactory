@@ -8,6 +8,7 @@ import { drawerOpen, jobs, runningJob, stepStart } from '../composables/live'
 import { reducedMotion, SPRING } from '../composables/ui'
 import { shortPaths } from '../lib/paths'
 import { jobFraction, parseProgress } from '../lib/progress'
+import asleepReel from '../assets/asleep-reel.svg'
 
 // Lives inside the screen frame (App.vue): dims only the screen, never the bezel.
 const tab = ref<'now' | 'history'>('now')
@@ -172,21 +173,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
         <motion.div v-if="!run && !queued.length" class="flex h-full flex-col items-center justify-center px-6 text-center" v-bind="row(0)">
           <!-- a stickman asleep against a film reel (marker style, like the brand mark) -->
-          <svg viewBox="0 0 140 110" class="w-44" aria-hidden="true" fill="none" stroke="#1f1d1a" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M8 98c30 1.5 92 1 124-.6" stroke="#8a857c" stroke-width="2" />
-            <path d="M93.5 32.5c16.8-.6 29.4 12.8 28.8 29.4-.3 16.4-13.4 29-29.6 28.6-16.2-.2-28.7-13.3-28.2-29.5.4-15.9 13.1-28.3 29-28.5z" fill="#fbf9f5" />
-            <circle cx="93" cy="61" r="4.5" fill="#1f1d1a" stroke="none" />
-            <circle cx="93" cy="45" r="5.2" /><circle cx="108" cy="56" r="5.2" /><circle cx="102.5" cy="74" r="5.2" />
-            <circle cx="83.5" cy="74" r="5.2" /><circle cx="78" cy="56" r="5.2" />
-            <path d="M59.6 37.8c-.6 6.6-6.2 11.4-12.6 10.9-6.5-.4-11.2-5.8-10.8-12.4.5-6.3 5.9-11 12.3-10.7 6.6.3 11.6 5.6 11.1 12.2z" fill="#fff" />
-            <path d="M42.3 36.4q2 1.8 4.1.2M50.2 35.8q2 1.8 4.1.2" stroke-width="1.8" />
-            <path d="M46.2 42.6q1.6.6 3.1-.2" stroke-width="1.6" />
-            <path d="M51 48.5c3.5 9.2 8.4 18.2 13.8 26" />
-            <path d="M64.8 74.5c-8 7.5-20 13-34 15.8M64.8 74.5c-5.8 9-15.8 16-28.6 22" />
-            <path d="M55 58c-5.4 6.6-10.2 13.2-13 20.4M57.6 61.5c2.6 3.8 6 6.4 9.8 7.6" />
-            <circle cx="41.6" cy="79.6" r="1.8" fill="#1f1d1a" stroke="none" /><circle cx="68.4" cy="69.4" r="1.8" fill="#1f1d1a" stroke="none" />
-            <path d="M28 22h7l-7 7h7M15 9h10l-10 10h10" stroke="#8a857c" stroke-width="2" />
-          </svg>
+          <img :src="asleepReel" alt="" class="w-44" aria-hidden="true" />
           <p class="mt-4 font-display text-lg font-semibold">Nothing running.</p>
           <p class="mt-1 max-w-60 text-sm text-muted">Start a job from a part's Run panel.</p>
         </motion.div>
