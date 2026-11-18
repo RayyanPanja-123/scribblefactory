@@ -113,13 +113,14 @@ def _first_error(e: ValidationError) -> str:
 
 
 def _rewrite(md: str, renames: dict[str, dict[str, str]]) -> str:
-    """point story.md at renamed assets: @set <set>, and every word of an @do line (actions and props)"""
+    """point story.md at renamed assets: @set <set>, every word of an @do line (actions and props) and an
+    @fx lightning target (a prop)"""
     out = []
     for ln in md.split("\n"):
         s = ln.strip()
         if s.startswith("@set ") and (new := renames["SETS"].get(s[5:].strip())):
             ln = f"@set {new}"
-        elif s.startswith("@do "):
+        elif s.startswith(("@do ", "@fx lightning ")):
             # ponytail: whole-word match on @do lines, so a cast id equal to a renamed asset id is renamed too
             for old, new in {**renames["PROPS"], **renames["ACTIONS"]}.items():
                 ln = re.sub(rf"(?<![\w-]){re.escape(old)}(?![\w-])", new, ln)

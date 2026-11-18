@@ -1,6 +1,13 @@
 # Changelog
 
 ## Unreleased
+- Weather: `@weather <clear | rain | snow | fog | wind | storm> [light | medium | heavy]` until the next `@weather`
+  or `@set` (a `@set` starts the set's new `default_weather`, else clear), drawn in ink: rain streaks, scribble
+  snowflakes, hatched fog bands behind the cast, wind lines; storm adds slanted rain, a darker tint and mild
+  ambient flashes. Changes within a scene fade over 0.5 s. Seeded and pooled, so stills, test renders and the
+  final match. `@fx lightning [cast | prop]`: one bolt + brief flash at the next line, beside its target, at most
+  3 per part. Set editor: default weather and a preview toggle. Story check, package import, Story Guide, package
+  doc and Help cover both.
 - Wardrobe page: clothing, hair and cosmetics as library items (library/wardrobe.json), worn per slot (hair,
   facial_hair, headwear, top, legwear, footwear, back, accessory, face) as `"hair": "wild_hair"` or
   `{"id", "color"}`. Ink layers anchored to body points scale with any humanoid build and move with every pose;

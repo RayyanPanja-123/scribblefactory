@@ -6,21 +6,21 @@ import { onMounted, ref, watch } from 'vue'
 import { previewSet } from '../../../engine/page/setPreview.js'
 import type { CustomSet } from '../lib/sets'
 
-const p = defineProps<{ id: string; custom: CustomSet[]; label: string }>()
+const p = defineProps<{ id: string; custom: CustomSet[]; label: string; weather?: CustomSet['default_weather'] }>()
 const cv = ref<HTMLCanvasElement>()
 const error = ref('')
 
 function draw() {
   if (!cv.value) return
   try {
-    previewSet(cv.value, p.id, p.custom)
+    previewSet(cv.value, p.id, p.custom, p.weather ?? null)
     error.value = ''
   } catch (e) {
     error.value = (e as Error).message
   }
 }
 onMounted(draw)
-watch(() => [p.id, p.custom], draw, { deep: true })
+watch(() => [p.id, p.custom, p.weather], draw, { deep: true })
 </script>
 
 <template>

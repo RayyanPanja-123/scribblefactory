@@ -14,12 +14,13 @@ from pathlib import Path
 
 from ..io import (LIBRARY_FILES, atomic_write_json, cast_body_problems, creature_bodies, custom_actions, custom_moves,
                   outdoor_sets,
-                  prop_kinds, set_kinds,
+                  prop_kinds, set_kinds, set_weather,
                   unknown_cast_props)
-from ..schemas import BUILTIN_CREATURES, BUILTIN_SETS, HAND_RIGS, actions_with, Actor, Animal, Camera, Cue, EndCard, Extra, PhrasesModel, SeriesModel, Shot, StoryModel, Travel, Vehicle
+from ..schemas import BUILTIN_CREATURES, BUILTIN_SETS, HAND_RIGS, actions_with, Actor, Animal, Camera, Cue, EndCard, Extra, PhrasesModel, SeriesModel, Shot, StoryModel, Strike, Travel, Vehicle
 from ..validate import (CAR_SPEED, CROWD_Z, DOG_RUN_SPEED, MAX_SHOT_FRAMES, MOODS, OUTDOOR_SETS, SPEEDS,
                         END_CARD_S, custom_speeds, end_frame, validate)
-from .prep import BUILTIN_PROPS, DO_CAR, FX_MODES, MARKER_RE, clean_markdown, mark_directives, parse_do, parse_look
+from .prep import (BUILTIN_PROPS, DO_CAR, FX_LIGHTNING, FX_MODES, MARKER_RE, clean_markdown, mark_directives, parse_do,
+                   parse_lightning, parse_look, parse_weather)
 from .runner import StageError
 from .validate import load_model
 
@@ -118,22 +119,28 @@ def seed_for(slug: str, part_number: int) -> int:
     return zlib.crc32(slug.encode()) + part_number  # stable across runs (unlike hash())
 
 
-def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILTIN_PROPS, looks_of=None, actions=()):
-    """Return (words, [(set, cast tuple, twist starts here, dogs, car mode, do, crowd, runners, looks)]) from
+def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILTIN_PROPS, looks_of=None, actions=(),
+              weather_of=None):
+    """Return (words, [(set, cast tuple, twist starts here, dogs, car mode, do, crowd, runners, looks, weather,
+    strike)]) from
     story.md, words as prep's script has them. do: (story.md line, @do clauses) for the words of the line after an
     @do, else None. crowd: (mood, N) or None. A set change resets crowd and runners. looks: {cast id: look name} set
-    by @look, kept for the rest of the part (default drops it). looks_of: cast id -> its look names."""
+    by @look, kept for the rest of the part (default drops it). looks_of: cast id -> its look names. weather: Weather
+    or None (clear), from @weather until the next @weather or @set; @set starts weather_of[set] (custom sets'
+    default_weather), else clear. strike: (story.md line, target) on the first word after an @fx lightning, else None."""
     text, directives = mark_directives(md)
     set_, cast, twist_next, dogs, car, do = DEFAULT_SET, tuple(default_cast), False, 0, "off", None
-    crowd, runners, looks = None, 0, {}
+    crowd, runners, looks, strike = None, 0, {}, None
+    weather_of = weather_of or {}
+    weather = weather_of.get(set_)
     looks_of = looks_of if looks_of is not None else {c: [] for c in cast_ids}
     words, tags = [], []
     for tok in clean_markdown(text).split():
         m = MARKER_RE.match(tok)
         if not m:
             words.append(tok)
-            tags.append((set_, cast, twist_next, dogs, car, do, crowd, runners, looks))
-            twist_next = False
+            tags.append((set_, cast, twist_next, dogs, car, do, crowd, runners, looks, weather, strike))
+            twist_next, strike = False, None
         elif m[1] == "!":
             twist_next = True
         elif m[1] == "/":
@@ -145,7 +152,9 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
             if name == "set" and arg:
                 if arg != set_:
                     crowd, runners = None, 0  # extras belong to a set
-                set_ = arg
+                set_, weather = arg, weather_of.get(arg)
+            elif name == "weather":
+                weather = parse_weather(arg, line)
             elif name == "cast":
                 ids = [x.strip() for x in arg.split(",") if x.strip()]
                 if not ids:
@@ -165,6 +174,8 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
                 car = arg
             elif name == "fx" and arg in FX_MODES:
                 pass  # caption effect: finish reads it
+            elif name == "fx" and arg.split()[:1] == [FX_LIGHTNING]:
+                strike = (line, parse_lightning(arg, line, cast_ids, props))
             elif name == "do":
                 do = (line, tuple(parse_do(arg, line, cast_ids, props, actions)))
             elif name == "crowd":
@@ -176,7 +187,8 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
                 looks = {**{k: v for k, v in looks.items() if k not in who}, **({w: look for w in who} if look != "default" else {})}
             else:
                 raise StageError(f"story.md line {line}: bad directive @{d.strip()} (use @set <name>, @cast a, b, "
-                                 f"@dogs 0-{MAX_DOGS}, @car {' | '.join(CAR_MODES)}, @fx {' | '.join(FX_MODES)}, "
+                                 f"@dogs 0-{MAX_DOGS}, @car {' | '.join(CAR_MODES)}, @fx {' | '.join(FX_MODES)} | lightning [target], "
+                                 f"@weather <type> [intensity], "
                                  f"@do <cast>: <action>, @look <cast>: <look>, @crowd <mood> [N] | off or @runners 0-{MAX_RUNNERS})")
     return words, tags
 
@@ -552,13 +564,15 @@ def _car_move(mode, park, actors, subject, seconds, seed) -> Vehicle:
 
 
 def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, props=BUILTIN_PROPS,
-         outdoor=OUTDOOR_SETS, bodies=BUILTIN_CREATURES, actions=()) -> StoryModel:
+         outdoor=OUTDOOR_SETS, bodies=BUILTIN_CREATURES, actions=(), weather_of=None) -> StoryModel:
     """bodies: creature id -> (rig, has a stump), io.creature_bodies (built-ins + library/creatures.json).
-    actions: the library's custom actions (io.custom_actions), which @do may ask for"""
+    actions: the library's custom actions (io.custom_actions), which @do may ask for. weather_of: custom set id ->
+    its default_weather (io.set_weather)"""
     if not series.cast:
         raise StageError("series.json has no cast: add some with cast-add")
     ids = [c.id for c in series.cast]
-    words, tags = tag_words(md, ids, ids[:DEFAULT_CAST_SIZE], props, {c.id: list(c.looks) for c in series.cast}, actions)
+    words, tags = tag_words(md, ids, ids[:DEFAULT_CAST_SIZE], props, {c.id: list(c.looks) for c in series.cast}, actions,
+                            weather_of)
     heard = [w.text for w in phrases.words]
     if words != heard:
         i = next((i for i, (a, b) in enumerate(zip(words, heard)) if a != b), min(len(words), len(heard)))
@@ -611,7 +625,7 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
     pos: dict[str, float] = {}  # where each actor stands now; reset on a set change
     fallen: set = set()  # (@do line, cast id) that already collapsed
     for i, p in enumerate(phrases.phrases):
-        set_, cast, _, dogs, mode, do, crowd, runners, looks = tags[p.word_start]
+        set_, cast, _, dogs, mode, do, crowd, runners, looks, weather, _ = tags[p.word_start]
         if (set_, cast) != scene_key:
             scene_key, back_pos = (set_, cast), {}
         cast, back = rows[i]  # from here on, cast is the front row
@@ -728,9 +742,32 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
             shots.append(Shot(id=sid, start_frame=s0, end_frame=s1, set=set_,
                               phrase_range=(i, i), camera=Camera(angle=angle, move=move, speed=speed, roll_deg=roll),
                               actors=actors, animals=animals, vehicles=vehicles, extras=extras, twist=is_twist,
-                              travel=Travel(speed=tspeed) if travel else None))
+                              travel=Travel(speed=tspeed) if travel else None, weather=weather))
             prev_angle, prev_set = angle, set_
-    return StoryModel(duration_frames=total, seed=seed, shots=shots, cues=cues, end_card=end_card)
+    lightning = [strike(shots, line, target, min(round(phrases.words[w].start * FPS), total - 1), series)
+                 for w, (line, target) in ((w, t[10]) for w, t in enumerate(tags) if t[10])]
+    return StoryModel(duration_frames=total, seed=seed, shots=shots, cues=cues, end_card=end_card, lightning=lightning)
+
+
+def strike(shots: list[Shot], line: int, target: str | None, frame: int, series: SeriesModel) -> Strike:
+    """@fx lightning at frame: a target cast id must be on stage then; a prop target becomes whoever holds it (their
+    cast or look props, or the prop of an eat / give)"""
+    if target is None:
+        return Strike(frame=frame)
+    shot = next(s for s in shots if s.start_frame <= frame < s.end_frame)
+    cast = {c.id: c for c in series.cast}
+
+    def holds(a: Actor) -> bool:
+        return a.prop == target or any(p.kind == target for p in cast[a.cast_id].with_look(a.look).props)
+    who = next((a.cast_id for a in shot.actors if a.cast_id == target), None)
+    who = who or next((a.cast_id for a in shot.actors if holds(a)), None)
+    if who is None:
+        on = ", ".join(a.cast_id for a in shot.actors) or "nobody"
+        raise StageError(f"story.md line {line}: @fx lightning: {target} is not on stage on the next line "
+                         f"(on stage: {on})" if target in cast else
+                         f"story.md line {line}: @fx lightning: nobody on stage holds {target} on the next line "
+                         f"(on stage: {on})")
+    return Strike(frame=frame, target=who)
 
 
 def run(part_dir: Path) -> None:
@@ -745,7 +782,8 @@ def run(part_dir: Path) -> None:
     if problems := cast_body_problems(series.cast, library):
         raise StageError(f"cast body: {'; '.join(problems)}")
     story = plan(story_md.read_text(encoding="utf-8"), phrases, series, int(part_dir.name.split("-")[1]),
-                 prop_kinds(library), outdoor_sets(library), creature_bodies(library), custom_actions(library))
+                 prop_kinds(library), outdoor_sets(library), creature_bodies(library), custom_actions(library),
+                 set_weather(library))
     if unknown := sorted({s.set for s in story.shots} - set(set_kinds(library))):  # the engine would throw mid-render
         raise StageError(f"unknown set: {', '.join(unknown)} (built in: {', '.join(BUILTIN_SETS)}, or add it on the "
                          f"dashboard's Sets page)")

@@ -66,6 +66,7 @@ Second narration line.
 - **One directive per line, alone on its line.** Never put narration on a directive's line:
   `@set streetIn July...` swallows the whole sentence (it is never read aloud) and fails as an unknown set.
 - Directives stay in effect until changed, except `@do` and `@fx`, which cover only the next narration line.
+  `@weather` lasts until the next `@weather` or `@set`.
 - Narration is plain text: no bold, italics, lists, links, emoji, tables or HTML. Markdown is stripped before
   the voice reads it, and anything stripped is silently lost.
 - Blank lines between paragraphs are fine.
@@ -274,6 +275,27 @@ travelling shots. A `@set` change resets the crowd.
 
 Caption effect for the next narration line (for emphasis). Use sparingly.
 
+### `@weather <type> [intensity]`: the sky over the scene
+
+Type: `clear`, `rain`, `snow`, `fog`, `wind` or `storm`. Intensity: `light`, `medium` or `heavy` (default
+`medium`; `clear` takes none). E.g. `@weather storm heavy`. Drawn in the same ink as everything else: rain
+streaks, scribbled snowflakes, hatched fog bands behind the cast, drifting wind lines; `storm` is heavy slanted
+rain, a darker sky and the odd distant flash.
+
+- Lasts until the next `@weather` or `@set`. A `@set` starts clear, unless that set has a default weather (custom
+  sets may; the Sets page shows it). So put `@weather` **after** the `@set` it belongs to.
+- A change between two lines of the same scene fades in over half a second.
+- **Match the weather to the mood:** gods, sea battles and villains: `storm`; sadness and loss: `rain`; mystery,
+  secrets, the unknown: `fog`; calm, happy, ordinary days: `clear` (no `@weather` at all). `snow` for winter and
+  quiet wonder, `wind` for a journey or something about to change. Do not add weather a scene does not need.
+
+### `@fx lightning [cast | prop]`: one lightning strike
+
+One bolt with a brief flash, at the start of the next narration line. With a target it strikes beside that cast
+member (who must be on stage) or beside whoever holds that prop: `@fx lightning poseidon`,
+`@fx lightning trident`. Works under any weather and looks strongest in a `storm`.
+**Only on dramatic beats, at most 3 per part.** Like `@do`, a narration line must follow it.
+
 ### `!! <text>`: the twist
 
 Starts a narration line (the text is read aloud). That moment gets a dramatic push-in, the music stops and a
@@ -427,6 +449,9 @@ at an exact moment).
 | More than 12 in `@cast`, or more than 6 named in one scene | Not enough room on stage |
 | `@car ride` with more than 3 in `@cast` | The car seats 3 |
 | `@do car: broken` with no car on stage | Nothing to break down |
+| `@weather` before `@set` | The `@set` resets the weather to the set's default (usually clear) |
+| More than 3 `@fx lightning` in a part, or one with no narration line after it | The story check stops it |
+| `@fx lightning <cast>` for someone not in the current `@cast` | Nothing on stage to strike beside |
 | Digits, symbols, abbreviations in narration | The voice and captions drift apart |
 | Over 175 words, or over 58 seconds | Too long for a Short (the story check warns) |
 | A date or backstory on line 1 | Viewers scroll away before the hook (the story check warns) |
@@ -444,6 +469,8 @@ at an exact moment).
 3. Only cast ids, looks, sets, actions, props and creatures from this guide, *Available in this library* and your CAST, plus new sets,
    props, creatures and actions created by the package. Every id a SCRIPT uses exists in one of the two.
 4. Every `@do` is directly followed by a narration line, and everyone in it is in the current `@cast`.
+   The same goes for `@fx lightning` and its target; at most 3 strikes per part.
+   Each `@weather` comes after its `@set` and fits the scene's mood (storm, rain, fog or clear).
 5. Each `@cast` has at most 12 ids, at most 6 of them named in that scene; `@car ride` at most 3.
 6. No digits, symbols or markdown formatting in narration.
 7. 110 to 175 words per part; short lines, no filler transitions.
@@ -527,6 +554,21 @@ The whole town watched in silence.
 ```
 
 Troffea and her husband are named, so they stand in front; the other seven stand smaller in the back row.
+
+### Weather and lightning: a fight with Poseidon
+
+```md
+@set countryside
+@cast poseidon, hero
+@weather storm heavy
+@do poseidon: raise_trident
+@fx lightning
+Poseidon raised his trident, and the sky split open.
+```
+
+A god's fight gets `storm heavy` right after its `@set`; the one big beat gets the strike. `raise_trident` is a
+custom action (from the library, or new in the package's ACTIONS). For a quiet, sad scene afterwards, a new
+`@set` (or `@weather rain light`) brings the mood down.
 
 ### Wrong, then right
 

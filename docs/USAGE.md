@@ -42,6 +42,8 @@ One per line. A directive holds until it is changed, except `@do` and `!!`, whic
 | `@crowd <mood> [N]` | Crowd extras behind the stage: cheer, angry, gasp or neutral; N 1-12 (default 8). `@crowd off`. Not in travel shots. | `@crowd cheer 10` |
 | `@runners N` | Background runners (0-6): run along in travel shots, cross the background otherwise. | `@runners 4` |
 | `@fx <effect>` | Caption effect for the next line: drop, shake, pop or none. | `@fx shake` |
+| `@fx lightning [target]` | One lightning strike (bolt + brief flash) at the next line, beside a cast id on stage or whoever holds a prop id. At most 3 per part. | `@fx lightning poseidon` |
+| `@weather <type> [intensity]` | clear, rain, snow, fog, wind or storm; light, medium or heavy (default medium). Until the next `@weather` or `@set`; a `@set` starts the set's default weather (custom sets), else clear. | `@weather storm heavy` |
 | `!! text` | The twist line: push-in with roll, music stops, low hit. The text is read aloud. | `!! And he won gold.` |
 
 Example:

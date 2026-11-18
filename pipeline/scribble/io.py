@@ -324,6 +324,11 @@ def set_kinds(library) -> dict[str, str]:
     return {**BUILTIN_SETS, **{s.id: s.kind for s in load_sets(library).sets}}
 
 
+def set_weather(library) -> dict:
+    """custom set id -> its default_weather (Weather or None); built-in sets start clear"""
+    return {s.id: s.default_weather for s in load_sets(library).sets}
+
+
 def outdoor_sets(library) -> set[str]:
     """the sets that can scroll (travel shots)"""
     return {k for k, v in set_kinds(library).items() if v == "outdoor"}

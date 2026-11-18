@@ -490,6 +490,18 @@
           },
           "title": "Vehicles",
           "type": "array"
+        },
+        "weather": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Weather"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "@weather (or the set's default_weather); none: clear"
         }
       },
       "required": [
@@ -501,6 +513,35 @@
         "camera"
       ],
       "title": "Shot",
+      "type": "object"
+    },
+    "Strike": {
+      "additionalProperties": false,
+      "description": "@fx lightning: one bolt + a brief flash, at the first word of the line after the directive",
+      "properties": {
+        "frame": {
+          "minimum": 0,
+          "title": "Frame",
+          "type": "integer"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "cast id the bolt lands near; none: behind the stage",
+          "title": "Target"
+        }
+      },
+      "required": [
+        "frame"
+      ],
+      "title": "Strike",
       "type": "object"
     },
     "Travel": {
@@ -618,6 +659,38 @@
       ],
       "title": "Vehicle",
       "type": "object"
+    },
+    "Weather": {
+      "additionalProperties": false,
+      "description": "scene weather, drawn in ink by the engine (weather.js): fog behind the cast, the rest in front",
+      "properties": {
+        "intensity": {
+          "default": "medium",
+          "enum": [
+            "light",
+            "medium",
+            "heavy"
+          ],
+          "title": "Intensity",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "rain",
+            "snow",
+            "fog",
+            "wind",
+            "storm"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "Weather",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -658,6 +731,16 @@
       "default": 1920,
       "title": "Height",
       "type": "integer"
+    },
+    "lightning": {
+      "default": [],
+      "description": "@fx lightning strikes, by frame",
+      "items": {
+        "$ref": "#/$defs/Strike"
+      },
+      "maxItems": 3,
+      "title": "Lightning",
+      "type": "array"
     },
     "schema_version": {
       "const": 1,

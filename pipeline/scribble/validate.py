@@ -136,6 +136,12 @@ def validate(story: StoryModel, phrases: PhrasesModel, cast_ids: set[str], outdo
     for c in story.cues:
         if not 0 <= c.frame <= story.duration_frames:
             err(None, "cue_frame", f"{c.kind} cue at frame {c.frame} outside 0..{story.duration_frames}")
+    for k in story.lightning:
+        shot = next((s for s in story.shots if s.start_frame <= k.frame < s.end_frame), None)
+        if shot is None:
+            err(None, "lightning", f"strike at frame {k.frame} outside every shot")
+        elif k.target and k.target not in {a.cast_id for a in shot.actors}:
+            err(shot.id, "lightning", f"strike at frame {k.frame} targets {k.target}, who is not in {shot.id}")
     return errs
 
 

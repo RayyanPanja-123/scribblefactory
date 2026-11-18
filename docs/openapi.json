@@ -980,6 +980,17 @@
             "title": "Back",
             "type": "string"
           },
+          "default_weather": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Weather"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "weather each @set of this set starts with (until an @weather); none: clear"
+          },
           "floor": {
             "pattern": "^#[0-9a-fA-F]{6}$",
             "title": "Floor",
@@ -3219,6 +3230,38 @@
           "id"
         ],
         "title": "WardrobeSlot",
+        "type": "object"
+      },
+      "Weather": {
+        "additionalProperties": false,
+        "description": "scene weather, drawn in ink by the engine (weather.js): fog behind the cast, the rest in front",
+        "properties": {
+          "intensity": {
+            "default": "medium",
+            "enum": [
+              "light",
+              "medium",
+              "heavy"
+            ],
+            "title": "Intensity",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "rain",
+              "snow",
+              "fog",
+              "wind",
+              "storm"
+            ],
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "Weather",
         "type": "object"
       }
     }

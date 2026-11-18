@@ -1000,6 +1000,8 @@ export interface components {
              * @description indoor: the back wall; outdoor: the sky
              */
             back: string;
+            /** @description weather each @set of this set starts with (until an @weather); none: clear */
+            default_weather?: components["schemas"]["Weather"] | null;
             /** Floor */
             floor: string;
             /**
@@ -1918,6 +1920,23 @@ export interface components {
             color?: string | null;
             /** Id */
             id: string;
+        };
+        /**
+         * Weather
+         * @description scene weather, drawn in ink by the engine (weather.js): fog behind the cast, the rest in front
+         */
+        Weather: {
+            /**
+             * Intensity
+             * @default medium
+             * @enum {string}
+             */
+            intensity: "light" | "medium" | "heavy";
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "rain" | "snow" | "fog" | "wind" | "storm";
         };
     };
     responses: never;

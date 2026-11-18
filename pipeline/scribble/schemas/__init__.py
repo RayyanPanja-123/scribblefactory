@@ -375,6 +375,16 @@ class PropLibrary(Strict):
 BUILTIN_SETS = {"room": "indoor", "office": "indoor", "street": "outdoor", "dirt_road": "outdoor",
                 "countryside": "outdoor", "orchard": "outdoor", "stadium": "outdoor"}
 SetKind = Literal["indoor", "outdoor"]
+WeatherKind = Literal["rain", "snow", "fog", "wind", "storm"]  # @weather; "clear" is no weather (None)
+Intensity = Literal["light", "medium", "heavy"]
+
+
+class Weather(Strict):
+    """scene weather, drawn in ink by the engine (weather.js): fog behind the cast, the rest in front"""
+    kind: WeatherKind
+    intensity: Intensity = "medium"
+
+
 Point3 = tuple[float, float, float]
 
 
@@ -410,6 +420,8 @@ class CustomSet(Strict):
     floor: HexColor
     back: HexColor = Field(description="indoor: the back wall; outdoor: the sky")
     pieces: list[SetPiece] = Field(default=[], max_length=60, description="drawn in order")
+    default_weather: Weather | None = Field(default=None, description="weather each @set of this set starts with "
+                                                                      "(until an @weather); none: clear")
 
     @field_validator("id")
     @classmethod
@@ -891,11 +903,18 @@ class Shot(Strict):
     extras: list[Extra] = []
     twist: bool = False
     travel: Travel | None = Field(default=None, description="travel shot: the world scrolls past the actors")
+    weather: Weather | None = Field(default=None, description="@weather (or the set's default_weather); none: clear")
 
 
 class Cue(Strict):
     frame: int
     kind: Literal["music_stop", "music_start", "low_hit", "whoosh", "pop", "bark"]
+
+
+class Strike(Strict):
+    """@fx lightning: one bolt + a brief flash, at the first word of the line after the directive"""
+    frame: int = Field(ge=0)
+    target: str | None = Field(default=None, description="cast id the bolt lands near; none: behind the stage")
 
 
 class EndCard(Strict):
@@ -912,4 +931,5 @@ class StoryModel(Strict):
     seed: int
     shots: list[Shot]
     cues: list[Cue] = []
+    lightning: list[Strike] = Field(default=[], max_length=3, description="@fx lightning strikes, by frame")
     end_card: EndCard | None = Field(default=None, description="non-final parts only; the final part has none")

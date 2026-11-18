@@ -24,7 +24,7 @@ const live = computed(() => {
   }
 })
 
-type Directive = { id: string; syntax: string; what: string; rules: string[]; example: string; list?: 'sets' | 'bodies' | 'actions' | 'props' }
+type Directive = { id: string; syntax: string; what: string; rules: string[]; example: string; list?: 'sets' | 'bodies' | 'actions' | 'props'; nav?: string }
 const DIRECTIVES: Directive[] = [
   { id: 'set', syntax: '@set <name>', what: 'Where the scene is, for the following lines.', list: 'sets',
     rules: ['Default: room. Put one before the first narration line.', 'Indoor sets have a back wall; outdoor sets allow travelling shots.',
@@ -54,6 +54,15 @@ const DIRECTIVES: Directive[] = [
     rules: ['N from 1 to 12, default 8. @crowd off removes them.', 'Not shown in travelling shots. A @set change resets the crowd.'], example: '@crowd cheer 10' },
   { id: 'runners', syntax: '@runners N', what: '0 to 6 background runners.', rules: ['A @set change resets them.'], example: '@runners 4' },
   { id: 'fx', syntax: '@fx drop | shake | pop | none', what: 'Caption effect for the next narration line.', rules: ['For emphasis: use sparingly.'], example: '@fx shake' },
+  { id: 'weather', syntax: '@weather <type> [intensity]', what: 'The weather over the scene, drawn in ink: clear, rain, snow, fog, wind or storm.',
+    rules: ['Intensity light, medium or heavy (default medium); clear takes none.', 'Lasts until the next @weather or @set. A @set starts clear, or the set’s default weather (Sets page), so put @weather after its @set.',
+      'Fog drifts behind the cast; rain, snow and wind fall in front. storm: slanted rain, a darker sky, the odd distant flash.', 'A change within one scene fades in over half a second.',
+      'Match the mood: gods, sea battles, villains: storm; sadness: rain; mystery: fog; calm: clear.'],
+    example: '@set countryside\n@weather storm heavy' },
+  { id: 'lightning', nav: '@fx lightning', syntax: '@fx lightning [cast | prop]', what: 'One lightning strike (bolt + brief flash) at the start of the next narration line.', list: 'props',
+    rules: ['With a target it strikes beside that cast member (on stage) or whoever holds that prop.', 'At most 3 per part, on dramatic beats; a narration line must follow it.',
+      'Works under any weather, strongest in a storm.'],
+    example: '@do poseidon: raise_trident\n@fx lightning\nPoseidon raised his trident, and the sky split open.' },
   { id: 'twist', syntax: '!! <text>', what: 'The twist: a dramatic push-in, the music stops, a low hit sounds.', list: undefined,
     rules: ['Starts a narration line; the text is read aloud.', 'Exactly once per part, on the last or second-to-last narration line.'],
     example: '!! The tower was never his to sell.' },
@@ -68,7 +77,7 @@ const DIRECTIVES: Directive[] = [
         aloud. Each goes on its own line. The lists below are live: built-ins plus this library’s custom items.</p>
     </div>
     <nav aria-label="Directives" class="flex flex-wrap gap-1.5">
-      <a v-for="d in DIRECTIVES" :key="d.id" :href="`#${d.id}`" class="chip font-mono hover:underline">{{ d.syntax.split(' ')[0] }}</a>
+      <a v-for="d in DIRECTIVES" :key="d.id" :href="`#${d.id}`" class="chip font-mono hover:underline">{{ d.nav ?? d.syntax.split(' ')[0] }}</a>
     </nav>
     <section v-for="d in DIRECTIVES" :id="d.id" :key="d.id" class="raised scroll-mt-4 space-y-3 p-5">
       <div>

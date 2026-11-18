@@ -45,14 +45,16 @@ Plain text. Each marker is **alone on its own line**, in exactly this order:
   dashboard stores it (the schemas in `docs/schemas/props.schema.json`, `sets.schema.json`, `creatures.schema.json`,
   `actions.schema.json`, `wardrobe.schema.json`: one entry of the `props` / `sets` / `creatures` / `actions` /
   `wardrobe` list). Anything that already exists in the library is not repeated: the scripts and the cast just use
-  its id. WARDROBE came later: a package without it reads as `[]`.
+  its id. WARDROBE came later: a package without it reads as `[]`. A new set may carry a
+  `"default_weather": {"kind": "fog", "intensity": "light"}` that every `@set` of it starts with.
 - **CAST**: JSON array in the cast-import shape (story guide section 6b): `{"id", "name", "color"}` plus the
   optional wardrobe slots (`hair`, `facial_hair`, `headwear`, `top`, `legwear`, `footwear`, `back`, `accessory`,
   `face`), `props`, `body`, `headless` and `looks`. Every character the series ever shows, also those who first
   appear in a later part. Every wardrobe id must exist (built in, in the library, or in WARDROBE) and belong to
   the slot it is worn in.
 - **SCRIPT**: the raw `story.md`, unchanged from the usual script format: `# Part title`, directives each alone on
-  its line, narration.
+  its line, narration. That includes `@weather <clear | rain | snow | fog | wind | storm> [light | medium | heavy]`
+  (after its `@set`) and `@fx lightning [cast | prop]` (at most 3 per part, a narration line right after it).
 - **VOICE**: what the text-to-speech voice reads: the script's narration lines in order, word for word, with no
   `@` lines, no `# title` line and no `!!` marker. It is saved as the part's `script-for-tts.txt`.
 - Every id a SCRIPT or the CAST uses (sets, props, creatures, actions, cast ids, looks) must exist in the library or
@@ -65,8 +67,9 @@ Plain text. Each marker is **alone on its own line**, in exactly this order:
 - **Errors** (nothing is imported): a missing or out-of-order marker, a part count that does not match META, bad
   JSON or an item that does not fit its schema, a wardrobe id that is unknown or worn in the wrong slot, and any
   script problem the dashboard's story check reports
-  (unknown set, cast id, action, prop, look or body; bad directive). Each names its section and its line in the
-  pasted text.
+  (unknown set, cast id, action, prop, look or body; bad directive, including an unknown `@weather` type or
+  intensity, more than 3 `@fx lightning` or a lightning target that is not on stage). Each names its section and
+  its line in the pasted text.
 - **Warnings** (imported anyway): VOICE differs from the script's narration (with the changed words), a word count
   outside 110 to 175, more than one `!!`, a part before the last that does not end with "To be continued.".
 - **Never overwrites.** A new item whose id the library already has is imported with a suffix (`lantern-2`), and
@@ -132,6 +135,7 @@ To be continued.
 
 @set street
 @cast ava, ben
+@weather rain light
 @look ava: lit
 Ava ran into the street with the burning lantern.
 Ben followed, laughing at her.

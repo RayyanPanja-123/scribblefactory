@@ -228,7 +228,9 @@ async function renderJobs(opened, a) {
     const wipe = (fi?.wipe ? ` [wipe ${fi.wipe}]` : "") + (fi?.travel ? ` [travel ${fi.travel}]` : "")
       + (fi?.dogs ? ` [dogs ${fi.dogs}]` : "") + (fi?.cars ? ` [car ${fi.cars}]` : "")
       + (fi?.extrasDropped != null ? ` [extras dropped: ${fi.extrasDropped}]` : "")
-      + (fi?.extrasOut ? ` [extras OUT OF FRAME: ${fi.extrasOut}]` : "");
+      + (fi?.extrasOut ? ` [extras OUT OF FRAME: ${fi.extrasOut}]` : "")
+      + (fi?.weather && fi.weather !== "clear" ? ` [weather ${fi.weather}]` : "")
+      + (fi?.strike != null ? ` [lightning ${fi.strike}]` : "") + (fi?.flash ? ` [flash ${fi.flash}]` : "");
     console.log(`${j.label}: ${times.at(-1).toFixed(0)} ms -> ${j.file}${note}${gest}${wipe}`);
   }
   if (opened.getError()) throw opened.getError();

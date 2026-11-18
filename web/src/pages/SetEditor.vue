@@ -20,15 +20,21 @@ const { data, error, loading, reload } = useApi(() => api.sets())
 const slugify = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 const copy = <T,>(v: T): T => JSON.parse(JSON.stringify(v))
 
-const form = reactive({ id: '', name: '', idEdited: false, kind: 'indoor' as SetKind, floor: '', back: '', pieces: [] as SetPiece[] })
+type Weather = NonNullable<CustomSet['default_weather']>
+const WEATHER = ['clear', 'rain', 'snow', 'fog', 'wind', 'storm'] as const
+const INTENSITY = ['light', 'medium', 'heavy'] as const
+const form = reactive({ id: '', name: '', idEdited: false, kind: 'indoor' as SetKind, floor: '', back: '', pieces: [] as SetPiece[],
+  weather: 'clear' as Weather['kind'] | 'clear', intensity: 'medium' as Weather['intensity'] })
 function load(s: CustomSet) {
-  Object.assign(form, { id: s.id, name: s.name, kind: s.kind, floor: s.floor, back: s.back, pieces: copy(s.pieces ?? []) })
+  Object.assign(form, { id: s.id, name: s.name, kind: s.kind, floor: s.floor, back: s.back, pieces: copy(s.pieces ?? []),
+    weather: s.default_weather?.kind ?? 'clear', intensity: s.default_weather?.intensity ?? 'medium' })
 }
+const showWeather = ref(true) // preview the default weather over the set
 watch(data, (c) => {
   if (!c) return
   const s = c.custom.find((x) => x.id === props.id)
   if (s) { load(s); form.idEdited = true }
-  else if (isNew.value) Object.assign(form, { id: '', name: '', idEdited: false, kind: 'indoor' }, copy(STARTER.indoor))
+  else if (isNew.value) Object.assign(form, { id: '', name: '', idEdited: false, kind: 'indoor', weather: 'clear', intensity: 'medium' }, copy(STARTER.indoor))
 }, { immediate: true })
 const missing = computed(() => !isNew.value && data.value && !data.value.custom.some((x) => x.id === props.id))
 watch(() => form.name, (n) => { if (isNew.value && !form.idEdited) form.id = slugify(n) })
@@ -40,7 +46,8 @@ function setKind(k: SetKind) {
   if (untouched) Object.assign(form, copy(STARTER[k]))
 }
 
-const draft = computed<CustomSet>(() => ({ id: form.id || 'draft', name: form.name, kind: form.kind, floor: form.floor, back: form.back, pieces: form.pieces }))
+const draft = computed<CustomSet>(() => ({ id: form.id || 'draft', name: form.name, kind: form.kind, floor: form.floor, back: form.back, pieces: form.pieces,
+  default_weather: form.weather === 'clear' ? null : { kind: form.weather, intensity: form.intensity } }))
 const previewList = computed(() => [...(data.value?.custom ?? []).filter((s) => s.id !== draft.value.id), draft.value])
 const taken = computed(() => data.value?.builtin.some((b) => b.id === form.id) || (isNew.value && data.value?.custom.some((s) => s.id === form.id)))
 const badPiece = (p: SetPiece) => [...p.at, ...p.size].some((v) => typeof v !== 'number' || !Number.isFinite(v) || Math.abs(v) > 80)
@@ -112,6 +119,20 @@ const num = 'inset mt-1 block h-10 w-full rounded-md px-3 text-sm text-ink outli
           ? 'Indoor: a floor and a back wall at z −2.6. No travelling shots.'
           : 'Outdoor: a wide floor and a sky. Walking actors get travelling shots: pieces in x −14…14 wrap around as the world scrolls.' }}</p>
 
+        <div class="flex flex-wrap items-end gap-4">
+          <label class="block w-40 text-xs font-semibold text-muted">Default weather
+            <select v-model="form.weather" :class="field">
+              <option v-for="w in WEATHER" :key="w" :value="w">{{ w }}</option>
+            </select>
+          </label>
+          <label class="block w-40 text-xs font-semibold text-muted">Intensity
+            <select v-model="form.intensity" :class="field" :disabled="form.weather === 'clear'">
+              <option v-for="i in INTENSITY" :key="i" :value="i">{{ i }}</option>
+            </select>
+          </label>
+        </div>
+        <p class="text-xs text-muted">Every <code>@set</code> of this set starts with this weather, until an <code>@weather</code> line changes it.</p>
+
         <fieldset class="space-y-3">
           <legend class="font-display text-lg font-semibold">Pieces</legend>
           <p class="text-xs text-muted">World units (about metres). Actors stand on z 0 between x −2 and 2, about 1.6 tall. Anything across
@@ -159,7 +180,11 @@ const num = 'inset mt-1 block h-10 w-full rounded-md px-3 text-sm text-ink outli
       </div>
 
       <aside class="space-y-3 lg:sticky lg:top-0 lg:self-start">
-        <SetPreview :id="draft.id" :custom="previewList" :label="`Preview of ${form.name || 'the set'}`" class="aspect-[9/16] w-full" />
+        <SetPreview :id="draft.id" :custom="previewList" :weather="showWeather ? draft.default_weather : null"
+          :label="`Preview of ${form.name || 'the set'}`" class="aspect-[9/16] w-full" />
+        <label v-if="draft.default_weather" class="flex h-11 items-center justify-center gap-2 text-sm">
+          <input v-model="showWeather" type="checkbox" class="size-4" /> Preview weather ({{ form.weather }}, {{ form.intensity }})
+        </label>
         <p class="text-center text-xs text-muted">Built by the render engine through its wide camera. The grey figures show where actors stand.</p>
       </aside>
     </form>

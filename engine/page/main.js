@@ -14,6 +14,7 @@ import { HEAD_GROW, MOOD_EXPRESSION, extraLook, fitCrowd, moodAt, placeExtras } 
 const growRect = (r, k) => { const mx = (r[2] - r[0]) * k, my = (r[3] - r[1]) * k; return [r[0] - mx, r[1] - my, r[2] + mx, r[3] + my]; };
 import { rng, setVariant } from "./rng.js";
 import { SETS, VARIANTS, buildSet, loopExcess, scrollSet, setKind } from "./world.js";
+import { fadePlan, fogAlpha, fogCanvas, layersAt, paint, strikeAt } from "./weather.js";
 
 const FPS = 30, W = 1080, H = 1920;
 const CARD_H = 1.6, CARD_W = CARD_H * (CW / CH);
@@ -57,6 +58,17 @@ const CAR_GEO = new THREE.PlaneGeometry(CAR_CARD_W, CAR_CARD_H).translate(0, CAR
 const DOG_GEO = new THREE.PlaneGeometry(DOG_CARD_W, DOG_CARD_H).translate(0, DOG_CARD_H / 2 - DOG_CARD_H * (1 - DOG_FEET / DH), 0);
 
 let data = null, scene = null;
+// weather (weather.js): fog bands are planes behind the cast; rain, snow, wind, tint, flashes and lightning are a 2D
+// overlay drawn over the rendered frame by a second, flat pass
+const wcv = Object.assign(document.createElement("canvas"), { width: W, height: H }), wg = wcv.getContext("2d");
+const wtex = new THREE.CanvasTexture(wcv);
+wtex.colorSpace = THREE.SRGBColorSpace;
+const overlay = new THREE.Scene().add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2),
+  new THREE.MeshBasicMaterial({ map: wtex, transparent: true, depthTest: false, depthWrite: false })));
+const flatCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+const FOG = { z: -1.05, y: 1.5, w: 40, h: 3.2, tile: 8 }; // behind the front row and back row (z -0.9), before the crowd
+let fogTex = null, fadeByShot = new Map();
+const fogMeshes = [];
 const sets = {}, cards = {}, hiddenByShot = new Map(), variantByShot = new Map(), extrasByShot = new Map();
 let ownedProps = new Map(); // shot id -> { cast id: props held at the shot's start } (give hands props on)
 const comp = Object.assign(document.createElement("canvas"), { width: W, height: H }); // wipe composite
@@ -205,6 +217,8 @@ const png = () => renderer.domElement.toDataURL("image/png");
 
 window.setup = (d) => {
   data = d; hiddenByShot.clear(); variantByShot.clear(); extrasByShot.clear();
+  fadeByShot = fadePlan(d.story.shots || []);
+  fogTex?.dispose(); fogTex = null;
   setLibrary(d); // library/{props,sets,creatures,actions}.json: every custom item, one registry (library.js)
   ownedProps = propsByShot(d.story.shots || [], Object.fromEntries((d.series.cast || []).map((c) => [c.id, castOf(c.id).props])),
     (id, look) => castOf(id, look).props);
@@ -402,11 +416,58 @@ function drawShot(shot, n) {
   drawAnimals(shot, animals, n, kf, u);
   const extras = drawExtras(shot, n, kf, u, extraShift);
   const cars = drawVehicles(shot, vehicles, riders, n, u);
+  const layers = layersAt(shot, fadeByShot.get(shot.id), n);
+  drawFog(layers, t, shift);
   renderer.render(scene, camera);
+  const weather = drawWeather(shot, layers, n, t, place);
   const travel = shot.travel ? { travel: `${shot.travel.speed} u/s ${dir < 0 ? "left" : "right"}, shift ${shift.toFixed(2)}`
     + `, loop excess ${(({ excess, row }) => `${excess.toFixed(3)} (row z ${row})`)(loopExcess(group, shift))}` } : {};
-  return { angle: shot.camera.angle, hidden: hidden.size, gestures, dogs: animals.length, ...extras, ...cars, ...travel,
+  return { angle: shot.camera.angle, hidden: hidden.size, gestures, dogs: animals.length, ...extras, ...cars, ...travel, ...weather,
     ...measure(shot.actors.filter((a) => !seated.has(a.cast_id)).map(place)) };
+}
+
+/** fog layers: a hatched band plane per layer, behind the cast, drifting slowly (and with a travel shot's scroll) */
+function drawFog(layers, t, shift) {
+  layers.filter((l) => fogAlpha(l.weather)).forEach((l, i) => {
+    if (!fogTex) {
+      fogTex = new THREE.CanvasTexture(fogCanvas(data.story.seed));
+      fogTex.colorSpace = THREE.SRGBColorSpace;
+      fogTex.wrapS = THREE.RepeatWrapping;
+      fogTex.repeat.set(FOG.w / FOG.tile / 2, 1); // one canvas tile is two FOG.tile wide
+    }
+    fogMeshes[i] ??= new THREE.Mesh(new THREE.PlaneGeometry(FOG.w, FOG.h),
+      new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false }));
+    const m = fogMeshes[i];
+    m.material.map = fogTex; m.material.opacity = fogAlpha(l.weather, l.amount); m.material.needsUpdate = true;
+    fogTex.offset.x = t * 0.012 - shift / (2 * FOG.tile);
+    m.position.set(camera.position.x, FOG.y, FOG.z);
+    m.renderOrder = 0.5; // over the set, under the cards
+    scene.add(m);
+  });
+}
+
+/** the 2D weather overlay over the frame just rendered; a strike lands beside its target (else behind the stage) */
+function drawWeather(shot, layers, n, t, place) {
+  const strikes = data.story.lightning || [];
+  const live = strikeAt(strikes, n)?.strike;
+  if (!layers.length && !live) return { weather: "clear" };
+  let target = null;
+  if (live) {
+    const a = live.target && shot.actors.find((x) => x.cast_id === live.target);
+    const [x, z] = a ? place(a) : [(rng(data.story.seed, "strike", live.frame)() - 0.5) * 3.2, -2.4];
+    const side = a && a.facing === "left" ? -0.35 : 0.35; // beside the target, not on its head
+    camera.updateMatrixWorld();
+    const v = new THREE.Vector3(x + side, 0, z - 0.25).project(camera);
+    target = [Math.min(W - 80, Math.max(80, ((v.x + 1) / 2) * W)), Math.min(H, ((1 - v.y) / 2) * H)]; // kept in frame
+  }
+  const info = paint(wg, { layers, seed: data.story.seed, t, n, w: W, h: H, strikes, target });
+  wtex.needsUpdate = true;
+  renderer.autoClear = false;
+  renderer.render(overlay, flatCam);
+  renderer.autoClear = true;
+  const w = layers[0]?.weather;
+  return { weather: w ? `${w.kind} ${w.intensity}${layers.length > 1 ? " (fading)" : ""}` : "clear",
+    ...(info.flash ? { flash: +info.flash.toFixed(2) } : {}), ...(info.strike !== null ? { strike: info.strike } : {}) };
 }
 
 /** 0..1 how far actor a lies at frame kf of shot (lie 1, collapse its fall, else 0): framing follows it down */

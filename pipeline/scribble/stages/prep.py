@@ -5,6 +5,9 @@ story.md directives (one per line) are stripped from the script:
   @cast bob, karen   cast on stage for the following lines
   @dogs 4            dog pack size (0-6) for the following lines
   @fx drop           caption effect for the next line's chunks: drop | shake | pop | none
+  @fx lightning [id] one lightning strike at the next line (near cast id, or whoever holds prop id)
+  @weather rain heavy  weather until the next @weather or @set: clear | rain | snow | fog | wind | storm
+                     [light | medium | heavy, default medium]; @set starts the set's default_weather (else clear)
   @do fred: collapse actions for the next line's shots, overriding keyword guessing (see parse_do)
   @look mike: headless  a cast member's named look from the next line on (default: its own; see parse_look)
   @crowd cheer 10    crowd extras behind the stage: cheer | angry | gasp | neutral [N, default 8, max 12] | off
@@ -17,7 +20,7 @@ from pathlib import Path
 from typing import NamedTuple, get_args
 
 from ..io import LIBRARY_FILES, atomic_write_text, custom_actions, prop_kinds
-from ..schemas import BuiltinProp, actions_with
+from ..schemas import BuiltinProp, Intensity, Weather, WeatherKind, actions_with
 from .runner import StageError
 
 INPUTS = ["story.md", *(f"../../{f}" for f in LIBRARY_FILES)]
@@ -25,6 +28,10 @@ OUTPUTS = ["script-for-tts.txt"]
 WPM = 150
 MAX_SECONDS = 90  # parts may run ~70 s
 FX_MODES = ("drop", "shake", "pop", "none")  # @fx: read by finish (captions); the shot planner ignores it
+FX_LIGHTNING = "lightning"                  # @fx lightning [target]: read by the shot planner (engine), not finish
+MAX_LIGHTNING = 3                           # strikes per part
+WEATHER_KINDS = ("clear", *get_args(WeatherKind))
+INTENSITIES = get_args(Intensity)
 
 QUOTES = str.maketrans({"‘": "'", "’": "'", "‚": "'", "‛": "'",
                         "“": '"', "”": '"', "„": '"', "‟": '"'})
@@ -131,6 +138,28 @@ def parse_look(arg: str, line: int, looks_of=None) -> tuple[tuple[str, ...], str
             bad(f"{w} has no look {name!r} (its looks: {', '.join(['default', *looks_of[w]])}; add one under "
                 f'"looks" in its series.json cast entry)')
     return who, name
+
+
+def parse_weather(arg: str, line: int) -> Weather | None:
+    """@weather <type> [intensity] -> Weather, or None for clear. Errors name the story.md line."""
+    kind, *rest = arg.split() or [""]
+    if kind not in WEATHER_KINDS or len(rest) > 1 or any(r not in INTENSITIES for r in rest) or kind == "clear" and rest:
+        raise StageError(f"story.md line {line}: bad directive @weather {arg.strip()} (use @weather "
+                         f"{' | '.join(WEATHER_KINDS)} [{' | '.join(INTENSITIES)}, default medium]; clear takes none)")
+    return None if kind == "clear" else Weather(kind=kind, intensity=rest[0] if rest else "medium")
+
+
+def parse_lightning(arg: str, line: int, cast_ids=None, props=BUILTIN_PROPS) -> str | None:
+    """@fx lightning [cast id | prop id] (arg: the text after "@fx") -> the target or None. With cast_ids, the target
+    must be a series cast id or a prop kind."""
+    words = arg.split()
+    if words[:1] != [FX_LIGHTNING] or len(words) > 2:
+        raise StageError(f'story.md line {line}: @fx lightning takes one optional target, e.g. "@fx lightning zeus"')
+    target = words[1] if len(words) == 2 else None
+    if target and cast_ids is not None and target not in cast_ids and target not in props:
+        raise StageError(f"story.md line {line}: @fx lightning: {target!r} is neither a cast id "
+                         f"({', '.join(cast_ids)}) nor a prop ({', '.join(props)})")
+    return target
 
 
 def _is_directive(line: str) -> bool:

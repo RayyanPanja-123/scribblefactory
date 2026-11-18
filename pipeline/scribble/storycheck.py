@@ -16,12 +16,13 @@ from pathlib import Path
 
 from .io import cast_body_problems, custom_actions, load_series, prop_kinds, set_kinds, unknown_cast_props
 from .stages.finish import MAX_RUNTIME_S
-from .stages.prep import DO_CAR, FX_MODES, TWIST_PREFIX, clean_markdown, parse_do, parse_look, strip_directives
+from .stages.prep import (DO_CAR, FX_LIGHTNING, FX_MODES, MAX_LIGHTNING, TWIST_PREFIX, clean_markdown, parse_do,
+                          parse_lightning, parse_look, parse_weather, strip_directives)
 from .stages.runner import StageError
 from .stages.shots import CAR_MODES, CAR_SEATS, DEFAULT_CAST_SIZE, MAX_CAST, MAX_DOGS, MAX_ON_STAGE, MAX_RUNNERS, parse_crowd
 from .validate import END_CARD_S
 
-DIRECTIVES = ("set", "cast", "dogs", "car", "fx", "do", "look", "crowd", "runners")
+DIRECTIVES = ("set", "cast", "dogs", "car", "fx", "do", "look", "crowd", "runners", "weather")
 LINE_PREFIX = re.compile(r"^story\.md line [0-9]+: ")
 FALLBACK_WPS = 2.6  # words per second before any part has been finished
 # a first line that opens on a date or backstory instead of the hook
@@ -100,7 +101,7 @@ def check_story(part_dir: Path) -> dict:
     for u in cast_body_problems(series.cast, library):
         bad(None, f"cast body: {u}")
 
-    cast, car, pending_do = tuple(ids[:DEFAULT_CAST_SIZE]), "off", None
+    cast, car, pending_do, pending_strike, strikes = tuple(ids[:DEFAULT_CAST_SIZE]), "off", None, None, 0
     first_seen: dict[str, int] = {}  # cast id -> first line it is on stage
     for no, line in enumerate(md.replace("\r\n", "\n").split("\n"), 1):
         s = line.strip()
@@ -129,8 +130,19 @@ def check_story(part_dir: Path) -> dict:
                     bad(no, f"@dogs takes 0-{MAX_DOGS}, got {arg!r}")
                 elif name == "runners" and not (arg.isdigit() and int(arg) <= MAX_RUNNERS):
                     bad(no, f"@runners takes 0-{MAX_RUNNERS}, got {arg!r}")
+                elif name == "fx" and arg.split()[:1] == [FX_LIGHTNING]:
+                    target = parse_lightning(arg, no, ids, props)
+                    strikes += 1
+                    if strikes == MAX_LIGHTNING + 1:
+                        bad(no, f"@fx lightning: at most {MAX_LIGHTNING} per part (keep it for the big beats)")
+                    if pending_strike:
+                        bad(pending_strike[0], f"@fx lightning is replaced by the one on line {no} before any text "
+                                               "line uses it")
+                    pending_strike = (no, target)
                 elif name == "fx" and arg not in FX_MODES:
-                    bad(no, f"@fx takes {' | '.join(FX_MODES)}, got {arg!r}")
+                    bad(no, f"@fx takes {' | '.join(FX_MODES)} | lightning [target], got {arg!r}")
+                elif name == "weather":
+                    parse_weather(arg, no)
                 elif name == "car":
                     if arg in CAR_MODES:
                         car = arg
@@ -157,8 +169,15 @@ def check_story(part_dir: Path) -> dict:
         if pending_do:
             _check_do(*pending_do, cast, car, bad)
             pending_do = None
+        if pending_strike:
+            if pending_strike[1] in ids and pending_strike[1] not in cast:
+                bad(pending_strike[0], f"@fx lightning: {pending_strike[1]} is not on stage on the next line "
+                                       f"(@cast {', '.join(cast)})")
+            pending_strike = None
     if pending_do:
         bad(pending_do[0], "@do has no text line after it to apply to")
+    if pending_strike:
+        bad(pending_strike[0], "@fx lightning has no text line after it to strike on")
 
     approved = {c.id for c in series.cast if c.approved_at}
     for cid, no in first_seen.items():
