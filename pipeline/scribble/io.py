@@ -195,9 +195,14 @@ def load_actions(library) -> ActionLibrary:
     return ActionLibrary.model_validate_json(f.read_bytes()) if f.exists() else ActionLibrary()
 
 
-def custom_actions(library) -> list[str]:
-    """the ids of library/actions.json: what @do may ask for besides the built-in actions"""
-    return [a.id for a in load_actions(library).actions]
+def custom_actions(library) -> dict[str, CustomAction]:
+    """library/actions.json by id: what @do may ask for besides the built-in actions"""
+    return {a.id: a for a in load_actions(library).actions}
+
+
+def custom_moves(library) -> dict[str, float]:
+    """custom action id -> its move (units/s, - backward) for the ones that cross the stage (validate's moves)"""
+    return {k: a.move for k, a in custom_actions(library).items() if a.move}
 
 
 def action_users(library, action_id: str) -> list[str]:

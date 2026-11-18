@@ -295,6 +295,30 @@ describe('creature prompt', () => {
   })
 })
 
+describe('action prompt', () => {
+  it('teaches the keyframe format, avoids taken ids and passes the brief', async () => {
+    const { buildActionPrompt } = await import('./actionPrompt')
+    const p = buildActionPrompt('Bow', ['wave', 'salute'], 'deep, slow')
+    expect(p).toContain('"id": "bow"')
+    expect(p).toContain('must NOT be one of: wave, salute')
+    expect(p).toContain('deep, slow')
+    expect(p).toContain('"id":"salute"') // an example in the exact format
+  })
+  it('imports a fenced reply (keys sorted, gaps filled), an {"actions": [...]} file, and refuses bad keys', async () => {
+    const { importAction } = await import('./actionPrompt')
+    const { action } = importAction('Sure!\n```json\n{"id": "Deep Bow", "name": "Bow", "duration": 2, "loop": false, "keys": [{"t": 0.6, "lean": 25}, {"t": 0}]}\n```')
+    expect(action).toMatchObject({ id: 'deep-bow', duration: 2, loop: false })
+    expect(action?.keys.map((k) => k.t)).toEqual([0, 0.6])
+    expect(action?.keys[0]).toEqual({ t: 0, arms: null, legs: null, lean: 0 })
+    expect(importAction('{"actions": [{"name": "Clap", "keys": [{"t": 0}]}]}').action).toMatchObject({ id: 'clap', loop: true, duration: 1.5 })
+    expect(importAction('{"keys": [{"t": 0, "legs": [-90, 6]}]}').error).toMatch(/Key #1: "legs"/)
+    expect(importAction('{"keys": [{"t": 0, "arms": [[200, -190], [360, 90]]}]}').action?.keys[0].arms).toEqual([[-160, 170], [0, 90]]) // rotations wrap
+    expect(importAction('{"keys": [{"t": 0, "arms": [[1, 2, 3], [0, 0]]}]}').error).toMatch(/"arms"/)
+    expect(importAction('{"keys": [{"t": 2}]}').error).toMatch(/"t"/)
+    expect(importAction('{"name": "X"}').error).toMatch(/keys/)
+  })
+})
+
 describe('needsYou', async () => {
   const { needsYou } = await import('./partSteps')
   it('circles review cells and the creator-owned current step only', () => {

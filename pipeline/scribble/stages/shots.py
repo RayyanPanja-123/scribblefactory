@@ -12,12 +12,13 @@ import re
 import zlib
 from pathlib import Path
 
-from ..io import (LIBRARY_FILES, atomic_write_json, cast_body_problems, creature_bodies, custom_actions, outdoor_sets,
+from ..io import (LIBRARY_FILES, atomic_write_json, cast_body_problems, creature_bodies, custom_actions, custom_moves,
+                  outdoor_sets,
                   prop_kinds, set_kinds,
                   unknown_cast_props)
 from ..schemas import BUILTIN_CREATURES, BUILTIN_SETS, HAND_RIGS, actions_with, Actor, Animal, Camera, Cue, EndCard, Extra, PhrasesModel, SeriesModel, Shot, StoryModel, Travel, Vehicle
 from ..validate import (CAR_SPEED, CROWD_Z, DOG_RUN_SPEED, MAX_SHOT_FRAMES, MOODS, OUTDOOR_SETS, SPEEDS,
-                        END_CARD_S, end_frame, validate)
+                        END_CARD_S, custom_speeds, end_frame, validate)
 from .prep import BUILTIN_PROPS, DO_CAR, FX_MODES, MARKER_RE, clean_markdown, mark_directives, parse_do, parse_look
 from .runner import StageError
 from .validate import load_model
@@ -310,20 +311,22 @@ def place(want: float, others) -> float:
     raise StageError(f"no room on stage for {len(others) + 1} actors {MIN_GAP} units apart")
 
 
-def fit_move(x: float, d: int, action: str, seconds: float, others=()) -> tuple[str, int, float] | None:
+def fit_move(x: float, d: int, action: str, seconds: float, others=(), speeds=None) -> tuple[str, int, float] | None:
     """(action, direction, distance) for a walk/run from x that ends inside the stage bounds and at least MIN_GAP
     from every other actor's x, or None (go idle).
 
     Full distance in direction d; else flipped; else the free distance nearest the full one (roomier side first,
     0.01 steps; may pass another actor), never slower than the validator's minimum speed (plus a mm of rounding
     margin) and never past the stage edge. A run that can't fit is tried as a walk.
+    speeds: (full, min, max) units/s for a moving custom action (else the built-in walk / run / stagger ones).
     """
-    dist = MOVE_SPEED[action] * seconds
+    full, lo_speed, hi = speeds or (MOVE_SPEED[action], MIN_SPEED[action], SPEEDS[action][1])
+    dist = full * seconds
     for dd in (d, -d):
         if _free(round(x + dd * dist, 3), others):
             return action, dd, dist
-    lo = MIN_SPEED[action] * seconds + 0.001
-    hi_speed = SPEEDS[action][1] * seconds
+    lo = lo_speed * seconds + 0.001
+    hi_speed = hi * seconds
     room = {dd: math.floor(((BOUNDS[1] - x) if dd > 0 else (x - BOUNDS[0])) * 1000) / 1000 for dd in (1, -1)}
     cands = []
     for dd in (1, -1):
@@ -388,11 +391,12 @@ def _group_move(xs: list[float], role: str, seconds: float) -> float:
     return 0.0
 
 
-def _apply_do(clauses, line, cast, pos, actors, vehicles, seconds, fallen, handless=None) -> list[Actor]:
+def _apply_do(clauses, line, cast, pos, actors, vehicles, seconds, fallen, handless=None, actions=None) -> list[Actor]:
     """@do for one shot: the named actors get the given action (others keep the planner's choice); "car: broken"
     stops the car on stage. pos is updated to where everyone ends. fallen: (line, cast id) already collapsed or
     gave on this line: a collapse or a give happens once, in the line's first shot; later shots lie / carry on.
-    handless: cast id -> "a <rig>" for creatures without hands (no give, receive, carry or support)."""
+    handless: cast id -> "a <rig>" for creatures without hands (no give, receive, carry or support).
+    actions: the library's custom actions by id (side ones turn to face a side, moving ones cross like a walk)."""
     handless = handless or {}
     def bad(msg):
         raise StageError(f"story.md line {line}: @do: {msg}")
@@ -448,24 +452,30 @@ def _apply_do(clauses, line, cast, pos, actors, vehicles, seconds, fallen, handl
                              start_pos=(mid, 0.0), facing=facing, expression=by[held].expression)
             pos[held] = round(mid + dx, 3)
         else:
+            custom = (actions or {}).get(c.action)  # a library action (CustomAction), else None
             for cid in c.who:
                 x, old = pos[cid], by[cid]
-                if c.action in MOVE_SPEED:
+                if c.action in MOVE_SPEED or (custom and custom.move):
                     d = 1 if x <= 0 else -1
-                    move = fit_move(x, d, c.action, seconds, [pos[o] for o in cast if o != cid])
+                    speeds = (abs(custom.move), *custom_speeds(custom.move)) if custom else None
+                    move = fit_move(x, d, c.action, seconds, [pos[o] for o in cast if o != cid], speeds)
                     if move:
                         act, dd, dist = move
                         pos[cid] = round(x + dd * dist, 3)
+                        back = custom is not None and custom.move < 0  # a moonwalk faces away from where it goes
                         by[cid] = Actor(cast_id=cid, action=act, start_pos=(x, 0.0), end_pos=(pos[cid], 0.0),
-                                        facing=face(dd), expression=old.expression)
+                                        facing=face(-dd if back else dd), expression=old.expression)
                         continue
-                    action = "idle"
+                    action = c.action if custom else "idle"  # no room to move: a custom move plays in place
                 else:
                     action = c.action
+                facing = old.facing
+                if custom and custom.facing == "side" and facing == "camera":
+                    facing = face(1 if x <= 0 else -1)  # turned side on, toward the middle of the stage
                 if action == "collapse":
                     action = "lie" if (line, cid) in fallen else action
                     fallen.add((line, cid))
-                by[cid] = Actor(cast_id=cid, action=action, start_pos=(x, 0.0), facing=old.facing,
+                by[cid] = Actor(cast_id=cid, action=action, start_pos=(x, 0.0), facing=facing,
                                 expression=old.expression, prop=c.prop if action == "eat" else None)
     return [by[a.cast_id] for a in actors]
 
@@ -690,7 +700,7 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
                     elif v.action == "leave":
                         car_left, park = True, None
                 if do:
-                    actors = _apply_do(do[1], do[0], cast, pos, actors, vehicles, seconds, fallen, handless)
+                    actors = _apply_do(do[1], do[0], cast, pos, actors, vehicles, seconds, fallen, handless, actions)
                     if any(ac.action == "give" for ac in actors):  # a hand-over needs both people in frame: wide
                         angle = "wide" if prev_angle != "wide" else "medium"  # fits everyone; medium: the pair (engine)
                     for v in vehicles:
@@ -739,7 +749,7 @@ def run(part_dir: Path) -> None:
     if unknown := sorted({s.set for s in story.shots} - set(set_kinds(library))):  # the engine would throw mid-render
         raise StageError(f"unknown set: {', '.join(unknown)} (built in: {', '.join(BUILTIN_SETS)}, or add it on the "
                          f"dashboard's Sets page)")
-    errors = validate(story, phrases, {c.id for c in series.cast}, outdoor_sets(library))
+    errors = validate(story, phrases, {c.id for c in series.cast}, outdoor_sets(library), custom_moves(library))
     for e in errors:
         print(f"  {e.shot_id or '-'}  {e.rule}: {e.message}")
     if errors:

@@ -2,7 +2,7 @@
   "$defs": {
     "ActionKey": {
       "additionalProperties": false,
-      "description": "one pose of a custom action. Angles in degrees on the stickman's front view: from straight down, + toward +x\n(screen right; the left arm hangs out at about -16, the right at +16)",
+      "description": "one pose of a custom action. Angles in degrees from straight down, + toward +x: on the front view screen right\n(the left arm hangs out at about -16, the right at +16); on a side action FORWARD, the way the figure faces\n(arms[0] is then the back arm, arms[1] the front arm, and + lean bends forward)",
       "properties": {
         "arms": {
           "anyOf": [
@@ -103,6 +103,16 @@
           "title": "Duration",
           "type": "number"
         },
+        "facing": {
+          "default": "camera",
+          "description": "camera: front view; side: the figure turns to face left or right",
+          "enum": [
+            "camera",
+            "side"
+          ],
+          "title": "Facing",
+          "type": "string"
+        },
         "id": {
           "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
           "title": "Id",
@@ -123,6 +133,14 @@
           "description": "repeat for the whole shot; false: play once and hold the last key",
           "title": "Loop",
           "type": "boolean"
+        },
+        "move": {
+          "default": 0,
+          "description": "side only: units/s across the stage while it plays; + forward, - backward (a moonwalk), 0 in place",
+          "maximum": 2.5,
+          "minimum": -2.5,
+          "title": "Move",
+          "type": "number"
         },
         "name": {
           "maxLength": 40,

@@ -577,8 +577,9 @@ export interface components {
         };
         /**
          * ActionKey
-         * @description one pose of a custom action. Angles in degrees on the stickman's front view: from straight down, + toward +x
-         *     (screen right; the left arm hangs out at about -16, the right at +16)
+         * @description one pose of a custom action. Angles in degrees from straight down, + toward +x: on the front view screen right
+         *     (the left arm hangs out at about -16, the right at +16); on a side action FORWARD, the way the figure faces
+         *     (arms[0] is then the back arm, arms[1] the front arm, and + lean bends forward)
          */
         ActionKey: {
             /**
@@ -861,6 +862,13 @@ export interface components {
              * @description seconds for one pass through the keys
              */
             duration: number;
+            /**
+             * Facing
+             * @description camera: front view; side: the figure turns to face left or right
+             * @default camera
+             * @enum {string}
+             */
+            facing: "camera" | "side";
             /** Id */
             id: string;
             /**
@@ -874,6 +882,12 @@ export interface components {
              * @default true
              */
             loop: boolean;
+            /**
+             * Move
+             * @description side only: units/s across the stage while it plays; + forward, - backward (a moonwalk), 0 in place
+             * @default 0
+             */
+            move: number;
             /** Name */
             name: string;
         };

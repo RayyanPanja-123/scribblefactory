@@ -52,7 +52,16 @@ def end_frame(phrases: PhrasesModel, end_card: bool, fps: int) -> int:
     return duration_frames(phrases.words[-1].end + (END_CARD_S if end_card else FINAL_TAIL_S), fps)
 
 
-def validate(story: StoryModel, phrases: PhrasesModel, cast_ids: set[str], outdoor=OUTDOOR_SETS) -> list[Error]:
+def custom_speeds(move: float) -> tuple[float, float]:
+    """the speed range (units/s) a custom action that moves at `move` may be planned at (shortened moves go slower)"""
+    return round(abs(move) * 0.5, 3), round(abs(move) * 1.5, 3)
+
+
+def validate(story: StoryModel, phrases: PhrasesModel, cast_ids: set[str], outdoor=OUTDOOR_SETS,
+             moves=None) -> list[Error]:
+    """moves: custom action id -> its move (units/s, - backward; io.custom_moves). Custom actions not in it stay
+    in place."""
+    moves = moves or {}
     errs: list[Error] = []
     err = lambda sid, rule, msg: errs.append(Error(sid, rule, msg))
     fps = story.fps
@@ -91,7 +100,7 @@ def validate(story: StoryModel, phrases: PhrasesModel, cast_ids: set[str], outdo
         if s.travel:
             _check_travel(s, n / fps, err, outdoor)
         for a in s.actors:
-            _check_actor(s.id, a, n / fps, cast_ids, err, s.travel)
+            _check_actor(s.id, a, n / fps, cast_ids, err, s.travel, moves.get(a.action, 0))
         _check_partners(s, err)
         ids = [d.id for d in s.animals]
         if len(set(ids)) != len(ids):
@@ -164,9 +173,15 @@ def _check_travel(s, seconds, err, outdoor=OUTDOOR_SETS) -> None:
         err(s.id, "travel_facing", f"travel actors face {sorted(facings)}: all must face one way, left or right")
 
 
-def _check_actor(sid, a, seconds, cast_ids, err, travel=None) -> None:
+def _check_actor(sid, a, seconds, cast_ids, err, travel=None, move=0) -> None:
+    """move: a custom action's speed (units/s; - backward: it faces away from where it goes), 0 for the rest"""
     if a.cast_id not in cast_ids:
         err(sid, "cast_id", f"{a.cast_id!r} is not in series.json cast")
+    if move:  # a moving custom action (a moonwalk...): moves like a walk at its own speed, maybe backward
+        if travel:
+            err(sid, "travel_actors", f"{a.cast_id} {a.action}: a moving custom action can't play in a travel shot")
+        _check_move(sid, a.cast_id, a, a.end_pos is not None, custom_speeds(move), seconds, err, None, move < 0)
+        return
     # a carry / support group may also stand still (no end_pos); walk, run and stagger always move
     moving = a.action in MOVING and (a.action not in HOLDING or a.end_pos is not None or travel is not None)
     _check_move(sid, a.cast_id, a, moving, SPEEDS.get(a.action, WALK_SPEED), seconds, err, travel)
@@ -219,7 +234,7 @@ def _check_animal(s, d, seconds, err) -> None:
     _check_move(s.id, d.id, d, d.action == "run", DOG_RUN_SPEED, seconds, err, s.travel)
 
 
-def _check_move(sid, who, a, moving, lo_hi, seconds, err, travel) -> None:
+def _check_move(sid, who, a, moving, lo_hi, seconds, err, travel, backward=False) -> None:
     if not moving:
         if a.end_pos is not None:
             err(sid, "end_pos", f"{who} {a.action}: end_pos must be null")
@@ -229,9 +244,10 @@ def _check_move(sid, who, a, moving, lo_hi, seconds, err, travel) -> None:
         err(sid, "end_pos", f"{who} {a.action}: end_pos must differ from start_pos")
         return
     dx = end[0] - a.start_pos[0]
-    want = "left" if dx < 0 else "right" if dx > 0 else None  # pure z movement: any facing
+    want = None if not dx else "left" if (dx < 0) != backward else "right"  # pure z movement: any facing
     if want and a.facing != want:
-        err(sid, "facing", f"{who} {a.action}s {want} but faces {a.facing}")
+        err(sid, "facing", f"{who} {a.action} moves {'backward' if backward else 'forward'}, so it faces {want}, "
+                           f"not {a.facing}")
     if seconds > 0:
         lo, hi = lo_hi
         # travel: legs cover the scroll plus the actor's own x move (effective stride speed)

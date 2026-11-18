@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { ArrowLeft, Plus, Trash2 } from 'lucide-vue-next'
+import { ArrowLeft, ClipboardPaste, Copy, Plus, Sparkles, Trash2 } from 'lucide-vue-next'
 import { computed, reactive, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { api, type CustomAction } from '../api/client'
 import ActionPreview from '../components/ActionPreview.vue'
 import ErrorCard from '../components/ErrorCard.vue'
-import { act, confirm } from '../composables/feedback'
+import { useAutoAi } from '../composables/autoAi'
+import { act, confirm, toast } from '../composables/feedback'
 import { useApi } from '../composables/useApi'
+import { buildActionPrompt, importAction } from '../lib/actionPrompt'
 
 // Create (/actions/new) or edit one custom action: keyframes of arm, leg and lean angles the stickman blends between,
 // previewed live by the engine's own code. Angles in degrees on the front view, from straight down, + toward screen
@@ -24,12 +26,12 @@ const STARTER: Key[] = [ // a wave hello: rest, the right arm up, back down
   { t: 0.4, arms: [[-16, 0], [140, 40]], legs: null, lean: 2 },
   { t: 1, arms: null, legs: null, lean: 0 },
 ]
-const form = reactive({ id: '', name: '', idEdited: false, duration: 1.5, loop: true, keys: structuredClone(STARTER) })
+const form = reactive({ id: '', name: '', idEdited: false, duration: 1.5, loop: true, facing: 'camera' as 'camera' | 'side', move: 0, keys: structuredClone(STARTER) })
 
 watch(data, (cat) => {
   if (!cat || isNew.value) return
   const a = cat.custom.find((x) => x.id === props.id)
-  if (a) Object.assign(form, { id: a.id, name: a.name, idEdited: true, duration: a.duration, loop: a.loop ?? true,
+  if (a) Object.assign(form, { id: a.id, name: a.name, idEdited: true, duration: a.duration, loop: a.loop ?? true, facing: a.facing ?? 'camera', move: a.move ?? 0,
     keys: a.keys.map((k) => ({ t: k.t, arms: k.arms ?? null, legs: k.legs ?? null, lean: k.lean ?? 0 })) })
 }, { immediate: true })
 const missing = computed(() => !isNew.value && data.value && !data.value.custom.some((x) => x.id === props.id))
@@ -37,7 +39,7 @@ watch(() => form.name, (n) => { if (isNew.value && !form.idEdited) form.id = slu
 
 const sorted = computed(() => [...form.keys].sort((a, b) => a.t - b.t))
 const draft = computed<CustomAction>(() => ({ id: form.id || 'draft', name: form.name || 'Draft', duration: form.duration,
-  loop: form.loop, keys: sorted.value }))
+  loop: form.loop, facing: form.facing, move: form.move, keys: sorted.value }))
 const taken = computed(() => !!data.value && (data.value.builtin.includes(form.id) || (isNew.value && data.value.custom.some((a) => a.id === form.id))))
 const valid = computed(() => form.name.trim() && /^[a-z0-9]+(-[a-z0-9]+)*$/.test(form.id) && !taken.value && form.keys.length)
 
@@ -64,6 +66,57 @@ async function remove() {
   const ok = await confirm({ title: `Delete “${form.name}”?`, body: 'Only possible while no story uses it in @do.', confirm: 'Delete action', danger: true })
   if (ok && (await act(() => api.deleteAction(props.id), 'Action deleted'))) router.push('/actions')
 }
+// ---- build with AI: a prompt to paste into any AI chat, then its JSON reply loads into the editor ----
+const aiOpen = ref(useRoute().hash === '#ai')
+const aiWhat = ref('')
+const aiDetails = ref('')
+// the id the AI must use: this one's own, or one typed in the id field (e.g. the id a story already uses)
+const aiId = computed(() => (!isNew.value || form.idEdited ? form.id : '') || slugify(aiWhat.value))
+const aiPrompt = ref('')
+const aiReply = ref('')
+const aiError = ref('')
+const promptBox = ref<HTMLTextAreaElement>()
+function makePrompt() {
+  const c = data.value
+  aiPrompt.value = buildActionPrompt(aiWhat.value, [...(c?.builtin ?? []), ...(c?.custom ?? []).map((a) => a.id)].filter((x) => x !== props.id),
+    aiDetails.value, aiId.value)
+}
+async function copyPrompt() {
+  try {
+    await navigator.clipboard.writeText(aiPrompt.value)
+    toast('Prompt copied: paste it into your AI', 'ok')
+  } catch {
+    promptBox.value?.select() // no clipboard access (plain http): select it for Ctrl+C
+    toast('Could not copy: the prompt is selected, press Ctrl+C', 'error')
+  }
+}
+async function pasteReply() {
+  try {
+    aiReply.value = await navigator.clipboard.readText()
+  } catch {
+    document.getElementById('ai-reply')?.focus() // no clipboard read access: paste with Ctrl+V
+    toast('Could not read the clipboard: press Ctrl+V in the box', 'error')
+  }
+}
+function loadReply() {
+  const { action, error: err } = importAction(aiReply.value)
+  aiError.value = err ?? ''
+  if (!action) return
+  Object.assign(form, { name: action.name, duration: action.duration, loop: action.loop ?? true, facing: action.facing ?? 'camera', move: action.move ?? 0, keys: action.keys as Key[] })
+  if (isNew.value) Object.assign(form, { id: action.id, idEdited: true })
+  aiReply.value = ''
+  scrub.value = undefined
+  toast(`Loaded ${action.keys.length} keys: watch the preview, then ${isNew.value ? 'create' : 'save'} the action`, 'ok')
+}
+// with an API key in Settings: prompt -> AI -> reply -> editor in one click; the reply stays in step 3 if it doesn't load
+const { auto, busy, generate, label } = useAutoAi()
+async function generateReply() {
+  makePrompt()
+  const text = await generate(aiPrompt.value)
+  if (text === undefined) return
+  aiReply.value = text
+  loadReply()
+}
 const field = 'inset mt-1 block h-10 w-full rounded-md px-3 text-sm text-ink outline-none focus:border-blue'
 const ARM_SLIDERS = [[0, 0, 'Left arm'], [0, 1, 'Left bend'], [1, 0, 'Right arm'], [1, 1, 'Right bend']] as const
 </script>
@@ -76,7 +129,80 @@ const ARM_SLIDERS = [[0, 0, 'Left arm'], [0, 1, 'Left bend'], [1, 0, 'Right arm'
     <ErrorCard v-else-if="missing" :message="`No custom action “${id}”.`" @retry="reload" />
     <form v-else class="raised grid gap-6 p-6 lg:grid-cols-[1fr_300px]" @submit.prevent="save">
       <div class="min-w-0 space-y-5">
-        <h2 class="font-display text-3xl font-semibold">{{ isNew ? 'New action' : form.name || id }}</h2>
+        <div class="flex flex-wrap items-center gap-3">
+          <h2 class="font-display text-3xl font-semibold">{{ isNew ? 'New action' : form.name || id }}</h2>
+          <button type="button" class="btn btn-secondary ml-auto" :aria-expanded="aiOpen" aria-controls="ai-build" @click="aiOpen = !aiOpen">
+            <Sparkles :size="16" aria-hidden="true" /> Build with AI
+          </button>
+        </div>
+
+        <section v-if="aiOpen" id="ai-build" class="inset rounded-md p-4" aria-label="Build with AI">
+          <p class="pb-4 text-xs text-muted">Three steps. The result loads into this editor, so you watch the preview before saving.</p>
+          <ol class="divide-y divide-rule">
+            <!-- 1: what to build -->
+            <li class="flex gap-3 pb-5">
+              <span class="step-no" aria-hidden="true">1</span>
+              <div class="min-w-0 flex-1 space-y-2">
+                <h3 class="font-semibold">Say what to build</h3>
+                <label class="block text-sm font-semibold" for="ai-what">Move
+                  <input id="ai-what" v-model="aiWhat" placeholder="Salute, bow, facepalm, disco dance, clap…" maxlength="40" :class="field"
+                    @keydown.enter.prevent="aiWhat.trim() && (auto ? generateReply() : makePrompt())" />
+                </label>
+                <p v-if="aiId" class="text-xs text-muted">Saved as <code>{{ aiId }}</code>. A story needs a different id? Set it in the id field below first.</p>
+                <label class="block text-sm font-semibold" for="ai-details">Details <span class="font-normal text-muted">(optional)</span>
+                  <textarea id="ai-details" v-model="aiDetails" rows="3" placeholder="Which arm, how fast, loops or plays once…"
+                    class="inset mt-1 block w-full rounded-md px-4 py-2 text-sm text-ink outline-none focus:border-blue" />
+                </label>
+                <div class="flex flex-wrap items-center gap-2">
+                  <template v-if="auto">
+                    <button type="button" class="btn btn-primary" :disabled="!aiWhat.trim() || busy" :aria-busy="busy" @click="generateReply">
+                      <Sparkles :size="16" aria-hidden="true" /> {{ label }}</button>
+                    <button type="button" class="btn btn-secondary" :disabled="!aiWhat.trim() || busy" @click="makePrompt">Prompt only</button>
+                  </template>
+                  <template v-else>
+                    <button type="button" class="btn btn-primary" :disabled="!aiWhat.trim()" @click="makePrompt">Prompt for AI</button>
+                    <RouterLink to="/settings" class="text-xs text-muted underline">Add an API key in Settings to skip copy/paste</RouterLink>
+                  </template>
+                </div>
+              </div>
+            </li>
+            <!-- 2: the prompt, read-only: goes OUT to the AI -->
+            <li class="flex gap-3 py-5" :class="!aiPrompt && 'opacity-50'">
+              <span class="step-no" aria-hidden="true">2</span>
+              <div class="min-w-0 flex-1 space-y-2">
+                <div class="flex flex-wrap items-center gap-2">
+                  <h3 class="font-semibold">Copy the prompt into your AI</h3>
+                  <button type="button" class="btn btn-secondary ml-auto" :disabled="!aiPrompt" @click="copyPrompt"><Copy :size="16" aria-hidden="true" /> Copy prompt</button>
+                </div>
+                <p class="text-xs text-muted">ChatGPT, Claude, Gemini, a CLI… any of them. Don't edit this: it's read-only.</p>
+                <template v-if="aiPrompt">
+                  <label class="sr-only" for="ai-prompt">Prompt for AI (read-only)</label>
+                  <textarea id="ai-prompt" ref="promptBox" :value="aiPrompt" readonly rows="6" spellcheck="false"
+                    class="block w-full resize-y rounded-md border border-rule bg-well p-4 font-mono text-xs leading-5 text-muted outline-none focus:border-blue" />
+                </template>
+              </div>
+            </li>
+            <!-- 3: the AI's reply: comes IN from the AI -->
+            <li class="flex gap-3 pt-5">
+              <span class="step-no" aria-hidden="true">3</span>
+              <div class="min-w-0 flex-1 space-y-2">
+                <div class="flex flex-wrap items-center gap-2">
+                  <h3 class="font-semibold"><label for="ai-reply">Paste the AI's JSON reply here</label></h3>
+                  <button type="button" class="btn btn-secondary ml-auto" @click="pasteReply"><ClipboardPaste :size="16" aria-hidden="true" /> Paste</button>
+                </div>
+                <p class="text-xs text-muted">The JSON block, or its whole message: the JSON is picked out of it.</p>
+                <textarea id="ai-reply" v-model="aiReply" rows="6" spellcheck="false"
+                  placeholder='Paste here, e.g.&#10;```json&#10;{"id": "bow", "name": "Bow", "duration": 1.5, "keys": [...]}&#10;```'
+                  class="paper block w-full resize-y rounded-md border-2 border-dashed p-4 font-mono text-xs leading-5 text-ink outline-none focus:border-blue focus:border-solid"
+                  :class="aiError ? 'border-red-ink' : 'border-blue-ink/60'" :aria-invalid="!!aiError" />
+                <p v-if="aiError" class="text-sm text-red-ink" role="alert">{{ aiError }}</p>
+                <div class="flex justify-end">
+                  <button type="button" class="btn btn-primary" :disabled="!aiReply.trim()" @click="loadReply">Load into editor</button>
+                </div>
+              </div>
+            </li>
+          </ol>
+        </section>
         <div class="grid gap-4 sm:grid-cols-2">
           <label class="block text-xs font-semibold text-muted">Name
             <input v-model="form.name" required maxlength="40" placeholder="Salute" :class="field" />
@@ -96,6 +222,17 @@ const ARM_SLIDERS = [[0, 0, 'Left arm'], [0, 1, 'Left bend'], [1, 0, 'Right arm'
               <label class="flex items-center gap-2"><input v-model="form.loop" type="radio" :value="false" /> Play once, hold the end</label>
             </div>
           </fieldset>
+          <fieldset class="text-xs font-semibold text-muted">
+            <legend>Facing</legend>
+            <div class="mt-3 flex flex-wrap gap-4 text-sm font-normal text-ink">
+              <label class="flex items-center gap-2"><input v-model="form.facing" type="radio" value="camera" /> Face camera</label>
+              <label class="flex items-center gap-2"><input v-model="form.facing" type="radio" value="side" /> Face sideways</label>
+            </div>
+          </fieldset>
+          <label class="block text-xs font-semibold text-muted">Move speed (units/second)
+            <input v-model.number="form.move" type="number" min="-2.5" max="2.5" step="0.1" :disabled="form.facing !== 'side'" :class="field" />
+            <span class="mt-1 block font-normal">Positive moves forward; negative glides backward. Use 0 to stay in place.</span>
+          </label>
         </div>
 
         <div class="flex items-center justify-between gap-2">
@@ -162,3 +299,19 @@ const ARM_SLIDERS = [[0, 0, 'Left arm'], [0, 1, 'Left bend'], [1, 0, 'Right arm'
     </form>
   </div>
 </template>
+
+<style scoped>
+/* step number: a small ink tab, like a numbered X-sheet column (as in PropEditor) */
+.step-no {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--radius-sm);
+  background: var(--color-ink);
+  color: var(--on-ink);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+</style>

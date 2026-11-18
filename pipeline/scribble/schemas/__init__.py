@@ -372,8 +372,9 @@ actions_with = lambda trait: {a for a, t in ACTIONS.items() if trait in t}  # no
 
 
 class ActionKey(Strict):
-    """one pose of a custom action. Angles in degrees on the stickman's front view: from straight down, + toward +x
-    (screen right; the left arm hangs out at about -16, the right at +16)"""
+    """one pose of a custom action. Angles in degrees from straight down, + toward +x: on the front view screen right
+    (the left arm hangs out at about -16, the right at +16); on a side action FORWARD, the way the figure faces
+    (arms[0] is then the back arm, arms[1] the front arm, and + lean bends forward)"""
     t: float = Field(ge=0, le=1, description="when, as a share of the action's duration")
     arms: tuple[tuple[float, float], tuple[float, float]] | None = Field(
         default=None, description="[[upper arm, forearm bend] left, [upper arm, forearm bend] right]; none: at rest")
@@ -397,6 +398,10 @@ class CustomAction(Strict):
     name: str = Field(min_length=1, max_length=40)
     duration: float = Field(ge=0.2, le=10, description="seconds for one pass through the keys")
     loop: bool = Field(default=True, description="repeat for the whole shot; false: play once and hold the last key")
+    facing: Literal["camera", "side"] = Field(default="camera", description="camera: front view; side: the figure "
+                                                                            "turns to face left or right")
+    move: float = Field(default=0, ge=-2.5, le=2.5, description="side only: units/s across the stage while it plays; "
+                                                                "+ forward, - backward (a moonwalk), 0 in place")
     keys: list[ActionKey] = Field(min_length=1, max_length=40, description="in time order")
 
     @field_validator("id")
@@ -405,6 +410,14 @@ class CustomAction(Strict):
         if v in ACTIONS:
             raise ValueError(f"{v} is a built-in action")
         return v
+
+    @model_validator(mode="after")
+    def _moves_sideways(self):
+        if self.move and self.facing != "side":
+            raise ValueError("move: only a side action crosses the stage (set facing to side)")
+        if self.move and abs(self.move) < 0.3:
+            raise ValueError("move: at least 0.3 units/s, or 0 to stay in place")
+        return self
 
     @field_validator("keys")
     @classmethod

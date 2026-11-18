@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { PersonStanding, Plus, Trash2 } from 'lucide-vue-next'
+import { PersonStanding, Plus, Sparkles, Trash2 } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { api } from '../api/client'
 import ActionPreview from '../components/ActionPreview.vue'
@@ -28,7 +28,8 @@ async function remove(a: { id: string; name: string }) {
     <div class="flex flex-wrap items-baseline gap-3">
       <h2 class="font-display text-2xl font-semibold">Actions</h2>
       <span class="text-sm text-muted">{{ data.do.length }} built in · {{ custom.length }} custom</span>
-      <RouterLink to="/actions/new" class="btn btn-primary ml-auto"><Plus :size="16" aria-hidden="true" /> New action</RouterLink>
+      <RouterLink to="/actions/new#ai" class="btn btn-secondary ml-auto"><Sparkles :size="16" aria-hidden="true" /> Build with AI</RouterLink>
+      <RouterLink to="/actions/new" class="btn btn-primary"><Plus :size="16" aria-hidden="true" /> New action</RouterLink>
     </div>
     <p class="text-sm text-muted">
       A story asks for one with <code>@do fred: salute</code> on the line before the narration it covers (see

@@ -303,13 +303,39 @@ def test_do_plays_a_custom_action_from_the_library(tmp_path):
         prep.parse_do("fred: salute amy", 4, actions=["salute"])
     md = "# T\n\n@set office\n@cast fred, amy\n@do fred: salute\nFred stood up straight.\nAmy walked in.\n"
     ph = phrases_for(md)
-    story = shots.plan(md, ph, SERIES, 1, actions=["salute"])
+    story = shots.plan(md, ph, SERIES, 1, actions={"salute": CustomAction.model_validate(SALUTE)})
     assert validate(story, ph, IDS) == []
     first = story.shots[0]
     assert who(first, "fred").action == "salute" and who(first, "fred").end_pos is None
     (tmp_path / "actions.json").write_text(json.dumps({"actions": [SALUTE]}), encoding="utf-8")
     assert unknown_actions(story, tmp_path) == []
     assert unknown_actions(story, tmp_path / "empty") == ["salute"]  # the validate stage refuses it
+
+
+MOONWALK = {"id": "moonwalk", "name": "Moonwalk", "duration": 1, "facing": "side", "move": -0.8,
+            "keys": [{"t": 0, "legs": [-15, 10]}, {"t": 0.5, "legs": [10, -15]}]}
+
+
+def test_side_actions_turn_and_moving_ones_cross_the_stage_backward():
+    """a side action faces left / right; a moving one crosses like a walk at its own speed, a - move faces away"""
+    with pytest.raises(ValueError, match="only a side action"):
+        CustomAction.model_validate({**MOONWALK, "facing": "camera"})
+    moon, bow = CustomAction.model_validate(MOONWALK), CustomAction.model_validate(
+        {"id": "bow", "name": "Bow", "duration": 1, "facing": "side", "loop": False, "keys": [{"t": 0}, {"t": 1, "lean": 25}]})
+    md = "# T\n\n@set office\n@cast fred, amy\n@do fred: moonwalk, amy: bow\nFred slid across the floor. Amy bowed.\n"
+    ph = phrases_for(md)
+    story = shots.plan(md, ph, SERIES, 1, actions={"moonwalk": moon, "bow": bow})
+    assert validate(story, ph, IDS, moves={"moonwalk": -0.8}) == []
+    fred, amy = who(story.shots[0], "fred"), who(story.shots[0], "amy")
+    dx = fred.end_pos[0] - fred.start_pos[0]
+    assert dx and fred.facing == ("left" if dx > 0 else "right"), "faces away from where it glides"
+    assert amy.facing in ("left", "right") and amy.end_pos is None
+    # the same move facing the way it goes is caught; without the moves table it must stay put
+    wrong = fred.model_copy(update={"facing": "right" if dx > 0 else "left"})
+    s0 = story.shots[0].model_copy(update={"actors": [wrong if a.cast_id == "fred" else a for a in story.shots[0].actors]})
+    bad = story.model_copy(update={"shots": [s0, *story.shots[1:]]})
+    assert "facing" in {e.rule for e in validate(bad, ph, IDS, moves={"moonwalk": -0.8})}
+    assert "end_pos" in {e.rule for e in validate(story, ph, IDS)}
 
 
 def test_do_takes_custom_props_from_the_library():
