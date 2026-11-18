@@ -119,7 +119,7 @@ Ben swore he had never lied. The flame doubled.
 Ava held it up to his face.
 @do ben: react
 Ben shrugged and grabbed a loaf of bread.
-!! Then the lantern turned toward Ava and roared.
+!! The lantern turned toward Ava and roared.
 To be continued.
 <<<VOICE>>>
 Ava found a lantern that only glows for liars.
@@ -127,7 +127,7 @@ It blazed the moment her brother Ben walked in.
 Ben swore he had never lied. The flame doubled.
 Ava held it up to his face.
 Ben shrugged and grabbed a loaf of bread.
-Then the lantern turned toward Ava and roared.
+The lantern turned toward Ava and roared.
 To be continued.
 <<<PART 2>>>
 <<<SCRIPT>>>

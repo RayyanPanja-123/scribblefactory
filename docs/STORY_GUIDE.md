@@ -1,14 +1,62 @@
 # scribblefactory story guide (for AI assistants)
 
+**Important: do not**
+
+- Use images, cards, tables, headings or other formatting while brainstorming. Plain short chat only.
+- Write scripts, cast or assets before the story (premise, parts, twists) is agreed.
+- Send the Story Package before the user explicitly says "approved".
+- Rename, reorder or skip any `<<<...>>>` marker, split the package across messages or code blocks, or add text
+  around it.
+- Use an id (set, prop, cast, look, action, body, wardrobe) that is not in the library or created in the package.
+- Put digits, symbols or markdown in narration, or narration on a directive line.
+- Write a flat script (one `@set`, few directives). Every part must be staged (section 5, **Staging**).
+- Call characters by role ("the commander") instead of their cast `name`.
+
 Fill in **Your series** at the end and brainstorm. Each part becomes one vertical Short: a voice reads the narration,
 a rule-based planner turns each line into shots of stickmen in a 3D world. `@` lines are silent directives.
 
 ## 1. Workflow
 
-1. Brainstorm briefly (premise, cast, parts, each part's twist). No scripts.
-2. Sum up the plan and wait for approval.
-3. Reply with **only** one Story Package (format at the end) in one fenced `text` block.
+1. Brainstorm briefly (premise, cast, parts, each part's twist) as plain chat: a few short lines, one or two
+   questions at a time. No images, cards, tables, headings or scripts. Settle the story before cast and assets.
+2. Sum up the plan in a short list and wait for an explicit "approved". No package before that.
+3. Reply with **only** one Story Package in one fenced `text` block, using exactly this skeleton (full rules in
+   **Story Package format** at the end):
 
+```text
+<<<SCRIBBLE_PACKAGE v1>>>
+<<<META>>>
+{"series_title": "Title", "parts": 2}
+<<<PROPS>>>
+[]
+<<<SETS>>>
+[]
+<<<CREATURES>>>
+[]
+<<<ACTIONS>>>
+[]
+<<<WARDROBE>>>
+[]
+<<<CAST>>>
+[{"id": "ava", "name": "Ava", "color": "#3b6ea5"}]
+<<<PART 1>>>
+<<<SCRIPT>>>
+# Part title
+
+@set street
+...
+<<<VOICE>>>
+narration only
+<<<PART 2>>>
+<<<SCRIPT>>>
+...
+<<<VOICE>>>
+...
+<<<END>>>
+```
+
+- Every marker exactly as shown, alone on its line, in this order, none skipped (empty sections are `[]`). No
+  markdown headings, no extra code blocks, never split across messages.
 - Asset sections (PROPS, SETS, CREATURES, ACTIONS, WARDROBE) hold only **new** items; `[]` when none.
 - CAST holds every character of the whole series.
 - VOICE = its SCRIPT's narration word for word, one line each, without `@` lines, title or `!!`.
@@ -64,8 +112,22 @@ Narration line.
 
 `@do` actions: `idle talk point react wave cheer angry gasp walk run stagger lie collapse`, `eat [prop]`,
 `give <prop> <target>`, `carry <target>` (exactly 2 carriers), `support <target>` (1 or 2), `car: broken` (car on
-stage), or a custom action. Several: `@do fred: lie, amy: wave`. The planner guesses actions from verbs, so use
-`@do` only when needed.
+stage), or a custom action. Several: `@do fred: lie, amy: wave`.
+
+### Staging (required)
+
+The video only shows what the directives and names tell it. Without them every shot is people standing and talking.
+
+- **New place, new `@set`** (the Senate, the beach, a ship). Follow it with a `@weather` that fits the mood: `storm`
+  for sea, gods, war, villains; `rain` for loss; `fog` for mystery; `snow`, `wind` for journeys.
+- **Name a cast member in every line**, by their cast `name`: the planner picks who acts by name.
+- **A `@do` at least every second or third line** for physical beats: point, run, wave, cheer, angry, gasp,
+  react, stagger, collapse, give, carry, support, eat, custom actions.
+- **Groups are `@crowd`** (an army, senators, a mob) with the reaction that fits; `@dogs` and `@runners` where
+  they fit.
+- **Objects are seen:** spears, letters, swords are props held through a `@look` switched on when used.
+- **Punch:** `@fx shake` or `@fx drop` on line 1, `@fx pop` on line 3, `@fx lightning` on one to three big beats.
+- Aim for **ten or more** directives per part besides `@set` and `@cast`.
 
 ## 6. New items
 
