@@ -207,6 +207,40 @@
         "title": "BuiltinSet",
         "type": "object"
       },
+      "BuiltinWardrobeItem": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "slot": {
+            "enum": [
+              "hair",
+              "facial_hair",
+              "headwear",
+              "top",
+              "legwear",
+              "footwear",
+              "back",
+              "accessory",
+              "face"
+            ],
+            "title": "Slot",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "slot"
+        ],
+        "title": "BuiltinWardrobeItem",
+        "type": "object"
+      },
       "CastApproval": {
         "properties": {
           "cast_id": {
@@ -224,6 +258,32 @@
         "additionalProperties": false,
         "description": "a named variant of a cast member's look (story: @look <cast>: <name>). Only what it sets changes; everything\nelse stays the cast member's own. The character keeps its id, name, approval and drawing seed.",
         "properties": {
+          "accessory": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/WardrobeSlot"
+                },
+                "maxItems": 3,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null: unchanged; []: none",
+            "title": "Accessory"
+          },
+          "back": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WardrobeSlot"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "default_expression": {
             "anyOf": [
               {
@@ -259,6 +319,52 @@
               }
             ],
             "title": "Eyes"
+          },
+          "face": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/WardrobeSlot"
+                },
+                "maxItems": 3,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Face"
+          },
+          "facial_hair": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WardrobeSlot"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "footwear": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WardrobeSlot"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hair": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WardrobeSlot"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null: unchanged; \"none\": taken off"
           },
           "headless": {
             "anyOf": [
@@ -325,6 +431,15 @@
       "CastMember": {
         "additionalProperties": false,
         "properties": {
+          "accessory": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/WardrobeSlot"
+            },
+            "maxItems": 3,
+            "title": "Accessory",
+            "type": "array"
+          },
           "approved_at": {
             "anyOf": [
               {
@@ -335,6 +450,16 @@
               }
             ],
             "title": "Approved At"
+          },
+          "back": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WardrobeSlot"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "body": {
             "default": "human",
@@ -365,6 +490,46 @@
             ],
             "title": "Eyes",
             "type": "string"
+          },
+          "face": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/WardrobeSlot"
+            },
+            "maxItems": 3,
+            "title": "Face",
+            "type": "array"
+          },
+          "facial_hair": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WardrobeSlot"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "footwear": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WardrobeSlot"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hair": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WardrobeSlot"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "wardrobe slots: an id, {\"id\", \"color\"} or null"
           },
           "headless": {
             "default": false,
@@ -892,14 +1057,8 @@
           },
           "kind": {
             "default": "none",
-            "enum": [
-              "none",
-              "flat_cap",
-              "postman_cap",
-              "bowler",
-              "straw_hat",
-              "wide_hat"
-            ],
+            "description": "wardrobe id (\"id\" or a plain string accepted too): built in flat_cap, postman_cap, bowler, straw_hat, wide_hat, or a library headwear; none",
+            "pattern": "^[a-z0-9]+([_-][a-z0-9]+)*$",
             "title": "Kind",
             "type": "string"
           }
@@ -1179,12 +1338,8 @@
           },
           "kind": {
             "default": "none",
-            "enum": [
-              "none",
-              "shorts",
-              "ragged_shorts",
-              "trousers"
-            ],
+            "description": "wardrobe id: built in shorts, ragged_shorts, trousers, or a library legwear; none",
+            "pattern": "^[a-z0-9]+([_-][a-z0-9]+)*$",
             "title": "Kind",
             "type": "string"
           }
@@ -1483,6 +1638,14 @@
               "$ref": "#/components/schemas/PackageItem"
             },
             "title": "Sets",
+            "type": "array"
+          },
+          "wardrobe": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/PackageItem"
+            },
+            "title": "Wardrobe",
             "type": "array"
           },
           "warnings": {
@@ -2658,13 +2821,8 @@
           },
           "style": {
             "default": "plain",
-            "enum": [
-              "plain",
-              "suit",
-              "tank",
-              "shirt",
-              "dress"
-            ],
+            "description": "the top's wardrobe id (\"id\" accepted too): built in plain, suit, tank, shirt, dress, or a library top",
+            "pattern": "^[a-z0-9]+([_-][a-z0-9]+)*$",
             "title": "Style",
             "type": "string"
           }
@@ -2783,6 +2941,284 @@
           "waiting"
         ],
         "title": "Waiting",
+        "type": "object"
+      },
+      "WardrobeCatalog": {
+        "properties": {
+          "builtin": {
+            "items": {
+              "$ref": "#/components/schemas/BuiltinWardrobeItem"
+            },
+            "title": "Builtin",
+            "type": "array"
+          },
+          "cleared": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Cleared",
+            "type": "array"
+          },
+          "custom": {
+            "items": {
+              "$ref": "#/components/schemas/WardrobeItem"
+            },
+            "title": "Custom",
+            "type": "array"
+          }
+        },
+        "required": [
+          "builtin",
+          "custom"
+        ],
+        "title": "WardrobeCatalog",
+        "type": "object"
+      },
+      "WardrobeItem": {
+        "additionalProperties": false,
+        "properties": {
+          "colorable": {
+            "default": true,
+            "description": "the cast member's colour replaces default_color in $color",
+            "title": "Colorable",
+            "type": "boolean"
+          },
+          "default_color": {
+            "default": "#6b4f3a",
+            "pattern": "^#[0-9a-fA-F]{6}$",
+            "title": "Default Color",
+            "type": "string"
+          },
+          "id": {
+            "description": "the id a cast slot uses",
+            "pattern": "^[a-z0-9]+([_-][a-z0-9]+)*$",
+            "title": "Id",
+            "type": "string"
+          },
+          "layers": {
+            "default": [],
+            "description": "drawn in order: later ones on top",
+            "items": {
+              "$ref": "#/components/schemas/WardrobeLayer"
+            },
+            "maxItems": 60,
+            "title": "Layers",
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "slot": {
+            "enum": [
+              "hair",
+              "facial_hair",
+              "headwear",
+              "top",
+              "legwear",
+              "footwear",
+              "back",
+              "accessory",
+              "face"
+            ],
+            "title": "Slot",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "slot"
+        ],
+        "title": "WardrobeItem",
+        "type": "object"
+      },
+      "WardrobeLayer": {
+        "additionalProperties": false,
+        "description": "one ink shape of a wardrobe item, in canvas px around its anchor (the default human: head radius 150, body 184\nwide and 300 tall, legs 220, arms 175). x: across (+ outward on the paired anchors shoulders / arms / hands / legs /\nfeet, drawn on both sides, mirrored on the left); y: down (arms and legs: along the limb from the shoulder / hip).\nTorso anchors scale with body_w x body_h, arms and hands with arm, legs and feet with leg; head anchors (head,\nhead_top, face, eyes, mouth) are in head space: they scale with the head and turn with the face.",
+        "properties": {
+          "anchor": {
+            "enum": [
+              "head",
+              "head_top",
+              "face",
+              "eyes",
+              "mouth",
+              "neck",
+              "shoulders",
+              "chest",
+              "waist",
+              "hips",
+              "back",
+              "arms",
+              "hands",
+              "legs",
+              "feet"
+            ],
+            "title": "Anchor",
+            "type": "string"
+          },
+          "behind": {
+            "default": false,
+            "description": "drawn behind the head and body (long hair, a cape)",
+            "title": "Behind",
+            "type": "boolean"
+          },
+          "fill": {
+            "anyOf": [
+              {
+                "pattern": "^#[0-9a-fA-F]{6}$",
+                "type": "string"
+              },
+              {
+                "const": "$color",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "$color: the worn colour (the cast member's for a colorable item, else the item's default_color); none: outline only. For a line: its colour (default ink)",
+            "title": "Fill"
+          },
+          "pts": {
+            "description": "rect: 2 corners; circle / ellipse: the centre; line: 2+ points; poly: 3+ points (closed)",
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "maxItems": 40,
+            "minItems": 1,
+            "title": "Pts",
+            "type": "array"
+          },
+          "r": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 400.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "circle: radius; ellipse: x radius",
+            "title": "R"
+          },
+          "rot": {
+            "default": 0,
+            "description": "ellipse: turn in degrees, clockwise",
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Rot",
+            "type": "number"
+          },
+          "ry": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 400.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ellipse: y radius",
+            "title": "Ry"
+          },
+          "shape": {
+            "enum": [
+              "rect",
+              "circle",
+              "ellipse",
+              "line",
+              "poly"
+            ],
+            "title": "Shape",
+            "type": "string"
+          },
+          "when": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "neutral",
+                    "happy",
+                    "sad",
+                    "angry",
+                    "surprised",
+                    "sleepy",
+                    "cheeky",
+                    "exhausted"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "only with these expressions (blush: happy)",
+            "title": "When"
+          },
+          "width": {
+            "default": 8,
+            "description": "outline / line width; 0: no outline",
+            "maximum": 40.0,
+            "minimum": 0.0,
+            "title": "Width",
+            "type": "number"
+          }
+        },
+        "required": [
+          "shape",
+          "anchor",
+          "pts"
+        ],
+        "title": "WardrobeLayer",
+        "type": "object"
+      },
+      "WardrobeSlot": {
+        "additionalProperties": false,
+        "description": "one worn wardrobe item: an id (built in or library/wardrobe.json) and an optional colour for colorable items.\nA plain id string is accepted. \"none\": nothing (in a look: takes the cast member's item off).",
+        "properties": {
+          "color": {
+            "anyOf": [
+              {
+                "pattern": "^#[0-9a-fA-F]{6}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          },
+          "id": {
+            "pattern": "^[a-z0-9]+([_-][a-z0-9]+)*$",
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "WardrobeSlot",
         "type": "object"
       }
     }
@@ -4359,6 +4795,112 @@
           }
         },
         "summary": "Put Set"
+      }
+    },
+    "/api/wardrobe": {
+      "get": {
+        "operationId": "get_wardrobe_api_wardrobe_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WardrobeCatalog"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Wardrobe"
+      }
+    },
+    "/api/wardrobe/{item_id}": {
+      "delete": {
+        "operationId": "remove_wardrobe_item_api_wardrobe__item_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z0-9]+([_-][a-z0-9]+)*$",
+              "title": "Item Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WardrobeCatalog"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Wardrobe Item"
+      },
+      "put": {
+        "operationId": "put_wardrobe_item_api_wardrobe__item_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z0-9]+([_-][a-z0-9]+)*$",
+              "title": "Item Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WardrobeItem"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WardrobeCatalog"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Wardrobe Item"
       }
     }
   }

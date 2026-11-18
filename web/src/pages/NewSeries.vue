@@ -41,11 +41,12 @@ const onName = (r: Row) => { if (!r.idEdited) r.id = slugify(r.name) }
 /** "tank #31 · bowler · trousers · cheeky": what an import adds beyond the row's fields */
 function lookSummary(l: Obj): string {
   const top = (l.top ?? {}) as Obj
-  const kind = (x: unknown) => (x as Obj | undefined)?.kind
+  const kind = (x: unknown): unknown => Array.isArray(x) ? x.map(kind).filter(Boolean).join(' ')
+    : typeof x === 'string' ? x : (x as Obj | undefined)?.id ?? (x as Obj | undefined)?.kind
+  const style = top.style ?? top.id ?? 'plain'
   return [
-    [top.style !== 'plain' && top.style, top.number && `#${top.number}`].filter(Boolean).join(' '),
-    kind(l.headwear) !== 'none' && kind(l.headwear),
-    kind(l.legwear) !== 'none' && kind(l.legwear),
+    [style !== 'plain' && style, top.number && `#${top.number}`].filter(Boolean).join(' '),
+    ...['headwear', 'hair', 'facial_hair', 'legwear', 'footwear', 'back', 'accessory', 'face'].map((s) => kind(l[s]) !== 'none' && kind(l[s])),
     l.default_expression !== 'neutral' && l.default_expression,
   ].filter(Boolean).join(' · ').replaceAll('_', ' ')
 }

@@ -642,3 +642,19 @@ def test_story_package_validate_then_import(client, lib):
     assert d["tts_script"].endswith("To be continued.\n")
     bad = client.post("/api/packages/import", json={"text": pkg().replace("<<<END>>>", "")})
     assert bad.status_code == 409 and "nothing was written" in bad.json()["detail"]
+
+
+def test_wardrobe(client, lib):
+    r = client.get("/api/wardrobe").json()
+    assert {"id": "bowler", "name": "Bowler", "slot": "headwear"} in r["builtin"]
+    assert "crown" in {w["id"] for w in r["custom"]}  # the starter wardrobe
+    helm = {"id": "plume_helm", "name": "Plume helm", "slot": "headwear",
+            "layers": [{"shape": "rect", "anchor": "head_top", "pts": [[-90, -40], [90, 60]], "fill": "$color"}]}
+    assert client.put("/api/wardrobe/bowler", json={**helm, "id": "bowler"}).status_code == 422  # built-in id
+    wear = {"slug": "helms", "title": "Helms", "cast": [{"id": "ann", "name": "Ann", "color": "#00ff00", "headwear": "plume_helm"}]}
+    assert "unknown headwear 'plume_helm'" in client.post("/api/series", json=wear).json()["detail"]
+    assert client.put("/api/wardrobe/plume_helm", json=helm).status_code == 200
+    assert client.post("/api/series", json=wear).status_code == 200
+    assert "still worn by helms/ann" in client.delete("/api/wardrobe/plume_helm").json()["detail"]
+    assert client.delete("/api/wardrobe/crown").status_code == 200
+    assert "crown" not in {w["id"] for w in client.get("/api/wardrobe").json()["custom"]}

@@ -21,6 +21,8 @@ Plain text. Each marker is **alone on its own line**, in exactly this order:
 [ <new creature>, ... ]      [] when there are none
 <<<ACTIONS>>>
 [ <new action>, ... ]        [] when there are none
+<<<WARDROBE>>>
+[ <new wardrobe item>, ... ] [] when there are none
 <<<CAST>>>
 [ <cast entry>, ... ]        every character of every part
 <<<PART 1>>>
@@ -39,13 +41,16 @@ Plain text. Each marker is **alone on its own line**, in exactly this order:
 - `<<<PART N>>>`, `<<<SCRIPT>>>`, `<<<VOICE>>>` repeat for N = 1 up to `parts`, in order.
 - **META**: JSON object. `series_title` becomes the series title (and its slug); `parts` must equal the number of
   `<<<PART N>>>` sections (1 to 99).
-- **PROPS / SETS / CREATURES / ACTIONS**: JSON arrays of **new** items only, each exactly as the dashboard stores
-  it (the schemas in `docs/schemas/props.schema.json`, `sets.schema.json`, `creatures.schema.json`,
-  `actions.schema.json`: one entry of the `props` / `sets` / `creatures` / `actions` list). Anything that already
-  exists in the library is not repeated: the scripts and the cast just use its id.
+- **PROPS / SETS / CREATURES / ACTIONS / WARDROBE**: JSON arrays of **new** items only, each exactly as the
+  dashboard stores it (the schemas in `docs/schemas/props.schema.json`, `sets.schema.json`, `creatures.schema.json`,
+  `actions.schema.json`, `wardrobe.schema.json`: one entry of the `props` / `sets` / `creatures` / `actions` /
+  `wardrobe` list). Anything that already exists in the library is not repeated: the scripts and the cast just use
+  its id. WARDROBE came later: a package without it reads as `[]`.
 - **CAST**: JSON array in the cast-import shape (story guide section 6b): `{"id", "name", "color"}` plus the
-  optional costume, `body`, `headless` and `looks`. Every character the series ever shows, also those who first
-  appear in a later part.
+  optional wardrobe slots (`hair`, `facial_hair`, `headwear`, `top`, `legwear`, `footwear`, `back`, `accessory`,
+  `face`), `props`, `body`, `headless` and `looks`. Every character the series ever shows, also those who first
+  appear in a later part. Every wardrobe id must exist (built in, in the library, or in WARDROBE) and belong to
+  the slot it is worn in.
 - **SCRIPT**: the raw `story.md`, unchanged from the usual script format: `# Part title`, directives each alone on
   its line, narration.
 - **VOICE**: what the text-to-speech voice reads: the script's narration lines in order, word for word, with no
@@ -58,7 +63,8 @@ Plain text. Each marker is **alone on its own line**, in exactly this order:
 - Text before `<<<SCRIBBLE_PACKAGE v1>>>` and after `<<<END>>>` is ignored (chat chatter), and so are code fence
   lines (```` ``` ````), Windows line endings, trailing spaces and a byte-order mark.
 - **Errors** (nothing is imported): a missing or out-of-order marker, a part count that does not match META, bad
-  JSON or an item that does not fit its schema, and any script problem the dashboard's story check reports
+  JSON or an item that does not fit its schema, a wardrobe id that is unknown or worn in the wrong slot, and any
+  script problem the dashboard's story check reports
   (unknown set, cast id, action, prop, look or body; bad directive). Each names its section and its line in the
   pasted text.
 - **Warnings** (imported anyway): VOICE differs from the script's narration (with the changed words), a word count
@@ -88,10 +94,14 @@ Plain text. Each marker is **alone on its own line**, in exactly this order:
 []
 <<<ACTIONS>>>
 []
+<<<WARDROBE>>>
+[{"id": "baker_hat", "name": "Baker hat", "slot": "headwear", "colorable": false, "default_color": "#fbf8ef", "layers": [
+  {"shape": "rect", "anchor": "head_top", "pts": [[-95, 20], [95, 60]], "fill": "$color"},
+  {"shape": "ellipse", "anchor": "head_top", "pts": [[0, -20]], "r": 110, "ry": 55, "fill": "$color"}]}]
 <<<CAST>>>
-[{"id": "ava", "name": "Ava", "color": "#3b6ea5",
+[{"id": "ava", "name": "Ava", "color": "#3b6ea5", "hair": {"id": "long_hair", "color": "#8a4b2a"},
   "looks": {"lit": {"props": [{"kind": "lantern", "hand": "right"}]}}},
- {"id": "ben", "name": "Ben", "color": "#c0567a", "top": {"style": "shirt", "color": "#c0567a"}}]
+ {"id": "ben", "name": "Ben", "color": "#c0567a", "top": "shirt", "hair": "short_hair", "headwear": "baker_hat"}]
 <<<PART 1>>>
 <<<SCRIPT>>>
 # The Lantern Test

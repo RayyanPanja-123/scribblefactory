@@ -24,14 +24,14 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
-from ..io import LIBRARY_FILES, atomic_write_json, load_part
+from ..io import LIBRARY_FILES, WARDROBE_SEED, atomic_write_json, load_part
 from ..schemas import SeriesModel, StoryModel
 from .runner import StageError
 from .validate import load_model
 
 ENGINE = Path(__file__).resolve().parents[3] / "engine"
 RENDER_MJS = ENGINE / "render.mjs"
-PAGE_FILES = sorted((ENGINE / "page").glob("*.js"))
+PAGE_FILES = [*sorted((ENGINE / "page").glob("*.js")), WARDROBE_SEED]  # the seed draws while the library has no wardrobe.json
 FPS = 30
 CHUNK = 150
 WORKERS = 2

@@ -4,6 +4,7 @@
 import { Pen, ellPts } from "./borrowed.js";
 import { lookup } from "./library.js";
 import { rng } from "./rng.js";
+import { BUILTIN_WARDROBE, HEAD_ANCHORS, layerFill, layerPoints, slotValue, wearing } from "./wardrobe.js";
 
 export const CW = 512, CH = 1024, FEET_Y = 1000;
 const INK = "#1c1a1a";
@@ -238,8 +239,9 @@ export function reachFor(s, t, side, ARM = sizes().arm) {
  *      px (screen px per canvas px; face strokes keep a minimum on-screen width, default 1),
  *      bob (0..1 stressed-word lift), gesture ({ kind: palm|chin|shrug, k: 0..1 } while talking),
  *      pointK (0..1 point arm raised, default 1), wave ({ k: 0..1 raised, swing: -1..1 } for action wave),
- *      costume (series.json cast v2, all optional): top { style, color, accent_color, number }, headwear { kind, color },
- *      legwear { kind, color }, props [{ kind, hand }] (max one per hand),
+ *      costume (series.json cast, all optional): top { style | id, color, accent_color, number }, headwear and legwear
+ *      ({ kind | id, color } or an id), hair, facial_hair, footwear, back ({ id, color } or an id), accessory, face
+ *      (one or a list of up to 3): wardrobe items (wardrobe.js), props [{ kind, hand }] (max one per hand),
  *      seated (in a car: the prop hand is raised into view), mirrored (the card is shown mirrored: keeps the chest
  *      number readable) }
  * action "ride" draws like idle (the car hides the legs). color is the body colour (top.color when a top is given).
@@ -254,18 +256,40 @@ export function drawStickman(canvas, o) {
   const cos = rng(o.seed, "costume", o.boil); // costume jitter: its own stream, so a plain figure draws as before
   const look = o.facing === "camera" ? 0 : 1;
   const k = skeleton(o), S = k.size, fit = fitOf(o.build);
+  const [hx, hy] = k.head;
+  // custom wardrobe items (library/wardrobe.json): their own jitter stream, so built-in costumes draw as before
+  const W = wearing(o), A = W.length ? anchors(k, look) : null, wcos = rng(o.seed, "wardrobe", o.boil);
+  const expr = o.expression || "neutral";
+  const wear = (pick) => { // every layer of the worn custom items that pick(slot, layer) accepts, in draw order
+    for (const w of W) for (const L of w.item.layers) {
+      if (!pick(w.slot, L) || (L.when && !L.when.includes(expr))) continue;
+      for (const fr of A[L.anchor]) {
+        const pts = jitter(layerPoints(L, fr), wcos, 1.2), fill = layerFill(L, w.color);
+        if (L.shape === "line") p.stroke(pts, L.width ?? OL, fill || INK); else p.poly(pts, fill, L.width ?? OL);
+      }
+    }
+  };
+  const head = (L) => HEAD_ANCHORS.has(L.anchor), lower = (slot) => slot === "legwear" || slot === "footwear";
 
   // a build taller than the card shrinks to fit; whole-figure lean, both about the feet
   g.translate(CW / 2, FEET_Y); if (fit !== 1) g.scale(fit, fit); g.rotate(k.lean); g.translate(-CW / 2, -FEET_Y);
 
+  if (W.length) { // "behind" layers (long hair, capes, the back of a hood) go under everything
+    wear((_, L) => L.behind && !head(L));
+    g.save(); if (S.head !== 1) { g.translate(hx, hy); g.scale(S.head, S.head); g.translate(-hx, -hy); }
+    wear((_, L) => L.behind && head(L));
+    g.restore();
+  }
   for (const leg of k.legs) p.stroke(jitter(leg, boil), 10);
-  if (o.legwear && o.legwear.kind !== "none") legwear(p, cos, o.legwear, k.legs);
+  const lw = builtin("legwear", o.legwear);
+  if (lw) legwear(p, cos, lw, k.legs);
+  if (W.length) wear((slot, L) => !L.behind && !head(L) && lower(slot));
 
   // body: flat outfit-colour blob (covers the top of the legwear)
   const body = wobble(CW / 2, k.cy, S.rx, k.ry, rng(o.seed, "body"), boil), bw = 12 + boil();
-  const top = o.top || { style: "plain" };
+  const top = o.top ? { ...o.top, style: o.top.style ?? o.top.id ?? "plain" } : { style: "plain" };
   p.poly(body, top.color || o.color, bw);
-  if (top.style !== "plain" || top.number) {
+  if ((BUILTIN_WARDROBE[top.style] === "top" && top.style !== "plain") || top.number) {
     g.save(); p.path(body, true); g.clip();
     topDetails(p, cos, top, k);
     if (top.number) chestNumber(p, cos, top.number, k, (o.facing === "left") !== !!o.mirrored);
@@ -273,6 +297,7 @@ export function drawStickman(canvas, o) {
     p.poly(body, null, bw); // outline back over the details' edges
   }
   if (top.style === "dress") skirt(p, cos, top.color || o.color, k, o);
+  if (W.length) wear((slot, L) => !L.behind && !head(L) && !lower(slot));
 
   // arms and dot hands over the body; a held prop sits in its hand, under the hand dot
   const drawArm = ([shp, elbow, hand], i) => {
@@ -287,16 +312,46 @@ export function drawStickman(canvas, o) {
   // head last: wobbly white circle, thick outline, sits on the body (raised arms go behind it)
   // the head, face and headwear are drawn at the default size, scaled about the head centre by the build (only when
   // it differs: the extra translate pair alone shifts a leaning figure by float rounding)
-  const [hx, hy] = k.head;
   g.save();
   if (S.head !== 1) { g.translate(hx, hy); g.scale(S.head, S.head); g.translate(-hx, -hy); }
   const headPts = wobble(hx, hy, HEAD_R, HEAD_R * HEAD_SQUASH, rng(o.seed, "head"), boil);
   p.poly(headPts, S.b.head_color, 14 + boil() * 1.5);
   face(p, boil, o, hx + 26 * look, hy, look);
-  if (o.headwear && o.headwear.kind !== "none") headwear(p, cos, o.headwear, headPts, hx, hy, look, top.accent_color);
+  if (W.length) wear((slot, L) => !L.behind && head(L) && slot !== "headwear"); // face, facial hair, hair
+  const hw = builtin("headwear", o.headwear);
+  if (hw) headwear(p, cos, hw, headPts, hx, hy, look, top.accent_color);
+  if (W.length) wear((slot, L) => !L.behind && head(L) && slot === "headwear");
   g.restore();
   for (const i of k.late) drawArm(k.arms[i], i); // eating / gasping: the hands come up in front of the face
   if (o.zzz != null) zzz(p, g, boil, o, hx, hy);
+}
+
+/** a built-in headwear / legwear value as the drawing code takes it ({ kind, color }), or null (none or custom) */
+function builtin(slot, v) {
+  const s = slotValue(v);
+  return s && BUILTIN_WARDROBE[s.id] === slot ? { kind: s.id, color: s.color } : null;
+}
+
+/** where wardrobe layers hang, per anchor: frames { at, sx, sy, ang, m } (wardrobe.js layerPoints). Body anchors scale
+ *  with the build (torso: body_w x body_h; arms, hands: arm; legs: along the leg; feet: leg); paired ones are [left
+ *  (mirrored), right]; head anchors are in head space (drawn inside the head's own scale). Unrotated canvas px. */
+export function anchors(k, look = 1) {
+  const S = k.size, b = S.b, x = CW / 2, [hx, hy] = k.head, fx = hx + 26 * look;
+  const F = (at, sx = 1, sy = 1, ang = 0, m = 1) => ({ at, sx, sy, ang, m });
+  const torso = (y) => [F([x, y], b.body_w, b.body_h)];
+  const pair = (f) => [f(0, -1), f(1, 1)];
+  const angle = (a, c) => Math.atan2(c[0] - a[0], c[1] - a[1]);
+  return {
+    head: [F([hx, hy])], head_top: [F([hx, hy - HEAD_R * HEAD_SQUASH])], face: [F([fx, hy])],
+    eyes: [F([fx, hy - 8])], mouth: [F([fx + 4 * look, hy + 74])],
+    neck: torso(k.top), chest: torso(k.top + 0.73 * k.ry), waist: torso(k.cy + 0.25 * k.ry), hips: torso(k.hipY),
+    back: torso(k.top + 0.4 * k.ry),
+    shoulders: pair((i, m) => F(k.arms[i][0], b.body_w, b.body_h, 0, m)),
+    arms: pair((i, m) => F(k.arms[i][0], 1, b.arm, angle(k.arms[i][0], k.arms[i][1]), m)),
+    hands: pair((i, m) => F(k.arms[i][2], b.arm, b.arm, 0, m)),
+    legs: pair((i, m) => F(k.legs[i][0], 1, b.leg, angle(k.legs[i][0], k.legs[i][1]), m)),
+    feet: pair((i, m) => F(k.legs[i][1], b.leg, b.leg, 0, m)),
+  };
 }
 
 /** sleeping: three marker "Z"s rising away from the head. The card lies rolled 90 degrees (o.zSide: the canvas side

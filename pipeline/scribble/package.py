@@ -14,10 +14,11 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from .io import (LIBRARY_FILES, atomic_write_json, creature_bodies, load_actions, load_creatures, load_props, load_sets,
-                 prop_kinds, save_part, save_series, set_kinds)
+from .io import (LIBRARY_FILES, atomic_write_json, cast_wardrobe_problems, creature_bodies, load_actions, load_creatures,
+                 load_props, load_sets, load_wardrobe, prop_kinds, save_part, save_series, set_kinds, wardrobe_slots)
 from .schemas import (ACTIONS, ActionLibrary, CastMember, CreatureLibrary, CustomAction, CustomCreature, CustomProp,
-                      CustomSet, PartModel, PropLibrary, SeriesModel, SetLibrary, Style, Voice, utcnow)
+                      CustomSet, PartModel, PropLibrary, SeriesModel, SetLibrary, Style, Voice, WardrobeItem,
+                      WardrobeLibrary, utcnow)
 from .stages.prep import TWIST_PREFIX, clean_markdown, strip_directives
 from .storycheck import check_story
 
@@ -29,7 +30,9 @@ ASSETS = {  # section -> (model, library loader, list field, library model)
     "SETS": (CustomSet, load_sets, "sets", SetLibrary),
     "CREATURES": (CustomCreature, load_creatures, "creatures", CreatureLibrary),
     "ACTIONS": (CustomAction, load_actions, "actions", ActionLibrary),
+    "WARDROBE": (WardrobeItem, load_wardrobe, "wardrobe", WardrobeLibrary),
 }
+OPTIONAL = {"WARDROBE"}  # packages written before the wardrobe have no WARDROBE section: read as []
 HEAD = ["META", *ASSETS, "CAST"]
 WORDS = (110, 175)
 CONTINUED = "To be continued."
@@ -58,6 +61,7 @@ def cast_dict(c: dict) -> dict:
     c = {k: v for k, v in c.items() if k != "approved_at"}
     if "color" in c:
         top = c.get("top", {})
+        top = {"id": top} if isinstance(top, str) else top
         c["top"] = {**top, "color": c.pop("color")} if isinstance(top, dict) else top
     c.setdefault("eyes", "dots")
     return c
@@ -67,7 +71,8 @@ def taken_ids(library: Path) -> dict[str, set[str]]:
     """every id already in the library, built in and custom, per asset section"""
     return {"PROPS": set(prop_kinds(library)) | {"none"}, "SETS": set(set_kinds(library)),
             "CREATURES": set(creature_bodies(library)) | {"stickman"},
-            "ACTIONS": set(ACTIONS) | {a.id for a in load_actions(library).actions}}
+            "ACTIONS": set(ACTIONS) | {a.id for a in load_actions(library).actions},
+            "WARDROBE": set(wardrobe_slots(library)) | {"none"}}
 
 
 def _sections(text: str, err) -> list[tuple[str, int, list[str]]]:
@@ -122,15 +127,30 @@ def _rewrite(md: str, renames: dict[str, dict[str, str]]) -> str:
     return "\n".join(out)
 
 
+WEAR_SLOTS = ("top", "headwear", "legwear", "hair", "facial_hair", "footwear", "back", "accessory", "face")
+
+
+def _rename_wear(v, ren: dict):
+    """one slot value (id string, {id | kind | style, ...} or a list of them) with renamed wardrobe ids"""
+    if isinstance(v, list):
+        return [_rename_wear(x, ren) for x in v]
+    if isinstance(v, str):
+        return ren.get(v, v)
+    if isinstance(v, dict):
+        return {k: ren.get(x, x) if k in ("id", "kind", "style") and isinstance(x, str) else x for k, x in v.items()}
+    return v
+
+
 def _rename_cast(c: dict, renames) -> dict:
-    """a cast entry with renamed props (its own and its looks') and body"""
+    """a cast entry with renamed props, wardrobe items (its own and its looks') and body"""
     fix = lambda ps: [{**p, "kind": renames["PROPS"].get(p.get("kind"), p.get("kind"))} if isinstance(p, dict) else p
                       for p in ps] if isinstance(ps, list) else ps
-    c = {**c, "props": fix(c.get("props", []))}
+    wear = lambda d: {k: _rename_wear(v, renames["WARDROBE"]) if k in WEAR_SLOTS else v for k, v in d.items()}
+    c = wear({**c, "props": fix(c.get("props", []))})
     if c.get("body") in renames["CREATURES"]:
         c["body"] = renames["CREATURES"][c["body"]]
     if isinstance(c.get("looks"), dict):
-        c["looks"] = {k: {**v, "props": fix(v["props"])} if isinstance(v, dict) and "props" in v else v
+        c["looks"] = {k: wear({**v, "props": fix(v["props"])} if "props" in v else v) if isinstance(v, dict) else v
                       for k, v in c["looks"].items()}
     return c
 
@@ -163,7 +183,8 @@ def parse(text: str, library) -> dict:
         if "META" in got and not errors:
             err("META", got["META"][1], 'expected {"series_title": "<title>", "parts": <1..99>}')
         n_parts = sum(n.startswith("PART ") for n in names)
-    want = [*HEAD, *(x for n in range(1, n_parts + 1) for x in (f"PART {n}", "SCRIPT", "VOICE"))]
+    head = [h for h in HEAD if h not in OPTIONAL or h in got]
+    want = [*head, *(x for n in range(1, n_parts + 1) for x in (f"PART {n}", "SCRIPT", "VOICE"))]
     if names != want:
         i = next((i for i, (a, b) in enumerate(zip(names, want)) if a != b), min(len(names), len(want)))
         line = secs[i][1] if i < len(secs) else None
@@ -179,6 +200,8 @@ def parse(text: str, library) -> dict:
     # assets: suffix an id the library already has, and remember the rename for the cast and the scripts
     taken = taken_ids(library)
     for sec, (model, *_rest) in ASSETS.items():
+        if sec not in got:
+            continue  # an optional section left out: nothing new
         _, line, body = got[sec]
         items = _json(sec, line, body, err)
         if items is None and not body:
@@ -221,6 +244,8 @@ def parse(text: str, library) -> dict:
             result["cast"].append(CastMember.model_validate(cast_dict(_rename_cast(c, renames))))
         except ValidationError as e:
             err("CAST", line + 1, f"#{i} ({c.get('id', 'no id')}): {_first_error(e)}")
+    for x in cast_wardrobe_problems(result["cast"], library, result["assets"]["WARDROBE"]):
+        err("CAST", line + 1, x)
     ids = [c.id for c in result["cast"]]
     if dupes := sorted({i for i in ids if ids.count(i) > 1}):
         err("CAST", line + 1, f"cast ids must be unique: {', '.join(dupes)}")
@@ -234,7 +259,7 @@ def parse(text: str, library) -> dict:
         warn("META", got["META"][1], f"series {want_slug!r} exists: imported as {slug!r}")
 
     by_name = {}
-    for name, ln, body in secs[len(HEAD):]:
+    for name, ln, body in secs[len(head):]:
         if name.startswith("PART "):
             n = int(name[5:])
         else:
@@ -336,6 +361,7 @@ def summary(result: dict) -> dict:
     return {"ok": result["ok"], "series": result["series"],
             "props": dump(result["assets"]["PROPS"]), "sets": dump(result["assets"]["SETS"]),
             "creatures": dump(result["assets"]["CREATURES"]), "actions": dump(result["assets"]["ACTIONS"]),
+            "wardrobe": dump(result["assets"]["WARDROBE"]),
             "cast": dump(result["cast"]), "renames": {k.lower(): v for k, v in result["renames"].items()},
             "parts": [{k: p[k] for k in ("number", "title", "words")} for p in result["parts"]],
             "warnings": result["warnings"], "errors": result["errors"]}

@@ -1,0 +1,1980 @@
+{
+  "schema_version": 1,
+  "wardrobe": [
+    {
+      "id": "short_hair",
+      "name": "Short hair",
+      "slot": "hair",
+      "layers": [
+        {
+          "shape": "poly",
+          "anchor": "head",
+          "pts": [
+            [
+              -157.6,
+              -27.8
+            ],
+            [
+              -138.6,
+              -80.0
+            ],
+            [
+              -102.8,
+              -122.6
+            ],
+            [
+              -54.7,
+              -150.4
+            ],
+            [
+              -0.0,
+              -160.0
+            ],
+            [
+              54.7,
+              -150.4
+            ],
+            [
+              102.8,
+              -122.6
+            ],
+            [
+              138.6,
+              -80.0
+            ],
+            [
+              157.6,
+              -27.8
+            ],
+            [
+              140.0,
+              -40.0
+            ],
+            [
+              100.0,
+              -85.0
+            ],
+            [
+              40.0,
+              -105.0
+            ],
+            [
+              -40.0,
+              -105.0
+            ],
+            [
+              -100.0,
+              -85.0
+            ],
+            [
+              -140.0,
+              -40.0
+            ]
+          ],
+          "r": null,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 8.0,
+          "behind": false,
+          "when": null
+        }
+      ],
+      "colorable": true,
+      "default_color": "#3b2a1a"
+    },
+    {
+      "id": "long_hair",
+      "name": "Long hair",
+      "slot": "hair",
+      "layers": [
+        {
+          "shape": "poly",
+          "anchor": "head",
+          "pts": [
+            [
+              -169.4,
+              14.8
+            ],
+            [
+              -165.0,
+              -41.1
+            ],
+            [
+              -142.6,
+              -92.6
+            ],
+            [
+              -104.7,
+              -134.0
+            ],
+            [
+              -55.3,
+              -160.7
+            ],
+            [
+              -0.0,
+              -170.0
+            ],
+            [
+              55.3,
+              -160.7
+            ],
+            [
+              104.7,
+              -134.0
+            ],
+            [
+              142.6,
+              -92.6
+            ],
+            [
+              165.0,
+              -41.1
+            ],
+            [
+              169.4,
+              14.8
+            ],
+            [
+              180.0,
+              120.0
+            ],
+            [
+              150.0,
+              235.0
+            ],
+            [
+              -150.0,
+              235.0
+            ],
+            [
+              -180.0,
+              120.0
+            ]
+          ],
+          "r": null,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 8.0,
+          "behind": true,
+          "when": null
+        },
+        {
+          "shape": "poly",
+          "anchor": "head",
+          "pts": [
+            [
+              -157.6,
+              -27.8
+            ],
+            [
+              -138.6,
+              -80.0
+            ],
+            [
+              -102.8,
+              -122.6
+            ],
+            [
+              -54.7,
+              -150.4
+            ],
+            [
+              -0.0,
+              -160.0
+            ],
+            [
+              54.7,
+              -150.4
+            ],
+            [
+              102.8,
+              -122.6
+            ],
+            [
+              138.6,
+              -80.0
+            ],
+            [
+              157.6,
+              -27.8
+            ],
+            [
+              140.0,
+              -40.0
+            ],
+            [
+              100.0,
+              -85.0
+            ],
+            [
+              40.0,
+              -105.0
+            ],
+            [
+              -40.0,
+              -105.0
+            ],
+            [
+              -100.0,
+              -85.0
+            ],
+            [
+              -140.0,
+              -40.0
+            ]
+          ],
+          "r": null,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 8.0,
+          "behind": false,
+          "when": null
+        }
+      ],
+      "colorable": true,
+      "default_color": "#5a3a1e"
+    },
+    {
+      "id": "wild_hair",
+      "name": "Wild hair",
+      "slot": "hair",
+      "layers": [
+        {
+          "shape": "poly",
+          "anchor": "head",
+          "pts": [
+            [
+              -160.0,
+              0.0
+            ],
+            [
+              -198.0,
+              -53.1
+            ],
+            [
+              -138.6,
+              -80.0
+            ],
+            [
+              -145.0,
+              -145.0
+            ],
+            [
+              -80.0,
+              -138.6
+            ],
+            [
+              -53.1,
+              -198.0
+            ],
+            [
+              -0.0,
+              -160.0
+            ],
+            [
+              53.1,
+              -198.0
+            ],
+            [
+              80.0,
+              -138.6
+            ],
+            [
+              145.0,
+              -145.0
+            ],
+            [
+              138.6,
+              -80.0
+            ],
+            [
+              198.0,
+              -53.1
+            ],
+            [
+              160.0,
+              -0.0
+            ],
+            [
+              140.0,
+              -40.0
+            ],
+            [
+              100.0,
+              -85.0
+            ],
+            [
+              40.0,
+              -105.0
+            ],
+            [
+              -40.0,
+              -105.0
+            ],
+            [
+              -100.0,
+              -85.0
+            ],
+            [
+              -140.0,
+              -40.0
+            ]
+          ],
+          "r": null,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 8.0,
+          "behind": false,
+          "when": null
+        }
+      ],
+      "colorable": true,
+      "default_color": "#e8e8e8"
+    },
+    {
+      "id": "bald",
+      "name": "Bald",
+      "slot": "hair",
+      "layers": [
+        {
+          "shape": "line",
+          "anchor": "head",
+          "pts": [
+            [
+              -94.2,
+              -66.0
+            ],
+            [
+              -81.3,
+              -81.3
+            ],
+            [
+              -66.0,
+              -94.2
+            ],
+            [
+              -48.6,
+              -104.2
+            ]
+          ],
+          "r": null,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 7.0,
+          "behind": false,
+          "when": null
+        }
+      ],
+      "colorable": false,
+      "default_color": "#ffffff"
+    },
+    {
+      "id": "stubble",
+      "name": "Stubble",
+      "slot": "facial_hair",
+      "layers": [
+        {
+          "shape": "circle",
+          "anchor": "mouth",
+          "pts": [
+            [
+              -70.0,
+              -10.0
+            ]
+          ],
+          "r": 3.5,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 0.0,
+          "behind": false,
+          "when": null
+        },
+        {
+          "shape": "circle",
+          "anchor": "mouth",
+          "pts": [
+            [
+              -55.0,
+              20.0
+            ]
+          ],
+          "r": 3.5,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 0.0,
+          "behind": false,
+          "when": null
+        },
+        {
+          "shape": "circle",
+          "anchor": "mouth",
+          "pts": [
+            [
+              -35.0,
+              38.0
+            ]
+          ],
+          "r": 3.5,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 0.0,
+          "behind": false,
+          "when": null
+        },
+        {
+          "shape": "circle",
+          "anchor": "mouth",
+          "pts": [
+            [
+              -12.0,
+              46.0
+            ]
+          ],
+          "r": 3.5,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 0.0,
+          "behind": false,
+          "when": null
+        },
+        {
+          "shape": "circle",
+          "anchor": "mouth",
+          "pts": [
+            [
+              12.0,
+              46.0
+            ]
+          ],
+          "r": 3.5,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 0.0,
+          "behind": false,
+          "when": null
+        },
+        {
+          "shape": "circle",
+          "anchor": "mouth",
+          "pts": [
+            [
+              35.0,
+              38.0
+            ]
+          ],
+          "r": 3.5,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 0.0,
+          "behind": false,
+          "when": null
+        },
+        {
+          "shape": "circle",
+          "anchor": "mouth",
+          "pts": [
+            [
+              55.0,
+              20.0
+            ]
+          ],
+          "r": 3.5,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 0.0,
+          "behind": false,
+          "when": null
+        },
+        {
+          "shape": "circle",
+          "anchor": "mouth",
+          "pts": [
+            [
+              70.0,
+              -10.0
+            ]
+          ],
+          "r": 3.5,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 0.0,
+          "behind": false,
+          "when": null
+        },
+        {
+          "shape": "circle",
+          "anchor": "mouth",
+          "pts": [
+            [
+              -62.0,
+              5.0
+            ]
+          ],
+          "r": 3.5,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 0.0,
+          "behind": false,
+          "when": null
+        },
+        {
+          "shape": "circle",
+          "anchor": "mouth",
+          "pts": [
+            [
+              62.0,
+              5.0
+            ]
+          ],
+          "r": 3.5,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 0.0,
+          "behind": false,
+          "when": null
+        },
+        {
+          "shape": "circle",
+          "anchor": "mouth",
+          "pts": [
+            [
+              -24.0,
+              30.0
+            ]
+          ],
+          "r": 3.5,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 0.0,
+          "behind": false,
+          "when": null
+        },
+        {
+          "shape": "circle",
+          "anchor": "mouth",
+          "pts": [
+            [
+              24.0,
+              30.0
+            ]
+          ],
+          "r": 3.5,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 0.0,
+          "behind": false,
+          "when": null
+        },
+        {
+          "shape": "circle",
+          "anchor": "mouth",
+          "pts": [
+            [
+              0.0,
+              36.0
+            ]
+          ],
+          "r": 3.5,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 0.0,
+          "behind": false,
+          "when": null
+        }
+      ],
+      "colorable": true,
+      "default_color": "#3b2a1a"
+    },
+    {
+      "id": "moustache",
+      "name": "Moustache",
+      "slot": "facial_hair",
+      "layers": [
+        {
+          "shape": "poly",
+          "anchor": "mouth",
+          "pts": [
+            [
+              -44.0,
+              -6.0
+            ],
+            [
+              -22.0,
+              -24.0
+            ],
+            [
+              0.0,
+              -16.0
+            ],
+            [
+              22.0,
+              -24.0
+            ],
+            [
+              44.0,
+              -6.0
+            ],
+            [
+              22.0,
+              -12.0
+            ],
+            [
+              0.0,
+              -8.0
+            ],
+            [
+              -22.0,
+              -12.0
+            ]
+          ],
+          "r": null,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 6.0,
+          "behind": false,
+          "when": null
+        }
+      ],
+      "colorable": true,
+      "default_color": "#3b2a1a"
+    },
+    {
+      "id": "short_beard",
+      "name": "Short beard",
+      "slot": "facial_hair",
+      "layers": [
+        {
+          "shape": "poly",
+          "anchor": "mouth",
+          "pts": [
+            [
+              -95.0,
+              -50.0
+            ],
+            [
+              -92.0,
+              15.0
+            ],
+            [
+              -60.0,
+              60.0
+            ],
+            [
+              0.0,
+              78.0
+            ],
+            [
+              60.0,
+              60.0
+            ],
+            [
+              92.0,
+              15.0
+            ],
+            [
+              95.0,
+              -50.0
+            ],
+            [
+              70.0,
+              -30.0
+            ],
+            [
+              45.0,
+              26.0
+            ],
+            [
+              -45.0,
+              26.0
+            ],
+            [
+              -70.0,
+              -30.0
+            ]
+          ],
+          "r": null,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 7.0,
+          "behind": false,
+          "when": null
+        }
+      ],
+      "colorable": true,
+      "default_color": "#3b2a1a"
+    },
+    {
+      "id": "long_beard",
+      "name": "Long beard",
+      "slot": "facial_hair",
+      "layers": [
+        {
+          "shape": "poly",
+          "anchor": "mouth",
+          "pts": [
+            [
+              -95.0,
+              -50.0
+            ],
+            [
+              -95.0,
+              30.0
+            ],
+            [
+              -70.0,
+              120.0
+            ],
+            [
+              -30.0,
+              200.0
+            ],
+            [
+              0.0,
+              215.0
+            ],
+            [
+              30.0,
+              200.0
+            ],
+            [
+              70.0,
+              120.0
+            ],
+            [
+              95.0,
+              30.0
+            ],
+            [
+              95.0,
+              -50.0
+            ],
+            [
+              70.0,
+              -30.0
+            ],
+            [
+              45.0,
+              26.0
+            ],
+            [
+              -45.0,
+              26.0
+            ],
+            [
+              -70.0,
+              -30.0
+            ]
+          ],
+          "r": null,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 7.0,
+          "behind": false,
+          "when": null
+        },
+        {
+          "shape": "line",
+          "anchor": "mouth",
+          "pts": [
+            [
+              -30.0,
+              70.0
+            ],
+            [
+              -15.0,
+              150.0
+            ]
+          ],
+          "r": null,
+          "ry": null,
+          "rot": 0.0,
+          "fill": null,
+          "width": 4.0,
+          "behind": false,
+          "when": null
+        },
+        {
+          "shape": "line",
+          "anchor": "mouth",
+          "pts": [
+            [
+              25.0,
+              75.0
+            ],
+            [
+              12.0,
+              160.0
+            ]
+          ],
+          "r": null,
+          "ry": null,
+          "rot": 0.0,
+          "fill": null,
+          "width": 4.0,
+          "behind": false,
+          "when": null
+        }
+      ],
+      "colorable": true,
+      "default_color": "#9a9a9a"
+    },
+    {
+      "id": "crown",
+      "name": "Crown",
+      "slot": "headwear",
+      "layers": [
+        {
+          "shape": "poly",
+          "anchor": "head_top",
+          "pts": [
+            [
+              -110.0,
+              60.0
+            ],
+            [
+              -122.0,
+              -40.0
+            ],
+            [
+              -60.0,
+              10.0
+            ],
+            [
+              0.0,
+              -62.0
+            ],
+            [
+              60.0,
+              10.0
+            ],
+            [
+              122.0,
+              -40.0
+            ],
+            [
+              110.0,
+              60.0
+            ]
+          ],
+          "r": null,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 8.0,
+          "behind": false,
+          "when": null
+        },
+        {
+          "shape": "circle",
+          "anchor": "head_top",
+          "pts": [
+            [
+              0.0,
+              30.0
+            ]
+          ],
+          "r": 12.0,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "#d84a3a",
+          "width": 5.0,
+          "behind": false,
+          "when": null
+        }
+      ],
+      "colorable": true,
+      "default_color": "#e8b923"
+    },
+    {
+      "id": "sea_crown",
+      "name": "Sea crown",
+      "slot": "headwear",
+      "layers": [
+        {
+          "shape": "poly",
+          "anchor": "head_top",
+          "pts": [
+            [
+              -115.0,
+              60.0
+            ],
+            [
+              -125.0,
+              -20.0
+            ],
+            [
+              -85.0,
+              0.0
+            ],
+            [
+              -70.0,
+              -55.0
+            ],
+            [
+              -35.0,
+              -5.0
+            ],
+            [
+              0.0,
+              -75.0
+            ],
+            [
+              35.0,
+              -5.0
+            ],
+            [
+              70.0,
+              -55.0
+            ],
+            [
+              85.0,
+              0.0
+            ],
+            [
+              125.0,
+              -20.0
+            ],
+            [
+              115.0,
+              60.0
+            ]
+          ],
+          "r": null,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 8.0,
+          "behind": false,
+          "when": null
+        },
+        {
+          "shape": "circle",
+          "anchor": "head_top",
+          "pts": [
+            [
+              -70.0,
+              -55.0
+            ]
+          ],
+          "r": 10.0,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "#fbf8ef",
+          "width": 5.0,
+          "behind": false,
+          "when": null
+        },
+        {
+          "shape": "circle",
+          "anchor": "head_top",
+          "pts": [
+            [
+              0.0,
+              -75.0
+            ]
+          ],
+          "r": 12.0,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "#fbf8ef",
+          "width": 5.0,
+          "behind": false,
+          "when": null
+        },
+        {
+          "shape": "circle",
+          "anchor": "head_top",
+          "pts": [
+            [
+              70.0,
+              -55.0
+            ]
+          ],
+          "r": 10.0,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "#fbf8ef",
+          "width": 5.0,
+          "behind": false,
+          "when": null
+        },
+        {
+          "shape": "line",
+          "anchor": "head_top",
+          "pts": [
+            [
+              -100.0,
+              40.0
+            ],
+            [
+              -50.0,
+              30.0
+            ],
+            [
+              0.0,
+              40.0
+            ],
+            [
+              50.0,
+              30.0
+            ],
+            [
+              100.0,
+              40.0
+            ]
+          ],
+          "r": null,
+          "ry": null,
+          "rot": 0.0,
+          "fill": null,
+          "width": 5.0,
+          "behind": false,
+          "when": null
+        }
+      ],
+      "colorable": true,
+      "default_color": "#4fb3bf"
+    },
+    {
+      "id": "hood",
+      "name": "Hood",
+      "slot": "headwear",
+      "layers": [
+        {
+          "shape": "circle",
+          "anchor": "head",
+          "pts": [
+            [
+              0.0,
+              15.0
+            ]
+          ],
+          "r": 192.0,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 8.0,
+          "behind": true,
+          "when": null
+        },
+        {
+          "shape": "poly",
+          "anchor": "head",
+          "pts": [
+            [
+              -190.0,
+              0.0
+            ],
+            [
+              -178.5,
+              -65.0
+            ],
+            [
+              -145.5,
+              -122.1
+            ],
+            [
+              -95.0,
+              -164.5
+            ],
+            [
+              -33.0,
+              -187.1
+            ],
+            [
+              33.0,
+              -187.1
+            ],
+            [
+              95.0,
+              -164.5
+            ],
+            [
+              145.5,
+              -122.1
+            ],
+            [
+              178.5,
+              -65.0
+            ],
+            [
+              190.0,
+              -0.0
+            ],
+            [
+              148.0,
+              -0.0
+            ],
+            [
+              139.1,
+              -50.6
+            ],
+            [
+              113.4,
+              -95.1
+            ],
+            [
+              74.0,
+              -128.2
+            ],
+            [
+              25.7,
+              -145.8
+            ],
+            [
+              -25.7,
+              -145.8
+            ],
+            [
+              -74.0,
+              -128.2
+            ],
+            [
+              -113.4,
+              -95.1
+            ],
+            [
+              -139.1,
+              -50.6
+            ],
+            [
+              -148.0,
+              0.0
+            ]
+          ],
+          "r": null,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 8.0,
+          "behind": false,
+          "when": null
+        }
+      ],
+      "colorable": true,
+      "default_color": "#6b5a4a"
+    },
+    {
+      "id": "toga",
+      "name": "Toga",
+      "slot": "top",
+      "layers": [
+        {
+          "shape": "poly",
+          "anchor": "neck",
+          "pts": [
+            [
+              -75.0,
+              30.0
+            ],
+            [
+              -35.0,
+              8.0
+            ],
+            [
+              90.0,
+              215.0
+            ],
+            [
+              85.0,
+              262.0
+            ],
+            [
+              55.0,
+              268.0
+            ]
+          ],
+          "r": null,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 7.0,
+          "behind": false,
+          "when": null
+        },
+        {
+          "shape": "line",
+          "anchor": "neck",
+          "pts": [
+            [
+              -45.0,
+              30.0
+            ],
+            [
+              60.0,
+              230.0
+            ]
+          ],
+          "r": null,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "#7b3f8c",
+          "width": 6.0,
+          "behind": false,
+          "when": null
+        }
+      ],
+      "colorable": false,
+      "default_color": "#f3efe2"
+    },
+    {
+      "id": "robe",
+      "name": "Robe",
+      "slot": "top",
+      "layers": [
+        {
+          "shape": "poly",
+          "anchor": "hips",
+          "pts": [
+            [
+              -80.0,
+              -40.0
+            ],
+            [
+              80.0,
+              -40.0
+            ],
+            [
+              112.0,
+              205.0
+            ],
+            [
+              -112.0,
+              205.0
+            ]
+          ],
+          "r": null,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 8.0,
+          "behind": false,
+          "when": null
+        },
+        {
+          "shape": "line",
+          "anchor": "hips",
+          "pts": [
+            [
+              0.0,
+              -30.0
+            ],
+            [
+              0.0,
+              195.0
+            ]
+          ],
+          "r": null,
+          "ry": null,
+          "rot": 0.0,
+          "fill": null,
+          "width": 5.0,
+          "behind": false,
+          "when": null
+        }
+      ],
+      "colorable": true,
+      "default_color": "#6b4f8a"
+    },
+    {
+      "id": "armor",
+      "name": "Armor",
+      "slot": "top",
+      "layers": [
+        {
+          "shape": "poly",
+          "anchor": "chest",
+          "pts": [
+            [
+              -75.0,
+              -90.0
+            ],
+            [
+              75.0,
+              -90.0
+            ],
+            [
+              86.0,
+              20.0
+            ],
+            [
+              0.0,
+              92.0
+            ],
+            [
+              -86.0,
+              20.0
+            ]
+          ],
+          "r": null,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 8.0,
+          "behind": false,
+          "when": null
+        },
+        {
+          "shape": "line",
+          "anchor": "chest",
+          "pts": [
+            [
+              0.0,
+              -80.0
+            ],
+            [
+              0.0,
+              82.0
+            ]
+          ],
+          "r": null,
+          "ry": null,
+          "rot": 0.0,
+          "fill": null,
+          "width": 5.0,
+          "behind": false,
+          "when": null
+        },
+        {
+          "shape": "line",
+          "anchor": "chest",
+          "pts": [
+            [
+              -70.0,
+              -20.0
+            ],
+            [
+              70.0,
+              -20.0
+            ]
+          ],
+          "r": null,
+          "ry": null,
+          "rot": 0.0,
+          "fill": null,
+          "width": 5.0,
+          "behind": false,
+          "when": null
+        },
+        {
+          "shape": "poly",
+          "anchor": "shoulders",
+          "pts": [
+            [
+              -20.0,
+              -18.0
+            ],
+            [
+              34.0,
+              -24.0
+            ],
+            [
+              44.0,
+              22.0
+            ],
+            [
+              -12.0,
+              26.0
+            ]
+          ],
+          "r": null,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 7.0,
+          "behind": false,
+          "when": null
+        }
+      ],
+      "colorable": true,
+      "default_color": "#b8bcc2"
+    },
+    {
+      "id": "sandals",
+      "name": "Sandals",
+      "slot": "footwear",
+      "layers": [
+        {
+          "shape": "rect",
+          "anchor": "feet",
+          "pts": [
+            [
+              -14.0,
+              -2.0
+            ],
+            [
+              30.0,
+              9.0
+            ]
+          ],
+          "r": null,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 5.0,
+          "behind": false,
+          "when": null
+        },
+        {
+          "shape": "line",
+          "anchor": "feet",
+          "pts": [
+            [
+              -6.0,
+              -26.0
+            ],
+            [
+              8.0,
+              -2.0
+            ]
+          ],
+          "r": null,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 5.0,
+          "behind": false,
+          "when": null
+        }
+      ],
+      "colorable": true,
+      "default_color": "#a8743a"
+    },
+    {
+      "id": "boots",
+      "name": "Boots",
+      "slot": "footwear",
+      "layers": [
+        {
+          "shape": "poly",
+          "anchor": "feet",
+          "pts": [
+            [
+              -16.0,
+              -72.0
+            ],
+            [
+              16.0,
+              -72.0
+            ],
+            [
+              18.0,
+              -6.0
+            ],
+            [
+              36.0,
+              -4.0
+            ],
+            [
+              38.0,
+              12.0
+            ],
+            [
+              -18.0,
+              12.0
+            ]
+          ],
+          "r": null,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 8.0,
+          "behind": false,
+          "when": null
+        }
+      ],
+      "colorable": true,
+      "default_color": "#4a3424"
+    },
+    {
+      "id": "cape",
+      "name": "Cape",
+      "slot": "back",
+      "layers": [
+        {
+          "shape": "poly",
+          "anchor": "neck",
+          "pts": [
+            [
+              -80.0,
+              0.0
+            ],
+            [
+              80.0,
+              0.0
+            ],
+            [
+              135.0,
+              330.0
+            ],
+            [
+              0.0,
+              346.0
+            ],
+            [
+              -135.0,
+              330.0
+            ]
+          ],
+          "r": null,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 8.0,
+          "behind": true,
+          "when": null
+        },
+        {
+          "shape": "circle",
+          "anchor": "neck",
+          "pts": [
+            [
+              0.0,
+              12.0
+            ]
+          ],
+          "r": 13.0,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "#e8b923",
+          "width": 5.0,
+          "behind": false,
+          "when": null
+        }
+      ],
+      "colorable": true,
+      "default_color": "#b0283a"
+    },
+    {
+      "id": "necklace",
+      "name": "Necklace",
+      "slot": "accessory",
+      "layers": [
+        {
+          "shape": "line",
+          "anchor": "neck",
+          "pts": [
+            [
+              -46.0,
+              6.0
+            ],
+            [
+              -30.0,
+              42.0
+            ],
+            [
+              0.0,
+              56.0
+            ],
+            [
+              30.0,
+              42.0
+            ],
+            [
+              46.0,
+              6.0
+            ]
+          ],
+          "r": null,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 6.0,
+          "behind": false,
+          "when": null
+        },
+        {
+          "shape": "circle",
+          "anchor": "neck",
+          "pts": [
+            [
+              0.0,
+              66.0
+            ]
+          ],
+          "r": 11.0,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 5.0,
+          "behind": false,
+          "when": null
+        }
+      ],
+      "colorable": true,
+      "default_color": "#e8b923"
+    },
+    {
+      "id": "belt",
+      "name": "Belt",
+      "slot": "accessory",
+      "layers": [
+        {
+          "shape": "rect",
+          "anchor": "waist",
+          "pts": [
+            [
+              -90.0,
+              -12.0
+            ],
+            [
+              90.0,
+              12.0
+            ]
+          ],
+          "r": null,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 6.0,
+          "behind": false,
+          "when": null
+        },
+        {
+          "shape": "rect",
+          "anchor": "waist",
+          "pts": [
+            [
+              -14.0,
+              -15.0
+            ],
+            [
+              14.0,
+              15.0
+            ]
+          ],
+          "r": null,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "#e8b923",
+          "width": 5.0,
+          "behind": false,
+          "when": null
+        }
+      ],
+      "colorable": true,
+      "default_color": "#4a3424"
+    },
+    {
+      "id": "glasses",
+      "name": "Glasses",
+      "slot": "face",
+      "layers": [
+        {
+          "shape": "circle",
+          "anchor": "eyes",
+          "pts": [
+            [
+              -50.0,
+              0.0
+            ]
+          ],
+          "r": 38.0,
+          "ry": null,
+          "rot": 0.0,
+          "fill": null,
+          "width": 7.0,
+          "behind": false,
+          "when": null
+        },
+        {
+          "shape": "circle",
+          "anchor": "eyes",
+          "pts": [
+            [
+              50.0,
+              0.0
+            ]
+          ],
+          "r": 38.0,
+          "ry": null,
+          "rot": 0.0,
+          "fill": null,
+          "width": 7.0,
+          "behind": false,
+          "when": null
+        },
+        {
+          "shape": "line",
+          "anchor": "eyes",
+          "pts": [
+            [
+              -12.0,
+              -4.0
+            ],
+            [
+              12.0,
+              -4.0
+            ]
+          ],
+          "r": null,
+          "ry": null,
+          "rot": 0.0,
+          "fill": null,
+          "width": 6.0,
+          "behind": false,
+          "when": null
+        }
+      ],
+      "colorable": false,
+      "default_color": "#1c1a1a"
+    },
+    {
+      "id": "scar",
+      "name": "Scar",
+      "slot": "face",
+      "layers": [
+        {
+          "shape": "line",
+          "anchor": "face",
+          "pts": [
+            [
+              -88.0,
+              -62.0
+            ],
+            [
+              -28.0,
+              32.0
+            ]
+          ],
+          "r": null,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 6.0,
+          "behind": false,
+          "when": null
+        },
+        {
+          "shape": "line",
+          "anchor": "face",
+          "pts": [
+            [
+              -88.0,
+              -37.0
+            ],
+            [
+              -64.0,
+              -49.0
+            ]
+          ],
+          "r": null,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 4.0,
+          "behind": false,
+          "when": null
+        },
+        {
+          "shape": "line",
+          "anchor": "face",
+          "pts": [
+            [
+              -70.0,
+              -9.0
+            ],
+            [
+              -46.0,
+              -21.0
+            ]
+          ],
+          "r": null,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 4.0,
+          "behind": false,
+          "when": null
+        },
+        {
+          "shape": "line",
+          "anchor": "face",
+          "pts": [
+            [
+              -52.0,
+              19.0
+            ],
+            [
+              -28.0,
+              7.0
+            ]
+          ],
+          "r": null,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 4.0,
+          "behind": false,
+          "when": null
+        }
+      ],
+      "colorable": true,
+      "default_color": "#a0453a"
+    },
+    {
+      "id": "face_paint",
+      "name": "Face paint",
+      "slot": "face",
+      "layers": [
+        {
+          "shape": "rect",
+          "anchor": "face",
+          "pts": [
+            [
+              -100.0,
+              24.0
+            ],
+            [
+              -40.0,
+              36.0
+            ]
+          ],
+          "r": null,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 0.0,
+          "behind": false,
+          "when": null
+        },
+        {
+          "shape": "rect",
+          "anchor": "face",
+          "pts": [
+            [
+              40.0,
+              24.0
+            ],
+            [
+              100.0,
+              36.0
+            ]
+          ],
+          "r": null,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 0.0,
+          "behind": false,
+          "when": null
+        },
+        {
+          "shape": "rect",
+          "anchor": "face",
+          "pts": [
+            [
+              -95.0,
+              46.0
+            ],
+            [
+              -45.0,
+              56.0
+            ]
+          ],
+          "r": null,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 0.0,
+          "behind": false,
+          "when": null
+        },
+        {
+          "shape": "rect",
+          "anchor": "face",
+          "pts": [
+            [
+              45.0,
+              46.0
+            ],
+            [
+              95.0,
+              56.0
+            ]
+          ],
+          "r": null,
+          "ry": null,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 0.0,
+          "behind": false,
+          "when": null
+        }
+      ],
+      "colorable": true,
+      "default_color": "#c0392b"
+    },
+    {
+      "id": "blush",
+      "name": "Blush",
+      "slot": "face",
+      "layers": [
+        {
+          "shape": "ellipse",
+          "anchor": "face",
+          "pts": [
+            [
+              -72.0,
+              42.0
+            ]
+          ],
+          "r": 24.0,
+          "ry": 12.0,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 0.0,
+          "behind": false,
+          "when": [
+            "happy",
+            "cheeky"
+          ]
+        },
+        {
+          "shape": "ellipse",
+          "anchor": "face",
+          "pts": [
+            [
+              72.0,
+              42.0
+            ]
+          ],
+          "r": 24.0,
+          "ry": 12.0,
+          "rot": 0.0,
+          "fill": "$color",
+          "width": 0.0,
+          "behind": false,
+          "when": [
+            "happy",
+            "cheeky"
+          ]
+        }
+      ],
+      "colorable": true,
+      "default_color": "#f2a3a3"
+    }
+  ]
+}

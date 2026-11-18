@@ -212,7 +212,7 @@ def test_cast_v2_rules():
     for bad in [{"headwear": {"kind": "bowler"}}, {"legwear": {"kind": "shorts"}}, {"props": [{"kind": "Big Sword"}]}, {"props": [{"kind": "apple", "hand": "left"}] * 2},
                 {"props": [{"kind": "none", "hand": "left"}]},
                 {"default_expression": "smug"}, {"top": {"color": "#123456", "number": "1234"}},
-                {"top": {"color": "#123456", "style": "cape"}}]:
+                {"top": {"color": "#123456", "style": "Big Cape"}}]:
         with pytest.raises(ValidationError):
             SeriesModel.model_validate(series_data(cast=[member(**bad)]))
 

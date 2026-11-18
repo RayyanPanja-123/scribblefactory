@@ -4,6 +4,34 @@
       "additionalProperties": false,
       "description": "a named variant of a cast member's look (story: @look <cast>: <name>). Only what it sets changes; everything\nelse stays the cast member's own. The character keeps its id, name, approval and drawing seed.",
       "properties": {
+        "accessory": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/WardrobeSlot"
+              },
+              "maxItems": 3,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "null: unchanged; []: none",
+          "title": "Accessory"
+        },
+        "back": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WardrobeSlot"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "default_expression": {
           "anyOf": [
             {
@@ -41,6 +69,56 @@
           ],
           "default": null,
           "title": "Eyes"
+        },
+        "face": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/WardrobeSlot"
+              },
+              "maxItems": 3,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Face"
+        },
+        "facial_hair": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WardrobeSlot"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "footwear": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WardrobeSlot"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "hair": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WardrobeSlot"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "null: unchanged; \"none\": taken off"
         },
         "headless": {
           "anyOf": [
@@ -112,6 +190,15 @@
     "CastMember": {
       "additionalProperties": false,
       "properties": {
+        "accessory": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/WardrobeSlot"
+          },
+          "maxItems": 3,
+          "title": "Accessory",
+          "type": "array"
+        },
         "approved_at": {
           "anyOf": [
             {
@@ -124,6 +211,17 @@
           ],
           "default": null,
           "title": "Approved At"
+        },
+        "back": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WardrobeSlot"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "body": {
           "default": "human",
@@ -154,6 +252,49 @@
           ],
           "title": "Eyes",
           "type": "string"
+        },
+        "face": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/WardrobeSlot"
+          },
+          "maxItems": 3,
+          "title": "Face",
+          "type": "array"
+        },
+        "facial_hair": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WardrobeSlot"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "footwear": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WardrobeSlot"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "hair": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WardrobeSlot"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "wardrobe slots: an id, {\"id\", \"color\"} or null"
         },
         "headless": {
           "default": false,
@@ -236,14 +377,8 @@
         },
         "kind": {
           "default": "none",
-          "enum": [
-            "none",
-            "flat_cap",
-            "postman_cap",
-            "bowler",
-            "straw_hat",
-            "wide_hat"
-          ],
+          "description": "wardrobe id (\"id\" or a plain string accepted too): built in flat_cap, postman_cap, bowler, straw_hat, wide_hat, or a library headwear; none",
+          "pattern": "^[a-z0-9]+([_-][a-z0-9]+)*$",
           "title": "Kind",
           "type": "string"
         }
@@ -269,12 +404,8 @@
         },
         "kind": {
           "default": "none",
-          "enum": [
-            "none",
-            "shorts",
-            "ragged_shorts",
-            "trousers"
-          ],
+          "description": "wardrobe id: built in shorts, ragged_shorts, trousers, or a library legwear; none",
+          "pattern": "^[a-z0-9]+([_-][a-z0-9]+)*$",
           "title": "Kind",
           "type": "string"
         }
@@ -368,13 +499,8 @@
         },
         "style": {
           "default": "plain",
-          "enum": [
-            "plain",
-            "suit",
-            "tank",
-            "shirt",
-            "dress"
-          ],
+          "description": "the top's wardrobe id (\"id\" accepted too): built in plain, suit, tank, shirt, dress, or a library top",
+          "pattern": "^[a-z0-9]+([_-][a-z0-9]+)*$",
           "title": "Style",
           "type": "string"
         }
@@ -407,6 +533,35 @@
         "voice_name"
       ],
       "title": "Voice",
+      "type": "object"
+    },
+    "WardrobeSlot": {
+      "additionalProperties": false,
+      "description": "one worn wardrobe item: an id (built in or library/wardrobe.json) and an optional colour for colorable items.\nA plain id string is accepted. \"none\": nothing (in a look: takes the cast member's item off).",
+      "properties": {
+        "color": {
+          "anyOf": [
+            {
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Color"
+        },
+        "id": {
+          "pattern": "^[a-z0-9]+([_-][a-z0-9]+)*$",
+          "title": "Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "WardrobeSlot",
       "type": "object"
     }
   },

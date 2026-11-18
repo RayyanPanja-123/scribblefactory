@@ -22,6 +22,8 @@ UtcDateTime = Annotated[
 Slug = Annotated[str, Field(pattern=r"^[a-z0-9]+(-[a-z0-9]+)*$")]
 PartId = Annotated[str, Field(pattern=r"^part-[0-9]{2}$")]
 HexColor = Annotated[str, Field(pattern=r"^#[0-9a-fA-F]{6}$")]
+# wardrobe ids: like a slug, underscores allowed too (the built-ins are flat_cap, ragged_shorts...)
+WardrobeId = Annotated[str, Field(pattern=r"^[a-z0-9]+([_-][a-z0-9]+)*$")]
 
 
 class Strict(BaseModel):
@@ -45,29 +47,87 @@ class Style(Strict):
 Expression = Literal["neutral", "happy", "sad", "angry", "surprised", "sleepy", "cheeky", "exhausted"]
 
 
+# --- wardrobe: clothing, hair and cosmetics, one item per slot (engine/page/wardrobe.js) ---
+
+WardrobeSlotName = Literal["hair", "facial_hair", "headwear", "top", "legwear", "footwear", "back", "accessory", "face"]
+WARDROBE_SLOTS: list[str] = list(get_args(WardrobeSlotName))
+DRAW_ORDER = ["back", "legwear", "footwear", "top", "accessory", "face", "facial_hair", "hair", "headwear"]  # back to front
+LIST_SLOTS = {"accessory", "face"}  # up to 3 items each
+# the original costume pieces, drawn by hand-written code in stickman.js: id -> (slot, name). Keep equal to
+# engine/page/wardrobe.js BUILTIN_WARDROBE (a test checks)
+BUILTIN_WARDROBE: dict[str, tuple[str, str]] = {
+    "plain": ("top", "Plain top"), "suit": ("top", "Suit"), "tank": ("top", "Tank top"), "shirt": ("top", "Shirt"),
+    "dress": ("top", "Dress"), "flat_cap": ("headwear", "Flat cap"), "postman_cap": ("headwear", "Postman cap"),
+    "bowler": ("headwear", "Bowler"), "straw_hat": ("headwear", "Straw hat"), "wide_hat": ("headwear", "Wide hat"),
+    "shorts": ("legwear", "Shorts"), "ragged_shorts": ("legwear", "Ragged shorts"), "trousers": ("legwear", "Trousers"),
+}
+WardrobeAnchor = Literal["head", "head_top", "face", "eyes", "mouth", "neck", "shoulders", "chest", "waist", "hips",
+                         "back", "arms", "hands", "legs", "feet"]
+
+
+def _id_key(key: str):
+    """before-validator: a plain id string, or {"id": ...}, -> {key: id}"""
+    def f(v):
+        if isinstance(v, str):
+            return {key: v}
+        if isinstance(v, dict) and "id" in v:
+            v = {**v}
+            v.setdefault(key, v.pop("id"))
+            v.pop("id", None)
+        return v
+    return f
+
+
+class WardrobeSlot(Strict):
+    """one worn wardrobe item: an id (built in or library/wardrobe.json) and an optional colour for colorable items.
+    A plain id string is accepted. "none": nothing (in a look: takes the cast member's item off)."""
+    id: WardrobeId
+    color: HexColor | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _plain(cls, v):
+        return {"id": v} if isinstance(v, str) else v
+
+
+def _slot_list(v):
+    """a list slot (accessory, face): one value or a list; null / "none": empty"""
+    if v is None or v == "none":
+        return []
+    return v if isinstance(v, list) else [v]
+
+
 class Top(Strict):
-    style: Literal["plain", "suit", "tank", "shirt", "dress"] = "plain"
+    style: WardrobeId = Field(default="plain", description="the top's wardrobe id (\"id\" accepted too): built in "
+                                                         "plain, suit, tank, shirt, dress, or a library top")
     color: HexColor
     accent_color: HexColor | None = Field(default=None, description="suit: the tie colour (no tie when null); "
                                                                      "dress: the wide hat's ribbon and flower")
     number: str | None = Field(default=None, pattern=r"^[0-9]{1,3}$", description="chest number on a white bib")
+    _plain = model_validator(mode="before")(_id_key("style"))
 
 
 def _needs_color(m):
-    if m.kind != "none" and m.color is None:
+    # the built-ins have no colour of their own; a library item falls back to its default_color
+    if m.kind in BUILTIN_WARDROBE and m.color is None:
         raise ValueError(f"{m.kind} needs a color")
     return m
 
 
 class Headwear(Strict):
-    kind: Literal["none", "flat_cap", "postman_cap", "bowler", "straw_hat", "wide_hat"] = "none"
+    kind: WardrobeId = Field(default="none", description="wardrobe id (\"id\" or a plain string accepted too): built "
+                                                       "in flat_cap, postman_cap, bowler, straw_hat, wide_hat, or a "
+                                                       "library headwear; none")
     color: HexColor | None = None
+    _plain = model_validator(mode="before")(_id_key("kind"))
     _check = model_validator(mode="after")(_needs_color)
 
 
 class Legwear(Strict):
-    kind: Literal["none", "shorts", "ragged_shorts", "trousers"] = "none"
+    kind: WardrobeId = Field(default="none", description="wardrobe id: built in shorts, ragged_shorts, trousers, or a "
+                                                       "library legwear; none")
     color: HexColor | None = None
+    _plain = model_validator(mode="before")(_id_key("kind"))
     _check = model_validator(mode="after")(_needs_color)
 
 
@@ -100,6 +160,12 @@ class CastLook(Strict):
     top: Top | None = None
     headwear: Headwear | None = None
     legwear: Legwear | None = None
+    hair: WardrobeSlot | None = Field(default=None, description="null: unchanged; \"none\": taken off")
+    facial_hair: WardrobeSlot | None = None
+    footwear: WardrobeSlot | None = None
+    back: WardrobeSlot | None = None
+    accessory: list[WardrobeSlot] | None = Field(default=None, max_length=3, description="null: unchanged; []: none")
+    face: list[WardrobeSlot] | None = Field(default=None, max_length=3)
     props: list[Prop] | None = Field(default=None, max_length=2, description="held props, one per hand ([]: none)")
     default_expression: Expression | None = None
     eyes: Literal["dots", "half_closed"] | None = None
@@ -109,6 +175,11 @@ class CastLook(Strict):
     def _one_per_hand(cls, v):
         return _one_hand_each(v)
 
+    @field_validator("accessory", "face", mode="before")
+    @classmethod
+    def _lists(cls, v):
+        return None if v is None else _slot_list(v)
+
 
 class CastMember(Strict):
     id: Slug
@@ -116,6 +187,12 @@ class CastMember(Strict):
     top: Top
     headwear: Headwear = Headwear()
     legwear: Legwear = Legwear()
+    hair: WardrobeSlot | None = Field(default=None, description="wardrobe slots: an id, {\"id\", \"color\"} or null")
+    facial_hair: WardrobeSlot | None = None
+    footwear: WardrobeSlot | None = None
+    back: WardrobeSlot | None = None
+    accessory: list[WardrobeSlot] = Field(default=[], max_length=3)
+    face: list[WardrobeSlot] = Field(default=[], max_length=3)
     props: list[Prop] = Field(default=[], max_length=2, description="held props, one per hand")
     default_expression: Expression = "neutral"
     eyes: Literal["dots", "half_closed"]
@@ -132,6 +209,35 @@ class CastMember(Strict):
     @classmethod
     def _one_per_hand(cls, v):
         return _one_hand_each(v)
+
+    @field_validator("headwear", "legwear", mode="before")
+    @classmethod
+    def _none_wear(cls, v):
+        return {"kind": "none"} if v is None else v
+
+    @field_validator("hair", "facial_hair", "footwear", "back", mode="before")
+    @classmethod
+    def _none_slot(cls, v):
+        return None if v == "none" or (isinstance(v, dict) and v.get("id") == "none") else v
+
+    @field_validator("accessory", "face", mode="before")
+    @classmethod
+    def _lists(cls, v):
+        return [x for x in _slot_list(v) if x != "none"]
+
+    def wardrobe(self) -> list[tuple[str, str]]:
+        """(slot, id) of everything this cast member wears in any of its looks (nothing for none)"""
+        out = []
+        for m in [self, *self.looks.values()]:
+            for slot, key in (("top", "style"), ("headwear", "kind"), ("legwear", "kind")):
+                if (v := getattr(m, slot)) is not None and getattr(v, key) != "none":
+                    out.append((slot, getattr(v, key)))
+            for slot in ("hair", "facial_hair", "footwear", "back"):
+                if (v := getattr(m, slot)) is not None and v.id != "none":
+                    out.append((slot, v.id))
+            for slot in ("accessory", "face"):
+                out += [(slot, v.id) for v in getattr(m, slot) or [] if v.id != "none"]
+        return out
 
     @field_validator("body", mode="before")
     @classmethod
@@ -529,6 +635,71 @@ class CreatureLibrary(Strict):
     def _unique(cls, v):
         if dupes := sorted({p.id for p in v if sum(q.id == p.id for q in v) > 1}):
             raise ValueError(f"creature ids must be unique: {', '.join(dupes)}")
+        return v
+
+
+# --- library/wardrobe.json (custom clothing, hair and cosmetics, shared by every series) ---
+
+class WardrobeLayer(Strict):
+    """one ink shape of a wardrobe item, in canvas px around its anchor (the default human: head radius 150, body 184
+    wide and 300 tall, legs 220, arms 175). x: across (+ outward on the paired anchors shoulders / arms / hands / legs /
+    feet, drawn on both sides, mirrored on the left); y: down (arms and legs: along the limb from the shoulder / hip).
+    Torso anchors scale with body_w x body_h, arms and hands with arm, legs and feet with leg; head anchors (head,
+    head_top, face, eyes, mouth) are in head space: they scale with the head and turn with the face."""
+    shape: Literal["rect", "circle", "ellipse", "line", "poly"]
+    anchor: WardrobeAnchor
+    pts: list[Point] = Field(min_length=1, max_length=40, description="rect: 2 corners; circle / ellipse: the centre; "
+                                                                      "line: 2+ points; poly: 3+ points (closed)")
+    r: float | None = Field(default=None, gt=0, le=400, description="circle: radius; ellipse: x radius")
+    ry: float | None = Field(default=None, gt=0, le=400, description="ellipse: y radius")
+    rot: float = Field(default=0, ge=-180, le=180, description="ellipse: turn in degrees, clockwise")
+    fill: HexColor | Literal["$color"] | None = Field(
+        default=None, description="$color: the worn colour (the cast member's for a colorable item, else the item's "
+                                  "default_color); none: outline only. For a line: its colour (default ink)")
+    width: float = Field(default=8, ge=0, le=40, description="outline / line width; 0: no outline")
+    behind: bool = Field(default=False, description="drawn behind the head and body (long hair, a cape)")
+    when: list[Expression] | None = Field(default=None, description="only with these expressions (blush: happy)")
+
+    @model_validator(mode="after")
+    def _fits(self):
+        need = {"rect": (2, 2), "circle": (1, 1), "ellipse": (1, 1), "line": (2, 40), "poly": (3, 40)}[self.shape]
+        if not need[0] <= len(self.pts) <= need[1]:
+            raise ValueError(f"{self.shape} takes {need[0] if need[0] == need[1] else f'{need[0]}+'} points")
+        if (self.shape in ("circle", "ellipse")) != (self.r is not None):
+            raise ValueError("r is for circles and ellipses, and each needs one")
+        if (self.shape == "ellipse") != (self.ry is not None):
+            raise ValueError("ry is for ellipses, and every ellipse needs one")
+        if any(abs(v) > 600 for p in self.pts for v in p):
+            raise ValueError("points must stay within 600 px of the anchor")
+        return self
+
+
+class WardrobeItem(Strict):
+    id: WardrobeId = Field(description="the id a cast slot uses")  # checked: _not_builtin
+    name: str = Field(min_length=1, max_length=40)
+    slot: WardrobeSlotName
+    layers: list[WardrobeLayer] = Field(default=[], max_length=60, description="drawn in order: later ones on top")
+    colorable: bool = Field(default=True, description="the cast member's colour replaces default_color in $color")
+    default_color: HexColor = "#6b4f3a"
+
+    @field_validator("id")
+    @classmethod
+    def _not_builtin(cls, v):
+        if v in BUILTIN_WARDROBE or v == "none":
+            raise ValueError(f"{v} is a built-in wardrobe item" if v != "none" else "none is reserved")
+        return v
+
+
+class WardrobeLibrary(Strict):
+    schema_version: Literal[1] = 1
+    wardrobe: list[WardrobeItem] = []
+
+    @field_validator("wardrobe")
+    @classmethod
+    def _unique(cls, v):
+        ids = [x.id for x in v]
+        if dupes := sorted({i for i in ids if ids.count(i) > 1}):
+            raise ValueError(f"wardrobe ids must be unique: {', '.join(dupes)}")
         return v
 
 

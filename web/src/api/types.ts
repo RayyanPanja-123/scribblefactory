@@ -564,6 +564,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/wardrobe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Wardrobe */
+        get: operations["get_wardrobe_api_wardrobe_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/wardrobe/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put Wardrobe Item */
+        put: operations["put_wardrobe_item_api_wardrobe__item_id__put"];
+        post?: never;
+        /** Remove Wardrobe Item */
+        delete: operations["remove_wardrobe_item_api_wardrobe__item_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -652,6 +687,18 @@ export interface components {
              */
             kind: "indoor" | "outdoor";
         };
+        /** BuiltinWardrobeItem */
+        BuiltinWardrobeItem: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Slot
+             * @enum {string}
+             */
+            slot: "hair" | "facial_hair" | "headwear" | "top" | "legwear" | "footwear" | "back" | "accessory" | "face";
+        };
         /** CastApproval */
         CastApproval: {
             /** Cast Id */
@@ -663,10 +710,22 @@ export interface components {
          *     else stays the cast member's own. The character keeps its id, name, approval and drawing seed.
          */
         CastLook: {
+            /**
+             * Accessory
+             * @description null: unchanged; []: none
+             */
+            accessory?: components["schemas"]["WardrobeSlot"][] | null;
+            back?: components["schemas"]["WardrobeSlot"] | null;
             /** Default Expression */
             default_expression?: ("neutral" | "happy" | "sad" | "angry" | "surprised" | "sleepy" | "cheeky" | "exhausted") | null;
             /** Eyes */
             eyes?: ("dots" | "half_closed") | null;
+            /** Face */
+            face?: components["schemas"]["WardrobeSlot"][] | null;
+            facial_hair?: components["schemas"]["WardrobeSlot"] | null;
+            footwear?: components["schemas"]["WardrobeSlot"] | null;
+            /** @description null: unchanged; "none": taken off */
+            hair?: components["schemas"]["WardrobeSlot"] | null;
             /**
              * Headless
              * @description creatures with a stump only
@@ -683,8 +742,14 @@ export interface components {
         };
         /** CastMember */
         CastMember: {
+            /**
+             * Accessory
+             * @default []
+             */
+            accessory: components["schemas"]["WardrobeSlot"][];
             /** Approved At */
             approved_at?: string | null;
+            back?: components["schemas"]["WardrobeSlot"] | null;
             /**
              * Body
              * @description creature id (built in or library/creatures.json). human (default) and other humanoids are stickmen: face, expressions, costume. Other rigs are drawn in top.color ($main) and top.accent_color ($accent), eyes and mouth only, no costume
@@ -702,6 +767,15 @@ export interface components {
              * @enum {string}
              */
             eyes: "dots" | "half_closed";
+            /**
+             * Face
+             * @default []
+             */
+            face: components["schemas"]["WardrobeSlot"][];
+            facial_hair?: components["schemas"]["WardrobeSlot"] | null;
+            footwear?: components["schemas"]["WardrobeSlot"] | null;
+            /** @description wardrobe slots: an id, {"id", "color"} or null */
+            hair?: components["schemas"]["WardrobeSlot"] | null;
             /**
              * Headless
              * @description creatures with a stump only: the stump instead of the head
@@ -959,10 +1033,10 @@ export interface components {
             color?: string | null;
             /**
              * Kind
+             * @description wardrobe id ("id" or a plain string accepted too): built in flat_cap, postman_cap, bowler, straw_hat, wide_hat, or a library headwear; none
              * @default none
-             * @enum {string}
              */
-            kind: "none" | "flat_cap" | "postman_cap" | "bowler" | "straw_hat" | "wide_hat";
+            kind: string;
         };
         /** Health */
         Health: {
@@ -1072,10 +1146,10 @@ export interface components {
             color?: string | null;
             /**
              * Kind
+             * @description wardrobe id: built in shorts, ragged_shorts, trousers, or a library legwear; none
              * @default none
-             * @enum {string}
              */
-            kind: "none" | "shorts" | "ragged_shorts" | "trousers";
+            kind: string;
         };
         /** MonthPosts */
         MonthPosts: {
@@ -1180,6 +1254,11 @@ export interface components {
             series: components["schemas"]["PackageSeries"] | null;
             /** Sets */
             sets: components["schemas"]["PackageItem"][];
+            /**
+             * Wardrobe
+             * @default []
+             */
+            wardrobe: components["schemas"]["PackageItem"][];
             /** Warnings */
             warnings: components["schemas"]["PackageIssue"][];
         };
@@ -1672,10 +1751,10 @@ export interface components {
             number?: string | null;
             /**
              * Style
+             * @description the top's wardrobe id ("id" accepted too): built in plain, suit, tank, shirt, dress, or a library top
              * @default plain
-             * @enum {string}
              */
-            style: "plain" | "suit" | "tank" | "shirt" | "dress";
+            style: string;
         };
         /** UploadText */
         UploadText: {
@@ -1718,6 +1797,127 @@ export interface components {
             slug: string;
             /** Waiting */
             waiting: string[];
+        };
+        /** WardrobeCatalog */
+        WardrobeCatalog: {
+            /** Builtin */
+            builtin: components["schemas"]["BuiltinWardrobeItem"][];
+            /**
+             * Cleared
+             * @default []
+             */
+            cleared: string[];
+            /** Custom */
+            custom: components["schemas"]["WardrobeItem"][];
+        };
+        /** WardrobeItem */
+        WardrobeItem: {
+            /**
+             * Colorable
+             * @description the cast member's colour replaces default_color in $color
+             * @default true
+             */
+            colorable: boolean;
+            /**
+             * Default Color
+             * @default #6b4f3a
+             */
+            default_color: string;
+            /**
+             * Id
+             * @description the id a cast slot uses
+             */
+            id: string;
+            /**
+             * Layers
+             * @description drawn in order: later ones on top
+             * @default []
+             */
+            layers: components["schemas"]["WardrobeLayer"][];
+            /** Name */
+            name: string;
+            /**
+             * Slot
+             * @enum {string}
+             */
+            slot: "hair" | "facial_hair" | "headwear" | "top" | "legwear" | "footwear" | "back" | "accessory" | "face";
+        };
+        /**
+         * WardrobeLayer
+         * @description one ink shape of a wardrobe item, in canvas px around its anchor (the default human: head radius 150, body 184
+         *     wide and 300 tall, legs 220, arms 175). x: across (+ outward on the paired anchors shoulders / arms / hands / legs /
+         *     feet, drawn on both sides, mirrored on the left); y: down (arms and legs: along the limb from the shoulder / hip).
+         *     Torso anchors scale with body_w x body_h, arms and hands with arm, legs and feet with leg; head anchors (head,
+         *     head_top, face, eyes, mouth) are in head space: they scale with the head and turn with the face.
+         */
+        WardrobeLayer: {
+            /**
+             * Anchor
+             * @enum {string}
+             */
+            anchor: "head" | "head_top" | "face" | "eyes" | "mouth" | "neck" | "shoulders" | "chest" | "waist" | "hips" | "back" | "arms" | "hands" | "legs" | "feet";
+            /**
+             * Behind
+             * @description drawn behind the head and body (long hair, a cape)
+             * @default false
+             */
+            behind: boolean;
+            /**
+             * Fill
+             * @description $color: the worn colour (the cast member's for a colorable item, else the item's default_color); none: outline only. For a line: its colour (default ink)
+             */
+            fill?: string | "$color" | null;
+            /**
+             * Pts
+             * @description rect: 2 corners; circle / ellipse: the centre; line: 2+ points; poly: 3+ points (closed)
+             */
+            pts: [
+                number,
+                number
+            ][];
+            /**
+             * R
+             * @description circle: radius; ellipse: x radius
+             */
+            r?: number | null;
+            /**
+             * Rot
+             * @description ellipse: turn in degrees, clockwise
+             * @default 0
+             */
+            rot: number;
+            /**
+             * Ry
+             * @description ellipse: y radius
+             */
+            ry?: number | null;
+            /**
+             * Shape
+             * @enum {string}
+             */
+            shape: "rect" | "circle" | "ellipse" | "line" | "poly";
+            /**
+             * When
+             * @description only with these expressions (blush: happy)
+             */
+            when?: ("neutral" | "happy" | "sad" | "angry" | "surprised" | "sleepy" | "cheeky" | "exhausted")[] | null;
+            /**
+             * Width
+             * @description outline / line width; 0: no outline
+             * @default 8
+             */
+            width: number;
+        };
+        /**
+         * WardrobeSlot
+         * @description one worn wardrobe item: an id (built in or library/wardrobe.json) and an optional colour for colorable items.
+         *     A plain id string is accepted. "none": nothing (in a look: takes the cast member's item off).
+         */
+        WardrobeSlot: {
+            /** Color */
+            color?: string | null;
+            /** Id */
+            id: string;
         };
     };
     responses: never;
@@ -2893,6 +3093,92 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SetCatalog"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_wardrobe_api_wardrobe_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WardrobeCatalog"];
+                };
+            };
+        };
+    };
+    put_wardrobe_item_api_wardrobe__item_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WardrobeItem"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WardrobeCatalog"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_wardrobe_item_api_wardrobe__item_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WardrobeCatalog"];
                 };
             };
             /** @description Validation Error */

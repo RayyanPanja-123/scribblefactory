@@ -3,13 +3,14 @@ import { computed } from 'vue'
 import { api } from '../api/client'
 import { allCreatures } from '../lib/creatures'
 import { propOptions } from '../lib/props'
+import { SLOT_LABEL, SLOTS, wardrobeOptions } from '../lib/wardrobe'
 import { useApi } from '../composables/useApi'
 
 // Every story.md directive in one place (the full rules for the AI live in docs/STORY_GUIDE.md section 5; keep the
 // two in step). The lists of sets, bodies, actions and props are live: built-ins plus this library's custom ones.
 const { data } = useApi(async () => {
-  const [sets, creatures, actions, props] = await Promise.all([api.sets(), api.creatures(), api.actions(), api.props()])
-  return { sets, creatures, actions, props }
+  const [sets, creatures, actions, props, wardrobe] = await Promise.all([api.sets(), api.creatures(), api.actions(), api.props(), api.wardrobe()])
+  return { sets, creatures, actions, props, wardrobe }
 })
 const live = computed(() => {
   const d = data.value
@@ -19,6 +20,7 @@ const live = computed(() => {
     bodies: allCreatures(d.creatures).map((c) => `${c.id} (${c.rig})`),
     actions: [...d.actions.do, ...d.actions.custom.map((a) => `${a.id} (custom)`)],
     props: propOptions(d.props).map((p) => p.id),
+    wardrobe: SLOTS.map((s) => ({ slot: s, ids: wardrobeOptions(d.wardrobe).filter((w) => w.slot === s).map((w) => w.id) })),
   }
 })
 
@@ -40,7 +42,8 @@ const DIRECTIVES: Directive[] = [
     example: '@do trainer1, trainer2: carry thomas' },
   { id: 'look', syntax: '@look <cast>: <look>', what: 'From the next line on, a cast member wears one of its named looks.',
     rules: ['Lasts until another @look for them, across @set changes, for the rest of the part.', '@look mike: default brings back their own look.',
-      'Several at once: @look amy, bob: wedding.', 'Looks are defined per cast member (series cast JSON "looks").'],
+      'Several at once: @look amy, bob: wedding.', 'Looks are defined per cast member (series cast JSON "looks").',
+      'A look is a whole outfit: it swaps every wardrobe slot it sets at once; "none" takes an item off.'],
     example: '@look mike: headless' },
   { id: 'car', syntax: '@car arrive | ride | leave | off', what: 'A car on stage.',
     rules: ['arrive: drives in and parks beside the main character.', 'ride: the current @cast (at most 3) sit in it; outdoors it is a travelling shot. Only @do car: broken is allowed while riding.',
@@ -86,6 +89,18 @@ const DIRECTIVES: Directive[] = [
       <p class="text-sm text-muted">Held in a hand (cast JSON <code>"props"</code>, or a look), eaten with <code>@do … eat</code>,
         handed over with <code>@do … give</code>. Custom ones come from the Props page.</p>
       <p v-if="live" class="flex flex-wrap gap-1"><code v-for="x in live.props" :key="x" class="chip">{{ x }}</code></p>
+    </section>
+    <section id="wardrobe" class="raised scroll-mt-4 space-y-2 p-5">
+      <h3 class="font-semibold">Wardrobe</h3>
+      <p class="text-sm text-muted">What humanoid cast members wear, one item per slot (accessory and face: up to 3), in the cast JSON:
+        <code>"hair": "wild_hair"</code> or <code>"hair": {"id": "wild_hair", "color": "#e8e8e8"}</code>, <code>null</code> for none.
+        <code>@look</code> swaps a whole outfit. Custom items come from the Wardrobe page.</p>
+      <dl v-if="live" class="grid gap-1 text-xs sm:grid-cols-[8rem_1fr]">
+        <template v-for="g in live.wardrobe" :key="g.slot">
+          <dt class="font-semibold">{{ SLOT_LABEL[g.slot] }} <code class="text-muted">{{ g.slot }}</code></dt>
+          <dd class="flex flex-wrap gap-1"><code v-for="x in g.ids" :key="x" class="chip">{{ x }}</code><span v-if="!g.ids.length" class="text-muted">none yet</span></dd>
+        </template>
+      </dl>
     </section>
   </div>
 </template>

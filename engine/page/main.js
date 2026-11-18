@@ -123,8 +123,9 @@ let mouth = new Float32Array(0); // per-frame mouth opening for the whole part (
 /** drawStickman options for cast member id (look from series.json), merged over the per-frame options o */
 function figure(id, o) {
   const cast = castOf(id, o.look);
-  const { top, headwear, legwear, props, eyes, headless = false } = cast;
+  const { top, headwear, legwear, props, eyes, headless = false, hair, facial_hair, footwear, back, accessory, face } = cast;
   return { seed: charSeed(id), color: top.color, top, headwear, legwear, props, eyes, headless,
+    hair, facial_hair, footwear, back, accessory, face, // wardrobe slots (wardrobe.js); a look's "none" takes one off
     creature: creatureOf(id), build: bodyOf(id).build, ...o };
 }
 

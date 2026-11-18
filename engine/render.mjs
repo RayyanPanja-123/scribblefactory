@@ -24,6 +24,7 @@ import { parseArgs } from "node:util";
 import { chromium } from "playwright";
 
 const ENGINE = path.dirname(fileURLToPath(import.meta.url));
+const WARDROBE_SEED = path.join(ENGINE, "..", "pipeline", "scribble", "seed", "wardrobe.json");
 const SERVED = [path.join(ENGINE, "page"), path.join(ENGINE, "node_modules", "three")];
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript", ".json": "application/json" };
 const PLAYWRIGHT = JSON.parse(fs.readFileSync(path.join(ENGINE, "node_modules", "playwright", "package.json"), "utf8")).version;
@@ -57,8 +58,9 @@ const readJson = (f) => {
   return JSON.parse(fs.readFileSync(f, "utf8"));
 };
 /** every custom item of the library (library/<kind>.json, none yet: []), handed to the page once (library.js) */
-const loadLibrary = (library) => Object.fromEntries(["props", "sets", "creatures", "actions"].map((k) => {
+const loadLibrary = (library) => Object.fromEntries(["props", "sets", "creatures", "actions", "wardrobe"].map((k) => {
   const f = path.join(library, `${k}.json`);
+  if (!fs.existsSync(f) && k === "wardrobe") return [k, readJson(WARDROBE_SEED)[k]]; // the starter wardrobe (io.py)
   return [k, fs.existsSync(f) ? readJson(f)[k] : []];
 }));
 

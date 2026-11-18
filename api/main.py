@@ -32,12 +32,12 @@ from pipeline.scribble import cli, package, storycheck
 from pipeline.scribble.io import (atomic_write_bytes, atomic_write_json, atomic_write_text, delete_prop, delete_set, load_part, load_props,
                                   load_series, load_sets, prop_kinds, save_prop, save_series, save_set, unknown_cast_props,
                                   cast_body_problems, delete_creature, load_creatures, save_creature, delete_action,
-                                  load_actions, save_action)
+                                  load_actions, save_action, delete_wardrobe_item, load_wardrobe, save_wardrobe_item)
 from pipeline.scribble.schemas import (ACTIONS, BUILTIN_CREATURES, BUILTIN_SETS, BuiltinProp, CastMember, CreatureRig,
                                        CustomAction, CustomCreature, actions_with,
                                        CustomProp, CustomSet, PartModel, Posted, SeriesModel, SetKind, Slug,
                                        Stage, Stages,
-                                       utcnow)
+                                       BUILTIN_WARDROBE, WardrobeId, WardrobeItem, WardrobeSlotName, utcnow)
 from pipeline.scribble.stages import render as render_stage
 from pipeline.scribble.stages.import_check import probe_duration
 from pipeline.scribble.stages.runner import StageError, recover_stuck
@@ -547,7 +547,7 @@ def create_series(body: NewSeries):
     if unknown := unknown_cast_props(cast, lib()):
         raise HTTPException(409, f"unknown prop {unknown[0]} (props: {', '.join(prop_kinds(lib()))})")
     if problems := cast_body_problems(cast, lib()):
-        raise HTTPException(409, f"cast body: {problems[0]}")
+        raise HTTPException(409, f"cast: {problems[0]}")
     cli_call("new-series", body.slug, f"--title={body.title}")
     d = series_path(body.slug)
     if cast:
@@ -575,7 +575,7 @@ def add_cast(slug: str, body: NewCast):
     if unknown := unknown_cast_props(new, lib()):
         raise HTTPException(409, f"unknown prop {unknown[0]} (props: {', '.join(prop_kinds(lib()))})")
     if problems := cast_body_problems(new, lib()):
-        raise HTTPException(409, f"cast body: {problems[0]}")
+        raise HTTPException(409, f"cast: {problems[0]}")
     series.cast = series.cast + new
     save_series(d / "series.json", series)
     publish("series-changed", {"slug": slug})
@@ -679,6 +679,59 @@ def remove_creature(creature_id: Slug):
         raise HTTPException(409, str(e))
     publish("creatures-changed", {"id": creature_id})
     return creature_catalog()
+
+
+# ---------------- wardrobe (library/wardrobe.json: clothing, hair, cosmetics, shared by every series) ----------------
+
+class BuiltinWardrobeItem(BaseModel):
+    id: str
+    name: str
+    slot: WardrobeSlotName
+
+
+class WardrobeCatalog(BaseModel):
+    builtin: list[BuiltinWardrobeItem]  # hand-drawn by engine/page/stickman.js: read only
+    custom: list[WardrobeItem]
+    cleared: list[str] = []  # after a save: "<slug>/<cast id>" approvals cleared because the drawing changed
+
+
+def wardrobe_catalog(cleared=()) -> WardrobeCatalog:
+    return WardrobeCatalog(builtin=[BuiltinWardrobeItem(id=k, slot=v[0], name=v[1]) for k, v in BUILTIN_WARDROBE.items()],
+                           custom=load_wardrobe(lib()).wardrobe, cleared=list(cleared))
+
+
+@app.get("/api/wardrobe", response_model=WardrobeCatalog)
+def get_wardrobe():
+    return wardrobe_catalog()
+
+
+@app.put("/api/wardrobe/{item_id}", response_model=WardrobeCatalog)
+def put_wardrobe_item(item_id: WardrobeId, body: WardrobeItem):
+    if body.id != item_id:
+        raise HTTPException(409, f"body id {body.id!r} does not match {item_id!r}")
+    check_no_jobs()  # wardrobe.json feeds every render, like props.json
+    lib().mkdir(parents=True, exist_ok=True)
+    try:
+        cleared = save_wardrobe_item(lib(), body)
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+    publish("wardrobe-changed", {"id": item_id})
+    for slug in {c.split("/")[0] for c in cleared}:
+        publish("series-changed", {"slug": slug})
+    return wardrobe_catalog(cleared)
+
+
+@app.delete("/api/wardrobe/{item_id}", response_model=WardrobeCatalog)
+def remove_wardrobe_item(item_id: WardrobeId):
+    check_no_jobs()
+    try:
+        delete_wardrobe_item(lib(), item_id)
+    except KeyError:
+        raise HTTPException(404, f"no custom wardrobe item {item_id!r}")
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+    publish("wardrobe-changed", {"id": item_id})
+    return wardrobe_catalog()
 
 
 # ---------------- actions (library/actions.json: custom moves, shared by every series) ----------------
@@ -802,6 +855,7 @@ class PackageResult(BaseModel):
     sets: list[PackageItem]
     creatures: list[PackageItem]
     actions: list[PackageItem]
+    wardrobe: list[PackageItem] = []
     cast: list[PackageItem]
     renames: dict[str, dict[str, str]]  # props / sets / creatures / actions: package id -> imported id
     parts: list[PackagePart]
@@ -824,7 +878,7 @@ def import_package(body: PackageText):
         r = package.import_package(body.text, lib())
     except package.PackageError as e:
         raise HTTPException(409, f"package has errors, nothing was written: {e}")
-    for kind in ("props", "sets", "creatures", "actions"):
+    for kind in ("props", "sets", "creatures", "actions", "wardrobe"):
         publish(f"{kind}-changed", {"id": None})
     publish("series-changed", {"slug": r["series"]["slug"]})
     return package.summary(r)

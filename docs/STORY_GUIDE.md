@@ -38,7 +38,8 @@ Work in three steps:
 
 In the package:
 
-- Only **new** sets, props, creatures and actions go in PROPS / SETS / CREATURES / ACTIONS, as JSON in the
+- Only **new** sets, props, creatures, actions and wardrobe items go in PROPS / SETS / CREATURES / ACTIONS /
+  WARDROBE, as JSON in the
   dashboard's own format (section 6). Anything in *Available in this library* is used by its id and never
   repeated. Every prop the story's key actions depend on must be created (section 6) and attached to the cast
   member who uses it (section 6, **How a character holds a prop**).
@@ -236,8 +237,11 @@ From the next narration line on, the cast member wears one of its named looks (i
 `"looks": {"headless": {"headless": true}}`) until another `@look` for them, for the rest of the part, across
 `@set` changes. `@look mike: default` brings back their own look. Several at once: `@look amy, bob: wedding`.
 Use it for a change the viewer should see: a lost head, a costume, a disguise, prison clothes, or an object in
-hand (a look with props, e.g. `@look lloyd: axe`; section 6). Only looks listed for that cast member exist. A
-new part starts in everyone's own look, so repeat the `@look` at its top if the change still holds.
+hand (a look with props, e.g. `@look lloyd: axe`; section 6). A look is a whole outfit: it can set any wardrobe
+slots at once (`{"coronation": {"headwear": "crown", "back": "cape", "top": {"id": "robe", "color": "#6b4f8a"}}}`)
+and swaps them all on that line; slots it leaves out stay as they were, and `"none"` takes an item off. Only looks
+listed for that cast member exist. A new part starts in everyone's own look, so repeat the `@look` at its top if
+the change still holds.
 
 ```text
 Lloyd grabbed a young rooster named Mike and swung his axe.
@@ -290,7 +294,7 @@ it moves (section 5, under `@cast`). Built in: `human` (humanoid: the stickman),
 dashboard's **Creatures** page. Every creature but a humanoid has a `headless` version (a neck stump) for a
 `"headless"` look. A body that does not exist yet goes in the package's CREATURES (section 6).
 
-## 6. New sets, props and creatures
+## 6. New sets, props, creatures and wardrobe
 
 - **Sets: prefer what already exists.** Add a new one only when no existing set fits the place.
 - **Props: every key object is required.** Any object the narration names that a character uses to do a story
@@ -299,6 +303,8 @@ dashboard's **Creatures** page. Every creature but a humanoid has a `headless` v
   it in the package's PROPS, even when no `@do` uses it, and attach it to the character who uses it (below). A
   farmer beheading a chicken needs an `axe`.
 - **Creatures:** every cast member has a body (default `human`); add a new one only when none fits.
+- **Wardrobe: dress the cast from what exists.** Hair, beards, crowns, robes and so on are listed under
+  *Available in this library*; add a new item only for a look the story depends on (a pharaoh's headdress).
 
 Anything new goes in the package as JSON, exactly as the dashboard stores it (the schemas are under **Library
 item schemas** at the end of this guide). Use its id in the scripts (sets, props, actions) and the CAST (props,
@@ -314,8 +320,15 @@ item schemas** at the end of this guide). Use its id in the scripts (sets, props
   parts; a humanoid only has a `build` (proportions and skin colour). Give a creature that can lose its head a
   `stump` part.
 - **ACTIONS** (`actions.schema.json`): keyframes for a humanoid's arms, legs and lean, used with `@do`.
+- **WARDROBE** (`wardrobe.schema.json`): one item for a slot (`hair`, `facial_hair`, `headwear`, `top`,
+  `legwear`, `footwear`, `back`, `accessory`, `face`): ink layers (`rect`, `circle`, `ellipse`, `line`, `poly`)
+  each hung on a body anchor (`head`, `head_top`, `face`, `eyes`, `mouth`, `neck`, `shoulders`, `chest`, `waist`,
+  `hips`, `back`, `arms`, `hands`, `legs`, `feet`), canvas pixels around it (head radius 150, body 184 x 300,
+  legs 220), x across and y down; `"fill": "$color"` takes the worn colour; `"behind": true` draws it behind the
+  head and body (long hair, capes). Paired anchors (shoulders, arms, hands, legs, feet) draw on both sides. Ids
+  may use `_`. Worn in the CAST by id (section 6b).
 
-- At most **2** new sets, **3** new props per part, **2** new creatures. Ids are lowercase a-z, 0-9 and single
+- At most **2** new sets, **3** new props per part, **2** new creatures, **4** new wardrobe items. Ids are lowercase a-z, 0-9 and single
   dashes, never a built-in name; names are plain words, at most 40 characters.
 - A new prop is needed for `eat`, `give`, or any object a character visibly uses or holds in a story action.
 
@@ -345,7 +358,10 @@ Design the whole cast and put it in the package's CAST as a JSON list, one entry
 [
   { "id": "lloyd", "name": "Lloyd", "color": "#3b6ea5" },
   { "id": "clara", "name": "Clara", "color": "#c0567a",
-    "top": { "style": "dress", "accent_color": "#f2d16b" }, "headwear": { "kind": "straw_hat", "color": "#e3c27a" } },
+    "top": { "id": "dress", "accent_color": "#f2d16b" }, "headwear": { "id": "straw_hat", "color": "#e3c27a" },
+    "hair": { "id": "long_hair", "color": "#8a4b2a" }, "face": ["blush"] },
+  { "id": "nero", "name": "Nero", "color": "#f3efe2", "top": "toga", "hair": "short_hair", "footwear": "sandals",
+    "looks": { "crowned": { "headwear": "crown", "back": { "id": "cape", "color": "#6b2a8a" } } } },
   { "id": "mike", "name": "Mike", "color": "#f2f2f2", "body": "chicken",
     "looks": { "headless": { "headless": true } } }
 ]
@@ -359,15 +375,23 @@ Design the whole cast and put it in the package's CAST as a JSON list, one entry
   CREATURES. Left out, it is `human` (a person: the stickman).
 - **Changes during the story:** never make a second character for the same one. Give it `"looks"`: named
   variants that set only what changes, used with `@look` (section 5): `{"headless": {"headless": true}}` for a
-  lost head (creatures only), `{"prison": {"top": {"style": "plain", "color": "#e8e8e8"}}}` for a change of
-  clothes. A creature that is headless from the very start instead gets `"headless": true` on the entry itself.
-- Optional costume for people (humanoids): `"top": {"style": "plain" | "suit" | "tank" | "shirt" | "dress", "accent_color":
-  "#rrggbb", "number": "31"}`, `"headwear": {"kind": "flat_cap" | "postman_cap" | "bowler" | "straw_hat" |
-  "wide_hat", "color": "#rrggbb"}`, `"legwear": {"kind": "shorts" | "ragged_shorts" | "trousers", "color":
-  "#rrggbb"}`, `"props": [{"kind": "clipboard", "hand": "right"}]` (always held, at most one per hand; for a
+  lost head (creatures only), `{"prison": {"top": {"id": "plain", "color": "#e8e8e8"}, "headwear": "none"}}` for
+  a change of clothes (a whole outfit at once; `"none"` takes an item off). A creature that is headless from the
+  very start instead gets `"headless": true` on the entry itself.
+- **Wardrobe** (people / humanoids; other bodies ignore it): each slot takes a wardrobe id, plain
+  (`"hair": "wild_hair"`) or with a colour (`"hair": {"id": "wild_hair", "color": "#e8e8e8"}`), or `null` for none.
+  Slots: `hair`, `facial_hair`, `headwear`, `top`, `legwear`, `footwear`, `back` (one item each) and `accessory`,
+  `face` (a list of up to 3). Use the ids listed under *Available in this library* (each belongs to one slot), or
+  design a new item in the package's WARDROBE. Built in: tops `plain`, `suit`, `tank`, `shirt`, `dress`;
+  headwear `flat_cap`, `postman_cap`, `bowler`, `straw_hat`, `wide_hat`; legwear `shorts`, `ragged_shorts`,
+  `trousers`. The top's colour is the body colour (the entry's `color`); `"top": "robe"` with `"color"` works.
+  Extras on the top: `"accent_color"` (suit: the tie; dress: the wide hat's ribbon) and `"number": "31"` (chest
+  number). The old `{"kind": ...}` / `{"style": ...}` forms still work. Items scale with any build and move with
+  every pose and expression.
+- Also optional: `"props": [{"kind": "clipboard", "hand": "right"}]` (always held, at most one per hand; for a
   prop held only in some scenes use a look, section 6),
   `"default_expression": "neutral" | "happy" | "sad" | "angry" | "surprised" | "sleepy" | "cheeky" |
-  "exhausted"`, `"eyes": "dots" | "half_closed"`. Other bodies ignore costume.
+  "exhausted"`, `"eyes": "dots" | "half_closed"`.
 - Only characters the whole series shows. Keep ids short; at most 12 on stage at once (section 5).
 
 ## 7. How plain narration is interpreted
@@ -397,6 +421,7 @@ at an exact moment).
 | Narration on a directive's line | The text is never read aloud; the directive is invalid |
 | Cast id not in the series list | The shot planner stops |
 | Unknown set, action or prop | The shot planner stops (a new set or prop must be in the package) |
+| A wardrobe id in the wrong slot (`"hair": "crown"`) or not in the library / WARDROBE | The import refuses the cast |
 | `@do` with no narration line right after it | It is ignored (reported as an error) |
 | `@do` naming someone not in the current `@cast` | The shot planner stops |
 | More than 12 in `@cast`, or more than 6 named in one scene | Not enough room on stage |

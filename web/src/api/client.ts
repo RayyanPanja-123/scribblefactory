@@ -1,6 +1,7 @@
 // Thin typed client over fetch. Types come from docs/openapi.json (npm run gen:api).
 import type { CreatureCatalog, CustomCreature } from '../lib/creatures'
 import type { CustomSet, SetCatalog } from '../lib/sets'
+import type { WardrobeCatalog, WardrobeItem } from '../lib/wardrobe'
 import type { components } from './types'
 
 type S = components['schemas']
@@ -92,6 +93,9 @@ export const api = {
   sets: () => call<SetCatalog>('GET', '/api/sets'),
   saveSet: (s: CustomSet) => call<SetCatalog>('PUT', `/api/sets/${e(s.id)}`, s),
   deleteSet: (id: string) => call<SetCatalog>('DELETE', `/api/sets/${e(id)}`),
+  wardrobe: () => call<WardrobeCatalog>('GET', '/api/wardrobe'),
+  saveWardrobeItem: (w: WardrobeItem) => call<WardrobeCatalog>('PUT', `/api/wardrobe/${e(w.id)}`, w),
+  deleteWardrobeItem: (id: string) => call<WardrobeCatalog>('DELETE', `/api/wardrobe/${e(id)}`),
   validatePackage: (text: string) => call<PackageResult>('POST', '/api/packages/validate', { text }),
   importPackage: (text: string) => call<PackageResult>('POST', '/api/packages/import', { text }),
 }

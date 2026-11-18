@@ -9,14 +9,15 @@ from pathlib import Path
 
 from typing import get_args
 
-from .schemas import (ACTIONS, BUILTIN_CREATURES, BUILTIN_SETS, ActionLibrary, BuiltinProp, CreatureLibrary,
-                      CustomAction, CustomCreature, CustomProp, CustomSet, PartModel, PropLibrary, SeriesModel, SetLibrary)
+from .schemas import (ACTIONS, BUILTIN_CREATURES, BUILTIN_SETS, BUILTIN_WARDROBE, ActionLibrary, BuiltinProp,
+                      CreatureLibrary, CustomAction, CustomCreature, CustomProp, CustomSet, PartModel, PropLibrary,
+                      SeriesModel, SetLibrary, WardrobeItem, WardrobeLibrary)
 
 # User-owned files a save must never write to.
 PROTECTED = {"story.md", "voice.mp3"}
 # The library's custom items, one file per kind (engine/page/library.js KINDS): every stage that reads one, and the
 # render hash, depends on all of them, so a new kind of custom item is one entry here.
-LIBRARY_FILES = ["props.json", "sets.json", "creatures.json", "actions.json"]
+LIBRARY_FILES = ["props.json", "sets.json", "creatures.json", "actions.json", "wardrobe.json"]
 REPLACE_RETRIES = 5
 
 
@@ -142,16 +143,89 @@ def creature_bodies(library) -> dict[str, tuple[str, bool]]:
     return {**BUILTIN_CREATURES, **{c.id: (c.rig, bool(c.parts.get("stump"))) for c in load_creatures(library).creatures}}
 
 
-def cast_body_problems(cast, library) -> list[str]:
-    """'<cast id>: <problem>' for each body that is not built in or in library/creatures.json, and each headless cast
-    member whose creature has no stump"""
+def cast_body_problems(cast, library, extra_wardrobe=()) -> list[str]:
+    """'<cast id>: <problem>' for each body that is not built in or in library/creatures.json, each headless cast
+    member whose creature has no stump, and each wardrobe problem (cast_wardrobe_problems). extra_wardrobe: items
+    about to be added (a story package's)"""
     bodies, out = creature_bodies(library), []
     for c in cast:
         if c.body not in bodies:
             out.append(f"{c.id}: unknown body {c.body!r} ({', '.join(bodies)})")
         elif c.headless and c.body in bodies and not bodies[c.body][1]:
             out.append(f"{c.id}: headless, but creature {c.body!r} has no stump part")
+    return out + cast_wardrobe_problems(cast, library, extra_wardrobe)
+
+
+def cast_wardrobe_problems(cast, library, extra_wardrobe=()) -> list[str]:
+    """'<cast id>: <problem>' for each worn wardrobe id (own or a look's) that is unknown or in the wrong slot"""
+    items, out = {**wardrobe_slots(library), **{w.id: w.slot for w in extra_wardrobe}}, []
+    for c in cast:
+        for slot, wid in dict.fromkeys(c.wardrobe()):
+            if wid not in items:
+                choices = [k for k, v in items.items() if v == slot]
+                out.append(f"{c.id}: unknown {slot} {wid!r} ({', '.join(choices) or 'none in the wardrobe yet'})")
+            elif items[wid] != slot:
+                out.append(f"{c.id}: {wid!r} is a {items[wid]}, not a {slot}")
     return out
+
+
+# the starter wardrobe (hair, beards, crowns, robes...): a library without its own wardrobe.json uses it; the first
+# save writes it into the library, where it can be edited like any custom item (engine/render.mjs falls back too)
+WARDROBE_SEED = Path(__file__).parent / "seed" / "wardrobe.json"
+
+
+def load_wardrobe(library) -> WardrobeLibrary:
+    """library/wardrobe.json (custom clothing, hair and cosmetics, shared by every series); none yet: the seed"""
+    f = Path(library) / "wardrobe.json"
+    return WardrobeLibrary.model_validate_json((f if f.exists() else WARDROBE_SEED).read_bytes())
+
+
+def wardrobe_slots(library) -> dict[str, str]:
+    """every wardrobe id a cast slot can use -> its slot: the built-ins, then library/wardrobe.json"""
+    return {**{k: v[0] for k, v in BUILTIN_WARDROBE.items()}, **{w.id: w.slot for w in load_wardrobe(library).wardrobe}}
+
+
+def wardrobe_wearers(library, item_id: str) -> list[tuple[Path, str]]:
+    """(series.json, cast id) for every cast member, in every series of the library, wearing this item in any look"""
+    return [(f, c.id) for f in sorted(Path(library).glob("*/series.json")) for c in load_series(f).cast
+            if any(wid == item_id for _, wid in c.wardrobe())]
+
+
+def _clear_approvals(pairs) -> list[str]:
+    """clear the cast approval of each (series.json, cast id); "<slug>/<cast id>" for each one cleared"""
+    cleared = []
+    for f, cid in pairs:
+        series = load_series(f)
+        c = next(c for c in series.cast if c.id == cid)
+        if c.approved_at:
+            c.approved_at = None
+            # written directly: save_series would restore the approval (it only ever adds approvals)
+            atomic_write_json(f, series.model_dump(mode="json"))
+            cleared.append(f"{series.slug}/{cid}")
+    return cleared
+
+
+def save_wardrobe_item(library, item: WardrobeItem) -> list[str]:
+    """add or replace a custom wardrobe item. A changed drawing changes the look of everyone wearing it: their cast
+    approvals are cleared. Returns "<slug>/<cast id>" for each approval cleared."""
+    lib = load_wardrobe(library)
+    old = next((w for w in lib.wardrobe if w.id == item.id), None)
+    if old and old.slot != item.slot and (worn := wardrobe_wearers(library, item.id)):
+        raise ValueError(f"{item.id} is worn as a {old.slot} by {', '.join(cid for _, cid in worn)}: keep its slot")
+    lib.wardrobe = [item if w.id == item.id else w for w in lib.wardrobe] if old else [*lib.wardrobe, item]
+    atomic_write_json(Path(library) / "wardrobe.json", lib.model_dump(mode="json"))
+    return _clear_approvals(wardrobe_wearers(library, item.id)) if old and old != item else []
+
+
+def delete_wardrobe_item(library, item_id: str) -> None:
+    """remove a custom wardrobe item; refused (ValueError) while any cast member wears it"""
+    lib = load_wardrobe(library)
+    if not any(w.id == item_id for w in lib.wardrobe):
+        raise KeyError(item_id)
+    if worn := wardrobe_wearers(library, item_id):
+        raise ValueError(f"{item_id} is still worn by " + ", ".join(f"{f.parent.name}/{cid}" for f, cid in worn))
+    lib.wardrobe = [w for w in lib.wardrobe if w.id != item_id]
+    atomic_write_json(Path(library) / "wardrobe.json", lib.model_dump(mode="json"))
 
 
 def creature_users(library, creature_id: str) -> list[tuple[Path, str]]:

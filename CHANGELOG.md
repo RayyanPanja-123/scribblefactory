@@ -1,6 +1,12 @@
 # Changelog
 
 ## Unreleased
+- Wardrobe page: clothing, hair and cosmetics as library items (library/wardrobe.json), worn per slot (hair,
+  facial_hair, headwear, top, legwear, footwear, back, accessory, face) as `"hair": "wild_hair"` or
+  `{"id", "color"}`. Ink layers anchored to body points scale with any humanoid build and move with every pose;
+  `when` layers follow expressions. The original tops, headwear and legwear are built-in items with the same ids
+  and draw exactly as before. 23 starter items, a live editor (human + a humanoid creature, any pose), Build with
+  AI, a `@look` swaps a whole outfit (`"none"` takes an item off), and the Story Package gains `<<<WARDROBE>>>`.
 - Tighter pacing for Shorts / Reels: timing clamps every pause over 0.4 s to 0.3 s and writes voice-tight.wav
   (voice.mp3 untouched); phrases, shots, audio and the preview all follow the tightened voice.
 - End card: non-final parts end with "Part n+1 on my profile 👆" over the last second, then a hard cut; the final
