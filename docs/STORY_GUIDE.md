@@ -32,11 +32,15 @@ Every answer has these parts, in this order:
 1. **Series title**: one line, `**Series title:** <title>` (the same in every part).
 2. **Short description**: two or three plain sentences: what the story is about and what this part covers,
    without giving away its twist.
-3. **Cast JSON**: only when **Your series** has no cast yet (a new series), in part 1: one fenced `json` block
-   with the whole cast in the format of section 6b (animals with `body`, changes like a lost head as `looks`).
-   Leave it out when the cast already exists.
-4. **New sets, props and creatures**: only if this part uses one that does not exist yet: one fenced `text`
-   block listing them, each with its id and name (section 6). Leave it out otherwise.
+3. **New sets, props and creatures**: only if this part needs one that does not exist yet: one fenced `text`
+   block with the headings `NEW SETS`, `NEW PROPS`, `NEW CREATURES` in that order, each entry with its id and
+   name (section 6). Leave out an empty heading, and the whole block when nothing is new. Every prop the
+   story's key actions depend on is required (section 6), and must also be attached to the cast member who
+   uses it (section 6, **How a character holds a prop**): in the cast JSON for a new series, and in the prop
+   lines at the end of the answer.
+4. **Cast JSON**: only when **Your series** has no cast yet (a new series), in part 1: one fenced `json` block
+   with the whole cast in the format of section 6b (animals with `body`, changes like a lost head or picking up
+   an axe as `looks`). Leave it out when the cast already exists.
 5. **The script**: one fenced `md` code block containing only the complete `story.md`: the `# Part title`
    line, every `@` directive and the narration (section 3).
 6. **Audio script (TTS)**: one fenced `text` code block with only what the voice reads: the narration lines of
@@ -45,6 +49,10 @@ Every answer has these parts, in this order:
    to the script word by word, so any difference breaks the captions and shots).
 7. Three short lines: word count, estimated length in seconds (words / 2.6, plus 1 for the end card), and the
    cast ids used.
+8. **Prop lines**: one line per required prop, after the three summary lines, saying which cast id holds it and
+   how: `Prop axe: lloyd, look "axe" (@look lloyd: axe)`, `Prop clipboard: sullivan, always (cast props)`,
+   `Prop apple: bob, @do eat`. For a series whose cast already exists, these lines tell the user what to add to
+   the cast entry (a `props` entry or a look), since you cannot change it yourself.
 
 Nothing else inside the blocks: no explanations, no comments. For example:
 
@@ -54,9 +62,15 @@ Nothing else inside the blocks: no explanations, no comments. For example:
 A farm rooster survives the axe and keeps living without a head. Part 1: the night it happens and the trip
 to the university that cannot explain it.
 
+```text
+NEW PROPS
+- id: axe | name: Axe | a wood-chopping axe: long brown handle, grey head with a silver edge, held at the handle end
+```
+
 ```json
 [
-  { "id": "lloyd", "name": "Lloyd", "color": "#3b6ea5" },
+  { "id": "lloyd", "name": "Lloyd", "color": "#3b6ea5",
+    "looks": { "axe": { "props": [{ "kind": "axe", "hand": "right" }] } } },
   { "id": "mike", "name": "Mike", "color": "#f2f2f2", "body": "chicken", "looks": { "headless": { "headless": true } } }
 ]
 ```
@@ -68,6 +82,11 @@ to the university that cannot explain it.
 @cast lloyd, clara, mike
 A chicken lived eighteen months without a head.
 ...
+@look lloyd: axe
+Lloyd grabbed a young rooster named Mike and swung his axe.
+@look mike: headless
+@look lloyd: default
+...
 ```
 
 ```text
@@ -76,6 +95,7 @@ A chicken lived eighteen months without a head.
 ```
 
 Words: 128 · about 50 seconds · cast: lloyd, clara, mike, scientist
+Prop axe: lloyd, look "axe" (@look lloyd: axe)
 ````
 
 ## 3. File format
@@ -288,7 +308,8 @@ narration line. Nothing comes after it except the end line (section 4, **Twist a
 ### Props
 
 Built in: `clipboard`, `stopwatch`, `bottle`, `syringe`, `apple`, `medal`. A series may define more (listed under
-**Your series**). Only these can be used with `eat` and `give`, plus new ones you list (section 6).
+**Your series**). Only these can be used with `eat` and `give` or held by a cast member, plus new ones you list
+(section 6). How a character holds one: section 6, **How a character holds a prop**.
 
 ### Creatures
 
@@ -300,8 +321,15 @@ version (a neck stump) for a `"headless"` look. An animal that does not exist ye
 
 ## 6. New sets, props and creatures
 
-Prefer what already exists. When the story really needs a place, an object or an animal that is not among the
-built-ins or **Your series**, list it in a block **before the story**, then use its id in `story.md` (sets,
+- **Sets: prefer what already exists.** Add a new one only when no existing set fits the place.
+- **Props: every key object is required.** Any object the narration names that a character uses to do a story
+  action (a weapon, a tool, an instrument, a key object: an axe, a knife, a gun, a rope, a key, a letter, an
+  eyedropper) must be in the video. If it is not built in or in the library (*Available in this library*), list
+  it under `NEW PROPS`, even when no `@do` uses it, and attach it to the character who uses it (below). A
+  farmer beheading a chicken needs an `axe`.
+- **Creatures:** an animal cast member needs a creature body; add one only when none fits.
+
+List anything new in a block **before the story**, then use its id in `story.md` and the cast JSON (sets,
 props) or as a cast member's `body` (creatures):
 
 ```text
@@ -313,20 +341,38 @@ NEW CREATURES
 - id: dog | name: Dog | quadruped | a scruffy farm dog with floppy ears and a long tail
 ```
 
-- At most **2** new sets and **3** new props per part. Leave out a heading that has nothing under it, and the
-  whole block when nothing is new.
+- At most **2** new sets and **3** new props per part. If the story needs more props, keep the 3 most
+  important to the plot. Leave out a heading that has nothing under it, and the whole block when nothing is
+  new.
 - Every entry starts with `id:` and `name:`. The id is lowercase a-z, 0-9 and single dashes, used exactly as
   written in `story.md`, never a built-in name. The name is what the dashboard shows: plain words, at most 40
   characters.
 - Sets: say `indoor` (back wall) or `outdoor` (sky, allows travelling shots), and describe the look in one line:
   the 3 to 6 big objects that make the place recognisable, and its main colours.
-- Props: one line on shape and colour, and which end is held. A new prop is only needed for `eat` and `give`
-  (or if a cast member should hold it).
+- Props: one line on shape and colour, and which end is held. A new prop is needed for `eat`, `give`, or any
+  object a character visibly uses or holds in a story action.
 - Creatures: say the rig (`bird`, `quadruped`, `biped`, `crawler`, section 5 under `@cast`) and describe the
   look in one line. Say if it needs a headless version (it then gets a neck stump). At most **2** per part.
 - The user builds each one before rendering (dashboard **Sets** / **Props** / **Creatures**, *Build with AI*,
   with your id and name and the description); until then the story fails as "unknown set", "unknown prop" or
   "unknown body".
+
+### How a character holds a prop
+
+A prop shows in a character's hand only in these four ways (there is no other directive for it):
+
+| Way | Held | Use it for |
+|---|---|---|
+| Cast JSON `"props": [{"kind": "axe", "hand": "right"}]` | In every scene of the series | Something they always carry (a clipboard, a cane) |
+| A look with props, `"looks": {"axe": {"props": [{"kind": "axe", "hand": "right"}]}}`, switched on with `@look lloyd: axe` | From that line until the next `@look` for them (`@look lloyd: default` puts it away) | An object used for one scene or one moment |
+| `@do bob: eat apple` | While eating, on that line | Food |
+| `@do amy: give medal fred` | The giver hands it over on that line; the receiver keeps it for the rest of that set | Handing something over |
+
+- At most two props at once, one per hand (`left` / `right`). A look's `props` replaces the character's own
+  props while the look is on; `[]` means empty-handed.
+- Only people (stickmen) and `biped` creatures have hands. A bird, quadruped or crawler cannot hold a prop,
+  `eat` a prop or take part in `give`.
+- Every held prop must exist: built in, in the library, or in your NEW PROPS.
 
 ## 6b. Cast JSON (new series only)
 
@@ -356,7 +402,8 @@ format (the dashboard imports it when the series is created):
 - Optional costume for people: `"top": {"style": "plain" | "suit" | "tank" | "shirt" | "dress", "accent_color":
   "#rrggbb", "number": "31"}`, `"headwear": {"kind": "flat_cap" | "postman_cap" | "bowler" | "straw_hat" |
   "wide_hat", "color": "#rrggbb"}`, `"legwear": {"kind": "shorts" | "ragged_shorts" | "trousers", "color":
-  "#rrggbb"}`, `"props": [{"kind": "clipboard", "hand": "right"}]` (at most one per hand),
+  "#rrggbb"}`, `"props": [{"kind": "clipboard", "hand": "right"}]` (always held, at most one per hand; for a
+  prop held only in some scenes use a look, section 6),
   `"default_expression": "neutral" | "happy" | "sad" | "angry" | "surprised" | "sleepy" | "cheeky" |
   "exhausted"`, `"eyes": "dots" | "half_closed"`. Animals ignore costume.
 - Only characters the story shows. Keep ids short; at most 12 on stage at once (section 5).
@@ -399,6 +446,7 @@ at an exact moment).
 | Lines after the `!!` other than the end line | The payoff fades before the cut |
 | Filler transitions ("Then", "After that", "So") | Dead air between beats |
 | More than one `!!` | Only one twist per part |
+| A key object named in narration but not listed as a prop | The action happens empty-handed and looks wrong |
 
 ## 9. Checklist before answering
 
@@ -410,16 +458,20 @@ at an exact moment).
 5. Each `@cast` has at most 12 ids, at most 6 of them named in that scene; `@car ride` at most 3.
 6. No digits, symbols or markdown formatting in narration.
 7. 110 to 140 words; short lines, no filler transitions.
-8. The answer has the series title, the short description, the cast JSON (new series only, animals with
-   `body` and any change as `looks`), the script and the audio script (section 2), and
+8. The answer has, in order, the series title, the short description, the NEW block (only if something is new),
+   the cast JSON (new series only, animals with `body` and any change as `looks`), the script and the audio
+   script (section 2), and
    the audio script is the script's narration word for word, without `@` lines, the title or `!!`.
 9. Only the part that was asked for (part 1 unless the user asked for a later one).
+10. Every object a character uses in a key action exists: built in, in the library, or in the NEW block, and it
+    is attached to that character (cast `props`, a look, or `@do eat` / `give`), with a prop line for each.
 
 ### Pre-publish checklist
 
 - [ ] **Hook in line 1:** the twist or most surprising claim, no date or backstory, at most twelve words,
       concrete, and it opens a question the `!!` answers.
 - [ ] **Word count:** 110 to 140.
+- [ ] **Key props:** every object central to an action is present (e.g. the axe in a beheading).
 - [ ] **Single `!!`:** exactly one twist line.
 - [ ] **Ends on the twist:** the `!!` line is last, or second-to-last followed only by the pointer line
       (non-final parts).
