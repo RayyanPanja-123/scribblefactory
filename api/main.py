@@ -13,6 +13,7 @@ import itertools
 import json
 import os
 import shlex
+import socket
 import subprocess
 import sys
 import threading
@@ -1065,6 +1066,59 @@ def put_settings(body: AiSettingsIn):
     lib().mkdir(parents=True, exist_ok=True)
     atomic_write_json(settings_file(), s)
     return public_settings(s)
+
+
+class Gateway(BaseModel):
+    running: bool
+
+
+class GatewayIn(BaseModel):
+    on: bool
+
+
+def gateway_port() -> int | None:
+    """Port of the gateway in Settings when it's on this machine (the only kind we can start); None otherwise."""
+    from urllib.parse import urlsplit
+    u = urlsplit(load_settings()["base_url"])
+    if u.hostname not in ("localhost", "127.0.0.1", "::1"):
+        return None
+    return u.port or (443 if u.scheme == "https" else 80)
+
+
+def gateway_up(port: int | None) -> bool:
+    if port is None:
+        return False
+    with contextlib.suppress(OSError), socket.create_connection(("127.0.0.1", port), timeout=0.5):
+        return True
+    return False
+
+
+@app.get("/api/gateway", response_model=Gateway)
+def get_gateway():
+    return Gateway(running=gateway_up(gateway_port()))
+
+
+@app.put("/api/gateway", response_model=Gateway)
+def put_gateway(body: GatewayIn):
+    """Start (daemon, no browser) or stop the local OmniRoute through its own CLI."""
+    import shutil
+    port = gateway_port()
+    if port is None:
+        raise HTTPException(409, "the AI gateway in Settings isn't on this machine: start it where it runs")
+    if gateway_up(port) == body.on:
+        return Gateway(running=body.on)
+    exe = shutil.which("omniroute")
+    if not exe:
+        raise HTTPException(409, "OmniRoute isn't installed: npm install -g omniroute")
+    argv = [exe, "serve", "--daemon", "--no-open", "--port", str(port)] if body.on else [exe, "stop", "--port", str(port)]
+    try:
+        r = subprocess.run(argv, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=90,
+                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    except subprocess.TimeoutExpired:
+        raise HTTPException(502, f"omniroute {argv[1]} took over 90 s")
+    if gateway_up(port) != body.on:
+        raise HTTPException(502, f"omniroute {argv[1]} failed: {(r.stderr or r.stdout).strip()[-500:] or f'exit {r.returncode}'}")
+    return Gateway(running=body.on)
 
 
 @app.post("/api/ai/complete", response_model=AiReply)

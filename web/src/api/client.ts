@@ -89,4 +89,6 @@ export const api = {
   settings: () => call<AiSettings>('GET', '/api/settings'),
   saveSettings: (body: S['AiSettingsIn']) => call<AiSettings>('PUT', '/api/settings', body),
   aiComplete: (prompt: string) => call<S['AiReply']>('POST', '/api/ai/complete', { prompt }),
+  gateway: () => call<S['Gateway']>('GET', '/api/gateway'),
+  setGateway: (on: boolean) => call<S['Gateway']>('PUT', '/api/gateway', { on }),
 }

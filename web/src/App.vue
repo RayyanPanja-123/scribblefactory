@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { Backpack, ClipboardCheck, Film, History, Layers, LayoutDashboard, Menu, Monitor, Moon, Mountain, PawPrint, Search, Send, Settings, Sun, X } from 'lucide-vue-next'
+import { Backpack, ClipboardCheck, Film, History, Layers, LayoutDashboard, Menu, Monitor, Moon, Mountain, PawPrint, Search, Send, Settings, Sparkles, Sun, X } from 'lucide-vue-next'
 import { AnimatePresence, motion, MotionConfig } from 'motion-v'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import BrandMark from './components/BrandMark.vue'
 import JobDrawer from './components/JobDrawer.vue'
 import Overlays from './components/Overlays.vue'
+import { api } from './api/client'
+import { toast } from './composables/feedback'
 import { drawerOpen, online, queuedCount, runningJob, startLive } from './composables/live'
 import { theme, type Theme } from './composables/theme'
 import { search } from './composables/ui'
@@ -40,6 +42,22 @@ const THEMES: { id: Theme; label: string; icon: typeof Sun }[] = [
 onMounted(startLive)
 const reelLabel = computed(() =>
   `Jobs: ${runningJob.value ? `job ${runningJob.value.id} running` : 'none running'}${queuedCount.value ? `, ${queuedCount.value} queued` : ''}`)
+
+// AI gateway switch: starts/stops the local OmniRoute so "Build with AI" works
+const aiOn = ref(false)
+const aiBusy = ref(false)
+api.gateway().then((g) => (aiOn.value = g.running), () => {}) // ponytail: checked once on load, poll if it gets stopped elsewhere often
+async function toggleAi() {
+  aiBusy.value = true
+  try {
+    aiOn.value = (await api.setGateway(!aiOn.value)).running
+    toast(aiOn.value ? 'OmniRoute started' : 'OmniRoute stopped', 'ok')
+  } catch (e) {
+    toast(e instanceof Error ? e.message : String(e), 'error')
+  } finally {
+    aiBusy.value = false
+  }
+}
 const isActive = (t: Tab) => t.match(String(route.name ?? ''))
 const current = computed(() => groups.flatMap((g) => g.tabs).find(isActive))
 
@@ -109,6 +127,11 @@ watch(search, (q) => {
             <input v-model="search" type="search" placeholder="Search series" class="w-full bg-transparent text-sm outline-none placeholder:text-muted" />
           </label>
           <RouterLink to="/series" class="round-btn ml-auto shrink-0 sm:hidden" aria-label="Search series"><Search :size="18" aria-hidden="true" /></RouterLink>
+          <button class="round-btn shrink-0 transition-colors" :class="aiOn ? 'border-ink! bg-ink! text-[var(--on-ink)]!' : ''"
+            :aria-pressed="aiOn" :disabled="aiBusy" :title="aiBusy ? 'OmniRoute: working…' : `OmniRoute ${aiOn ? 'on: click to stop' : 'off: click to start'}`"
+            aria-label="AI gateway (OmniRoute)" @click="toggleAi">
+            <Sparkles :size="18" :class="{ 'animate-pulse': aiBusy }" aria-hidden="true" />
+          </button>
           <!-- job indicator: spins while a job runs, badge = queued jobs; opens the drawer -->
           <button class="round-btn relative shrink-0" :class="{ 'text-blue-ink!': runningJob }" :aria-label="reelLabel"
             :title="online ? reelLabel : 'Live updates offline: reconnecting'" @click="drawerOpen = true">

@@ -588,6 +588,37 @@ def test_creatures(client, lib):
     assert client.delete("/api/creatures/wolf").status_code == 404
 
 
+def test_gateway_switch(tmp_path, monkeypatch):
+    monkeypatch.setenv("SCRIBBLE_LIBRARY", str(tmp_path))
+    c = TestClient(m.app)
+    srv = None
+    with socket.socket() as s:  # a free port, closed: the gateway starts "off"
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    c.put("/api/settings", json={"base_url": f"http://127.0.0.1:{port}/v1", "model": "x"})
+    calls = []
+
+    def fake_run(argv, **kw):  # stands in for the omniroute CLI: serve listens, stop closes
+        nonlocal srv
+        calls.append(argv[1:])
+        if argv[1] == "serve":
+            srv = socket.create_server(("127.0.0.1", port))
+        else:
+            srv.close()
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr("shutil.which", lambda _: "omniroute")
+    monkeypatch.setattr(m.subprocess, "run", fake_run)
+    assert c.get("/api/gateway").json() == {"running": False}
+    assert c.put("/api/gateway", json={"on": True}).json() == {"running": True}
+    assert c.get("/api/gateway").json() == {"running": True}
+    assert c.put("/api/gateway", json={"on": True}).json() == {"running": True}  # already on: no second serve
+    assert c.put("/api/gateway", json={"on": False}).json() == {"running": False}
+    assert calls == [["serve", "--daemon", "--no-open", "--port", str(port)], ["stop", "--port", str(port)]]
+    c.put("/api/settings", json={"base_url": "https://api.example.com/v1", "model": "x"})
+    assert c.put("/api/gateway", json={"on": True}).status_code == 409  # remote gateway: not ours to start
+
+
 def test_ai_settings_and_complete(tmp_path, monkeypatch):
     from http.server import BaseHTTPRequestHandler, HTTPServer
     monkeypatch.setenv("SCRIBBLE_LIBRARY", str(tmp_path))

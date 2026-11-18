@@ -76,6 +76,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/gateway": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Gateway */
+        get: operations["get_gateway_api_gateway_get"];
+        /**
+         * Put Gateway
+         * @description Start (daemon, no browser) or stop the local OmniRoute through its own CLI.
+         */
+        put: operations["put_gateway_api_gateway_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -829,6 +850,16 @@ export interface components {
              * @default []
              */
             pieces: components["schemas"]["SetPiece"][];
+        };
+        /** Gateway */
+        Gateway: {
+            /** Running */
+            running: boolean;
+        };
+        /** GatewayIn */
+        GatewayIn: {
+            /** On */
+            on: boolean;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1627,6 +1658,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    get_gateway_api_gateway_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Gateway"];
+                };
+            };
+        };
+    };
+    put_gateway_api_gateway_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GatewayIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Gateway"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
