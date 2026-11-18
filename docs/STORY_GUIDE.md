@@ -21,7 +21,7 @@ and Instagram Reels:
 
 A story is a **series** split into **parts** (part 1, part 2...). Each part is one video and one `story.md`.
 The characters (the **cast**) belong to the series and are designed beforehand; you can only use cast members
-that already exist, by their **id**.
+that already exist, by their **id** (or, for a new series, the ones you design in the cast JSON, section 6b).
 
 ## 2. What to return
 
@@ -413,7 +413,7 @@ format (the dashboard imports it when the series is created):
   prop held only in some scenes use a look, section 6),
   `"default_expression": "neutral" | "happy" | "sad" | "angry" | "surprised" | "sleepy" | "cheeky" |
   "exhausted"`, `"eyes": "dots" | "half_closed"`. Animals ignore costume.
-- Only characters the story shows. Keep ids short; at most 12 on stage at once (section 5).
+- Only characters the whole series shows. Keep ids short; at most 12 on stage at once (section 5).
 
 ## 7. How plain narration is interpreted
 
@@ -466,9 +466,9 @@ at an exact moment).
 6. No digits, symbols or markdown formatting in narration.
 7. 110 to 140 words; short lines, no filler transitions.
 8. The answer has, in order, the series title, the short description, the NEW block (only if something is new),
-   the cast JSON (new series only, animals with `body` and any change as `looks`), the script and the audio
-   script (section 2), and
-   the audio script is the script's narration word for word, without `@` lines, the title or `!!`.
+   the cast JSON (new series only, animals with `body` and any change as `looks`), the script, the audio script,
+   the three summary lines and the prop lines (section 2), and the audio script is the script's narration word
+   for word, without `@` lines, the title or `!!`.
 9. Only the part that was asked for (part 1 unless the user asked for a later one).
 10. Every object a character uses in a key action exists: built in, in the library, or in the NEW block, and it
     is attached to that character (cast `props`, a look, or `@do eat` / `give`), with a prop line for each.
