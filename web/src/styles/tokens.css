@@ -119,6 +119,11 @@ a { text-underline-offset: 3px; }
 h1, h2, h3 { text-wrap: balance; }
 summary::marker, summary::-webkit-details-marker { color: var(--color-muted); }
 select, input[type="date"] { background-color: var(--color-well); color: var(--color-ink); }
+/* Tailwind v4 dropped the pointer on buttons: bring it back (base layer, so utilities still win) */
+@layer base {
+  button:not(:disabled), [role="button"], summary, label:has(> input[type="radio"], > input[type="checkbox"]) { cursor: pointer; }
+  button:disabled { cursor: not-allowed; }
+}
 
 @layer components {
   /* the sheet: paper with a hairline rule and one soft shadow */

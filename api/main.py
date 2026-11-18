@@ -17,6 +17,7 @@ import socket
 import subprocess
 import sys
 import threading
+import time
 from collections import deque
 from datetime import date, datetime
 from pathlib import Path
@@ -1116,6 +1117,9 @@ def put_gateway(body: GatewayIn):
                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     except subprocess.TimeoutExpired:
         raise HTTPException(502, f"omniroute {argv[1]} took over 90 s")
+    deadline = time.monotonic() + 30  # the CLI can return before the server is listening / the port is released
+    while gateway_up(port) != body.on and time.monotonic() < deadline:
+        time.sleep(0.5)
     if gateway_up(port) != body.on:
         raise HTTPException(502, f"omniroute {argv[1]} failed: {(r.stderr or r.stdout).strip()[-500:] or f'exit {r.returncode}'}")
     return Gateway(running=body.on)
