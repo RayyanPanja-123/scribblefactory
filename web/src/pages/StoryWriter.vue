@@ -26,6 +26,7 @@ const busy = ref(false)
 const result = ref<Plan | null>(null)
 const error = ref('')
 const ready = computed(() => settings.value?.provider === 'gemini' || settings.value?.provider === 'openrouter')
+const providerLabel = computed(() => settings.value?.provider === 'openrouter' ? 'OpenRouter' : 'Gemini')
 const field = 'inset mt-1 block w-full rounded-md px-4 py-2 text-sm text-ink outline-none focus:border-blue'
 
 const slugify = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'new-story'
@@ -112,7 +113,7 @@ async function create() {
         <div><h3 class="font-display text-xl font-semibold">Plan a series</h3><p class="text-sm text-muted">Gemini will use your props, sets, creatures and actions, adding valid custom items only when needed.</p></div>
         <label class="block text-sm font-semibold">Story premise<textarea v-model="premise" rows="6" required :class="field" placeholder="A night-shift baker discovers that the town's statues move whenever the oven bell rings..." /></label>
         <label class="block max-w-xs text-sm font-semibold">Number of parts<select v-model.number="partCount" :class="field"><option v-for="n in 5" :key="n" :value="n">{{ n }} parts</option></select></label>
-        <button class="btn btn-primary" :disabled="busy || !premise.trim()" @click="generate">{{ busy ? 'Writing…' : 'Write series with Gemini' }}</button>
+        <button class="btn btn-primary" :disabled="busy || !premise.trim()" @click="generate">{{ busy ? 'Writing…' : `Write series with ${providerLabel}` }}</button>
       </section>
       <p v-if="error" class="text-sm text-red-ink" role="alert">{{ error }}</p>
       <section v-if="result" class="raised space-y-5 p-6">
