@@ -295,7 +295,8 @@
                   "surprised",
                   "sleepy",
                   "cheeky",
-                  "exhausted"
+                  "exhausted",
+                  "worried"
                 ],
                 "type": "string"
               },
@@ -478,7 +479,8 @@
               "surprised",
               "sleepy",
               "cheeky",
-              "exhausted"
+              "exhausted",
+              "worried"
             ],
             "title": "Default Expression",
             "type": "string"
@@ -3207,7 +3209,8 @@
                     "surprised",
                     "sleepy",
                     "cheeky",
-                    "exhausted"
+                    "exhausted",
+                    "worried"
                   ],
                   "type": "string"
                 },

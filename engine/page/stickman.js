@@ -82,6 +82,7 @@ const BROWS = {
   angry: [-8, 16, 0], surprised: [-12, -12, 14], sleepy: [5, 5, 2],
   cheeky: [[4, 4, 3], [-12, -8, 12]], // [left brow, right brow]: one brow up
   exhausted: [16, 0, 2],                // droopy: outer ends sag
+  worried: [4, -12, 5],                 // inner ends lift: anxious brow
 };
 
 /** closed wobbly loop: stable per-character lumps (shape) + small per-boil jitter (boil) */
@@ -613,6 +614,7 @@ function face(p, boil, o, fx, hy, look) {
     angry: [[mx - 20, my + 5], [mx, my - 1], [mx + 20, my + 5]],
     sleepy: [[mx - 12, my], [mx + 12, my]],
     cheeky: quad([mx - 22, my + 2], [mx + 2, my + 14], [mx + 28, my - 12]), // lopsided grin
+    worried: [[mx - 22, my + 5], [mx, my - 4], [mx + 22, my + 5]],
   };
   if (expr === "exhausted") p.poly(ellPts(mx, my + 2, 11, 9, 0, 360, 0, 16), "#1c1a1a", 0); // small open mouth
   else if (expr === "surprised") p.poly(ellPts(mx, my, 12, 15, 0, 360, 0, 20), null, w("mouth") * 0.9);

@@ -209,7 +209,7 @@ def test_cast_v2_rules():
                                                          legwear={"kind": "trousers", "color": "#222222"},
                                                          props=[{"kind": "medal", "hand": "left"}, {"kind": "apple", "hand": "right"}],
                                                          default_expression="cheeky")]))
-    for bad in [{"headwear": {"kind": "bowler"}}, {"legwear": {"kind": "shorts"}}, {"props": [{"kind": "Big Sword"}]}, {"props": [{"kind": "apple", "hand": "left"}] * 2},
+    for bad in [{"props": [{"kind": "Big Sword"}]}, {"props": [{"kind": "apple", "hand": "left"}] * 2},
                 {"props": [{"kind": "none", "hand": "left"}]},
                 {"default_expression": "smug"}, {"top": {"color": "#123456", "number": "1234"}},
                 {"top": {"color": "#123456", "style": "Big Cape"}}]:

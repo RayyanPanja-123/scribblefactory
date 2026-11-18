@@ -44,7 +44,7 @@ class Style(Strict):
     captions: bool = True  # burned-in captions in final.mp4
 
 
-Expression = Literal["neutral", "happy", "sad", "angry", "surprised", "sleepy", "cheeky", "exhausted"]
+Expression = Literal["neutral", "happy", "sad", "angry", "surprised", "sleepy", "cheeky", "exhausted", "worried"]
 
 
 # --- wardrobe: clothing, hair and cosmetics, one item per slot (engine/page/wardrobe.js) ---
@@ -60,6 +60,13 @@ BUILTIN_WARDROBE: dict[str, tuple[str, str]] = {
     "dress": ("top", "Dress"), "flat_cap": ("headwear", "Flat cap"), "postman_cap": ("headwear", "Postman cap"),
     "bowler": ("headwear", "Bowler"), "straw_hat": ("headwear", "Straw hat"), "wide_hat": ("headwear", "Wide hat"),
     "shorts": ("legwear", "Shorts"), "ragged_shorts": ("legwear", "Ragged shorts"), "trousers": ("legwear", "Trousers"),
+}
+# Used when an imported cast names a built-in headwear or legwear item without
+# supplying its optional colour.  The hand-drawn built-ins need a concrete
+# colour to render, while a library item can use its own default_color.
+BUILTIN_WARDROBE_DEFAULT_COLORS = {
+    "headwear": "#2e3a59",
+    "legwear": "#3a3a3a",
 }
 WardrobeAnchor = Literal["head", "head_top", "face", "eyes", "mouth", "neck", "shoulders", "chest", "waist", "hips",
                          "back", "arms", "hands", "legs", "feet"]
@@ -114,12 +121,28 @@ def _needs_color(m):
     return m
 
 
+def _default_builtin_color(v, slot: str):
+    """Fill the render colour for a built-in item when an import omits it."""
+    if v is None or v == "none":
+        return v
+    kind = v if isinstance(v, str) else v.get("kind", v.get("id")) if isinstance(v, dict) else None
+    if kind in BUILTIN_WARDROBE and isinstance(v, dict) and v.get("color") is None:
+        return {**v, "kind": kind, "color": BUILTIN_WARDROBE_DEFAULT_COLORS[slot]}
+    if kind in BUILTIN_WARDROBE and isinstance(v, str):
+        return {"kind": v, "color": BUILTIN_WARDROBE_DEFAULT_COLORS[slot]}
+    return v
+
+
 class Headwear(Strict):
     kind: WardrobeId = Field(default="none", description="wardrobe id (\"id\" or a plain string accepted too): built "
                                                        "in flat_cap, postman_cap, bowler, straw_hat, wide_hat, or a "
                                                        "library headwear; none")
     color: HexColor | None = None
     _plain = model_validator(mode="before")(_id_key("kind"))
+    @model_validator(mode="before")
+    @classmethod
+    def _default_color(cls, v):
+        return _default_builtin_color(v, "headwear")
     _check = model_validator(mode="after")(_needs_color)
 
 
@@ -128,6 +151,10 @@ class Legwear(Strict):
                                                        "library legwear; none")
     color: HexColor | None = None
     _plain = model_validator(mode="before")(_id_key("kind"))
+    @model_validator(mode="before")
+    @classmethod
+    def _default_color(cls, v):
+        return _default_builtin_color(v, "legwear")
     _check = model_validator(mode="after")(_needs_color)
 
 

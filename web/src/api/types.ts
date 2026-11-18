@@ -741,7 +741,7 @@ export interface components {
             accessory?: components["schemas"]["WardrobeSlot"][] | null;
             back?: components["schemas"]["WardrobeSlot"] | null;
             /** Default Expression */
-            default_expression?: ("neutral" | "happy" | "sad" | "angry" | "surprised" | "sleepy" | "cheeky" | "exhausted") | null;
+            default_expression?: ("neutral" | "happy" | "sad" | "angry" | "surprised" | "sleepy" | "cheeky" | "exhausted" | "worried") | null;
             /** Eyes */
             eyes?: ("dots" | "half_closed") | null;
             /** Face */
@@ -785,7 +785,7 @@ export interface components {
              * @default neutral
              * @enum {string}
              */
-            default_expression: "neutral" | "happy" | "sad" | "angry" | "surprised" | "sleepy" | "cheeky" | "exhausted";
+            default_expression: "neutral" | "happy" | "sad" | "angry" | "surprised" | "sleepy" | "cheeky" | "exhausted" | "worried";
             /**
              * Eyes
              * @enum {string}
@@ -1496,7 +1496,7 @@ export interface components {
         /**
          * PropShape
          * @description one piece of a custom prop, in hand space: the hand at (0, 0), y down, x away from the body (canvas px; the
-         *     figure is 512 x 1024, the built-in props span about -40..110). Drawn with the same wobbly ink as the built-ins.
+         *     card is 1024 x 1024 with the figure in the middle 512, the built-in props span about -40..110). Drawn with the same wobbly ink as the built-ins.
          */
         PropShape: {
             /**
@@ -1937,7 +1937,7 @@ export interface components {
              * When
              * @description only with these expressions (blush: happy)
              */
-            when?: ("neutral" | "happy" | "sad" | "angry" | "surprised" | "sleepy" | "cheeky" | "exhausted")[] | null;
+            when?: ("neutral" | "happy" | "sad" | "angry" | "surprised" | "sleepy" | "cheeky" | "exhausted" | "worried")[] | null;
             /**
              * Width
              * @description outline / line width; 0: no outline

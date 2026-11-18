@@ -24,6 +24,7 @@ const router = createRouter({
     { path: '/creatures', name: 'creatures', component: () => import('./pages/Creatures.vue') },
     { path: '/creatures/:id', name: 'creature-edit', component: () => import('./pages/CreatureEditor.vue'), props: true },
     { path: '/props', name: 'props', component: () => import('./pages/Props.vue') },
+    { path: '/expressions', name: 'expressions', component: () => import('./pages/Expressions.vue') },
     { path: '/props/:id', name: 'prop-edit', component: () => import('./pages/PropEditor.vue'), props: true },
     { path: '/wardrobe', name: 'wardrobe', component: () => import('./pages/Wardrobe.vue') },
     { path: '/wardrobe/:id', name: 'wardrobe-edit', component: () => import('./pages/WardrobeEditor.vue'), props: true },

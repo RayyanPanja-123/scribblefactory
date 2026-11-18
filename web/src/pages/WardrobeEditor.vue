@@ -11,6 +11,7 @@ import { useApi } from '../composables/useApi'
 import { allCreatures } from '../lib/creatures'
 import { ANCHORS, PREVIEW_POSES, SHAPES, SLOT_LABEL, SLOTS, buildWardrobePrompt, importWardrobe, wardrobeOptions,
   type Anchor, type Slot, type WardrobeItem, type WardrobeLayer } from '../lib/wardrobe'
+import { EXPRESSIONS } from '../lib/expressions'
 
 // Create (/wardrobe/new) or edit one custom wardrobe item: ink layers anchored to body points, previewed live by the
 // engine's own drawing code on the default human and on a chosen humanoid creature, in any pose. The server (schema
@@ -28,7 +29,6 @@ type Fill = 'none' | 'color' | 'hex'
 type Row = { shape: Shape; anchor: Anchor; pts: string; r: number; ry: number; rot: number; fill: Fill; hex: string; width: number; behind: boolean; when: string }
 const HINT: Record<Shape, string> = { rect: 'two corners', circle: 'the centre', ellipse: 'the centre', line: '2 or more points', poly: '3 or more points, closed' }
 const START: Record<Shape, string> = { rect: '-40,-20 40,20', circle: '0,0', ellipse: '0,0', line: '-40,0 40,0', poly: '-40,0 0,-40 40,0' }
-const EXPRESSIONS = ['neutral', 'happy', 'sad', 'angry', 'surprised', 'sleepy', 'cheeky', 'exhausted']
 const toRow = (L: WardrobeLayer): Row => ({
   shape: L.shape, anchor: L.anchor, pts: L.pts.map(([x, y]) => `${x},${y}`).join(' '), r: L.r ?? 20, ry: L.ry ?? 12, rot: L.rot ?? 0,
   fill: L.fill === '$color' ? 'color' : L.fill ? 'hex' : 'none', hex: L.fill && L.fill !== '$color' ? L.fill : '#ffffff',
@@ -59,7 +59,7 @@ function parse(r: Row): { layer?: WardrobeLayer; err?: string } {
   if (pts.length < lo || pts.length > hi) return { err: `${r.shape}: ${HINT[r.shape]}` }
   if (pts.some((p) => p.some((v) => Math.abs(v) > 600))) return { err: 'keep points within 600 of the anchor' }
   const when = r.when.trim().split(/[\s,]+/).filter(Boolean)
-  if (when.some((w) => !EXPRESSIONS.includes(w))) return { err: `only with: ${EXPRESSIONS.join(', ')}` }
+  if (when.some((w) => !(EXPRESSIONS as readonly string[]).includes(w))) return { err: `only with: ${EXPRESSIONS.join(', ')}` }
   const round = r.shape === 'circle' || r.shape === 'ellipse'
   return { layer: { shape: r.shape, anchor: r.anchor, pts: pts as [number, number][], r: round ? r.r : null, ry: r.shape === 'ellipse' ? r.ry : null,
     rot: r.shape === 'ellipse' ? r.rot : 0, fill: r.fill === 'color' ? '$color' : r.fill === 'hex' ? r.hex : null, width: r.width, behind: r.behind,

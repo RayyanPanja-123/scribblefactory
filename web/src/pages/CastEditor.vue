@@ -14,6 +14,7 @@ import { useApi } from '../composables/useApi'
 import { allCreatures } from '../lib/creatures'
 import { HANDS, propOptions, type Hand } from '../lib/props'
 import { SLOT_LABEL, wardrobeOptions, type Slot } from '../lib/wardrobe'
+import { EXPRESSIONS } from '../lib/expressions'
 
 const props = defineProps<{ slug: string; id: string }>()
 const router = useRouter()
@@ -26,7 +27,6 @@ const member = computed(() => data.value?.detail.series.cast.find((c) => c.id ==
 const render = computed(() => data.value?.detail.cast[props.id])
 const busy = computed(() => seriesBusy(props.slug))
 
-const EXPRESSIONS = ['neutral', 'happy', 'sad', 'angry', 'surprised', 'sleepy', 'cheeky', 'exhausted'] as const
 const ONE: Slot[] = ['hair', 'facial_hair', 'headwear', 'legwear', 'footwear', 'back'] // one item each
 const MANY: Slot[] = ['accessory', 'face'] // up to 3 each
 const KIND_SLOTS: Slot[] = ['headwear', 'legwear'] // stored as {kind, color}; the rest as {id, color} or null
