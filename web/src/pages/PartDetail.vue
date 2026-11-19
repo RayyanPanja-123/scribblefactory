@@ -230,8 +230,10 @@ const REDO: Record<Approval, { steps: string[]; body: string }> = {
   stills: { steps: ['run --stage shots --force', 'run --stage validate --force', 'render-stills'],
     body: 'Plans the shots again from story.md, then renders a new stills sheet. Change the story, cast, sets or props first if something in it was wrong.' },
   test_render: { steps: ['test-render'], body: 'Renders the 5 s test again. Takes a minute or two.' },
-  final: { steps: ['render --force', 'run --stage audio --force', 'run --stage finish --force', 'run --stage thumbnails --force'],
-    body: 'Deletes every frame and renders the whole video again, then the sound, final.mp4 and thumbnails. This is the slow one.' },
+  // the story stages first, without --force: they skip themselves unless story.md or voice.mp3 changed
+  final: { steps: ['run --stage prep', 'run --stage import_check', 'run --stage timing', 'run --stage shots', 'run --stage validate',
+    'render --force', 'run --stage audio --force', 'run --stage finish --force', 'run --stage thumbnails --force'],
+    body: 'Picks up a changed story.md and voice.mp3 (save the new story and upload the new voice first), deletes every frame and renders the whole video again, then the sound, final.mp4 and thumbnails. This is the slow one.' },
 }
 const canReject = (a: (typeof APPROVALS)[number]) => !approved(a.key) && has(a.file)
 async function reject(a: (typeof APPROVALS)[number]) {
