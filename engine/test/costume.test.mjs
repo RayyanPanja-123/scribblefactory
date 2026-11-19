@@ -131,11 +131,16 @@ test("legwear follows the leg animation: each tube lies along its leg at every w
   for (const kind of LEGS) for (const phase of [0, 0.15, 0.3, 0.6, 0.85]) {
     const o = { ...BASE, action: "walk", facing: "right", phase, legwear: { kind, color: "#333333" } };
     const k = skeleton(o), tubes = fills(record(o), "#333333");
+    // each piece (a straight leg's tube, or a bent leg's thigh, knee and shin) sits on a segment of a leg
+    const segs = k.legs.flatMap(([hip, foot], i) => (k.knees ? [[hip, k.knees[i]], [k.knees[i], foot]] : [[hip, foot]]));
+    const toSeg = ([px, py], [[ax, ay], [bx, by]]) => {
+      const u = Math.max(0, Math.min(1, ((px - ax) * (bx - ax) + (py - ay) * (by - ay)) / ((bx - ax) ** 2 + (by - ay) ** 2)));
+      return Math.hypot(px - ax - u * (bx - ax), py - ay - u * (by - ay));
+    };
     tubes.forEach(({ pts }, i) => {
-      const [[hx, hy], [fx, fy]] = k.legs[i], c = mean(pts);
-      const off = Math.abs((fx - hx) * (c[1] - hy) - (fy - hy) * (c[0] - hx)) / Math.hypot(fx - hx, fy - hy);
-      assert.ok(off < 8, `${kind} phase ${phase} leg ${i}: tube ${off.toFixed(1)} px off the leg`);
-      assert.ok(c[1] > hy, `${kind} tube starts below the hip`);
+      const c = mean(pts), off = Math.min(...segs.map((sg) => toSeg(c, sg)));
+      assert.ok(off < 8, `${kind} phase ${phase} piece ${i}: ${off.toFixed(1)} px off the leg`);
+      assert.ok(c[1] > k.hipY, `${kind} piece starts below the hip`);
     });
     if (prev && kind === prev.kind) assert.notDeepEqual(tubes[0].pts, prev.pts, "legwear did not move with the leg");
     prev = { kind, pts: tubes[0].pts };

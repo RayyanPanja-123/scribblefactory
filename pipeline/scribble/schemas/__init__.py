@@ -563,16 +563,23 @@ class ActionKey(Strict):
     t: float = Field(ge=0, le=1, description="when, as a share of the action's duration")
     arms: tuple[tuple[float, float], tuple[float, float]] | None = Field(
         default=None, description="[[upper arm, forearm bend] left, [upper arm, forearm bend] right]; none: at rest")
-    legs: tuple[float, float] | None = Field(default=None, description="[left, right] leg angles (rest -6, 6); the "
+    legs: tuple[float, float] | None = Field(default=None, description="[left, right] thigh angles, -90..90 (rest -6, 6); the "
                                                                        "feet stay on the ground; none: at rest")
-    lean: float = Field(default=0, ge=-30, le=30, description="whole figure, about the feet; + leans toward +x")
+    knees: tuple[float, float] | None = Field(default=None, description="[left, right] knee bends, 0 (straight) to 170: "
+                                                                          "on a side action the shin folds back, behind "
+                                                                          "the figure; facing the camera the knees bend "
+                                                                          "outward (a front squat); none: straight")
+    lean: float = Field(default=0, ge=-60, le=60, description="whole figure, about the feet; + leans toward +x. With "
+                                                             "bent knees it bends at the hips instead (legs stay put)")
 
     @model_validator(mode="after")
     def _ranges(self):
         if self.arms and any(not -180 <= v <= 180 for arm in self.arms for v in arm):
             raise ValueError("arms: angles -180..180")
-        if self.legs and any(not -45 <= v <= 45 for v in self.legs):
-            raise ValueError("legs: angles -45..45")
+        if self.legs and any(not -90 <= v <= 90 for v in self.legs):
+            raise ValueError("legs: angles -90..90")
+        if self.knees and any(not 0 <= v <= 170 for v in self.knees):
+            raise ValueError("knees: bends 0..170")
         return self
 
 

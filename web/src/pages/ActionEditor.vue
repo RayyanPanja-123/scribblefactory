@@ -17,7 +17,7 @@ const router = useRouter()
 const isNew = computed(() => props.id === 'new')
 const { data, error, loading, reload } = useApi(() => api.actions())
 
-type Key = { t: number; arms: [[number, number], [number, number]] | null; legs: [number, number] | null; lean: number }
+type Key = { t: number; arms: [[number, number], [number, number]] | null; legs: [number, number] | null; knees?: [number, number] | null; lean: number }
 const REST = { arms: [[-16, 0], [16, 0]] as [[number, number], [number, number]], legs: [-6, 6] as [number, number] }
 const slugify = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 const STARTER: Key[] = [ // a wave hello: rest, the right arm up, back down
@@ -31,7 +31,7 @@ watch(data, (cat) => {
   if (!cat || isNew.value) return
   const a = cat.custom.find((x) => x.id === props.id)
   if (a) Object.assign(form, { id: a.id, name: a.name, use_for: a.use_for ?? '', idEdited: true, duration: a.duration, loop: a.loop ?? true, facing: a.facing ?? 'camera', move: a.move ?? 0,
-    keys: a.keys.map((k) => ({ t: k.t, arms: k.arms ?? null, legs: k.legs ?? null, lean: k.lean ?? 0 })) })
+    keys: a.keys.map((k) => ({ t: k.t, arms: k.arms ?? null, legs: k.legs ?? null, knees: k.knees ?? (k.legs ? [0, 0] : null), lean: k.lean ?? 0 })) })
 }, { immediate: true })
 const missing = computed(() => !isNew.value && data.value && !data.value.custom.some((x) => x.id === props.id))
 watch(() => form.name, (n) => { if (isNew.value && !form.idEdited) form.id = slugify(n) })
@@ -49,9 +49,12 @@ const color = ref('#3a7bd5')
 function addKey() {
   const last = sorted.value.at(-1)
   form.keys.push({ t: Math.min(1, +((last?.t ?? 0) + 0.25).toFixed(2)), arms: last?.arms ? structuredClone(last.arms) : null,
-    legs: last?.legs ? [...last.legs] as [number, number] : null, lean: last?.lean ?? 0 })
+    legs: last?.legs ? [...last.legs] as [number, number] : null, knees: last?.knees ? [...last.knees] as [number, number] : null, lean: last?.lean ?? 0 })
 }
-const toggle = (k: Key, part: 'arms' | 'legs') => { k[part] = (k[part] ? null : structuredClone(REST[part])) as never }
+const toggle = (k: Key, part: 'arms' | 'legs') => {
+  k[part] = (k[part] ? null : structuredClone(REST[part])) as never
+  if (part === 'legs') k.knees = k.legs ? [0, 0] : null // knees come with the legs
+}
 
 const saving = ref(false)
 async function save() {
@@ -123,8 +126,10 @@ const ARM_SLIDERS = [[0, 0, 'Left arm'], [0, 1, 'Left bend'], [1, 0, 'Right arm'
           <button type="button" class="btn btn-secondary" :disabled="form.keys.length >= 40" @click="addKey"><Plus :size="16" aria-hidden="true" /> Add key</button>
         </div>
         <p class="text-xs text-muted">Angles in degrees from straight down, + toward screen right: an arm at 0 hangs, 90 points
-          right, 180 straight up (the left arm rests at −16, the right at +16). Bend turns the forearm. Legs rest at −6 / +6; the
-          feet stay on the ground. A key without arms or legs keeps them at rest. The engine eases between keys in time order.</p>
+          right, 180 straight up (the left arm rests at −16, the right at +16). Bend turns the forearm (the elbow). Legs rest at −6 / +6; the
+          feet stay on the ground. Knee bends the shin back (0 straight, 90 a right angle); with bent knees, lean bends at the
+          hips. Face sideways for these: a one-knee kneel is legs 0 / 90, knees 90 / 90; a deep squat is legs 85 / 85,
+          knees 160 / 160, and with lean 40 the front hand reaches the ground. A key without arms or legs keeps them at rest. The engine eases between keys in time order.</p>
         <ol class="space-y-3">
           <li v-for="(k, i) in form.keys" :key="i" class="inset space-y-3 rounded-md p-4">
             <div class="flex flex-wrap items-end gap-3">
@@ -146,12 +151,17 @@ const ARM_SLIDERS = [[0, 0, 'Left arm'], [0, 1, 'Left bend'], [1, 0, 'Right arm'
               <template v-if="k.legs">
                 <label v-for="(label, s) in ['Left leg', 'Right leg']" :key="label" class="block text-xs font-semibold text-muted">
                   <span class="flex justify-between">{{ label }} <span class="font-mono font-normal">{{ k.legs[s] }}°</span></span>
-                  <input v-model.number="k.legs[s]" type="range" min="-45" max="45" step="1" class="mt-1 block w-full" @input="scrub = k.t" />
+                  <input v-model.number="k.legs[s]" type="range" min="-90" max="90" step="1" class="mt-1 block w-full" @input="scrub = k.t" />
+                </label>
+                <label v-for="(label, s) in ['Left knee', 'Right knee']" :key="label" class="block text-xs font-semibold text-muted">
+                  <span class="flex justify-between">{{ label }} <span class="font-mono font-normal">{{ k.knees?.[s] ?? 0 }}°</span></span>
+                  <input :value="k.knees?.[s] ?? 0" type="range" min="0" max="170" step="1" class="mt-1 block w-full"
+                    @input="(k.knees ??= [0, 0])[s] = +($event.target as HTMLInputElement).value; scrub = k.t" />
                 </label>
               </template>
               <label class="block text-xs font-semibold text-muted">
                 <span class="flex justify-between">Lean <span class="font-mono font-normal">{{ k.lean }}°</span></span>
-                <input v-model.number="k.lean" type="range" min="-30" max="30" step="1" class="mt-1 block w-full" @input="scrub = k.t" />
+                <input v-model.number="k.lean" type="range" min="-60" max="60" step="1" class="mt-1 block w-full" @input="scrub = k.t" />
               </label>
             </div>
           </li>

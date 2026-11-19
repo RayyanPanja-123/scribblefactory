@@ -61,7 +61,7 @@ class DoClause(NamedTuple):
 def parse_do(arg: str, line: int, cast_ids=None, props=BUILTIN_PROPS, actions=()) -> list[DoClause]:
     """Parse an @do directive (the text after "@do"). With cast_ids, cast and targets must be in the series too.
     props: the prop kinds eat / give may name (io.prop_kinds: built-ins + library/props.json). actions: the
-    library's custom actions (io.custom_actions), in-place moves that take no target or prop.
+    library's custom actions (io.custom_actions), which take no prop and at most one target to face / move toward.
     Errors name the story.md line."""
     def bad(msg):
         raise StageError(f"story.md line {line}: @do: {msg}")
@@ -104,6 +104,8 @@ def parse_do(arg: str, line: int, cast_ids=None, props=BUILTIN_PROPS, actions=()
                 bad(f'{act} needs one target, e.g. "{act} thomas"')
             if not lo <= len(who) <= hi:
                 bad(f"{act} needs {lo if lo == hi else f'{lo}-{hi}'} cast before the colon, got {len(who)}")
+            target = args[0]
+        elif act in actions and len(args) == 1:  # a custom action aimed at someone: faces / moves toward them
             target = args[0]
         elif args:
             bad(f"{act} takes no target or prop (got {' '.join(args)!r})")

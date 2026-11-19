@@ -287,7 +287,7 @@ def test_custom_action_schema():
     a = CustomAction.model_validate(SALUTE)
     assert a.keys[1].arms[1] == (150, 70) and a.keys[0].arms is None
     for bad, msg in [({"id": "wave"}, "built-in action"), ({"keys": [{"t": 0.5}, {"t": 0.1}]}, "time order"),
-                     ({"keys": [{"t": 0, "legs": [-60, 6]}]}, "legs: angles"), ({"keys": []}, "at least 1"),
+                     ({"keys": [{"t": 0, "legs": [-100, 6]}]}, "legs: angles"), ({"keys": [{"t": 0, "knees": [0, 180]}]}, "knees: bends"), ({"keys": []}, "at least 1"),
                      ({"duration": 0}, "greater than or equal")]:
         with pytest.raises(ValueError, match=msg):
             CustomAction.model_validate({**SALUTE, **bad})
@@ -300,7 +300,7 @@ def test_do_plays_a_custom_action_from_the_library(tmp_path):
     with pytest.raises(StageError, match="unknown action 'salute'"):
         prep.parse_do("fred: salute", 4)
     with pytest.raises(StageError, match="salute takes no target"):
-        prep.parse_do("fred: salute amy", 4, actions=["salute"])
+        prep.parse_do("fred: salute amy tom", 4, actions=["salute"])
     md = "# T\n\n@set office\n@cast fred, amy\n@do fred: salute\nFred stood up straight.\nAmy walked in.\n"
     ph = phrases_for(md)
     story = shots.plan(md, ph, SERIES, 1, actions={"salute": CustomAction.model_validate(SALUTE)})
@@ -336,6 +336,24 @@ def test_side_actions_turn_and_moving_ones_cross_the_stage_backward():
     bad = story.model_copy(update={"shots": [s0, *story.shots[1:]]})
     assert "facing" in {e.rule for e in validate(bad, ph, IDS, moves={"moonwalk": -0.8})}
     assert "end_pos" in {e.rule for e in validate(story, ph, IDS)}
+
+
+def test_custom_action_aimed_at_a_target_faces_and_moves_toward_it():
+    """two movers either side of a target both head for it, not for the middle (and into each other)"""
+    moon = CustomAction.model_validate({**MOONWALK, "move": 0.8})
+    md = "# T\n\n@set office\n@cast fred, tom, amy\n@do fred: moonwalk tom, amy: moonwalk tom\nFred and Amy charged at Tom.\n"
+    assert prep.parse_do("fred: moonwalk tom", 4, actions=["moonwalk"])[0].target == "tom"
+    ph = phrases_for(md)
+    story = shots.plan(md, ph, SERIES, 1, actions={"moonwalk": moon})
+    assert validate(story, ph, IDS, moves={"moonwalk": 0.8}) == []
+    s0 = story.shots[0]
+    t = who(s0, "tom").start_pos[0]
+    for cid in ("fred", "amy"):
+        a = who(s0, cid)
+        d = 1 if t > a.start_pos[0] else -1
+        assert a.facing == ("right" if d > 0 else "left") and a.target is None
+        if a.end_pos:
+            assert (a.end_pos[0] - a.start_pos[0]) * d > 0, f"{cid} moves toward tom"
 
 
 def test_do_takes_custom_props_from_the_library():

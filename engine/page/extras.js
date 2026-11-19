@@ -110,12 +110,12 @@ export function extraLook(slug, e) {
 }
 
 /** crowd mood pose at time t for the figure keyed `key` (each one's timing offset, so a crowd never moves in sync):
- *  { k 0..1 arms into the mood pose, bounce 0..1 (cheer hops), shake -1..1 (angry fists) } */
+ *  { k 0..1 arms into the mood pose, bounce 0..1 (cheer hops), crouch 0..1 (cheer knees between hops), shake -1..1 (angry fists) } */
 export function moodAt(mood, t, key) {
   const tt = t + rng(key, "mood")() * MOOD.offset;
   if (mood === "cheer") {
     const s = Math.sin(TAU * MOOD.cheerHz * tt);
-    return { k: 0.85 + 0.15 * s, bounce: Math.max(0, s), shake: 0 }; // arms stay high: no sweep into neighbours
+    return { k: 0.85 + 0.15 * s, bounce: Math.max(0, s), crouch: Math.max(0, -s), shake: 0 }; // arms stay high: no sweep into neighbours; knees crouch between hops
   }
   if (mood === "angry") return { k: 1, bounce: 0, shake: Math.sin(TAU * MOOD.shakeHz * tt) };
   if (mood === "gasp") return { k: 1, bounce: 0, shake: 0.15 * Math.sin(TAU * 7 * tt) }; // a small tremble

@@ -24,14 +24,14 @@ export const ZZZ = { every: 3.2, show: 2.2 };             // sleeping: a rising 
 export const BUILTIN_ACTIONS = new Set(["idle", "walk", "run", "talk", "point", "react", "wave", "ride", "stagger", "lie",
   "collapse", "eat", "give", "receive", "carry", "carried", "support", "supported", "cheer", "angry", "gasp"]);
 
-const REST = { arms: [[-16, 0], [16, 0]], legs: [-6, 6], lean: 0 }; // the idle stickman, degrees (stickman.js)
+const REST = { arms: [[-16, 0], [16, 0]], legs: [-6, 6], knees: [0, 0], lean: 0 }; // the idle stickman, degrees (stickman.js)
 const ease = (u) => u * u * (3 - 2 * u);
-/** a custom action (schema CustomAction) at ts seconds into its shot: { arms [[upper, bend] x2], legs [l, r], lean },
+/** a custom action (schema CustomAction) at ts seconds into its shot: { arms [[upper, bend] x2], legs [l, r], knees [l, r], lean },
  *  degrees from straight down, + toward +x. Eased between the keys; a key leaving a part out holds it at rest. A
  *  looping action wraps from its last key back to its first; a once action holds its last key. */
 export function customPose(def, ts) {
   const d = def.duration, u = def.loop ? (((ts % d) + d) % d) / d : Math.min(1, Math.max(0, ts / d));
-  const keys = def.keys.map((k) => ({ t: k.t, arms: k.arms ?? REST.arms, legs: k.legs ?? REST.legs, lean: k.lean ?? 0 }));
+  const keys = def.keys.map((k) => ({ t: k.t, arms: k.arms ?? REST.arms, legs: k.legs ?? REST.legs, knees: k.knees ?? REST.knees, lean: k.lean ?? 0 }));
   let i = keys.findIndex((k) => k.t > u);
   if (i === -1) { // past the last key: loop back to the first, or hold
     if (!def.loop || keys.length === 1) return keys[keys.length - 1];
@@ -44,7 +44,7 @@ export function customPose(def, ts) {
 }
 const lerp = (a, b, k) => a + (b - a) * k;
 const mix = (a, b, k) => ({ arms: a.arms.map((arm, s) => arm.map((v, j) => lerp(v, b.arms[s][j], k))),
-  legs: a.legs.map((v, s) => lerp(v, b.legs[s], k)), lean: lerp(a.lean, b.lean, k) });
+  legs: a.legs.map((v, s) => lerp(v, b.legs[s], k)), knees: a.knees.map((v, s) => lerp(v, b.knees[s], k)), lean: lerp(a.lean, b.lean, k) });
 
 /** gait phase (cycles): walking gaits from distance travelled (no gliding), carried legs pedal by time */
 export function gaitPhase(action, distance, ts) {

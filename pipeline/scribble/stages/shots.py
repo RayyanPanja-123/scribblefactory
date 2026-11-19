@@ -498,10 +498,13 @@ def _apply_do(clauses, line, cast, pos, actors, vehicles, seconds, fallen, handl
             custom = (actions or {}).get(c.action)  # a library action (CustomAction), else None
             for cid in c.who:
                 x, old = pos[cid], by[cid]
+                toward = (1 if pos[c.target] >= x else -1) if c.target else 0  # a custom action's target
                 if c.action in MOVE_SPEED or (custom and custom.move):
-                    d = 1 if x <= 0 else -1
+                    d = toward or (1 if x <= 0 else -1)
                     speeds = (abs(custom.move), *custom_speeds(custom.move)) if custom else None
                     move = fit_move(x, d, c.action, seconds, [pos[o] for o in cast if o != cid], speeds)
+                    if move and toward and (move[1] != toward or (x + move[1] * move[2] - pos[c.target]) * toward > 0):
+                        move = None  # aimed: never away from the target or past it; plays in place facing it
                     if move:
                         act, dd, dist = move
                         pos[cid] = round(x + dd * dist, 3)
@@ -513,8 +516,8 @@ def _apply_do(clauses, line, cast, pos, actors, vehicles, seconds, fallen, handl
                 else:
                     action = c.action
                 facing = old.facing
-                if custom and custom.facing == "side" and facing == "camera":
-                    facing = face(1 if x <= 0 else -1)  # turned side on, toward the middle of the stage
+                if custom and custom.facing == "side" and (toward or facing == "camera"):
+                    facing = face(toward or (1 if x <= 0 else -1))  # side on, toward the target, else the middle
                 if action == "collapse":
                     action = "lie" if (line, cid) in fallen else action
                     fallen.add((line, cid))

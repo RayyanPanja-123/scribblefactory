@@ -38,7 +38,7 @@ After changing requirements.txt, rebuild the venv and regenerate requirements.lo
 
 ## Custom actions
 
-The Actions page (`/actions`) holds custom `@do` actions: keyframed arm, leg and lean poses that loop or play once.
+The Actions page (`/actions`) holds custom `@do` actions: keyframed arm (with elbow), leg (with knee) and lean poses that loop or play once.
 An action can face the camera or sideways (turning left/right with the direction of travel), and sideways actions
 take a move speed in units/second; a negative speed glides backwards (moonwalk).
 

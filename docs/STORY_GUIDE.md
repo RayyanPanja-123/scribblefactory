@@ -118,7 +118,8 @@ Narration line.
 
 `@do` actions: `idle talk point react wave cheer angry gasp walk run stagger lie collapse`, `eat [prop]`,
 `give <prop> <target>`, `carry <target>` (exactly 2 carriers), `support <target>` (1 or 2), `car: broken` (car on
-stage), or a custom action. Several: `@do fred: lie, amy: wave`.
+stage), or a custom action, optionally aimed at someone on stage (`@do marcus: attack-with-spears neptune`: they
+face and move toward the target instead of the middle of the stage). Several: `@do fred: lie, amy: wave`.
 
 ### Staging (required)
 

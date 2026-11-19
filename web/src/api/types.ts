@@ -763,14 +763,22 @@ export interface components {
                 ]
             ] | null;
             /**
+             * Knees
+             * @description [left, right] knee bends, 0 (straight) to 170: on a side action the shin folds back, behind the figure; facing the camera the knees bend outward (a front squat); none: straight
+             */
+            knees?: [
+                number,
+                number
+            ] | null;
+            /**
              * Lean
-             * @description whole figure, about the feet; + leans toward +x
+             * @description whole figure, about the feet; + leans toward +x. With bent knees it bends at the hips instead (legs stay put)
              * @default 0
              */
             lean: number;
             /**
              * Legs
-             * @description [left, right] leg angles (rest -6, 6); the feet stay on the ground; none: at rest
+             * @description [left, right] thigh angles, -90..90 (rest -6, 6); the feet stay on the ground; none: at rest
              */
             legs?: [
                 number,

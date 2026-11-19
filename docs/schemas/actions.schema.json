@@ -47,11 +47,34 @@
           "description": "[[upper arm, forearm bend] left, [upper arm, forearm bend] right]; none: at rest",
           "title": "Arms"
         },
+        "knees": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "[left, right] knee bends, 0 (straight) to 170: on a side action the shin folds back, behind the figure; facing the camera the knees bend outward (a front squat); none: straight",
+          "title": "Knees"
+        },
         "lean": {
           "default": 0,
-          "description": "whole figure, about the feet; + leans toward +x",
-          "maximum": 30,
-          "minimum": -30,
+          "description": "whole figure, about the feet; + leans toward +x. With bent knees it bends at the hips instead (legs stay put)",
+          "maximum": 60,
+          "minimum": -60,
           "title": "Lean",
           "type": "number"
         },
@@ -75,7 +98,7 @@
             }
           ],
           "default": null,
-          "description": "[left, right] leg angles (rest -6, 6); the feet stay on the ground; none: at rest",
+          "description": "[left, right] thigh angles, -90..90 (rest -6, 6); the feet stay on the ground; none: at rest",
           "title": "Legs"
         },
         "t": {

@@ -39,11 +39,13 @@ Reply with ONE JSON object in a \`\`\`json code block and nothing else.
 - keys: 2 to 8 keys (max 40) in time order. The engine eases smoothly between them; a looping move wraps from the
   last key back to the first, so make them flow.
 
-Each key: {"t": 0.5, "arms": [[L, Lbend], [R, Rbend]], "legs": [L, R], "lean": 0}
+Each key: {"t": 0.5, "arms": [[L, Lbend], [R, Rbend]], "legs": [L, R], "knees": [L, R], "lean": 0}
 - t: when, 0 to 1 (share of the duration). Start with a key at t 0.
 - arms (optional): [left arm, right arm], each [upper arm angle, forearm bend]. Left out: both arms at rest.
-- legs (optional): [left leg, right leg] angles, -45..45. Left out: at rest. The feet stay on the ground.
-- lean (optional): the whole figure, -30..30, about the feet.
+- legs (optional): [left thigh, right thigh] angles, -90..90. Left out: at rest. The lowest foot stays on the ground.
+- knees (optional): [left, right] knee bends, 0 (straight) to 170. On a side action the shin folds back, behind
+  the figure; on a camera action the knees bend outward (a front-view squat). Left out: straight legs.
+- lean (optional): the whole figure, -60..60, about the feet. With bent knees it bends at the hips instead.
 
 ## Angles (degrees, the figure faces the camera; side actions use the same angles relative to the facing direction)
 - Measured from straight DOWN; positive turns toward screen RIGHT (the figure's left hand side is screen left).
@@ -57,12 +59,18 @@ Each key: {"t": 0.5, "arms": [[L, Lbend], [R, Rbend]], "legs": [L, R], "lean": 0
 ## What the figure can and cannot do
 - A camera-facing action is a front view, like a paper cut-out. A side action is mirrored into a left/right profile:
   arms[0] is the back arm, arms[1] the front arm, and positive lean bends forward.
-  Nothing bends toward or away from the viewer:
-  "lean" only tilts the whole figure sideways, like a tilted head. A bow, nod or kneel cannot bend forward, so
-  show it with the arms instead. A bow: the right arm [-10, -110] (upper arm down, forearm folded across the
-  chest), the left arm out a little [-40, 0], lean at most 5-8.
+  Nothing bends toward or away from the viewer: on a camera action "lean" only tilts the whole figure sideways,
+  like a tilted head, so a camera bow is shown with the arms: the right arm [-10, -110] (upper arm down, forearm
+  folded across the chest), the left arm out a little [-40, 0], lean at most 5-8. A deep bow is a side action:
+  knees [30, 30] and lean 30-45 bend it at the hips.
 - Arms out to the side (±90) is a T-pose; ±130..180 is hands up; a forearm folded in (bend ±100..140) brings the
   hand to the chest, face or head.
+- Kneeling, crouching and picking things up need a side action ("facing": "side") with knees. One-knee kneel:
+  legs [0, 90], knees [90, 90] (back knee on the ground, front shin straight down), lean 0-15. Deep squat:
+  legs [85, 85], knees [160, 160]. With bent knees, lean bends forward at the hips. Arms are short: only from
+  the deep squat with lean 40 and the front arm [20, 0] does a hand touch the ground (a kneel reaches the knee).
+  Use knees for life in any move: a 20-30 dip before a jump, throw or raise; a bent front knee in a lunge or
+  thrust; the swinging leg bent in a step or kick. On a camera action bent knees point outward.
 - Keep the lean small (0-10) unless the move is a sideways sway or a dance.
 
 ## Style
@@ -100,9 +108,10 @@ export function importAction(text: string): { action?: CustomAction; error?: str
     if (Array.isArray(k.arms)) k.arms = k.arms.map((arm) => (Array.isArray(arm) ? arm.map((v) => (num(v, -1e4, 1e4) ? wrap(v as number) : v)) : arm))
     if (k.arms != null && !(Array.isArray(k.arms) && k.arms.length === 2 && k.arms.every((x) => pair(x, -180, 180))))
       return bad('"arms" must be [[angle, bend], [angle, bend]], each -180..180.')
-    if (k.legs != null && !pair(k.legs, -45, 45)) return bad('"legs" must be [left, right], each -45..45.')
-    if (k.lean != null && !num(k.lean, -30, 30)) return bad('"lean" must be a number from -30 to 30.')
-    keys.push({ t: k.t as number, arms: (k.arms ?? null) as never, legs: (k.legs ?? null) as never, lean: (k.lean as number) ?? 0 })
+    if (k.legs != null && !pair(k.legs, -90, 90)) return bad('"legs" must be [left, right], each -90..90.')
+    if (k.knees != null && !pair(k.knees, 0, 170)) return bad('"knees" must be [left, right], each 0..170.')
+    if (k.lean != null && !num(k.lean, -60, 60)) return bad('"lean" must be a number from -60 to 60.')
+    keys.push({ t: k.t as number, arms: (k.arms ?? null) as never, legs: (k.legs ?? null) as never, knees: (k.knees ?? null) as never, lean: (k.lean as number) ?? 0 })
   }
   const name = typeof a.name === 'string' && a.name.trim() ? a.name.trim().slice(0, 40) : 'New action'
   const duration = num(a.duration, 0.2, 10) ? a.duration! : 1.5

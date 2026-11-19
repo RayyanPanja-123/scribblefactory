@@ -3,7 +3,7 @@
 // exactly what renders. The upper body only: the canvas is cropped to where hands and props are.
 import { onMounted, ref, watch } from 'vue'
 // @ts-expect-error plain JS module from the engine, no types
-import { drawStickman } from '../../../engine/page/stickman.js'
+import { BODY_W, CW, drawStickman } from '../../../engine/page/stickman.js'
 // @ts-expect-error plain JS module from the engine, no types
 import { setLibrary } from '../../../engine/page/library.js'
 import type { CustomProp, Hand } from '../lib/props'
@@ -11,13 +11,13 @@ import type { CustomProp, Hand } from '../lib/props'
 const p = defineProps<{ kind: string; custom: CustomProp[]; hand?: Hand; color?: string; label: string }>()
 const cv = ref<HTMLCanvasElement>()
 const error = ref('')
-const TOP = 160, H = 760 // crop of the 512 x 1024 figure canvas: head top to just below the hands
+const TOP = 160, H = 760 // crop of the middle BODY_W of the CW x 1024 figure card: head top to just below the hands
 
 function draw() {
   const out = cv.value
   if (!out) return
   const fig = document.createElement('canvas')
-  fig.width = 512
+  fig.width = CW
   fig.height = 1024
   try {
     setLibrary({ props: p.custom })
@@ -31,7 +31,7 @@ function draw() {
   }
   const g = out.getContext('2d')!
   g.clearRect(0, 0, out.width, out.height)
-  g.drawImage(fig, 0, TOP, 512, H, 0, 0, out.width, out.height)
+  g.drawImage(fig, (CW - BODY_W) / 2, TOP, BODY_W, H, 0, 0, out.width, out.height)
 }
 onMounted(draw)
 watch(() => [p.kind, p.custom, p.hand, p.color], draw, { deep: true })

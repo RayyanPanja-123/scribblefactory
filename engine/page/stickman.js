@@ -110,8 +110,23 @@ const quad = (a, c, b, n = 10) => Array.from({ length: n + 1 }, (_, i) => {
 });
 
 /** Pure pose: every joint the drawing (and costumes) hang on, in unrotated canvas px (lean is applied about the
- *  feet when drawing). legs: [[hip, foot] x2], arms: [[shoulder, elbow, hand] left (-x), right (+x)], fore: forearm
+ *  feet when drawing). legs: [[hip, foot] x2], knees: [knee x2] when a custom pose bends them (else null), arms: [[shoulder, elbow, hand] left (-x), right (+x)], fore: forearm
  *  angles, head: [hx, hy]. */
+// built-in knee bends (degrees): the swinging leg of a gait folds (the standing one stays straight, so the hips
+// don't bob), knees give in a buckle (stagger dip, collapse), a cheer crouches between hops, a fright flinches
+const GAIT_KNEE = { walk: 40, run: 85, stagger: 30, carry: 30, support: 30, supported: 25 };
+const BUCKLE_KNEE = 45, CHEER_CROUCH = 30, FLINCH = { react: 14, gasp: 8 }, PEDAL_KNEE = [30, 35];
+function builtinKnees(o, act, s, buckle) {
+  const c = Math.cos(TAU * (o.phase || 0)), k = [0, 0];
+  if (act === "carried") { k[0] = PEDAL_KNEE[0] + PEDAL_KNEE[1] * Math.max(0, -c); k[1] = PEDAL_KNEE[0] + PEDAL_KNEE[1] * Math.max(0, c); }
+  else if (GAIT_KNEE[act] && o.facing !== "camera") { // the leg swinging forward lifts its foot
+    k[0] = GAIT_KNEE[act] * Math.max(0, -c); k[1] = GAIT_KNEE[act] * Math.max(0, c);
+  }
+  const extra = BUCKLE_KNEE * Math.min(1, buckle) + CHEER_CROUCH * (o.mood && act === "cheer" ? o.mood.crouch || 0 : 0)
+    + (FLINCH[act] || 0);
+  return k.map((v) => deg(v + extra));
+}
+
 export function skeleton(o) {
   const S = sizes(o.build), LEG = S.leg, ARM = S.arm;
   const act = o.action, moving = GAITS.has(act), run = act === "run";
@@ -126,8 +141,21 @@ export function skeleton(o) {
   const C = o.custom; // a custom action's pose (actions.js customPose): degrees, + toward +x
   const legA = C ? C.legs.map(deg) : [-A - B, A + B];
   if (C) lean = deg(C.lean);
-  const hipBase = FEET_Y - LEG * Math.max(Math.cos(legA[0]), Math.cos(legA[1])), hipY = hipBase - BOB_PX * (o.bob || 0);
-  const legs = [[-18, legA[0]], [18, legA[1]]].map(([dx, a]) => [[CW / 2 + dx, hipY], at([CW / 2 + dx, hipBase], a, LEG)]);
+  // knees: thigh and shin are half a leg each. Side on, the shin folds back (toward -x) by the knee bend; facing the
+  // camera the knees bend outward (the thighs splay by half the bend, the shins fold back in: a front-view squat).
+  // The leg that reaches lowest stands on FEET_Y (a straight leg: LEG * cos, as before).
+  const kneeA = C ? (C.knees ?? [0, 0]).map(deg) : builtinKnees(o, act, s, B / deg(BUCKLE)), bent = kneeA.some((v) => v);
+  const fold = o.facing === "camera" ? [1, -1] : [-1, -1]; // which way each shin turns from its thigh
+  if (o.facing === "camera") for (const i of [0, 1]) legA[i] -= (fold[i] * kneeA[i]) / 2;
+  const shinA = (i) => legA[i] + fold[i] * kneeA[i];
+  const reach = (i) => (LEG / 2) * (Math.cos(legA[i]) + Math.cos(shinA(i)));
+  const hipBase = FEET_Y - Math.max(reach(0), reach(1)), hipY = hipBase - BOB_PX * (o.bob || 0);
+  const kneeAt = (dx, i) => { const [x, y] = at([CW / 2 + dx, hipBase], legA[i], LEG / 2); return [x, y + (hipY - hipBase) / 2]; };
+  const knees = bent ? [kneeAt(-18, 0), kneeAt(18, 1)] : null;
+  // custom poses: 0 straight .. 1 from a 30 degree knee, the lean bends at the hips (built-ins lean about the feet)
+  const hinge = C ? Math.min(1, Math.max(...kneeA) / deg(30)) : 0;
+  const legs = [[-18, 0], [18, 1]].map(([dx, i]) => [[CW / 2 + dx, hipY],
+    at(at([CW / 2 + dx, hipBase], legA[i], LEG / 2), shinA(i), LEG / 2)]);
   // body: breathing scales its height from the hips up
   const ry = S.ry * (1 + BREATH * (o.breath || 0)), cy = hipY + HIP_OVERLAP - ry, top = cy - ry;
 
@@ -222,7 +250,7 @@ export function skeleton(o) {
     if (i) { aR = ua; bendR = ub; } else { aL = ua; bendL = ub; }
     if (o.eat.k > 0.2) late.push(i);
   }
-  return { lean, legs, hipY, cy, ry, top, arms, fore: [aL + bendL, aR + bendR], head, late, size: S };
+  return { lean, hinge, legs, knees, hipY, cy, ry, top, arms, fore: [aL + bendL, aR + bendR], head, late, size: S };
 }
 
 /** two-joint reach: upper arm angle and forearm bend (radians, from straight down, + toward +x) that put the hand of
@@ -274,7 +302,15 @@ export function drawStickman(canvas, o) {
   const head = (L) => HEAD_ANCHORS.has(L.anchor), lower = (slot) => slot === "legwear" || slot === "footwear";
 
   // a build taller than the card shrinks to fit; whole-figure lean, both about the feet
-  g.translate(CW / 2, FEET_Y); if (fit !== 1) g.scale(fit, fit); g.rotate(k.lean); g.translate(-CW / 2, -FEET_Y);
+  // with bent knees (a kneel, a squat) the lean bends at the hips instead (hinge 0..1 blends it in as the knees
+  // bend): the legs tip about the feet by the rest, the upper body by the hinge share about the hips
+  const hipBend = k.lean * (k.hinge || 0);
+  g.translate(CW / 2, FEET_Y); if (fit !== 1) g.scale(fit, fit); g.rotate(k.lean - hipBend); g.translate(-CW / 2, -FEET_Y);
+  if (hipBend) { g.translate(CW / 2, k.hipY); g.rotate(hipBend); g.translate(-CW / 2, -k.hipY); }
+  const planted = (draw) => { // draw the legs (and what is worn on them) without the hip bend
+    if (!hipBend) return draw();
+    g.save(); g.translate(CW / 2, k.hipY); g.rotate(-hipBend); g.translate(-CW / 2, -k.hipY); draw(); g.restore();
+  };
 
   if (W.length) { // "behind" layers (long hair, capes, the back of a hood) go under everything
     wear((_, L) => L.behind && !head(L));
@@ -282,10 +318,12 @@ export function drawStickman(canvas, o) {
     wear((_, L) => L.behind && head(L));
     g.restore();
   }
-  for (const leg of k.legs) p.stroke(jitter(leg, boil), 10);
   const lw = builtin("legwear", o.legwear);
-  if (lw) legwear(p, cos, lw, k.legs);
-  if (W.length) wear((slot, L) => !L.behind && !head(L) && lower(slot));
+  planted(() => {
+    k.legs.forEach(([hip, foot], i) => p.stroke(jitter(k.knees ? [hip, k.knees[i], foot] : [hip, foot], boil), 10));
+    if (lw) legwear(p, cos, lw, k.legs, k.knees);
+    if (W.length) wear((slot, L) => !L.behind && !head(L) && lower(slot));
+  });
 
   // body: flat outfit-colour blob (covers the top of the legwear)
   const body = wobble(CW / 2, k.cy, S.rx, k.ry, rng(o.seed, "body"), boil), bw = 12 + boil();
@@ -395,8 +433,12 @@ export function legTube([hip, foot], f0, f1, w0, w1, ragged = false) {
   return [P(f0, w0), ...hem, P(f0, -w0)];
 }
 
-function legwear(p, cos, lw, legs) {
-  const tubes = legs.map((leg) => jitter(lw.kind === "trousers" ? legTube(leg, -0.08, 0.96, 30, 17)
+function legwear(p, cos, lw, legs, knees) {
+  const tubes = knees ? legs.flatMap(([hip, foot], i) => { // bent knees: a tube per segment (fractions doubled), a round knee
+    const kn = knees[i], short = lw.kind !== "trousers";
+    return [legTube([hip, kn], -0.16, short ? 0.84 : 1, short ? 31 : 30, short ? 27 : 23.5, short && lw.kind === "ragged_shorts"),
+      ...(short ? [] : [ellPts(kn[0], kn[1], 23.5, 23.5, 0, 360, 0, 16), legTube([kn, foot], 0, 0.92, 23.5, 17)])];
+  }).map((t) => jitter(t, cos, 1.5)) : legs.map((leg) => jitter(lw.kind === "trousers" ? legTube(leg, -0.08, 0.96, 30, 17)
     : legTube(leg, -0.08, 0.42, 31, 27, lw.kind === "ragged_shorts"), cos, 1.5));
   // outlines first, then fills: the two tubes merge into one garment with a single outer outline
   for (const t of tubes) p.poly(t, null, OL * 2);
