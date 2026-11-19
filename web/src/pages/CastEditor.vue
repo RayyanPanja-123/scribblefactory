@@ -13,7 +13,7 @@ import { seriesBusy } from '../composables/live'
 import { useApi } from '../composables/useApi'
 import { allCreatures } from '../lib/creatures'
 import { HANDS, propOptions, type Hand } from '../lib/props'
-import { SLOT_LABEL, wardrobeOptions, type Slot } from '../lib/wardrobe'
+import { DEFAULT_TOP_COLOR, SLOT_LABEL, wardrobeOptions, type Slot } from '../lib/wardrobe'
 import { EXPRESSIONS } from '../lib/expressions'
 
 const props = defineProps<{ slug: string; id: string }>()
@@ -58,7 +58,7 @@ watch(member, (c) => {
   const m = c as unknown as Obj
   draft.value = {
     name: c.name, eyes: c.eyes, expression: c.default_expression ?? 'neutral', body: c.body ?? 'human', headless: !!c.headless, hands,
-    top: { style: c.top.style ?? 'plain', color: c.top.color, accent: c.top.accent_color ?? null, number: c.top.number ?? '' },
+    top: { style: c.top.style ?? 'plain', color: c.top.color ?? DEFAULT_TOP_COLOR, accent: c.top.accent_color ?? null, number: c.top.number ?? '' },
     one: Object.fromEntries(ONE.map((s) => [s, worn(m[s])])),
     many: Object.fromEntries(MANY.map((s) => [s, ((m[s] ?? []) as unknown[]).map(worn)])),
   }

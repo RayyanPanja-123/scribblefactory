@@ -296,14 +296,14 @@ def test_cast_edit_costume_flags(lib, capsys):
 
 
 @pytest.mark.parametrize("change", [["--number", "1234"], ["--number", "A1"], ["--accent", "red"],
-                                    ["--headwear", "bowler"], ["--legwear-color", "#zzzzzz"],
+                                    ["--headwear-color", "red"], ["--legwear-color", "#zzzzzz"],
                                     ["--props", "sword:right"], ["--props", "apple:left,medal:left"],
                                     ["--props", "apple:middle"], ["--props", "apple"],
                                     ["--props", "apple:left,medal:right,bottle:left"]])
 def test_cast_edit_bad_costume(lib, change):
     f = _approved_cat(lib)
     before = f.read_bytes()
-    assert main(["cast-edit", "cat", "bob", *change]) == 1  # bowler without a colour is refused
+    assert main(["cast-edit", "cat", "bob", *change]) == 1  # a bad costume is refused
     assert f.read_bytes() == before
 
 

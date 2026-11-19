@@ -115,6 +115,17 @@ def test_part_detail(client):
     assert client.get("/api/series/demo/parts/part-09").status_code == 404
 
 
+def test_media_versions_change_on_rerender(client, lib):
+    """a re-rendered file gets a new ?v, and media is served no-cache: the browser never shows a stale picture"""
+    import os
+    sheet = lib / "demo" / "part-01" / "stills-sheet.png"
+    v1 = client.get(P).json()["versions"]
+    assert {"stills-sheet.png", "final.mp4", "thumbs/thumb-1.png"} <= v1.keys() and "voice.mp3" not in v1
+    os.utime(sheet, ns=(v1["stills-sheet.png"] + 10**9,) * 2)  # rendered again a second later
+    assert client.get(P).json()["versions"]["stills-sheet.png"] != v1["stills-sheet.png"]
+    assert client.get("/api/media/demo/part-01/stills-sheet.png").headers["cache-control"] == "no-cache"
+
+
 # ---------------- media ----------------
 
 def test_media_allowlist_and_traversal(client, lib):
@@ -246,7 +257,7 @@ def test_create_series_and_part(client, lib):
     r = client.post("/api/series", json={"slug": "imported", "title": "Imported", "cast": [full]})
     sul = r.json()["cast"][0]
     assert sul["top"]["style"] == "suit" and sul["headwear"]["kind"] == "bowler" and sul["approved_at"] is None
-    bad = {"slug": "other2", "title": "O", "cast": [full, {**full, "id": "x", "headwear": {"kind": "bowler"}}]}
+    bad = {"slug": "other2", "title": "O", "cast": [full, {**full, "id": "x", "headwear": {"kind": "bowler", "color": "red"}}]}
     r = client.post("/api/series", json=bad)
     assert r.status_code == 409 and "cast #2 (x): headwear" in r.json()["detail"] and not (lib / "other2").exists()
     dup = {"slug": "other3", "title": "O", "cast": [full, full]}

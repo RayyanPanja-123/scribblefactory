@@ -244,7 +244,11 @@ async function reject(a: (typeof APPROVALS)[number]) {
 }
 
 // ---- media ----
-const src = (rel: string) => media(props.slug, `${props.part}/${rel}`)
+// ?v: the file's modified time, so a re-rendered stills sheet, video or thumbnail is a new url, never a cached copy
+const src = (rel: string) => {
+  const v = d.value?.versions[rel]
+  return media(props.slug, `${props.part}/${rel}`) + (v ? `?v=${v}` : '')
+}
 const sources = computed(() => [
   { key: 'test', label: 'Test render', file: 'test-render.mp4' },
   { key: 'preview', label: 'Preview', file: 'preview.mp4' },

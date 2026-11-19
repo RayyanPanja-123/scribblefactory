@@ -61,10 +61,11 @@ BUILTIN_WARDROBE: dict[str, tuple[str, str]] = {
     "bowler": ("headwear", "Bowler"), "straw_hat": ("headwear", "Straw hat"), "wide_hat": ("headwear", "Wide hat"),
     "shorts": ("legwear", "Shorts"), "ragged_shorts": ("legwear", "Ragged shorts"), "trousers": ("legwear", "Trousers"),
 }
-# Used when an imported cast names a built-in headwear or legwear item without
-# supplying its optional colour.  The hand-drawn built-ins need a concrete
-# colour to render, while a library item can use its own default_color.
+# Used when an imported cast names a wardrobe item without its colour. The hand-drawn built-ins need a concrete
+# colour to render, while a library item can use its own default_color. A top with no colour: the cast member's
+# own top gets "top"; a look's top keeps the cast member's top colour (CastMember._default_top_colors).
 BUILTIN_WARDROBE_DEFAULT_COLORS = {
+    "top": "#4a6fa5",
     "headwear": "#2e3a59",
     "legwear": "#3a3a3a",
 }
@@ -107,7 +108,8 @@ def _slot_list(v):
 class Top(Strict):
     style: WardrobeId = Field(default="plain", description="the top's wardrobe id (\"id\" accepted too): built in "
                                                          "plain, suit, tank, shirt, dress, or a library top")
-    color: HexColor
+    color: HexColor | None = Field(default=None, description="none: the cast member's own top colour in a look, "
+                                                             "else the default top colour")
     accent_color: HexColor | None = Field(default=None, description="suit: the tie colour (no tie when null); "
                                                                      "dress: the wide hat's ribbon and flower")
     number: str | None = Field(default=None, pattern=r"^[0-9]{1,3}$", description="chest number on a white bib")
@@ -270,6 +272,16 @@ class CastMember(Strict):
     @classmethod
     def _legacy_stickman(cls, v):
         return "human" if v == "stickman" else v  # before every cast member had a creature type
+
+    @model_validator(mode="after")
+    def _default_top_colors(self):
+        # a stored cast always has concrete top colours: the engine swaps a look's whole top in
+        if self.top.color is None:
+            self.top.color = BUILTIN_WARDROBE_DEFAULT_COLORS["top"]
+        for look in self.looks.values():
+            if look.top is not None and look.top.color is None:
+                look.top.color = self.top.color
+        return self
 
     @model_validator(mode="after")
     def _headless_creature(self):

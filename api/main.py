@@ -261,6 +261,7 @@ class SeriesDetail(BaseModel):
 class PartDetail(BaseModel):
     part: PartModel
     files: dict[str, bool]
+    versions: dict[str, int]  # file (thumbs/<name> too) -> modified time: the ?v of its media url, new per re-render
     thumbs: list[str]
     qa: dict | None
     upload_md: str | None
@@ -393,8 +394,10 @@ def part_detail(slug: str, part: str):
     except StageError:
         voice = None
     qa, upload, story, tts = pdir / "qa.json", pdir / "upload.md", pdir / "story.md", pdir / "script-for-tts.txt"
-    return {"part": part_json(pdir), "files": files,
-            "thumbs": sorted(f.name for f in (pdir / "thumbs").glob("thumb-*.png")),
+    thumbs = sorted(f.name for f in (pdir / "thumbs").glob("thumb-*.png"))
+    versions = {rel: (pdir / rel).stat().st_mtime_ns for rel in [*(f for f in PART_FILES if files[f]),
+                                                                  *(f"thumbs/{t}" for t in thumbs)]}
+    return {"part": part_json(pdir), "files": files, "versions": versions, "thumbs": thumbs,
             "qa": json.loads(qa.read_bytes()) if qa.is_file() else None,
             "upload_md": upload.read_text(encoding="utf-8") if upload.is_file() else None,
             "story_md": story.read_text(encoding="utf-8") if story.is_file() else None,
@@ -431,7 +434,8 @@ def media(slug: str, path: str):
     f = (root / path).resolve()
     if not f.is_relative_to(root) or f.suffix.lower() not in MEDIA_TYPES or not f.is_file():
         raise HTTPException(404, "not found")
-    return FileResponse(f)  # Starlette answers Range requests with 206
+    # no-cache: the browser may keep a copy but checks it first, so a re-rendered file never shows stale
+    return FileResponse(f, headers={"Cache-Control": "no-cache"})  # Starlette answers Range requests with 206
 
 
 # ---------------- actions ----------------

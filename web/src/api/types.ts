@@ -1368,6 +1368,10 @@ export interface components {
             tts_script: string | null;
             /** Upload Md */
             upload_md: string | null;
+            /** Versions */
+            versions: {
+                [key: string]: number;
+            };
             /** Voice Duration */
             voice_duration: number | null;
         };
@@ -1841,8 +1845,11 @@ export interface components {
              * @description suit: the tie colour (no tie when null); dress: the wide hat's ribbon and flower
              */
             accent_color?: string | null;
-            /** Color */
-            color: string;
+            /**
+             * Color
+             * @description none: the cast member's own top colour in a look, else the default top colour
+             */
+            color?: string | null;
             /**
              * Number
              * @description chest number on a white bib

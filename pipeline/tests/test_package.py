@@ -155,3 +155,16 @@ def test_doc_example_is_valid(lib):
     r = package.parse(doc.split("## Example")[1], lib)
     assert r["ok"], r["errors"]
     assert [w["section"] for w in r["warnings"] if "words" not in w["message"]] == []
+
+
+def test_wardrobe_without_colors_gets_defaults(lib):
+    """a look's top with no colour keeps the member's; the member's own items fall back to the default colours"""
+    cast = [{"id": "ava", "name": "Ava", "eyes": "dots", "top": {"style": "plain"}, "headwear": "bowler", "legwear": "trousers",
+             "looks": {"lit": {"top": {"style": "tank"}}}},
+            {"id": "ben", "name": "Ben", "color": "#c0567a", "looks": {"boy": {"top": {"style": "shirt"}}}}]
+    r = package.parse(pkg(cast=cast), lib)
+    assert r["ok"], r["errors"]
+    ava, ben = r["cast"]
+    assert ava.top.color == ava.looks["lit"].top.color == "#4a6fa5"
+    assert (ava.headwear.color, ava.legwear.color) == ("#2e3a59", "#3a3a3a")
+    assert ben.looks["boy"].top.color == "#c0567a"

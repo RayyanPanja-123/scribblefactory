@@ -36,8 +36,8 @@ def test_slot_values_string_object_null_and_lists():
     assert (b.top.style, b.headwear.kind, b.legwear.kind) == ("robe", "crown", "none")
     assert member(headwear="bowler").headwear.color == "#2e3a59"
     assert member(legwear="trousers").legwear.color == "#3a3a3a"
-    for bad in [{"face": ["a", "b", "c", "d"]}, {"hair": {"id": "Wild Hair"}}, {"hair": {"id": "x", "color": "red"}},
-                {"top": "robe"}]:  # a top still needs its colour
+    assert member(top="robe").top.color == "#4a6fa5"  # a top without its colour gets the default
+    for bad in [{"face": ["a", "b", "c", "d"]}, {"hair": {"id": "Wild Hair"}}, {"hair": {"id": "x", "color": "red"}}]:
         with pytest.raises(ValidationError):
             member(**bad)
 

@@ -1890,6 +1890,13 @@
             ],
             "title": "Upload Md"
           },
+          "versions": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Versions",
+            "type": "object"
+          },
           "voice_duration": {
             "anyOf": [
               {
@@ -1905,6 +1912,7 @@
         "required": [
           "part",
           "files",
+          "versions",
           "thumbs",
           "qa",
           "upload_md",
@@ -2962,9 +2970,17 @@
             "title": "Accent Color"
           },
           "color": {
-            "pattern": "^#[0-9a-fA-F]{6}$",
-            "title": "Color",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^#[0-9a-fA-F]{6}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "none: the cast member's own top colour in a look, else the default top colour",
+            "title": "Color"
           },
           "number": {
             "anyOf": [
@@ -2987,9 +3003,6 @@
             "type": "string"
           }
         },
-        "required": [
-          "color"
-        ],
         "title": "Top",
         "type": "object"
       },

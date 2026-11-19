@@ -45,7 +45,8 @@
             "surprised",
             "sleepy",
             "cheeky",
-            "exhausted"
+            "exhausted",
+            "worried"
           ],
           "title": "Expression",
           "type": "string"

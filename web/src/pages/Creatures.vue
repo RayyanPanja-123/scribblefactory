@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { DEFAULT_TOP_COLOR } from '../lib/wardrobe'
 import { PawPrint, Plus, Sparkles } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { api } from '../api/client'
@@ -25,7 +26,7 @@ const users = computed(() => {
   const by: Record<string, { slug: string; name: string; color: string; detail?: string }[]> = {}
   for (const d of data.value?.series ?? [])
     for (const c of d.series.cast)
-      (by[c.body] ??= []).push({ slug: d.series.slug, name: c.name, color: c.top.color,
+      (by[c.body] ??= []).push({ slug: d.series.slug, name: c.name, color: c.top.color ?? DEFAULT_TOP_COLOR,
         detail: c.headless || Object.values(c.looks ?? {}).some((l) => l.headless) ? 'headless' : undefined })
   return by
 })

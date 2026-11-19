@@ -191,7 +191,8 @@
                   "surprised",
                   "sleepy",
                   "cheeky",
-                  "exhausted"
+                  "exhausted",
+                  "worried"
                 ],
                 "type": "string"
               },

@@ -178,7 +178,7 @@ defineExpose({ renderSheet })
         </div>
 
         <div class="mt-3 flex items-center gap-2">
-          <span class="size-4 shrink-0 rounded-full border-2 border-ink" :style="{ background: c.top.color }" aria-hidden="true" />
+          <span class="size-4 shrink-0 rounded-full border-2 border-ink" :style="{ background: c.top.color ?? undefined }" aria-hidden="true" />
           <span class="min-w-0 flex-1">
             <span class="block truncate text-sm font-semibold">{{ c.name }}</span>
             <span class="block truncate text-xs text-muted">{{ c.id }}<template v-if="c.approved_at"> · approved {{ shortDate(c.approved_at) }}</template></span>
