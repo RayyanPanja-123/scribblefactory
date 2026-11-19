@@ -39,6 +39,10 @@ TEST_FRAMES = 150  # 5 s
 POLL_S = 0.5           # how often the scheduler wakes up (keeps Ctrl+C responsive)
 READY_TIMEOUT_S = 120  # browser start + page build per worker
 EXIT_TIMEOUT_S = 30
+# a GPU hang (Windows TDR, seen on Intel UHD 620) loses the worker's WebGL context; the GPU is back in ~2 s, so the
+# worker is replaced and its chunk retried, up to this many times per render
+GPU_LOST = "WebGL context lost"
+GPU_RESETS = 3
 
 INPUTS = ["story.json", "phrases.json", "../series.json", *(f"../../{f}" for f in LIBRARY_FILES), "voice-tight.wav",
           *map(str, PAGE_FILES)]
@@ -378,7 +382,7 @@ def render_chunks(part_dir: Path, total: int, workers: int, swiftshader: bool, f
         done = len(ranges) - len(todo)
         if done:
             print(f"resuming: {done}/{len(ranges)} chunk(s) already done")
-        idle, busy, rendered, t_start = list(pool), {}, 0, time.monotonic()
+        idle, busy, rendered, resets, t_start = list(pool), {}, 0, 0, time.monotonic()
         while todo or busy:
             while todo and idle:
                 w = idle.pop(0)
@@ -387,7 +391,26 @@ def render_chunks(part_dir: Path, total: int, workers: int, swiftshader: bool, f
                 busy[w] = (i, a, b, time.monotonic())
             ev = next_event(events, READY_TIMEOUT_S + CHUNK * 10)
             if ev[0] == "exit":
-                raise StageError(f"render worker {ev[1].idx} stopped (exit {ev[2]}): {ev[1].log_tail()}")
+                w, job = ev[1], busy.pop(ev[1], None)
+                if GPU_LOST not in w.log_tail() or resets >= GPU_RESETS:
+                    raise StageError(f"render worker {w.idx} stopped (exit {ev[2]}): {w.log_tail()}")
+                resets += 1
+                print(f"render worker {w.idx}: {GPU_LOST} (GPU reset), starting a new one ({resets}/{GPU_RESETS})")
+                if w in idle:
+                    idle.remove(w)
+                if job:
+                    todo.insert(0, job[:3])
+                new = start_worker(part_dir, len(pool), swiftshader, events)  # the dead one stays in pool: own log
+                pool.append(new)
+                if lock_path(part_dir).exists() and hasattr(new, "proc"):
+                    lock_add_workers(part_dir, [new.proc.pid])
+                continue
+            if ev[0] == "ready":  # a replacement worker
+                if ev[2] != info:
+                    raise StageError(f"render worker {ev[1].idx} came back on another renderer: {ev[2]} (was {info})")
+                ev[1].info = ev[2]
+                idle.append(ev[1])
+                continue
             if ev[0] != "done":
                 continue
             w, (i, a, b, t0) = ev[1], busy.pop(ev[1])

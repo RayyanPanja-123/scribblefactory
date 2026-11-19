@@ -53,6 +53,11 @@ class FakeWorker:
         if (first, last) in self.state["fail"]:
             self.events.put(("exit", self, 1))
             return
+        if self.state["lost"] > 0:  # GPU reset: the context is lost, the worker dies
+            self.state["lost"] -= 1
+            self.lost = True
+            self.events.put(("exit", self, 1))
+            return
         for n in range(first, last + 1):
             render.frame_path(self.frames, n).write_bytes(b"png")
         self.events.put(("done", self, first, last))
@@ -67,7 +72,7 @@ class FakeWorker:
         self.state["killed"] += 1
 
     def log_tail(self):
-        return "worker log"
+        return "error: WebGL context lost (GPU reset or out of memory)" if getattr(self, "lost", False) else "worker log"
 
 
 @pytest.fixture
@@ -91,7 +96,7 @@ def part(tmp_path, monkeypatch):
                           "test_render": {"approved_at": "2026-11-16T10:00:00Z"}}}
     (pd / "part.json").write_text(json.dumps(part))
 
-    state = {"info": dict(GPU), "calls": [], "fail": set(), "interrupt": set(), "starts": 0, "killed": 0}
+    state = {"info": dict(GPU), "calls": [], "fail": set(), "interrupt": set(), "starts": 0, "killed": 0, "lost": 0}
 
     def fake_encode(frames, first, count, voice, out):
         out.write_bytes(b"mp4")
@@ -307,6 +312,20 @@ def test_failed_worker_stops_render_and_kills_all(part, capsys):
     assert part.state["killed"] == 2
     assert "render worker 0 stopped (exit 1): worker log" in load_part(part / "part.json").stages.render.error
     assert not render.lock_path(part).exists()
+
+
+def test_gpu_reset_restarts_worker_and_retries_chunk(part, capsys):
+    part.state["lost"] = 2  # two context losses: each worker is replaced, every chunk still lands
+    assert cli_render("--workers", "1") == 0
+    assert len(list((part / "frames").glob("*.png"))) == 180
+    assert part.state["starts"] == 3
+    assert "WebGL context lost (GPU reset), starting a new one (2/3)" in capsys.readouterr().out
+
+
+def test_gpu_resets_give_up_after_the_limit(part):
+    part.state["lost"] = render.GPU_RESETS + 1
+    assert cli_render("--workers", "1") == 1
+    assert "WebGL context lost" in load_part(part / "part.json").stages.render.error
 
 
 # ---------------- lock ----------------
