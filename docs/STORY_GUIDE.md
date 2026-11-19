@@ -15,8 +15,9 @@
 - `@` lines are silent directives.
 
 ## 1. Workflow
-1. Brainstorm: premise, cast, parts, each part's twist. A few short lines, one or two questions at a time.
-2. Sum up the plan as a short list; wait for "approved".
+1. Brainstorm: premise, cast, parts; per part its hook, rehook and twist (section 3). A few short lines, one or two
+   questions at a time.
+2. Sum up the plan as a short list (per part: hook, rehook, twist); wait for "approved".
 3. Ask for the inventory list ("Please paste your library list: the Copy library list button in Scribble Factory"); wait for it.
    - It has every set, prop, creature, action, wardrobe item, sound and existing cast by id. Never guess ids.
 4. Reply with only one Story Package in one fenced `text` block (full rules: **Story Package format**, at the end):
@@ -68,11 +69,18 @@ narration only
 ## 3. Writing rules
 - 110 to 175 words (aim under 145); at most 58 s (words / 2.6, plus 3 s for non-final parts).
 - Short lines, one idea each. Never start with Then, After that, So, Next, Later.
-- Line 1: name or noun + shocking claim, at most 12 words. No date, setting, question, "Did you know", "Imagine".
-- Line 2: proof (a number, cost, odd detail).
-- Line 3: flip an expectation ("X should have ended it. It didn't.").
-- Lines 1 to 3: at most 30 words; never reveal the twist.
-- Exactly one `!! <line>` (the twist), last. Non-final parts then end with `To be continued.`
+- Every part runs three curiosity loops, then the twist:
+  1. **Hook loop** (first 5 s, about 13 words): opens the question the part answers. If it misses, nothing else counts.
+     - Line 1: name or noun + shocking claim, at most 12 words. No date, setting, question, "Did you know", "Imagine".
+  2. **Intensifier loop** (next ~15 s, to about word 50): doubles down on the hook; every line raises the stakes.
+     - Line 2: proof (a number, cost, odd detail).
+     - Line 3: flip an expectation ("X should have ended it. It didn't.").
+     - Lines 4 on: escalate (worse, bigger, stranger). No backstory, setup or calm lines here.
+     - Lines 1 to 3: at most 30 words; never reveal the twist.
+  3. **Rehook loop** (halfway, around word 55 to 75): just as curiosity fades, open a new question: a reversal, a new
+     threat, a strange detail, a character doing something unexpected. One line, concrete, never the twist itself.
+- Exactly one `!! <line>` (the twist), last: it pays off the hook's question. Non-final parts then end with
+  `To be continued.`
 
 ## 4. Library basics
 - Sets: `room`, `office` (indoor); `street`, `dirt_road`, `countryside`, `orchard`, `stadium` (outdoor). All modern.
@@ -120,7 +128,8 @@ narration only
 - A `@do` every second or third line.
 - Groups: `@crowd` with the right mood; `@dogs`, `@runners` where they fit.
 - Objects are seen: props held through a `@look` switched on when used.
-- Punch: `@fx shake` or `drop` on line 1, `@fx pop` on line 3, `@fx lightning` on one to three big beats.
+- Punch: `@fx shake` or `drop` on line 1 (hook), `@fx pop` on line 3, `@fx drop` or a `@sfx` (`camera_flash`,
+  `metallic_riser`) on the rehook line, `@fx lightning` on one to three big beats.
 - Ten or more directives besides `@set` and `@cast`.
 - Use the inventory: follow "use for" notes, switch on cast looks, give characters their custom actions (a god raises
   a trident before `@fx lightning`).
@@ -178,7 +187,9 @@ narration only
 
 ## 7. Example (copy the staging, not the story)
 - Cast: `fred`, `thomas`, `alice`, `hugh`; `charles` with look `bottle` (`{"props": [{"kind": "bottle", "hand": "right"}]}`).
-- 131 words, a name in every line, 23 directives besides `@set` and `@cast`.
+- 131 words, a name in every line, 24 directives besides `@set` and `@cast`.
+- Loops: hook = line 1 (car); intensifier = lines 2 to 5 (eleven miles, should have ended, breaks down, fresh);
+  rehook = line 7 at word 68 (a strange drink); twist = the `!!` line.
 
 ```md
 # The Fake Finish
@@ -204,6 +215,7 @@ Fred jogged the last few miles, fresh as a daisy.
 Behind him, Thomas staggered and begged Charles for water.
 @look charles: bottle
 @do charles: give bottle thomas
+@sfx metallic_riser
 Charles refused and gave Thomas a strange drink instead.
 
 @set stadium
