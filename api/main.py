@@ -1006,12 +1006,12 @@ def sfx_suggestions(slug: str, part: str):
     pdir = part_path(slug, part)
     md = (pdir / "story.md").read_text(encoding="utf-8") if (pdir / "story.md").is_file() else ""
     ph = pdir / "phrases.json"
-    starts = sfx_lib.line_starts(md, json.loads(ph.read_bytes())["words"]) if ph.is_file() else None
+    times = sfx_lib.line_times(md, json.loads(ph.read_bytes())["words"]) if ph.is_file() else None
     rej = set(json.loads(rejected_file(pdir).read_bytes())) if rejected_file(pdir).is_file() else set()
     entries = sfx_lib.by_id(lib())
-    out = sfx_lib.suggest(md, entries, starts or sfx_lib.estimated_starts(md), load_part(pdir / "part.json").number == 1,
+    out = sfx_lib.suggest(md, entries, times or sfx_lib.estimated_times(md), load_part(pdir / "part.json").number == 1,
                           rej, lambda e: sfx_lib.clip_seconds(lib(), e))
-    return SfxSuggestions(suggestions=out, written=len(sfx_lib.directives(md)), max=sfx_lib.MAX_PER_PART, timed=starts is not None)
+    return SfxSuggestions(suggestions=out, written=len(sfx_lib.directives(md)), max=sfx_lib.MAX_PER_PART, timed=times is not None)
 
 
 @app.post("/api/series/{slug}/parts/{part}/sfx-suggestions", response_model=SfxSuggestions)

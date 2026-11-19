@@ -45,16 +45,19 @@ def test_directives_belong_to_next_line():
     assert sfx.directives("Hi.\n@sfx pop\n") == [(2, "pop", None, None)]
 
 
-def test_line_starts_from_phrases():
-    words = [{"start": s} for s in (0.0, 0.3, 0.6, 1.0, 1.4, 2.0, 2.3, 2.6)]  # Bob found gold. Amy laughed. It was fake.
-    assert sfx.line_starts(MD, words) == {6: 0.0, 7: 1.0, 9: 2.0}
-    assert sfx.line_starts(MD, words[:-1]) is None  # stale timing
+def test_line_times_from_phrases():
+    words = [{"start": s, "end": round(s + 0.2, 2)} for s in (0.0, 0.3, 0.6, 1.0, 1.4, 2.0, 2.3, 2.6)]  # Bob found gold. Amy laughed. It was fake.
+    assert sfx.line_times(MD, words) == {6: (0.0, 0.8), 7: (1.0, 1.6), 9: (2.0, 2.8)}
+    assert sfx.line_times(MD, words[:-1]) is None  # stale timing
 
 
 def test_anchor_timing():
-    assert sfx.play_at("start", 5.0, 2.0) == (5.0, 0.0)
-    assert sfx.play_at("end_on_line", 5.0, 2.0) == (3.0, 0.0)  # ends exactly at the line start
-    assert sfx.play_at("end_on_line", 1.0, 2.5) == (0.0, 1.5)  # pre-roll before 0 s loses its head
+    line = (5.0, 7.5)
+    assert sfx.play_at("start", line, 2.0) == (5.0, 0.0)
+    assert sfx.play_at("end_on_line", line, 2.0) == (3.0, 0.0)  # ends exactly at the line start
+    assert sfx.play_at("after_line", line, 2.0) == (7.5, 0.0)  # once the line has been said
+    assert sfx.play_at("end_on_line", (1.0, 2.0), 2.5) == (0.0, 1.5)  # pre-roll before 0 s loses its head
+    assert ENTRIES["fahhh"].anchor == "after_line"
 
 
 STORY = """# T
@@ -71,13 +74,14 @@ Amy stopped.
 
 
 def starts_every(md, step):
-    return {no: i * step for i, no in enumerate(sorted(sfx.line_words(md)))}
+    return {no: (i * step, i * step + step / 2) for i, no in enumerate(sorted(sfx.line_words(md)))}
 
 
 def test_suggestion_rules():
     got = sfx.suggest(STORY, ENTRIES, starts_every(STORY, 3.0), first_part=True)
     # camera_flash (set change) would start with the lightning's bass_impact on line 7: within 1.5 s, so dropped
-    assert [(s["line"], s["id"]) for s in got] == [(4, "fahhh"), (7, "bass_impact"), (10, "riser"), (10, "among_us")]
+    # fahhh plays after its line, so the same line's start still has room for money
+    assert [(s["line"], s["id"]) for s in got] == [(4, "money"), (4, "fahhh"), (7, "bass_impact"), (10, "riser"), (10, "among_us")]
     calm = STORY.replace("@fx lightning\n", "")
     got = sfx.suggest(calm, ENTRIES, starts_every(calm, 3.0), first_part=True)
     assert (6, "camera_flash") in [(s["line"], s["id"]) for s in got]
@@ -148,7 +152,7 @@ def test_stem_mixes_under_the_voice(tmp_path):
     tone(220, 3, pdir / "voice-tight.wav")
     (tmp_path / "sfx").mkdir()
     tone(880, 0.3, tmp_path / "sfx" / "Pop.mp3")
-    (pdir / "phrases.json").write_text(json.dumps({"words": [{"start": s} for s in (0.0, 0.5, 2.0, 2.5)]}))
+    (pdir / "phrases.json").write_text(json.dumps({"words": [{"start": s, "end": s + 0.4} for s in (0.0, 0.5, 2.0, 2.5)]}))
     from pipeline.scribble.stages.audio import decode
     voice = decode(pdir / "voice-tight.wav")
     x = sfx.stem(pdir, voice)

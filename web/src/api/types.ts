@@ -1820,7 +1820,7 @@ export interface components {
              * @default start
              * @enum {string}
              */
-            anchor: "start" | "end_on_line";
+            anchor: "start" | "end_on_line" | "after_line";
             /**
              * Default Volume
              * @default 0.8
@@ -1887,7 +1887,7 @@ export interface components {
              * @default start
              * @enum {string}
              */
-            anchor: "start" | "end_on_line";
+            anchor: "start" | "end_on_line" | "after_line";
             /**
              * Default Volume
              * @default 0.8

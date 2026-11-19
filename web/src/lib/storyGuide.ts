@@ -45,7 +45,7 @@ export async function libraryRecords(standalone = false): Promise<string> {
         return `${s} ${xs.length ? xs.map((w) => `\`${w.id}\``).join(', ') : '(none yet)'}`
       }).join('; ')}`,
       `- **Sound effects** for \`@sfx <id> [volume 0-1]\` (at most 5 per part): ${sfx.sfx.length ? sfx.sfx.map((s) =>
-        `\`${s.id}\` (${s.purpose || s.name}${s.anchor === 'end_on_line' ? '; ends as the line starts' : ''})`).join(', ') : 'none yet'}`,
+        `\`${s.id}\` (${s.purpose || s.name}${s.anchor === 'end_on_line' ? '; ends as the line starts' : s.anchor === 'after_line' ? '; plays after the line is said' : ''})`).join(', ') : 'none yet'}`,
       `- **Cast** in your existing series (a new series designs its own CAST; reuse a look by copying it):${cast.length ? '' : ' none yet'}`,
       ...cast,
       '',

@@ -2732,7 +2732,8 @@
             "default": "start",
             "enum": [
               "start",
-              "end_on_line"
+              "end_on_line",
+              "after_line"
             ],
             "title": "Anchor",
             "type": "string"
@@ -2859,7 +2860,8 @@
             "default": "start",
             "enum": [
               "start",
-              "end_on_line"
+              "end_on_line",
+              "after_line"
             ],
             "title": "Anchor",
             "type": "string"

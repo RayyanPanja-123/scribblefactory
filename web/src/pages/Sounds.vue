@@ -63,7 +63,7 @@ const field = 'inset mt-1 block h-10 w-full rounded-md px-3 text-sm text-ink out
     <p class="text-sm text-muted">
       A story plays one with <code>@sfx &lt;id&gt; [volume 0-1]</code> on its own line, right above the narration line it
       belongs to. <b>Line start</b> sounds play as the line starts; <b>ends on line</b> sounds (risers) end exactly as it
-      starts. At most 5 per part, mixed under the voice. Files live in <code>library/sfx/</code>; an upload's id comes
+      starts; <b>after line</b> sounds play once it has been said. At most 5 per part, mixed under the voice. Files live in <code>library/sfx/</code>; an upload's id comes
       from its file name.
     </p>
     <ul class="grid gap-3 lg:grid-cols-2">

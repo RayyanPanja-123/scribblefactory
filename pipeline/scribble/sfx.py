@@ -4,6 +4,7 @@ suggestions and the ffmpeg mix of the sfx under the voice.
   @sfx <id> [volume 0-1]   alone on its line, before the narration line it belongs to (next to @do / @fx is fine)
   anchor start:        plays at that line's start
   anchor end_on_line:  ends exactly at that line's start (pre-roll: risers)
+  anchor after_line:   plays once the line has been said (its last word ends)
 
 A registry entry whose file is missing is a warning, never a crash: that sound is left out of the mix.
 """
@@ -29,7 +30,7 @@ GUESS_S = 2.0            # length assumed for a sound whose file is missing (sug
 PEAK_UNDER_VOICE = 0.7   # a sound at volume 1 peaks at this fraction of the voice's peak
 AUDIO_TYPES = {".mp3", ".wav", ".ogg", ".m4a"}
 SEED = [  # (id, file, purpose, anchor)
-    ("fahhh", "FAHHH.mp3", "attention grab", "start"),
+    ("fahhh", "FAHHH.mp3", "attention grab", "after_line"),
     ("camera_flash", "Camera Flash.mp3", "smooth transition", "start"),
     ("metallic_riser", "Metallic Riser.mp3", "tension before reveal", "end_on_line"),
     ("right", "Right.mp3", "correct / positive feedback", "start"),
@@ -52,7 +53,7 @@ class SfxEntry(Strict):
     name: str = Field(min_length=1, max_length=60)
     purpose: str = Field(default="", max_length=200, description="when to use it (shown to the story AI)")
     tags: list[str] = []
-    anchor: Literal["start", "end_on_line"] = "start"
+    anchor: Literal["start", "end_on_line", "after_line"] = "start"
     default_volume: float = Field(default=0.8, ge=0, le=1)
 
     @field_validator("file")
@@ -152,8 +153,9 @@ def directives(md: str) -> list[tuple[int, str, float | None, int | None]]:
     return out + [(a, i, v, None) for a, i, v in pending]
 
 
-def line_words(md: str) -> dict[int, int]:
-    """story.md line number -> index of its first script word (as prep's script / phrases.json count them)"""
+def line_words(md: str) -> dict[int, tuple[int, int]]:
+    """story.md line number -> indices of its first and last script word (as prep's script / phrases.json count
+    them)"""
     lines = md.replace("\r\n", "\n").split("\n")
     marked = [ln if ln.lstrip().startswith("@") else f"{TWIST_PREFIX.sub(r'\1', ln)} ⟦L{no}⟧"
               for no, ln in enumerate(lines, 1)]
@@ -162,33 +164,35 @@ def line_words(md: str) -> dict[int, int]:
     for tok in clean_markdown("\n".join(marked)).split():
         if m := re.fullmatch(r"⟦L([0-9]+)⟧", tok):
             if since:
-                out[int(m[1])] = n - since
+                out[int(m[1])] = (n - since, n - 1)
             since = 0
         else:
             n, since = n + 1, since + 1
     return out
 
 
-def line_starts(md: str, words: list) -> dict[int, float] | None:
-    """story.md line -> start (s) of its first word on voice-tight.wav; None when phrases.json is out of date"""
+def line_times(md: str, words: list) -> dict[int, tuple[float, float]] | None:
+    """story.md line -> (start of its first word, end of its last word) in seconds on voice-tight.wav; None when
+    phrases.json is out of date"""
     first = line_words(md)
     total = len(clean_markdown("\n".join(TWIST_PREFIX.sub(r"\1", ln) for ln in md.replace("\r\n", "\n").split("\n")
                                          if not ln.lstrip().startswith("@"))).split())
     if total != len(words):
         return None
-    start = lambda w: w["start"] if isinstance(w, dict) else w.start  # noqa: E731
-    return {no: start(words[i]) for no, i in first.items()}
+    t = lambda w, k: w[k] if isinstance(w, dict) else getattr(w, k)  # noqa: E731
+    return {no: (t(words[a], "start"), t(words[b], "end")) for no, (a, b) in first.items()}
 
 
-def estimated_starts(md: str, wps: float = 2.6) -> dict[int, float]:
-    """line starts from the word count alone (no voice yet)"""
-    return {no: round(i / wps, 2) for no, i in line_words(md).items()}
+def estimated_times(md: str, wps: float = 2.6) -> dict[int, tuple[float, float]]:
+    """line (start, end) from the word count alone (no voice yet)"""
+    return {no: (round(a / wps, 2), round((b + 1) / wps, 2)) for no, (a, b) in line_words(md).items()}
 
 
-def play_at(anchor: str, line_start: float, duration: float) -> tuple[float, float]:
+def play_at(anchor: str, line: tuple[float, float], duration: float) -> tuple[float, float]:
     """(delay, trim) in seconds: where the sound starts on the track and how much of its head is cut off.
-    start: at the line start. end_on_line: ends at the line start; a pre-roll before 0 s loses its head."""
-    at = line_start if anchor == "start" else line_start - duration
+    line: its (start, end). start: at the line start. end_on_line: ends at the line start; a pre-roll before 0 s
+    loses its head. after_line: once the line's last word ends."""
+    at = {"start": line[0], "after_line": line[1]}.get(anchor, line[0] - duration)
     return (round(at, 3), 0.0) if at >= 0 else (0.0, round(-at, 3))
 
 
@@ -211,7 +215,7 @@ def clip_seconds(library, entry) -> float:
         return GUESS_S
 
 
-def suggest(md: str, entries: dict, starts: dict[int, float], first_part: bool = False, rejected=(),
+def suggest(md: str, entries: dict, times: dict[int, tuple[float, float]], first_part: bool = False, rejected=(),
             duration=lambda e: GUESS_S) -> list[dict]:
     """rule-based @sfx suggestions where the script has none: [{line, text, id, reason, at}] (line: the narration
     line to put "@sfx <id>" above; at: when the sound starts). Never more than MAX_PER_PART with the written ones,
@@ -220,7 +224,7 @@ def suggest(md: str, entries: dict, starts: dict[int, float], first_part: bool =
     written = directives(md)
     has_sfx = {n for *_x, n in written if n}
     def begins(i, no):  # when the sound starts (before 0 s for a pre-roll that loses its head)
-        delay, trim = play_at(entries[i].anchor, starts.get(no, 0.0), duration(entries[i]))
+        delay, trim = play_at(entries[i].anchor, times.get(no, (0.0, 0.0)), duration(entries[i]))
         return delay - trim
     taken = [begins(i, n) for _a, i, _v, n in written if n and i in entries]
     count = len(written)
@@ -308,8 +312,8 @@ def clips(part_dir: Path, voice_peak: float) -> list[dict]:
     found = [d for d in directives(md) if d[3]]
     if not found:
         return []
-    starts = line_starts(md, json.loads(ph_f.read_bytes())["words"])
-    if starts is None:
+    times = line_times(md, json.loads(ph_f.read_bytes())["words"])
+    if times is None:
         print("warning: story.md and phrases.json disagree on the words: @sfx left out (re-run prep/timing)")
         return []
     library = part_dir.parent.parent
@@ -325,7 +329,7 @@ def clips(part_dir: Path, voice_peak: float) -> list[dict]:
         peak = float(abs(x).max()) if len(x) else 0.0
         if not peak:
             continue
-        delay, trim = play_at(e.anchor, starts[no], len(x) / 48000)
+        delay, trim = play_at(e.anchor, times[no], len(x) / 48000)
         gain = PEAK_UNDER_VOICE * voice_peak / peak * (e.default_volume if vol is None else vol)
         out.append({"path": f, "delay": delay, "trim": trim, "gain": gain, "id": i})
     return out

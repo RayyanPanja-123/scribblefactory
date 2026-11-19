@@ -139,7 +139,7 @@ Real ids and what each is for are under *Available in this library* (**Sound eff
 
 | id | use for |
 |---|---|
-| `fahhh` | attention grab (the hook) |
+| `fahhh` | attention grab (the hook; plays after its line is said) |
 | `camera_flash` | smooth transition |
 | `metallic_riser` | tension before a reveal (ends as the line starts) |
 | `right` / `wrong` | correct / wrong, positive / negative feedback |

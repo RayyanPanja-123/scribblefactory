@@ -20,7 +20,7 @@ const live = computed(() => {
     bodies: allCreatures(d.creatures).map((c) => `${c.id} (${c.rig})`),
     actions: [...d.actions.do, ...d.actions.custom.map((a) => `${a.id} (custom)`)],
     props: propOptions(d.props).map((p) => p.id),
-    sounds: d.sfx.sfx.map((s) => `${s.id} (${s.purpose || s.name}${s.anchor === 'end_on_line' ? ', ends on line' : ''})`),
+    sounds: d.sfx.sfx.map((s) => `${s.id} (${s.purpose || s.name}${s.anchor === 'end_on_line' ? ', ends on line' : s.anchor === 'after_line' ? ', after the line' : ''})`),
     wardrobe: SLOTS.map((s) => ({ slot: s, ids: wardrobeOptions(d.wardrobe).filter((w) => w.slot === s).map((w) => w.id) })),
   }
 })
@@ -66,7 +66,7 @@ const DIRECTIVES: Directive[] = [
     example: '@do poseidon: raise_trident\n@fx lightning\nPoseidon raised his trident, and the sky split open.' },
   { id: 'sfx', syntax: '@sfx <id> [volume 0-1]', what: 'A sound effect from the Sounds page, mixed under the voice, for the next narration line.', list: 'sounds',
     rules: ['Alone on its line, directly above the narration line it belongs to (next to @do / @fx is fine).',
-      'Line start sounds play as that line starts; ends-on-line sounds (risers) end exactly as it starts.',
+      'Line start sounds play as that line starts; ends-on-line sounds (risers) end exactly as it starts; after-line sounds (fahhh) play once it has been said.',
       'Volume 0 to 1 overrides the sound’s default. Sounds always sit under the voice and duck while it speaks.',
       'At most 5 per part, only where the moment needs one: risers only before a payoff, vine_boom only for comedy, money only for money.',
       'The Review tab suggests some from the stills on; nothing is added without your OK.'],
