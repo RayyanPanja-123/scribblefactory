@@ -979,6 +979,36 @@
       "CustomProp": {
         "additionalProperties": false,
         "properties": {
+          "angle": {
+            "default": 0,
+            "description": "degrees the held prop leans, like a clock hand with the top tipped away from the body: 0 upright, 90 level, 75 = half past two in the right hand",
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Angle",
+            "type": "number"
+          },
+          "grip": {
+            "anyOf": [
+              {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the point of the shapes the hand holds (default 0,0), e.g. the middle of a staff's shaft",
+            "title": "Grip"
+          },
           "id": {
             "description": "the prop kind used in cast props and @do eat / give",
             "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
@@ -2235,6 +2265,21 @@
       "Prop": {
         "additionalProperties": false,
         "properties": {
+          "angle": {
+            "anyOf": [
+              {
+                "description": "degrees the held prop leans, like a clock hand with the top tipped away from the body: 0 upright, 90 level, 75 = half past two in the right hand",
+                "maximum": 180.0,
+                "minimum": -180.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "this character's own angle; null: the prop's",
+            "title": "Angle"
+          },
           "hand": {
             "default": "right",
             "enum": [

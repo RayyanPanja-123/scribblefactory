@@ -2,7 +2,8 @@ import type { components } from '../api/types'
 
 export type Prop = components['schemas']['Prop']
 export type Hand = Prop['hand']
-export type CustomProp = components['schemas']['CustomProp']
+// angle has a server default (0): optional when writing one
+export type CustomProp = Omit<components['schemas']['CustomProp'], 'angle'> & { angle?: number }
 export type PropShape = components['schemas']['PropShape']
 export type PropCatalog = components['schemas']['PropCatalog']
 export type BuiltinProp = PropCatalog['builtin'][number]

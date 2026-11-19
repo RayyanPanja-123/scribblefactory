@@ -418,6 +418,22 @@
     "Prop": {
       "additionalProperties": false,
       "properties": {
+        "angle": {
+          "anyOf": [
+            {
+              "description": "degrees the held prop leans, like a clock hand with the top tipped away from the body: 0 upright, 90 level, 75 = half past two in the right hand",
+              "maximum": 180,
+              "minimum": -180,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "this character's own angle; null: the prop's",
+          "title": "Angle"
+        },
         "hand": {
           "default": "right",
           "enum": [

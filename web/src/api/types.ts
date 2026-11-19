@@ -1119,6 +1119,20 @@ export interface components {
         /** CustomProp */
         CustomProp: {
             /**
+             * Angle
+             * @description degrees the held prop leans, like a clock hand with the top tipped away from the body: 0 upright, 90 level, 75 = half past two in the right hand
+             * @default 0
+             */
+            angle: number;
+            /**
+             * Grip
+             * @description the point of the shapes the hand holds (default 0,0), e.g. the middle of a staff's shaft
+             */
+            grip?: [
+                number,
+                number
+            ] | null;
+            /**
              * Id
              * @description the prop kind used in cast props and @do eat / give
              */
@@ -1599,6 +1613,11 @@ export interface components {
         };
         /** Prop */
         Prop: {
+            /**
+             * Angle
+             * @description this character's own angle; null: the prop's
+             */
+            angle?: number | null;
             /**
              * Hand
              * @default right

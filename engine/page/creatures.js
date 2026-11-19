@@ -270,7 +270,7 @@ export function drawCreature(canvas, def, o) {
     const T = at("arm", k.arms[i], dx);
     drawShapes(p, parts.arm, T, col, boil, `${o.seed}:arm`);
     const hand = T([0, m.arm]), fore = -deg(k.arms[i]); // fore: radians from straight down, + toward +x
-    for (const pr of o.props || []) if ((pr.hand === "left" ? 1 : 0) === i) drawProp(p, cos, pr.kind, hand, fore, 1);
+    for (const pr of o.props || []) if ((pr.hand === "left" ? 1 : 0) === i) drawProp(p, cos, pr, hand, fore, 1);
   }
   function face(T) {
     const { eye, mouth } = def.face, open = Math.max(0, Math.min(1, o.mouth || 0));

@@ -235,3 +235,19 @@ def test_series_v2_single_prop_migrates_to_props_keeping_approvals(tmp_path):
     on_disk = json.loads(f.read_text())
     assert on_disk["schema_version"] == 3 and "prop" not in on_disk["cast"][0]
     assert [c["approved_at"] for c in on_disk["cast"]] == [T, T]
+
+
+def test_prop_angle_and_grip():
+    from pipeline.scribble.schemas import CastMember, CustomProp, Prop
+    shapes = [{"shape": "line", "pts": [[0, 0], [0, -100]]}]
+    assert CustomProp(id="staff", name="Staff", shapes=shapes).angle == 0
+    assert CustomProp(id="staff", name="Staff", shapes=shapes, angle=75, grip=(0, -50)).grip == (0, -50)
+    for bad in ({"angle": 200}, {"grip": (0, 400)}):
+        with pytest.raises(ValidationError):
+            CustomProp(id="staff", name="Staff", shapes=shapes, **bad)
+    # an unset angle is not written: older series.json and approved looks stay byte for byte the same
+    assert Prop(kind="apple").model_dump() == {"kind": "apple", "hand": "right"}
+    assert Prop(kind="apple", angle=30).model_dump()["angle"] == 30
+    c = CastMember.model_validate({"id": "bob", "name": "Bob", "top": {"style": "plain", "color": "#3a7bd5"}, "eyes": "dots",
+                                   "props": [{"kind": "apple", "hand": "right"}]})
+    assert '"angle"' not in c.look()

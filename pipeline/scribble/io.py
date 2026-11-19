@@ -115,7 +115,7 @@ def save_prop(library, prop: CustomProp) -> list[str]:
     old = next((p for p in lib.props if p.id == prop.id), None)
     lib.props = [prop if p.id == prop.id else p for p in lib.props] if old else [*lib.props, prop]
     atomic_write_json(Path(library) / "props.json", lib.model_dump(mode="json"))
-    return _clear_approvals(prop_holders(library, prop.id)) if old and old.shapes != prop.shapes else []
+    return _clear_approvals(prop_holders(library, prop.id)) if old and (old.shapes, old.angle, old.grip) != (prop.shapes, prop.angle, prop.grip) else []
 
 
 def prop_users(library, kind: str) -> list[str]:

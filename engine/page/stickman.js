@@ -301,15 +301,17 @@ export function drawStickman(canvas, o) {
   if (top.style === "dress") skirt(p, cos, top.color || o.color, k, o);
   if (W.length) wear((slot, L) => !L.behind && !head(L) && !lower(slot));
 
-  // arms and dot hands over the body; a held prop sits in its hand, under the hand dot
-  const drawArm = ([shp, elbow, hand], i) => {
+  // arms and dot hands over the body. A held prop sits in its hand, under the hand dot, and in front of everything
+  // else (head, hair, beard): drawn after the head (held), so a tall staff never vanishes behind the figure
+  const held = [];
+  const drawArm = ([shp, elbow, hand], i, later = false) => {
     p.stroke(jitter([shp, elbow, hand], boil), 9);
-    for (const pr of o.props || []) {
-      if ((pr.hand === "left" ? 0 : 1) === i) drawProp(p, cos, pr.kind, hand, k.fore[i], i ? 1 : -1);
-    }
+    const pr = (o.props || []).find((x) => (x.hand === "left" ? 0 : 1) === i);
+    if (pr && later) return held.push([pr, hand, i]);
+    if (pr) drawProp(p, cos, pr, hand, k.fore[i], i ? 1 : -1);
     p.dot(hand[0], hand[1], 15);
   };
-  k.arms.forEach((a, i) => { if (!k.late.includes(i)) drawArm(a, i); });
+  k.arms.forEach((a, i) => { if (!k.late.includes(i)) drawArm(a, i, true); });
 
   // head last: wobbly white circle, thick outline, sits on the body (raised arms go behind it)
   // the head, face and headwear are drawn at the default size, scaled about the head centre by the build (only when
@@ -324,6 +326,10 @@ export function drawStickman(canvas, o) {
   if (hw) headwear(p, cos, hw, headPts, hx, hy, look, top.accent_color);
   if (W.length) wear((slot, L) => !L.behind && head(L) && slot === "headwear");
   g.restore();
+  for (const [pr, hand, i] of held) {
+    drawProp(p, cos, pr, hand, k.fore[i], i ? 1 : -1);
+    p.dot(hand[0], hand[1], 15);
+  }
   for (const i of k.late) drawArm(k.arms[i], i); // eating / gasping: the hands come up in front of the face
   if (o.zzz != null) zzz(p, g, boil, o, hx, hy);
 }
@@ -464,10 +470,17 @@ function chestNumber(p, cos, num, k, flip) {
 // custom props: library/props.json (schema CustomProp: shapes in hand space) through library.js
 const BUILTIN = new Set(["clipboard", "stopwatch", "bottle", "syringe", "apple", "medal"]);
 
-/** prop in a hand: local shapes (hand at 0,0, y down, x away from the body) turned partly with the forearm */
-export function drawProp(p, cos, kind, hand, fore, side) {
-  const th = -fore * 0.35, c = Math.cos(th), s = Math.sin(th);
-  const T = (pts) => jitter(pts.map(([x, y]) => [hand[0] + x * side * c - y * s, hand[1] + x * side * s + y * c]), cos, 1.2);
+/** the held prop's angle in degrees, like a clock hand with the top tipped away from the body (0 upright, 90 level,
+ *  75 = 2:30 in the right hand): the cast's own { angle } wins over the prop's (library/props.json) */
+export const propAngle = (pr) => pr.angle ?? (BUILTIN.has(pr.kind) ? 0 : lookup("props", pr.kind).angle ?? 0);
+
+/** prop in a hand: local shapes (hand at 0,0, y down, x away from the body) turned partly with the forearm, plus its
+ *  angle (propAngle); a custom prop's grip is the point of it the hand holds (default 0,0). pr: { kind, angle? } */
+export function drawProp(p, cos, pr, hand, fore, side) {
+  const kind = pr.kind, th = -fore * 0.35 + side * propAngle(pr) * Math.PI / 180, c = Math.cos(th), s = Math.sin(th);
+  const [gx, gy] = (!BUILTIN.has(kind) && lookup("props", kind).grip) || [0, 0];
+  const T = (pts) => jitter(pts.map(([x0, y0]) => [x0 - gx, y0 - gy]).map(([x, y]) =>
+    [hand[0] + x * side * c - y * s, hand[1] + x * side * s + y * c]), cos, 1.2);
   const poly = (pts, fill, w = OL) => p.poly(T(pts), fill, w), line = (pts, w) => p.stroke(T(pts), w);
   const circ = (x, y, r) => ellPts(x, y, r, r, 0, 360, 0, 20);
   if (!BUILTIN.has(kind)) {

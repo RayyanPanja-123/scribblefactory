@@ -196,3 +196,29 @@ test("riders' props show in the car (both hands), deterministic; a v2 single pro
   assert.ok(!img("two").equals(img("one")), "the second prop does not show in the car");
   assert.ok(img("v2").equals(img("one")), "v2 prop differs from the same prop as a list");
 });
+
+test("held props draw in front of the head, hair and beard; angle tips them outward like a clock hand; grip moves the hold", () => {
+  const STAFF = "#5a3a1e", TIP = "#e0b03c";
+  setLibrary({ props: [{ id: "staff", name: "Staff", shapes: [
+    { shape: "rect", pts: [[-5, -200], [5, 40]], fill: STAFF }, { shape: "circle", pts: [[0, -210]], r: 10, fill: TIP }] }] });
+  const ops = record({ ...BASE, props: [{ kind: "staff", hand: "right" }] });
+  const staff = ops.findIndex((x) => x.op === "fill" && x.style === STAFF);
+  const head = ops.findIndex((x) => x.op === "fill" && x.style === "#ffffff"); // the head's white fill
+  assert.ok(head >= 0 && staff > head, "the prop is drawn after the head");
+  const tip = (o) => mean(fills(record({ ...BASE, ...o }), TIP)[0].pts);
+  const up = tip({ props: [{ kind: "staff", hand: "right" }] });
+  const right = tip({ props: [{ kind: "staff", hand: "right", angle: 75 }] }); // half past two
+  const left = tip({ props: [{ kind: "staff", hand: "left", angle: 75 }] });
+  assert.ok(right[0] > up[0] + 100 && right[1] > up[1], "right hand: tips out to the right and down");
+  const leftUp = tip({ props: [{ kind: "staff", hand: "left" }] });
+  assert.ok(left[0] < leftUp[0] - 100, "left hand: mirrored, out to the left");
+  setLibrary({ props: [{ id: "staff", name: "Staff", angle: 75, shapes: [
+    { shape: "rect", pts: [[-5, -200], [5, 40]], fill: STAFF }, { shape: "circle", pts: [[0, -210]], r: 10, fill: TIP }] }] });
+  assert.deepEqual(tip({ props: [{ kind: "staff", hand: "right" }] }), right, "the prop's own angle; a cast angle overrides it");
+  assert.deepEqual(tip({ props: [{ kind: "staff", hand: "right", angle: 0 }] }), up);
+  setLibrary({ props: [{ id: "staff", name: "Staff", grip: [0, -100], shapes: [
+    { shape: "rect", pts: [[-5, -200], [5, 40]], fill: STAFF }, { shape: "circle", pts: [[0, -210]], r: 10, fill: TIP }] }] });
+  const gripped = tip({ props: [{ kind: "staff", hand: "right" }] });
+  assert.ok(Math.abs(gripped[1] - (up[1] + 100)) < 25, "held 100 px further up the staff: the tip sits 100 px lower");
+  setLibrary({ props: [] });
+});

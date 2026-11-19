@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Annotated, Literal, get_args
 
 from pydantic import (AfterValidator, AwareDatetime, BaseModel, ConfigDict, Field, PlainSerializer,
-                      field_validator, model_validator)
+                      field_validator, model_serializer, model_validator)
 
 
 def utcnow() -> datetime:
@@ -172,9 +172,23 @@ def _not_none(v):
 PropKind = Annotated[Slug, AfterValidator(_not_none)]
 
 
+PropAngle = Annotated[float, Field(ge=-180, le=180, description="degrees the held prop leans, like a clock hand with "
+                                   "the top tipped away from the body: 0 upright, 90 level, 75 = half past two in the "
+                                   "right hand")]
+
+
 class Prop(Strict):
     kind: PropKind
     hand: Literal["left", "right"] = "right"
+    angle: PropAngle | None = Field(default=None, description="this character's own angle; null: the prop's")
+
+    @model_serializer(mode="wrap")
+    def _no_null_angle(self, handler):
+        """an unset angle is left out: series.json and every approved cast look (CastMember.look) stay as they were"""
+        d = handler(self)
+        if d.get("angle") is None:
+            d.pop("angle", None)
+        return d
 
 
 def _one_hand_each(v):
@@ -386,6 +400,16 @@ class CustomProp(Strict):
     id: Slug = Field(description="the prop kind used in cast props and @do eat / give")  # checked: _not_builtin
     name: str = Field(min_length=1, max_length=40)
     shapes: list[PropShape] = Field(min_length=1, max_length=40, description="drawn in order: later ones on top")
+    angle: PropAngle = 0
+    grip: tuple[float, float] | None = Field(default=None, description="the point of the shapes the hand holds "
+                                             "(default 0,0), e.g. the middle of a staff's shaft")
+
+    @field_validator("grip")
+    @classmethod
+    def _grip_near(cls, v):
+        if v is not None and any(abs(x) > 300 for x in v):
+            raise ValueError("grip must stay within 300 px of the hand")
+        return v
 
     @field_validator("id")
     @classmethod

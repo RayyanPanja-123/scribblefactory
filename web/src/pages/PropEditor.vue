@@ -30,7 +30,7 @@ const STARTER: Row[] = [
 ]
 const slugify = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 
-const form = reactive({ id: '', name: '', idEdited: false, rows: [] as Row[] })
+const form = reactive({ id: '', name: '', idEdited: false, rows: [] as Row[], angle: 0, grip: '' })
 const hand = ref<Hand>('right')
 const toRow = (s: PropShape): Row => ({
   shape: s.shape, pts: s.pts.map(([x, y]) => `${x},${y}`).join(' '), r: s.r ?? 20,
@@ -40,7 +40,8 @@ watch(data, (c) => {
   if (!c) return
   const p = c.custom.find((x) => x.id === props.id)
   if (!isNew.value && !p) return
-  Object.assign(form, p ? { id: p.id, name: p.name, idEdited: true, rows: p.shapes.map(toRow) } : { id: '', name: '', idEdited: false, rows: STARTER.map((r) => ({ ...r })) })
+  Object.assign(form, p ? { id: p.id, name: p.name, idEdited: true, rows: p.shapes.map(toRow), angle: p.angle ?? 0, grip: p.grip ? p.grip.join(',') : '' }
+    : { id: '', name: '', idEdited: false, rows: STARTER.map((r) => ({ ...r })), angle: 0, grip: '' })
 }, { immediate: true })
 const missing = computed(() => !isNew.value && data.value && !data.value.custom.some((x) => x.id === props.id))
 watch(() => form.name, (n) => { if (isNew.value && !form.idEdited) form.id = slugify(n) })
@@ -55,10 +56,22 @@ function parse(r: Row): { shape?: PropShape; err?: string } {
   return { shape: { shape: r.shape, pts: pts as [number, number][], r: r.shape === 'circle' ? r.r : null, fill: r.shape !== 'line' && r.filled ? r.fill : null, width: r.width } }
 }
 const parsed = computed(() => form.rows.map(parse))
-const draft = computed<CustomProp>(() => ({ id: form.id || 'draft', name: form.name, shapes: parsed.value.flatMap((p) => p.shape ?? []) }))
+// grip: "x,y" (the point of the shapes the hand holds) or empty for 0,0
+const grip = computed<{ v: [number, number] | null; err?: string }>(() => {
+  if (!form.grip.trim()) return { v: null }
+  const xy = form.grip.split(',').map((t) => Number(t.trim()))
+  return xy.length === 2 && xy.every((v) => Number.isFinite(v) && Math.abs(v) <= 300) ? { v: xy as [number, number] } : { v: null, err: 'x,y within 300 of the hand' }
+})
+/** an angle as a clock reading in the right hand: 75 -> "2:30" */
+const clock = (deg: number) => {
+  const m = Math.round((((deg % 360) + 360) % 360) * 2) % 720 // minutes on a 12 h dial: 30 deg = 60 min
+  return `${Math.floor(m / 60) || 12}:${String(m % 60).padStart(2, '0')}`
+}
+const draft = computed<CustomProp>(() => ({ id: form.id || 'draft', name: form.name, shapes: parsed.value.flatMap((p) => p.shape ?? []),
+  angle: form.angle, grip: grip.value.v }))
 const previewList = computed(() => [...(data.value?.custom ?? []).filter((p) => p.id !== draft.value.id), draft.value])
 const taken = computed(() => (data.value?.builtin as string[] | undefined)?.includes(form.id) || (isNew.value && data.value?.custom.some((p) => p.id === form.id)))
-const valid = computed(() => form.name.trim() && /^[a-z0-9]+(-[a-z0-9]+)*$/.test(form.id) && !taken.value && form.rows.length && parsed.value.every((p) => p.shape))
+const valid = computed(() => form.name.trim() && /^[a-z0-9]+(-[a-z0-9]+)*$/.test(form.id) && !taken.value && form.rows.length && parsed.value.every((p) => p.shape) && !grip.value.err)
 
 const addRow = (shape: Kind) => form.rows.push({ shape, pts: SHAPES[shape].pts, r: 20, fill: '#d84a3a', filled: true, width: 8 })
 const move = (i: number, d: number) => form.rows.splice(i + d, 0, ...form.rows.splice(i, 1))
@@ -103,6 +116,18 @@ const field = 'inset mt-1 block h-10 w-full rounded-md px-4 text-sm text-ink out
             <input v-model="form.id" required :readonly="!isNew" pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="torch"
               :class="[field, !isNew && 'opacity-70']" :aria-invalid="!!taken" @input="form.idEdited = true" />
             <span v-if="taken" class="mt-1 block text-red-ink" role="alert">“{{ form.id }}” is already a prop</span>
+          </label>
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-2">
+          <label class="block text-xs font-semibold text-muted">Angle when held: {{ form.angle }}° · {{ clock(form.angle) }} on a clock
+            <input v-model.number="form.angle" type="range" min="-180" max="180" step="5" class="mt-3 block w-full" />
+            <span class="mt-1 block font-normal">Leans like a clock hand, top away from the body: 0 upright, 75 = half past two, 90 level. A character can override it in its cast JSON (<code>"angle"</code>).</span>
+          </label>
+          <label class="block text-xs font-semibold text-muted">Grip (the point the hand holds)
+            <input v-model="form.grip" spellcheck="false" placeholder="0,0" :class="[field, 'font-mono']" :aria-invalid="!!grip.err" />
+            <span v-if="grip.err" class="mt-1 block text-red-ink" role="alert">{{ grip.err }}</span>
+            <span v-else class="mt-1 block font-normal">In the shapes' own coordinates, e.g. the middle of a staff's shaft.</span>
           </label>
         </div>
 

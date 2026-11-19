@@ -170,6 +170,9 @@ Real ids and what each is for are under *Available in this library* (**Sound eff
 - Add sets, creatures, wardrobe only if nothing fits. Max per package: 2 sets, 3 props per part, 2 creatures,
   4 wardrobe items. Ids: lowercase a-z, 0-9, dashes, not built-in names.
 - Follow the **Library item schemas** at the end. Props: hand at `[0,0]`, y down, canvas px (about -40 to 110).
+  Long props (staffs, spears, tridents, flags) get an `"angle"` so they read clearly: degrees like a clock hand,
+  top tipped away from the body (`30` = one o'clock, `75` = half past two), and a `"grip"` where the hand holds
+  the shaft. A character can hold one at its own angle: cast `"props": [{"kind": "trident", "hand": "right", "angle": 30}]`.
   Sets: actors at y 0, z 0, x -2 to 2; scenery behind z -1.
 
 ## 6b. Cast JSON
