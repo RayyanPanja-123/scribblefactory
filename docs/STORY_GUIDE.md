@@ -120,6 +120,9 @@ The video only shows what the directives and names tell it. Without them every s
 
 - **New place, new `@set`** (the Senate, the beach, a ship). Follow it with a `@weather` that fits the mood: `storm`
   for sea, gods, war, villains; `rain` for loss; `fog` for mystery; `snow`, `wind` for journeys.
+- **Match the era.** The built-in sets are modern: `street` has apartment blocks, `office` desks, `stadium` a sports
+  ground. A story set in the past uses a library set of its time (the library's `roman-street` and `colosseum` for Rome) or adds
+  one under SETS.
 - **Name a cast member in every line**, by their cast `name`: the planner picks who acts by name.
 - **A `@do` at least every second or third line** for physical beats: point, run, wave, cheer, angry, gasp,
   react, stagger, collapse, give, carry, support, eat, custom actions.
