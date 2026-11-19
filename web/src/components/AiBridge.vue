@@ -1,22 +1,25 @@
 <script setup lang="ts">
 import { ClipboardPaste, Copy } from 'lucide-vue-next'
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
 import { toast } from '../composables/feedback'
 
 // The copy/paste bridge to any chat AI (web or CLI, works offline): the prompt goes out read-only, the reply comes
 // back in. The parent turns the reply into something (emit "load") and passes back any error.
-defineProps<{ prompt: string; error?: string; loadLabel?: string; replyLabel?: string; replyHint?: string }>()
+const props = defineProps<{ prompt: string; error?: string; loadLabel?: string; replyLabel?: string; replyHint?: string }>()
 const reply = defineModel<string>({ default: '' })
 const emit = defineEmits<{ load: [] }>()
 const promptBox = ref<HTMLTextAreaElement>()
 const replyBox = ref<HTMLTextAreaElement>()
+const showPrompt = ref(false) // hidden: Copy is the way out; shown only when the clipboard is blocked
 
 async function copyPrompt() {
   try {
-    await navigator.clipboard.writeText(promptBox.value?.value ?? '')
+    await navigator.clipboard.writeText(props.prompt)
     toast('Prompt copied: paste it into your AI', 'ok')
   } catch {
-    promptBox.value?.select() // no clipboard access (plain http): select it for Ctrl+C
+    showPrompt.value = true // no clipboard access (plain http): show it selected for Ctrl+C
+    await nextTick()
+    promptBox.value?.select()
     toast('Could not copy: the prompt is selected, press Ctrl+C', 'error')
   }
 }
@@ -40,8 +43,8 @@ async function pasteReply() {
           <h3 class="font-semibold">Copy the prompt into your AI</h3>
           <button type="button" class="btn btn-secondary ml-auto" :disabled="!prompt" @click="copyPrompt"><Copy :size="16" aria-hidden="true" /> Copy prompt</button>
         </div>
-        <p class="text-xs text-muted">ChatGPT, Claude, Gemini, a CLI… any of them. Don't edit this: it's read-only.</p>
-        <template v-if="prompt">
+        <p class="text-xs text-muted">ChatGPT, Claude, Gemini, a CLI… any of them.</p>
+        <template v-if="prompt && showPrompt">
           <label class="sr-only" for="ai-prompt">Prompt for AI (read-only)</label>
           <textarea id="ai-prompt" ref="promptBox" :value="prompt" readonly rows="6" spellcheck="false"
             class="block w-full resize-y rounded-md border border-rule bg-well p-4 font-mono text-xs leading-5 text-muted outline-none focus:border-blue" />
