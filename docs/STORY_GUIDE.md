@@ -67,7 +67,7 @@ narration only
 - Narration: plain text, numbers as words; no digits, symbols, abbreviations, parentheses, markdown.
 
 ## 3. Writing rules
-- 110 to 175 words (aim under 145); at most 58 s (words / 2.6, plus 3 s for non-final parts).
+- 110 to 175 words (aim under 145); at most 58 s (words / 2.6, plus 2.8 s for the silent end screen).
 - Short lines, one idea each. Never start with Then, After that, So, Next, Later.
 - Every part runs three curiosity loops, then the twist:
   1. **Hook loop** (first 5 s, about 13 words): opens the question the part answers. If it misses, nothing else counts.
@@ -79,8 +79,9 @@ narration only
      - Lines 1 to 3: at most 30 words; never reveal the twist.
   3. **Rehook loop** (halfway, around word 55 to 75): just as curiosity fades, open a new question: a reversal, a new
      threat, a strange detail, a character doing something unexpected. One line, concrete, never the twist itself.
-- Exactly one `!! <line>` (the twist), last: it pays off the hook's question. Non-final parts then end with
-  `To be continued.`
+- Exactly one `!! <line>` (the twist), last: it pays off the hook's question. Nothing after it: no sign-off
+  ("To be continued.", "Part 2 on my profile", "follow for more"). Every part ends on a silent "Follow for more"
+  screen the app adds by itself.
 
 ## 4. Library basics
 - Sets: `room`, `office` (indoor); `street`, `dirt_road`, `countryside`, `orchard`, `stadium` (outdoor). All modern.
@@ -112,8 +113,10 @@ narration only
 - `idle talk point react wave cheer angry gasp walk run stagger lie collapse`
 - `eat [prop]`, `give <prop> <target>`, `carry <target>` (exactly 2 carriers), `support <target>` (1 or 2)
 - `car: broken` (car on stage)
-- Custom actions, optionally aimed: `@do marcus: attack-with-spears neptune` (faces and moves toward them)
-- Several: `@do fred: lie, amy: wave`
+- Custom actions, optionally aimed: `@do marcus: attack-with-spears neptune` (faces them and lunges toward them, never
+  past; too close: strikes where they stand)
+- Several characters on one line: one `@do` line, comma separated: `@do fred: lie, amy: wave`. A second `@do` line
+  before the same narration line replaces the first.
 
 ### Staging (required: the video shows only what directives and names tell it)
 - New place, new `@set`, then a fitting `@weather`: `storm` sea, gods, war, villains; `rain` loss; `fog` mystery;
@@ -125,12 +128,33 @@ narration only
     mood word switches it ("grinned, then screamed" = happy, then angry).
   - No mood word: `@do angry | gasp | react | cheer` or `@face`.
   - Otherwise the default face shows: every emotional beat needs one of these.
-- A `@do` every second or third line.
-- Groups: `@crowd` with the right mood; `@dogs`, `@runners` where they fit.
-- Objects are seen: props held through a `@look` switched on when used.
+- Direct every line: a `@do` and / or `@face` on nearly every narration line (the model part in section 7: 11 of 12
+  lines have a `@do`, 8 a `@face`). An undirected line plays as generic idle shots.
+- Groups: `@crowd` with the right mood, changed as the scene turns (cheer, then neutral, then gasp); `@dogs`,
+  `@runners` where they fit.
+- Objects are seen: props held through a `@look` switched on the line they are first used (coins before the give,
+  the spear before the attack).
 - Punch: `@fx shake` or `drop` on line 1 (hook), `@fx pop` on line 3, `@fx drop` or a `@sfx` (`camera_flash`,
   `metallic_riser`) on the rehook line, `@fx lightning` on one to three big beats.
-- Ten or more directives besides `@set` and `@cast`.
+- Thirty or more directives besides `@set` and `@cast` (the model part has 38).
+
+### Entrances, attacks, deaths (do these exactly)
+- Sudden entrance: a character is not in `@cast` until the line they appear on; add them with a new `@cast` right
+  above it. Anyone on stage earlier stands, walks and gets moved around by the planner.
+- Attack: the attacker enters on the strike line and plays an aimed action at the victim:
+  `@do cassius: attack-with-spears caligula`. Never `run` / `walk` to reach someone: that roams around them.
+- The victim reacts on the strike line: `@face caligula: surprised` (or `worried`).
+- Death: `@do <victim>: collapse` + `@face <victim>: dead` on the next line. On every later line of that scene keep
+  them down: `lie` in that line's shared `@do` plus `@face <victim>: dead` (else they stand up again).
+- Every on-stage character with a role in the beat gets the `@do`; bystanders stay idle (no `@do`).
+
+### Scene shape (the model part)
+- Build-up scene: one `@set`, the full cast, a crowd, six or seven lines of escalation.
+- Payoff scene: a time jump ("Months later, ...") on a new `@set` with moodier `@weather`, a small cast (one or two),
+  the strike and the fall in two lines, then the `!!` twist.
+- Raise the weather toward the twist: clear, then fog, then storm as a god or villain arrives.
+- The twist character may enter on the `!!` line itself: `@cast` adds them, their signature custom action plays,
+  `@fx lightning <prop>` hits what they hold, `@sfx riser` + `@sfx bass_impact`.
 - Use the inventory: follow "use for" notes, switch on cast looks, give characters their custom actions (a god raises
   a trident before `@fx lightning`).
 
@@ -185,60 +209,93 @@ narration only
 - Optional: `"default_expression"` (`neutral happy sad angry surprised sleepy cheeky exhausted worried dead`), `"eyes"` (`dots`,
   `half_closed`).
 
-## 7. Example (copy the staging, not the story)
-- Cast: `fred`, `thomas`, `alice`, `hugh`; `charles` with look `bottle` (`{"props": [{"kind": "bottle", "hand": "right"}]}`).
-- 131 words, a name in every line, 24 directives besides `@set` and `@cast`.
-- Loops: hook = line 1 (car); intensifier = lines 2 to 5 (eleven miles, should have ended, breaks down, fresh);
-  rehook = line 7 at word 68 (a strange drink); twist = the `!!` line.
+## 7. Model part (copy the staging, not the story)
+A finished part that played exactly as written: the standard every part should match.
+- Series library: sets `colosseum`, `roman-street` (period sets); custom actions `attack-with-spears`, `raise-trident`;
+  looks `caligula: coins` (prop `stack-of-silver-coins`), `marcus: shell`, `cassius: spear`; Neptune holds a
+  `trident`. Use your own inventory's ids.
+- 116 words, 12 lines, a name in every line; 38 directives besides `@set` and `@cast`; 11 lines with a `@do`, 8 with
+  a `@face`.
+- Loops: hook = line 1 (a parade for seashells); intensifier = lines 2 to 5 (a hundred coins, Rome cheered instead,
+  a seashell crown, one sandal); rehook = lines 7 and 8 at words 55 to 75 (Caligula mocks Cassius, who starts
+  counting the days); twist = the `!!` line.
+- Scenes: build-up in the colosseum with a crowd whose mood turns (cheer, neutral, gasp); then a time jump to a
+  foggy street: Caligula alone, Cassius appears and strikes on one line, Caligula falls on the next and stays down,
+  and Neptune arrives on the twist line as the storm breaks.
 
 ```md
-# The Fake Finish
+# The Seashell Parade
 
-@set dirt_road
-@weather wind light
-@cast fred
-@car ride
-@fx shake
-@sfx fahhh
-Fred won the Olympic marathon by riding most of it in a car.
-Fred rode eleven miles while Thomas ran in the heat.
-@fx pop
-@face fred: cheeky
-That should have ended Fred. It didn't.
-@do car: broken
-Eleven miles later, the car broke down and Fred laughed.
-@car off
-@cast fred, thomas, charles
-@do fred: run
-Fred jogged the last few miles, fresh as a daisy.
-@do thomas: stagger
-Behind him, Thomas staggered and begged Charles for water.
-@look charles: bottle
-@do charles: give bottle thomas
-@sfx metallic_riser
-Charles refused and gave Thomas a strange drink instead.
-
-@set stadium
+@set colosseum
 @weather clear
-@cast fred, alice, thomas, charles, hugh
-@crowd cheer 8
-@do fred: cheer
-Fred jogged into the stadium, and the crowd roared for him.
-@do alice: give medal fred
-Alice handed Fred the gold medal with a proud smile.
-@crowd angry 8
-@do alice: point
-A furious spectator shouted that Fred had ridden in a car.
-@face fred: surprised
-Fred froze, and the cheering turned to boos.
-@do thomas: collapse
-Thomas collapsed a mile from the finish.
+@cast caligula, cassius, marcus, lucius
+@crowd cheer 12
+@fx shake
+@face caligula: happy
+@sfx fahhh
+Caligula threw Rome a giant victory parade for seashells!
+@look caligula: coins
+@do caligula: give stack-of-silver-coins marcus
+@face caligula: happy
+Caligula paid Marcus one hundred silver coins for the win.
+@do cassius: react
+@fx pop
+Cassius thought Rome would laugh. Rome cheered instead.
+@look marcus: shell
+@do marcus: cheer
+Marcus waved his seashell like a golden crown.
+@do lucius: walk
+@sfx vine_boom
+Lucius marched proudly in his one remaining sandal.
+@crowd neutral 12
+@do caligula: point
+@face caligula: happy
+Caligula told the senators to bow to the conqueror of the sea.
+@crowd gasp 12
+@do caligula: point
+@face caligula: cheeky
+Caligula pointed at Cassius and mocked him in front of everyone.
+@do cassius: angry
+Cassius gritted his teeth and started counting the days.
+
+@set roman-street
+@weather fog
+@cast caligula
+@do caligula: walk
+@face caligula: happy
+Months later, Caligula strolled down a quiet Roman street.
+@cast caligula, cassius
+@look cassius: spear
+@do cassius: attack-with-spears caligula
+@face caligula: surprised
+@fx lightning cassius
+@sfx among_us
+Cassius jumped out with his spear and a very long grudge.
+@do caligula: collapse
+@face caligula: dead
+Caligula, conqueror of the ocean, lost to one angry soldier.
+@cast caligula, cassius, neptune
+@weather storm medium
+@do neptune: raise-trident, caligula: lie
+@face neptune: happy
+@face caligula: dead
+@fx lightning trident
 @sfx riser
 @sfx bass_impact
-@do charles, hugh: carry thomas
-!! Charles and Hugh carried Thomas across the line, and he was crowned champion.
-To be continued.
+!! Neptune rose from a puddle, raised his trident and laughed last.
 ```
+
+Why it works, line by line:
+- Line 1: hook with a name and an absurd claim, `@fx shake`, `fahhh`, a happy face, a cheering crowd.
+- Line 2: the coins look is switched on the line the give uses them; the target (`marcus`) is on stage.
+- Line 3: the flip ("should laugh ... cheered instead") gets `@fx pop` and a reaction.
+- Lines 6 to 8: the crowd turns (neutral, gasp) as the mood turns; a cheeky face on the insult; Cassius's anger plants
+  the rehook.
+- Line 9: the time jump opens a new set, foggy, with Caligula alone: nobody waits on stage for a later beat.
+- Line 10: Cassius enters on his line, spear look on, aimed attack, victim surprised, lightning and `among_us`.
+- Line 11: `collapse` + `dead`. Line 12: still `lie` + `dead` in the shared `@do`, while the twist character enters
+  with his custom action, lightning on his trident, `riser` + `bass_impact`.
+- Nothing after the `!!` line: the app adds the silent "Follow for more" screen.
 
 ## Your series
 - **About:**
