@@ -232,6 +232,7 @@ class PostedCounts(BaseModel):
 class SeriesCard(BaseModel):
     slug: str
     title: str
+    created_at: str
     status: str
     part_count: int
     cover: str | None
@@ -370,9 +371,11 @@ def overview():
 
 @app.get("/api/series", response_model=list[SeriesCard])
 def series_list():
-    return [{"slug": s.slug, "title": s.title, "status": s.status, "part_count": len(s.parts), "cover": cover(d),
-             "disk_usage": du(d), "posted": posted_counts(d)}
-            for d in all_series() for s in [load_series(d / "series.json")]]
+    cards = [{"slug": s.slug, "title": s.title, "created_at": s.created_at.isoformat(), "status": s.status,
+              "part_count": len(s.parts), "cover": cover(d),
+              "disk_usage": du(d), "posted": posted_counts(d)}
+             for d in all_series() for s in [load_series(d / "series.json")]]
+    return sorted(cards, key=lambda card: card["created_at"], reverse=True)
 
 
 @app.get("/api/series/{slug}", response_model=SeriesDetail)

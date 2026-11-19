@@ -2594,6 +2594,10 @@
             ],
             "title": "Cover"
           },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
           "disk_usage": {
             "title": "Disk Usage",
             "type": "integer"
@@ -2621,6 +2625,7 @@
         "required": [
           "slug",
           "title",
+          "created_at",
           "status",
           "part_count",
           "cover",

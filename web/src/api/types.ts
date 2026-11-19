@@ -1789,6 +1789,8 @@ export interface components {
         SeriesCard: {
             /** Cover */
             cover: string | null;
+            /** Created At */
+            created_at: string;
             /** Disk Usage */
             disk_usage: number;
             /** Part Count */

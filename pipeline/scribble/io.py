@@ -365,6 +365,21 @@ def load_part(path) -> PartModel:
     return PartModel.model_validate_json(Path(path).read_bytes())
 
 
+def _managed_series_status(path: Path, model: SeriesModel) -> str:
+    """Derive the workflow status while leaving archived as an explicit manual state."""
+    if model.status == "archived":
+        return "archived"
+    if not model.parts:
+        return "draft"
+    parts = [load_part(path.parent / pid / "part.json") if (path.parent / pid / "part.json").is_file() else None
+             for pid in model.parts]
+    complete = all(p is not None and p.stages.finish.status == "done"
+                   and p.approvals.final.approved_at
+                   and (p.posted.youtube or p.posted.instagram)
+                   for p in parts)
+    return "complete" if complete else "active"
+
+
 def save_series(path, model: SeriesModel) -> None:
     path = Path(path)
     if path.exists():
@@ -372,6 +387,7 @@ def save_series(path, model: SeriesModel) -> None:
         for c in model.cast:
             if c.approved_at is None and on_disk.get(c.id):
                 c.approved_at = on_disk[c.id]
+    model.status = _managed_series_status(path, model)
     atomic_write_json(path, model.model_dump(mode="json"))
 
 
@@ -384,3 +400,10 @@ def save_part(path, model: PartModel) -> None:
             if kept and getattr(model.approvals, name).approved_at is None:
                 getattr(model.approvals, name).approved_at = kept
     atomic_write_json(path, model.model_dump(mode="json"))
+    series_path = path.parent.parent / "series.json"
+    if series_path.is_file():
+        series = load_series(series_path)
+        updated = _managed_series_status(series_path, series)
+        if series.status != updated:
+            series.status = updated
+            atomic_write_json(series_path, series.model_dump(mode="json"))
