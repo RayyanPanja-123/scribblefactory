@@ -1,26 +1,83 @@
-// Set presets built from primitives: MeshToonMaterial with a 3-step gradient, seeded canvas-painted textures,
-// inverted-hull ink outlines on props. Stage: actors stand on z = 0, x in -2..2; back wall at z = -2.6.
+// Set presets built from primitives: flat materials with a two-tone ramp from each surface's facing (tops light, sides
+// and undersides darker; style.js shade), seeded canvas-painted textures, and inverted-hull ink outlines on props that
+// keep a constant on-screen width and wobble and boil like the characters' lines (style.js ink). Stage: actors stand on z = 0, x in -2..2; back wall at z = -2.6.
 // Stage clearance (enforced in Builder.add): a prop that reaches into |x| < STAGE.x must sit behind z STAGE.behind,
 // and no prop may come forward of z STAGE.front, so nothing stands on or in front of the actors.
 import * as THREE from "three";
 import { lookup } from "./library.js";
 import { rng } from "./rng.js";
+import { STYLE } from "./style.js";
 
 export const SETS = ["room", "office", "street", "dirt_road", "countryside", "orchard", "stadium"];
 /** prop-placement variants per set (main.js picks one per run of shots); sets not listed have one */
 export const VARIANTS = { dirt_road: 3, countryside: 3, orchard: 3, stadium: 3 };
 const INK = 0x1c1a1a;
-const HULL_T = 0.025; // outline thickness in world units
-const HULL = new THREE.MeshBasicMaterial({ color: INK, side: THREE.BackSide });
 const STAGE = { x: 2.2, behind: -1.0, front: 0.6 };
+const H_PX = 1920; // frame height: the outline width is set in screen px of the final frame
 
-const GRADIENT = (() => {
-  const t = new THREE.DataTexture(new Uint8Array([95, 175, 255]), 3, 1, THREE.RedFormat);
-  t.minFilter = t.magFilter = THREE.NearestFilter;
-  t.generateMipmaps = false;
-  t.needsUpdate = true;
-  return t;
-})();
+// shared uniforms of every set material and outline (one program each, updated per frame by setInk)
+const U = {
+  inkPx: { value: STYLE.ink.width }, inkLump: { value: STYLE.ink.lump }, inkBoil: { value: 0 }, inkH: { value: H_PX },
+  shadeTop: { value: STYLE.shade.top }, shadeSide: { value: STYLE.shade.side }, shadeUnder: { value: STYLE.shade.under },
+  shadeKey: { value: new THREE.Vector3(...STYLE.shade.keyDir).normalize() }, shadeKeyMin: { value: STYLE.shade.keyMin },
+};
+/** the boil step of this frame (main.js: frame / BOIL_FRAMES): outlines re-wobble with the characters' lines */
+export const setInk = (boil) => { U.inkBoil.value = boil; };
+
+// outline: pushed out along inkNormal (the merged normal at a corner: no gaps) by inkPx screen px, its width lumped by
+// three harmonics of world position (like stickman.js wobble), re-seeded every boil step
+function outlineShader(sh) {
+  Object.assign(sh.uniforms, U);
+  sh.vertexShader = "attribute vec3 inkNormal;\nuniform float inkPx, inkLump, inkBoil, inkH;\n" + sh.vertexShader.replace(
+    "#include <project_vertex>", `
+    vec4 mvPosition = modelViewMatrix * vec4(transformed, 1.0);
+    vec3 wp = (modelMatrix * vec4(transformed, 1.0)).xyz;
+    float b = inkBoil * 1.618;
+    float lump = 1.0 + inkLump * (sin(dot(wp, vec3(2.9, 1.7, 2.3)) + b) + 0.6 * sin(dot(wp, vec3(-4.3, 3.1, 1.1)) + 2.0 * b)
+      + 0.4 * sin(dot(wp, vec3(6.7, -5.3, 3.7)) + 3.0 * b)) / 2.0;
+    vec4 clip = projectionMatrix * mvPosition;
+    float unitsPerPx = 2.0 * clip.w / (projectionMatrix[1][1] * inkH);
+    mvPosition.xyz += normalize(normalMatrix * inkNormal) * inkPx * unitsPerPx * max(0.2, lump);
+    gl_Position = projectionMatrix * mvPosition;`);
+}
+const HULL = new THREE.MeshBasicMaterial({ color: INK, side: THREE.BackSide });
+HULL.onBeforeCompile = outlineShader;
+
+// two-tone: the surface colour (texture included) times a tone from its world normal: up-facing tops light, faces
+// toward the key direction mid, faces away and undersides dark. Pure colour ramp, no light objects.
+function shadeShader(sh) {
+  Object.assign(sh.uniforms, U);
+  sh.vertexShader = "varying vec3 vInkN;\n" + sh.vertexShader.replace("#include <begin_vertex>",
+    "#include <begin_vertex>\n  vInkN = normalize(mat3(modelMatrix) * normal);");
+  sh.fragmentShader = "varying vec3 vInkN;\nuniform float shadeTop, shadeSide, shadeUnder, shadeKeyMin;\nuniform vec3 shadeKey;\n"
+    + sh.fragmentShader.replace("#include <map_fragment>", `#include <map_fragment>
+    vec3 n = normalize(vInkN);
+    float tone = n.y > 0.55 ? shadeTop : n.y < -0.4 || dot(n, shadeKey) < shadeKeyMin ? shadeUnder : shadeSide;
+    diffuseColor.rgb *= tone;`);
+}
+
+/** outline geometry for a piece: subdivided so a long edge wobbles along its length, with inkNormal = the sum of the
+ *  distinct normals meeting at each position (a box corner gets (1, 1, 1): each face moves out by the full width) */
+export function hullGeometry(geo) {
+  const P = geo.parameters, seg = (v) => Math.min(32, Math.max(1, Math.ceil(v / STYLE.ink.segment)));
+  let g = geo;
+  if (geo.type === "BoxGeometry") g = new THREE.BoxGeometry(P.width, P.height, P.depth, seg(P.width), seg(P.height), seg(P.depth));
+  else if (geo.type === "CylinderGeometry") {
+    g = new THREE.CylinderGeometry(P.radiusTop, P.radiusBottom, P.height, P.radialSegments, seg(P.height));
+  }
+  const pos = g.attributes.position, nor = g.attributes.normal, key = (i) => [0, 1, 2].map((k) => pos.array[i * 3 + k].toFixed(4)).join();
+  const seen = new Map();
+  for (let i = 0; i < pos.count; i++) {
+    const k = key(i), n = [nor.getX(i), nor.getY(i), nor.getZ(i)], nk = n.map((v) => v.toFixed(2)).join();
+    if (!seen.has(k)) seen.set(k, { sum: [0, 0, 0], dirs: new Set() });
+    const e = seen.get(k);
+    if (!e.dirs.has(nk)) { e.dirs.add(nk); n.forEach((v, j) => { e.sum[j] += v; }); }
+  }
+  const out = new Float32Array(pos.count * 3);
+  for (let i = 0; i < pos.count; i++) out.set(seen.get(key(i)).sum, i * 3);
+  g.setAttribute("inkNormal", new THREE.BufferAttribute(out, 3));
+  return g;
+}
 
 /** marker-painted texture: flat base + seeded strokes (strength scales their contrast); pattern adds planks... */
 function paint(seed, key, base, pattern = null, strength = 1, size = 256) {
@@ -111,9 +168,11 @@ class Builder {
   mat(color, pattern = null, repeat = [1, 1]) {
     const map = paint(this.seed, this.n++, color, pattern, this.strength);
     map.repeat.set(...repeat);
-    return new THREE.MeshToonMaterial({ map, gradientMap: GRADIENT });
+    const m = new THREE.MeshBasicMaterial({ map });
+    m.onBeforeCompile = shadeShader;
+    return m;
   }
-  /** centred primitive at pos; outline = inverted hull grown by HULL_T on every side; floor = exempt from clearance.
+  /** centred primitive at pos; outline = inverted ink hull (hullGeometry); floor = exempt from clearance.
    *  Anything that is not floor or backdrop (walls, windows, posters, buildings) is a prop piece. */
   add(geo, mat, pos, { outline = true, rot = null, floor = false, backdrop = false, travelHide = false, name = "" } = {}) {
     const m = new THREE.Mesh(geo, mat);
@@ -133,11 +192,8 @@ class Builder {
     }
     this.group.add(m);
     if (outline) {
-      geo.computeBoundingBox();
-      const s = geo.boundingBox.getSize(new THREE.Vector3());
-      const h = new THREE.Mesh(geo, HULL);
+      const h = new THREE.Mesh(hullGeometry(geo), HULL);
       h.position.copy(m.position); h.rotation.copy(m.rotation);
-      h.scale.set(...[s.x, s.y, s.z].map((v) => (v > 1e-6 ? (v + 2 * HULL_T) / v : 1)));
       this.group.add(h);
       m.userData.hull = h;
     }
@@ -426,9 +482,6 @@ export function buildSet(name, seed, variant = 0) {
 
 /** lights, background, fog and travel movers: the same for every set */
 function finish(group, background, fog) {
-  const sun = new THREE.DirectionalLight(0xffffff, 2.2);
-  sun.position.set(3, 6, 5);
-  group.add(sun, new THREE.AmbientLight(0xffffff, 1.1));
   group.userData.background = new THREE.Color(background);
   if (fog) group.userData.fog = new THREE.Fog(background, ...fog);
   group.updateMatrixWorld(true);

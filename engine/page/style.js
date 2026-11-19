@@ -12,4 +12,10 @@ export const STYLE = {
     slant: 0.22, len: 44, lenPerLevel: 14, speed: 1.7,
     faceMargin: 0.25, // head box grown by this share per side: front drops never cross it
   },
+  // set outlines: width in screen px of the final 1080x1920 frame at any distance (characters' body lines are ~4-6 px
+  // in a wide), lump = +- share the width swells and thins along an edge (re-seeded every boil step, like the cast),
+  // segment = world units per outline subdivision (shorter: wobblier long edges, more vertices)
+  ink: { width: 4.5, lump: 0.6, segment: 0.35 },
+  // set two-tone ramp: colour multipliers for tops (normal up), sides facing keyDir (cosine >= keyMin), the rest and undersides
+  shade: { top: 1.12, side: 0.95, under: 0.76, keyDir: [0.6, 0.35, 1], keyMin: 0.35 },
 };

@@ -3,7 +3,7 @@
 // (browsers cap live contexts); the picture is copied into the caller's 2D canvas.
 import * as THREE from "three";
 import { setLibrary } from "./library.js";
-import { fogAlpha, fogCanvas, paint } from "./weather.js";
+import { fogAlpha, fogCanvas, paint, paintBack } from "./weather.js";
 import { buildSet } from "./world.js";
 
 let gl = null;
@@ -55,7 +55,9 @@ export function previewSet(out, name, custom, weather = null) {
     g.drawImage(gl.domElement, 0, 0, w, h);
     if (weather) {
       fx ??= Object.assign(document.createElement("canvas"), { width: 1080, height: 1920 });
-      paint(fx.getContext("2d"), { layers: [{ weather, amount: 1 }], seed: "preview", t: 0, n: 0, w: 1080, h: 1920 });
+      const layers = [{ weather, amount: 1 }], fg = fx.getContext("2d");
+      if (paintBack(fg, { layers, seed: "preview", t: 0, w: 1080, h: 1920 })) g.drawImage(fx, 0, 0, w, h); // rain behind
+      paint(fg, { layers, seed: "preview", t: 0, n: 0, w: 1080, h: 1920 });
       g.drawImage(fx, 0, 0, w, h);
     }
   } finally {

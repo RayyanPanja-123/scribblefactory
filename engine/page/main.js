@@ -13,7 +13,7 @@ import { CAR_CARD_W, CAR_GROUND, DRIVER_X, RIDER_X, VH, VW, carEase, carSpeedSha
 import { HEAD_GROW, MOOD_EXPRESSION, extraLook, fitCrowd, moodAt, placeExtras } from "./extras.js";
 const growRect = (r, k) => { const mx = (r[2] - r[0]) * k, my = (r[3] - r[1]) * k; return [r[0] - mx, r[1] - my, r[2] + mx, r[3] + my]; };
 import { rng, setVariant } from "./rng.js";
-import { SETS, VARIANTS, buildSet, loopExcess, scrollSet, setKind } from "./world.js";
+import { SETS, VARIANTS, buildSet, loopExcess, scrollSet, setInk, setKind } from "./world.js";
 import { fadePlan, fogAlpha, fogCanvas, layersAt, paint, paintBack, strikeAt } from "./weather.js";
 import { STYLE } from "./style.js";
 
@@ -350,6 +350,7 @@ function drawShot(shot, n) {
   const kf = Math.min(Math.max(n, shot.start_frame), shot.end_frame - 1); // held frame for shot motion
   const u = (kf - shot.start_frame) / (shot.end_frame - shot.start_frame), t = n / FPS;
   const group = useSet(shot);
+  setInk(Math.floor(n / BOIL_FRAMES)); // set outlines boil with the cast's lines
   const animals = shot.animals || [], vehicles = shot.vehicles || [];
   // riders sit in their car's seats: their spot is the car's spot plus the seat offset
   const seated = new Map();
