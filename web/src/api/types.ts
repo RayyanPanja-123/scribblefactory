@@ -620,7 +620,7 @@ export interface paths {
         get: operations["get_settings_api_settings_get"];
         /**
          * Put Settings
-         * @description applies to the next render job; a running one keeps its workers
+         * @description applies to the next render job; a running one keeps its workers. Handles: the next finish run.
          */
         put: operations["put_settings_api_settings_put"];
         post?: never;
@@ -1837,6 +1837,8 @@ export interface components {
              * @default auto
              */
             render_workers: "auto" | number;
+            /** @description handles on every part's closing 'Follow for more' screen (empty: left off) */
+            socials?: components["schemas"]["Socials"];
         };
         /** SettingsView */
         SettingsView: {
@@ -2003,6 +2005,24 @@ export interface components {
             slug: string;
             /** Title */
             title: string;
+        };
+        /** Socials */
+        Socials: {
+            /**
+             * Facebook
+             * @default
+             */
+            facebook: string;
+            /**
+             * Instagram
+             * @default
+             */
+            instagram: string;
+            /**
+             * Youtube
+             * @default
+             */
+            youtube: string;
         };
         /** Stage */
         Stage: {

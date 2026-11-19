@@ -1292,9 +1292,17 @@ def drop_ai_settings() -> list[str]:
         return [f"settings.json: could not clean up old AI settings ({e})"]
 
 
+class Socials(BaseModel):
+    youtube: str = Field("", max_length=60)
+    instagram: str = Field("", max_length=60)
+    facebook: str = Field("", max_length=60)
+
+
 class Settings(BaseModel):
     render_workers: Literal["auto"] | int = Field("auto", description="'auto' or 1..16 parallel browsers per render")
     force_software_gl: bool = False
+    socials: Socials = Field(default_factory=Socials, description="handles on every part's closing 'Follow for more' "
+                                                                  "screen (empty: left off)")
 
 
 class Machine(BaseModel):
@@ -1336,7 +1344,7 @@ def get_settings():
 
 @app.put("/api/settings", response_model=SettingsView)
 def put_settings(body: Settings):
-    """applies to the next render job; a running one keeps its workers"""
+    """applies to the next render job; a running one keeps its workers. Handles: the next finish run."""
     w = body.render_workers
     if w != "auto" and not 1 <= w <= settings.MAX_WORKERS:
         raise HTTPException(422, f"render_workers must be 'auto' or 1 to {settings.MAX_WORKERS}")

@@ -29,7 +29,7 @@ STORY = {"duration_frames": FRAMES, "seed": 7, "shots": [
     {"id": "s03", "start_frame": 40, "end_frame": 60, "set": "office", "phrase_range": [2, 2], "twist": True,
      "camera": {**CAM, "angle": "low"},
      "actors": [{**ACTOR, "cast_id": "bob"}, {**ACTOR, "cast_id": "amy", "expression": "surprised"}]},
-], "end_card": {"start_frame": 45, "text": "Part 2 on my profile"}}
+], "end_card": {"start_frame": 60, "text": "Follow for more"}}
 
 
 def phrases(text=TEXT, ranges=((0, 6), (7, 7), (8, 11)), step=0.155) -> PhrasesModel:
@@ -162,12 +162,14 @@ def test_finish_gate(lib):
 
 @needs_ffmpeg
 def test_finish_ok(lib, capsys):
+    (lib / "settings.json").write_text(json.dumps({"socials": {"youtube": "@scribble", "instagram": "", "facebook": "sf"}}))
     assert stage(lib, "finish") == 0
     d = pdir(lib)
     report = qa(lib)
     assert report["ok"], report
+    assert report["checks"]["frame_count"]["value"] == 60 + finish.END_SCREEN_FRAMES  # the story, then the end screen
     assert (d / "captions.ass").exists() and (d / "final.mp4").stat().st_size > 10_000
-    assert (d / "end-card.png").exists() and "end card: Part 2 on my profile" in capsys.readouterr().out
+    assert (d / "end-card.png").exists() and "end screen: Follow for more (@scribble, sf)" in capsys.readouterr().out
     part = load_part(d / "part.json")
     assert part.stages.finish.status == "done" and part.approvals.final.approved_at is None  # never approves
     # frame count off: QA sees it (no re-encode needed)
@@ -214,7 +216,8 @@ def test_captions_off(lib, monkeypatch):
     assert stage(lib, "finish") == 0
     encode = next(a for a in calls if "libx264" in a)
     assert not any("subtitles=" in str(x) for x in encode)
-    assert any("overlay=0:0:enable='gte(n,45)'" in str(x) for x in encode)  # the end card without captions
+    graph = " ".join(map(str, encode))
+    assert "concat=n=2" in graph and "apad=" in graph  # the end screen appended, silent, without captions
     assert not (pdir(lib) / "captions.ass").exists()
     assert qa(lib)["checks"]["captions"]["value"] == "off"
     # the setting is part of the inputs hash: back on -> finish runs again

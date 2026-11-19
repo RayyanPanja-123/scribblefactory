@@ -2,6 +2,8 @@
 
 render_workers: "auto" (recommended for this PC) or 1..MAX_WORKERS parallel Chromium processes per render.
 force_software_gl: render with SwiftShader (software WebGL) instead of the GPU, for debugging.
+socials: {youtube, instagram, facebook} handles shown on every part's closing "Follow for more" screen (finish);
+  an empty one is left off the screen.
 """
 import ctypes
 import json
@@ -9,7 +11,8 @@ import os
 import sys
 from pathlib import Path
 
-DEFAULTS = {"render_workers": "auto", "force_software_gl": False}
+SOCIALS = ("youtube", "instagram", "facebook")
+DEFAULTS = {"render_workers": "auto", "force_software_gl": False, "socials": dict.fromkeys(SOCIALS, "")}
 MAX_WORKERS = 16
 MAX_AUTO = 8
 GB_PER_WORKER = 1.5  # one Chromium with its page and frames in flight, plus headroom
@@ -27,7 +30,10 @@ def load(library: Path) -> dict:
     except (OSError, ValueError):
         s = {}
     s = s if isinstance(s, dict) else {}
-    return {k: s.get(k, v) for k, v in DEFAULTS.items()}
+    out = {k: s.get(k, v) for k, v in DEFAULTS.items()}
+    so = out["socials"] if isinstance(out["socials"], dict) else {}
+    out["socials"] = {k: str(so.get(k) or "").strip() for k in SOCIALS}
+    return out
 
 
 def ram_gb() -> float | None:

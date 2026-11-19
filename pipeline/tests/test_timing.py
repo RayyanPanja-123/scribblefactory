@@ -261,30 +261,3 @@ def test_tighten_removes_the_cut_audio(tmp_path):
     subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "sine=f=220:d=4", str(src)], check=True)
     timing.tighten(src, tmp_path / "t.wav", [(1.0, 1.5), (2.0, 2.7)])
     assert abs(probe_duration(tmp_path / "t.wav") - (probe_duration(src) - 1.2)) < 0.03
-
-
-# --- sign-off pause (non-final parts) ---
-
-def test_sign_off_pause_lands_in_the_silence_before_the_last_sentence():
-    words = [w("Bob", 0.0, 0.4), w("won.", 0.5, 1.0), w("To", 1.4, 1.6), w("be", 1.6, 1.8), w("continued.", 1.8, 2.5)]
-    assert timing.sign_off_pause(words, quiet=[(1.1, 1.35)]) == 1.225
-    assert timing.sign_off_pause(words[:2], quiet=[]) is None  # one sentence: no sign-off
-
-
-def test_add_pause_grows_the_gap_and_moves_what_follows():
-    words = [w("Bob", 0.0, 0.4), w("won.", 0.5, 1.0), w("Bye.", 1.4, 1.9)]
-    phrases = [{"text": "Bob won.", "start": 0.0, "end": 1.0, "word_start": 0, "word_end": 1},
-               {"text": "Bye.", "start": 1.4, "end": 1.9, "word_start": 2, "word_end": 2}]
-    out_w, out_p, dur, extra = timing.add_pause(words, phrases, 2.0, at=1.2)
-    assert extra == round(timing.SIGN_OFF_PAUSE_S - 0.4, 3)
-    assert out_w[2]["start"] - out_w[1]["end"] == pytest.approx(timing.SIGN_OFF_PAUSE_S)
-    assert out_w[:2] == words[:2] and out_p[1]["start"] == out_w[2]["start"] and dur == round(2.0 + extra, 3)
-
-
-@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg not on PATH")
-def test_tighten_inserts_the_pause(tmp_path):
-    from pipeline.scribble.stages.import_check import probe_duration
-    src = tmp_path / "v.mp3"
-    subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "sine=f=220:d=2", str(src)], check=True)
-    timing.tighten(src, tmp_path / "t.wav", [(0.5, 0.8)], pause=(1.0, 1.5))
-    assert abs(probe_duration(tmp_path / "t.wav") - (probe_duration(src) - 0.3 + 1.5)) < 0.03

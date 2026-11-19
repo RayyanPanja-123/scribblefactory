@@ -5,7 +5,8 @@ props, @do conflicts (actor not on stage, target with its own action, @do during
 an @do with no line to apply to or replaced before it was used), cast not approved yet, and words changed against an
 existing script-for-tts.txt (an existing voice.mp3 would no longer match). Plus the word count and estimated duration:
 words / the words per second measured over the library's finished parts (qa.json runtime; FALLBACK_WPS without any),
-plus the end card, with a warning over MAX_RUNTIME_S. And a warning when narration opens on a date or backstory.
+plus the tail and the silent end screen, with a warning over MAX_RUNTIME_S. And warnings when narration opens on a
+date or backstory, or ends on a spoken sign-off (the end screen says "Follow for more"; the voice never does).
 Problems mean the pipeline would fail or produce a wrong video; warnings do not stop anything.
 """
 
@@ -22,7 +23,7 @@ from .stages.prep import (DO_CAR, FX_LIGHTNING, FX_MODES, MAX_LIGHTNING, TWIST_P
 from .stages.runner import StageError
 from .stages.shots import (ACTION_FACE, CAR_MODES, CAR_SEATS, DEFAULT_CAST_SIZE, EXPRESSIONS, MAX_CAST, MAX_DOGS, MAX_ON_STAGE,
                            MAX_RUNNERS, parse_crowd, token)
-from .validate import END_CARD_S, SIGN_OFF_PAUSE_S
+from .validate import END_SCREEN_S, TAIL_S
 
 DIRECTIVES = ("set", "cast", "dogs", "car", "fx", "do", "look", "crowd", "runners", "weather", "sfx", "face")
 LINE_PREFIX = re.compile(r"^story\.md line [0-9]+: ")
@@ -47,8 +48,8 @@ def measured_wps(library: Path) -> float:
 
 
 def estimate_runtime(words: int, wps: float) -> float:
-    """seconds of video for this many words: the speech, the pause before the sign-off, then the end card"""
-    return round(words / wps + SIGN_OFF_PAUSE_S + END_CARD_S, 1)
+    """seconds of video for this many words: the speech, the short tail, then the silent end screen"""
+    return round(words / wps + TAIL_S + END_SCREEN_S, 1)
 
 
 def slow_open(md: str) -> tuple[int, str] | None:
@@ -60,6 +61,21 @@ def slow_open(md: str) -> tuple[int, str] | None:
         if text:
             return (no, text) if SLOW_OPEN.match(text) else None
     return None
+
+
+# a closing line that asks for a follow or teases the next part: the end screen does that now, silently
+SIGN_OFF = re.compile(r"to be continued|on my (profile|channel|page)|\bpart (\d+|one|two|three|four|five|six|seven|"
+                      r"eight|nine|ten|next)\b.*\b(up|out|coming|next)\b|follow (me )?for (more|part)", re.I)
+
+
+def spoken_sign_off(md: str) -> tuple[int, str] | None:
+    """(line number, text) of the last narration line when it is a sign-off ("To be continued.", "Part two is on my
+    profile."), else None"""
+    last = None
+    for no, line in enumerate(md.replace("\r\n", "\n").split("\n"), 1):
+        if not line.lstrip().startswith("@") and (text := clean_markdown(TWIST_PREFIX.sub(r"\1", line))):
+            last = (no, text)
+    return last if last and SIGN_OFF.search(last[1]) else None
 
 
 def _words_by_line(md: str) -> list[int]:
@@ -220,6 +236,9 @@ def check_story(part_dir: Path) -> dict:
     if hook := slow_open(md):
         warnings.append({"line": hook[0], "message": "the first line opens on a date or backstory: lead with the twist "
                                                      "or the most surprising claim, and move the date to line two"})
+    if end := spoken_sign_off(md):
+        warnings.append({"line": end[0], "message": "the last line is a sign-off: drop it. Every part ends on a silent "
+                                                    "\"Follow for more\" screen; the voice never asks for a follow"})
     if not problems:
         warnings += staging(md, series, library, part_dir.name)
     wps = measured_wps(library)

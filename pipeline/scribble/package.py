@@ -35,7 +35,6 @@ ASSETS = {  # section -> (model, library loader, list field, library model)
 OPTIONAL = {"WARDROBE"}  # packages written before the wardrobe have no WARDROBE section: read as []
 HEAD = ["META", *ASSETS, "CAST"]
 WORDS = (110, 175)
-CONTINUED = "To be continued."
 
 
 class PackageError(Exception):
@@ -280,8 +279,6 @@ def parse(text: str, library) -> dict:
             warn(sec, None, f"{words} words: aim for {WORDS[0]} to {WORDS[1]}")
         if (twists := sum(bool(TWIST_PREFIX.match(ln)) for ln in story.split("\n"))) > 1:
             warn(sec, None, f"{twists} !! lines: at most one twist per part")
-        if n < n_parts and not narration.rstrip().endswith(CONTINUED):
-            warn(sec, None, f'a part before the last ends with "{CONTINUED}"')
         if not voice.strip():
             err(f"PART {n} VOICE", vl, "empty: the narration, word for word")
 

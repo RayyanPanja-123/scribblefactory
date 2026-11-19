@@ -2777,6 +2777,10 @@
             "default": "auto",
             "description": "'auto' or 1..16 parallel browsers per render",
             "title": "Render Workers"
+          },
+          "socials": {
+            "$ref": "#/components/schemas/Socials",
+            "description": "handles on every part's closing 'Follow for more' screen (empty: left off)"
           }
         },
         "title": "Settings",
@@ -3125,6 +3129,30 @@
           "cells"
         ],
         "title": "SheetRow",
+        "type": "object"
+      },
+      "Socials": {
+        "properties": {
+          "facebook": {
+            "default": "",
+            "maxLength": 60,
+            "title": "Facebook",
+            "type": "string"
+          },
+          "instagram": {
+            "default": "",
+            "maxLength": 60,
+            "title": "Instagram",
+            "type": "string"
+          },
+          "youtube": {
+            "default": "",
+            "maxLength": 60,
+            "title": "Youtube",
+            "type": "string"
+          }
+        },
+        "title": "Socials",
         "type": "object"
       },
       "Stage": {
@@ -5651,7 +5679,7 @@
         "summary": "Get Settings"
       },
       "put": {
-        "description": "applies to the next render job; a running one keeps its workers",
+        "description": "applies to the next render job; a running one keeps its workers. Handles: the next finish run.",
         "operationId": "put_settings_api_settings_put",
         "requestBody": {
           "content": {

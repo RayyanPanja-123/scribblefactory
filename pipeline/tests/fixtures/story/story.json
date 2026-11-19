@@ -39,5 +39,5 @@
     {"frame": 120, "kind": "music_stop"},
     {"frame": 121, "kind": "low_hit"}
   ],
-  "end_card": {"start_frame": 114, "text": "Part 2 on my profile"}
+  "end_card": {"start_frame": 180, "text": "Follow for more"}
 }

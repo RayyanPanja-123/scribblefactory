@@ -112,8 +112,8 @@ def test_ready_story_and_cast_approvals(tmp_path, capsys):
     r = check_story(pdir)
     assert [(p["line"], p["message"].split(" (")[0]) for p in r["problems"]] == [(4, "cast fred is not approved yet")]
     assert cli(["approve-cast", "demo", "fred", "--library", str(tmp_path)]) == 0
-    assert plain(check_story(pdir)) == {"ok": True, "problems": [], "warnings": [], "words": 3, "seconds": 3.9,
-                                 "wps": 2.6}  # 3 words / 2.6 per s + 1 s end card
+    assert plain(check_story(pdir)) == {"ok": True, "problems": [], "warnings": [], "words": 3, "seconds": 4.0,
+                                 "wps": 2.6}  # 3 words / 2.6 per s + 0.3 s tail + 2.5 s end screen
     assert cli(["check-story", "demo", "part-01", "--library", str(tmp_path)]) == 0
     assert capsys.readouterr().out.rstrip().endswith("ready")
 
@@ -152,7 +152,7 @@ def test_too_many_on_stage(tmp_path):
 def test_duration_estimate_uses_measured_words_per_second(tmp_path):
     from pipeline.scribble.storycheck import FALLBACK_WPS, estimate_runtime, measured_wps
     assert measured_wps(tmp_path) == FALLBACK_WPS  # nothing finished yet
-    assert estimate_runtime(130, FALLBACK_WPS) == 52.8  # 130 / 2.6 + the 1.75 s sign-off pause + the 1 s end card
+    assert estimate_runtime(130, FALLBACK_WPS) == 52.8  # 130 / 2.6 + the 0.3 s tail + the 2.5 s end screen
     for n, (words, speech) in enumerate([(120, 40.0), (180, 60.0)], 1):  # 300 words in 100 s: 3 per s
         d = tmp_path / "demo" / f"part-0{n}"
         d.mkdir(parents=True)
@@ -164,11 +164,11 @@ def test_duration_estimate_uses_measured_words_per_second(tmp_path):
 
 
 def test_runtime_warning_over_58_seconds(tmp_path):
-    pdir = setup(tmp_path, "# T\n\n" + "Bob met Amy. " * 50 + "\n")  # 150 words / 2.6 + 1 = 58.7 s
+    pdir = setup(tmp_path, "# T\n\n" + "Bob met Amy. " * 50 + "\n")  # 150 words / 2.6 + 2.8 = 60.5 s
     r = check_story(pdir)
-    assert r["ok"] and r["seconds"] == 60.4
+    assert r["ok"] and r["seconds"] == 60.5
     assert [w["message"] for w in plain(r)["warnings"]] == [
-        "estimated 60.4 s is 2.4 s over 58 s (150 words at 2.60 words/s): cut about 6 words"]
+        "estimated 60.5 s is 2.5 s over 58 s (150 words at 2.60 words/s): cut about 6 words"]
     (pdir / "story.md").write_text("# T\n\n" + "Bob met Amy. " * 40 + "\n", encoding="utf-8")
     assert plain(check_story(pdir))["warnings"] == []
 
@@ -220,3 +220,12 @@ def test_staging_report(tmp_path):
                                          "@do bob: angry\nBob read.\n", encoding="utf-8")
     r = check_story(pdir)
     assert r["ok"] and not any("no mood word" in w["message"] for w in r["warnings"])
+
+
+def test_spoken_sign_off_warns(tmp_path):
+    from pipeline.scribble.storycheck import spoken_sign_off
+    pdir = setup(tmp_path, "# T\n\nBob met Amy.\nPart two is on my profile.\n")
+    assert [w["line"] for w in plain(check_story(pdir))["warnings"] if "sign-off" in w["message"]] == [4]
+    assert spoken_sign_off("Bob sat.\nTo be continued.") == (2, "To be continued.")
+    assert spoken_sign_off("Bob sat.\n@fx pop\n!! Amy took the crown.") is None  # a twist ending is fine
+    assert spoken_sign_off("He ran to the part of town that was up north.") is None

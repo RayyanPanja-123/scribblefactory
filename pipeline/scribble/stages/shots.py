@@ -18,7 +18,7 @@ from ..io import (LIBRARY_FILES, atomic_write_json, cast_body_problems, creature
                   unknown_cast_props)
 from ..schemas import BUILTIN_CREATURES, BUILTIN_SETS, HAND_RIGS, actions_with, Actor, FaceChange, Animal, Camera, Cue, EndCard, Extra, PhrasesModel, SeriesModel, Shot, StoryModel, Strike, Travel, Vehicle
 from ..validate import (CAR_SPEED, CROWD_Z, DOG_RUN_SPEED, MAX_SHOT_FRAMES, MOODS, OUTDOOR_SETS, SPEEDS,
-                        custom_speeds, end_card_start, end_frame, is_final, validate)
+                        custom_speeds, end_frame, validate)
 from .prep import (BUILTIN_PROPS, DO_CAR, FX_LIGHTNING, FX_MODES, MARKER_RE, clean_markdown, mark_directives, parse_do,
                    parse_face, parse_lightning, parse_look, parse_weather)
 from .runner import StageError
@@ -28,6 +28,7 @@ INPUTS = ["story.md", "phrases.json", "../series.json", *(f"../../{f}" for f in 
 OUTPUTS = ["story.json"]
 
 FPS = 30
+END_TEXT = "Follow for more"  # the end screen's headline; finish adds the handles from library/settings.json
 DEFAULT_SET = "room"
 DEFAULT_CAST_SIZE = 2      # first N series cast members when story.md has no @cast
 ANGLES = ["wide", "medium", "close", "low", "high", "over_shoulder"]
@@ -621,10 +622,8 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
     rng = random.Random(seed)
     handless = {c.id: f"a {bodies[c.body][0]}" for c in series.cast
                 if c.body in bodies and bodies[c.body][0] not in HAND_RIGS}
-    final = is_final(series, f"part-{part_number:02d}")
-    total = end_frame(phrases, not final, FPS)
-    end_card = None if final else EndCard(start_frame=end_card_start(phrases, total, FPS),
-                                          text=f"Part {part_number + 1} on my profile 👆")
+    total = end_frame(phrases, FPS)
+    end_card = EndCard(start_frame=total, text=END_TEXT)  # every part: finish appends the silent end screen after it
     starts = []
     for i, p in enumerate(phrases.phrases):  # strictly increasing so every phrase keeps >= 1 frame
         starts.append(0 if i == 0 else max(round(p.start * FPS), starts[-1] + 1))

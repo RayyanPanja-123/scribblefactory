@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Cpu, Save } from 'lucide-vue-next'
+import { Cpu, Megaphone, Save } from 'lucide-vue-next'
 import { computed, onMounted, ref } from 'vue'
 import { api, type SettingsView } from '../api/client'
 import { act, toast } from '../composables/feedback'
@@ -11,6 +11,9 @@ const view = ref<SettingsView | null>(null)
 const auto = ref(true)
 const workers = ref(2)
 const softwareGl = ref(false)
+// handles on every part's closing "Follow for more" screen (finish); empty ones are left off it
+const SOCIALS = [['youtube', 'YouTube', '@yourchannel'], ['instagram', 'Instagram', '@yourname'], ['facebook', 'Facebook', 'yourpage']] as const
+const socials = ref({ youtube: '', instagram: '', facebook: '' })
 
 function fill(v: SettingsView) {
   view.value = v
@@ -18,6 +21,7 @@ function fill(v: SettingsView) {
   auto.value = w === 'auto'
   workers.value = typeof w === 'number' ? w : v.machine.recommended_workers
   softwareGl.value = !!v.settings.force_software_gl
+  socials.value = { ...socials.value, ...v.settings.socials }
 }
 onMounted(async () => {
   try {
@@ -29,10 +33,12 @@ onMounted(async () => {
 
 const chosen = computed(() => (auto.value ? 'auto' : workers.value))
 const dirty = computed(() => !!view.value && (chosen.value !== view.value.settings.render_workers
-  || softwareGl.value !== !!view.value.settings.force_software_gl))
+  || softwareGl.value !== !!view.value.settings.force_software_gl
+  || SOCIALS.some(([k]) => socials.value[k].trim() !== (view.value!.settings.socials?.[k] ?? ''))))
 const valid = computed(() => auto.value || (Number.isInteger(workers.value) && workers.value >= 1 && workers.value <= MAX))
 async function save() {
-  const v = await act(() => api.saveSettings({ render_workers: chosen.value, force_software_gl: softwareGl.value }), 'Settings saved')
+  const v = await act(() => api.saveSettings({ render_workers: chosen.value, force_software_gl: softwareGl.value,
+    socials: { youtube: socials.value.youtube.trim(), instagram: socials.value.instagram.trim(), facebook: socials.value.facebook.trim() } }), 'Settings saved')
   if (v) fill(v)
 }
 const m = computed(() => view.value?.machine)
@@ -86,6 +92,18 @@ const field = 'inset mt-1 block h-10 w-28 rounded-md px-4 text-sm text-ink outli
         <span>Force software rendering (SwiftShader)<span class="block text-xs text-muted">Debugging only: much slower, but
           works without a GPU. Renders, test renders and frames rendered before are redone when this changes.</span></span>
       </label>
+
+      <fieldset>
+        <legend class="flex items-center gap-2 text-sm font-semibold"><Megaphone :size="16" aria-hidden="true" /> Follow screen</legend>
+        <p class="mt-1 text-xs text-muted">Every part ends on a silent black screen: "Follow for more" and these handles.
+          Leave one empty to leave it off. A change shows after re-running a part's final stage.</p>
+        <div class="mt-3 grid gap-3 sm:grid-cols-3">
+          <label v-for="[k, name, hint] in SOCIALS" :key="k" class="text-xs font-semibold text-muted">{{ name }}
+            <input v-model="socials[k]" type="text" maxlength="60" :placeholder="hint" autocomplete="off"
+              class="inset mt-1 block h-10 w-full rounded-md px-3 text-sm text-ink outline-none focus:border-blue" />
+          </label>
+        </div>
+      </fieldset>
 
       <button class="btn btn-primary" :disabled="!dirty || !valid"><Save :size="16" aria-hidden="true" /> Save</button>
     </form>

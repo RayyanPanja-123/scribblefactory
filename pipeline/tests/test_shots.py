@@ -685,16 +685,12 @@ def test_six_fit_even_after_walks_left_odd_spots():
     assert validate(story, phrases_for(md), {c.id for c in CROWD9.cast}) == []
 
 
-def test_end_card_on_non_final_parts_and_hard_cut_on_the_last():
-    story, ph = plan(SHORT)
-    last = ph.words[-1].end
-    assert story.duration_frames == math.ceil(round((last + 1.0) * 30, 6))
-    assert story.end_card.text == "Part 2 on my profile 👆"
-    # the black card cuts in 0.3 s after "Bob sat down.", before the sign-off "Amy smiled."
-    assert story.end_card.start_frame == round((ph.words[2].end + 0.3) * 30)
-    story, ph = plan(SHORT, series=FINAL)
-    assert story.end_card is None and story.duration_frames == math.ceil(round((last + 0.3) * 30, 6))
-    assert validate(story, ph, {c.id for c in SERIES.cast}) == []
+def test_every_part_ends_on_the_follow_screen_after_a_short_tail():
+    for series in (SERIES, FINAL):  # the last part of a complete series too
+        story, ph = plan(SHORT, series=series)
+        assert story.duration_frames == math.ceil(round((ph.words[-1].end + 0.3) * 30, 6))  # no sign-off pause or card
+        assert story.end_card.text == "Follow for more" and story.end_card.start_frame == story.duration_frames
+        assert validate(story, ph, {c.id for c in SERIES.cast}) == []
 
 
 # --- chicken cast members ---

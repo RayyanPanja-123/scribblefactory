@@ -1009,8 +1009,9 @@ class Strike(Strict):
 
 
 class EndCard(Strict):
-    start_frame: int = Field(ge=0, description="a black card shown from this frame to the end: non-final parts cut to it after the line before the sign-off (validate.end_card_start)")
-    text: str = Field(description='e.g. "Part 2 on my profile 👆"')
+    start_frame: int = Field(ge=0, description="where the story ends (duration_frames): finish appends the silent end "
+                                                "screen there for validate.END_SCREEN_S")
+    text: str = Field(description='its headline, "Follow for more" (finish adds the handles from library/settings.json)')
 
 
 class StoryModel(Strict):
@@ -1023,4 +1024,5 @@ class StoryModel(Strict):
     shots: list[Shot]
     cues: list[Cue] = []
     lightning: list[Strike] = Field(default=[], max_length=3, description="@fx lightning strikes, by frame")
-    end_card: EndCard | None = Field(default=None, description="non-final parts only; the final part has none")
+    end_card: EndCard | None = Field(default=None, description="every part's closing screen (older story.json files "
+                                                               "may have none)")

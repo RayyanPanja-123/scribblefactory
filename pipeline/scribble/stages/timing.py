@@ -7,16 +7,15 @@ cut out (voice.mp3 is protected, never rewritten), and phrases.json is timed on 
 import re
 import shutil
 import subprocess
-import wave
 from difflib import SequenceMatcher
 from pathlib import Path
 
-from ..io import atomic_write_json, load_series
+from ..io import atomic_write_json
 from ..schemas import PhrasesModel
 from .import_check import silences
 from .prep import WPM
 from .runner import StageError
-from ..validate import SENTENCE_END, SIGN_OFF_PAUSE_S, is_final, sign_off
+from ..validate import SENTENCE_END
 
 INPUTS = ["voice.mp3", "script-for-tts.txt"]
 VOICE = "voice-tight.wav"   # the voice every later stage uses
@@ -198,32 +197,8 @@ def clamp_gaps(words: list[dict], phrases: list[dict], duration: float, quiet: l
     return move(words), move(phrases), shift(duration, cuts), cuts
 
 
-def sign_off_pause(words: list[dict], quiet: list[tuple[float, float]]) -> float | None:
-    """where to stretch the pause before the sign-off (validate.sign_off), on the untightened voice: the middle of
-    the longest silence between it and the sentence before (a cut there joins two silences, so it stays silent)"""
-    i = sign_off([w["text"] for w in words])
-    if i is None:
-        return None
-    lo, hi = words[i - 1]["end"], words[i]["start"]
-    spans = [(max(lo, s), min(hi, e)) for s, e in quiet if min(hi, e) > max(lo, s)]
-    a, b = max(spans, key=lambda x: x[1] - x[0], default=(lo, hi))
-    return (a + b) / 2
-
-
-def add_pause(words: list[dict], phrases: list[dict], duration: float, at: float):
-    """-> (words, phrases, duration, seconds added): the pause holding `at` (tight-voice time) grown to
-    SIGN_OFF_PAUSE_S; everything from `at` on moves later"""
-    nxt = next(w for w in words if w["start"] >= at)
-    prev = max((w["end"] for w in words if w["end"] <= at), default=0.0)
-    extra = round(max(0.0, SIGN_OFF_PAUSE_S - (nxt["start"] - prev)), 3)
-    move = lambda t: round(t + extra, 3) if t >= at else t  # noqa: E731
-    bump = lambda xs: [{**x, "start": move(x["start"]), "end": move(x["end"])} for x in xs]  # noqa: E731
-    return bump(words), bump(phrases), round(duration + extra, 3), extra
-
-
-def tighten(voice: Path, out: Path, cuts: list[tuple[float, float]], pause: tuple[float, float] | None = None) -> None:
-    """voice with the cut spans removed (+ pause: (at, seconds) of silence inserted, tight-voice time)
-    -> 48 kHz 16-bit WAV (written atomically)"""
+def tighten(voice: Path, out: Path, cuts: list[tuple[float, float]]) -> None:
+    """voice with the cut spans removed -> 48 kHz 16-bit WAV (written atomically)"""
     keep = "+".join(f"between(t,{a},{b})" for a, b in cuts)
     af = ["-af", f"aselect='not({keep})',asetpts=N/SR/TB"] if cuts else []
     tmp = out.with_name(f".{out.name}.tmp.wav")
@@ -232,14 +207,6 @@ def tighten(voice: Path, out: Path, cuts: list[tuple[float, float]], pause: tupl
     if r.returncode != 0:
         tmp.unlink(missing_ok=True)
         raise StageError(f"ffmpeg could not write {out.name}: {r.stderr.decode(errors='replace').strip()[:300]}")
-    if pause and pause[1] > 0:
-        with wave.open(str(tmp), "rb") as f:
-            params, pcm = f.getparams(), f.readframes(f.getnframes())
-        size = params.sampwidth * params.nchannels
-        k = min(round(pause[0] * params.framerate) * size, len(pcm))
-        with wave.open(str(tmp), "wb") as f:
-            f.setparams(params)
-            f.writeframes(pcm[:k] + bytes(round(pause[1] * params.framerate) * size) + pcm[k:])
     tmp.replace(out)
 
 
@@ -257,17 +224,9 @@ def run(part_dir: Path) -> None:
     words, matched = align(script_words, heard, duration)
     phrases = split_phrases(words)  # on the real pauses: clamped ones would no longer end a phrase
     quiet = silences(voice, duration, min_len=GAP_KEEP)
-    series = part_dir.parent / "series.json"  # none (a bare part): no sign-off pause
-    at = None if not series.exists() or is_final(load_series(series), part_dir.name) else sign_off_pause(words, quiet)
     words, phrases, duration, cuts = clamp_gaps(words, phrases, round(duration, 3), quiet)
-    pause = None
-    if at is not None:
-        at = shift(at, cuts)
-        words, phrases, duration, extra = add_pause(words, phrases, duration, at)
-        pause = (at, extra)
-        print(f"sign-off pause: +{extra:.2f} s at {at:.2f} s")
     model = PhrasesModel(duration=duration, words=words, phrases=phrases)  # validates times
-    tighten(voice, part_dir / VOICE, cuts, pause)
+    tighten(voice, part_dir / VOICE, cuts)
     atomic_write_json(part_dir / "phrases.json", model.model_dump(mode="json"))
     print(f"pauses clamped: {len(cuts)}, {sum(b - a for a, b in cuts):.1f} s cut")
 

@@ -142,7 +142,14 @@ def test_duration_rule():
     def m(d):
         d["duration_frames"] = 181
         shot(d, 2)["end_frame"] = 181
-    assert rules(m) == {"duration"}
+        d["end_card"]["start_frame"] = 181
+    assert rules(m) == {"duration"}  # the story must end 0.3 s after the last word
+
+
+def test_end_card_starts_where_the_story_ends():
+    def m(d):
+        d["end_card"]["start_frame"] = 170  # the old style: a card over the last second
+    assert rules(m) == {"end_card"}
 
 
 def test_pure_z_walk_may_face_camera():

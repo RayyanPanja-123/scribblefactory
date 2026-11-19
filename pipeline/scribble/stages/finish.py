@@ -4,8 +4,8 @@ Captions: phrases split into chunks of <= CAP_MAX_WORDS words (never inside a na
 the word being spoken is yellow. Effects (pop, drop, shake, punch) are written as one event per video frame while
 they animate: \\t restarts with every event, so it can't carry an animation across the per-word events.
 Rendered by ffmpeg's subtitles filter (libass) with the vendored font only.
-End card (non-final parts): story.json's end_card text on black, drawn by Pillow (emoji from the system emoji
-font) and overlaid from its start frame (before the sign-off line) to the end, over picture and captions.
+End screen (every part): story.json's end_card text ("Follow for more") and the handles from library/settings.json on
+black, drawn by Pillow and overlaid from its start frame (just after the last word) to the end. Nothing is spoken there.
 QA also records the runtime (seconds, words) and warns when it is over MAX_RUNTIME_S; that never fails the stage.
 QA failure fails the stage but keeps final.mp4 for inspection.
 """
@@ -18,6 +18,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from .. import settings
 from ..io import atomic_write_json, atomic_write_text, load_part, replace_file
 from ..schemas import PhrasesModel, SeriesModel, StoryModel
 from .audio import loudness
@@ -27,6 +28,7 @@ from .runner import StageError
 from .shots import token
 from .timing import _can_break_after, _capitalised
 from .validate import load_model
+from ..validate import END_SCREEN_S
 
 INPUTS = ["frames/chunks", "audio/mix.wav", "phrases.json", "story.json", "story.md"]
 OUTPUTS = ["final.mp4", "qa.json"]  # + captions.ass when the series has captions on
@@ -71,11 +73,13 @@ QA_DURATION_TOL = 0.1
 QA_LUFS, QA_LUFS_TOL, QA_TRUE_PEAK = -14.0, 1.0, -1.0
 MAX_RUNTIME_S = 58         # Shorts / Reels: warn above this
 
-# --- end card ---
-CARD_SIZE = 76
-CARD_Y = 0.5               # of frame height: the text's vertical centre (the card is black and covers the captions)
-EMOJI_FONTS = ("C:/Windows/Fonts/seguiemj.ttf", "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
-               "/usr/share/fonts/noto/NotoColorEmoji.ttf", "/System/Library/Fonts/Apple Color Emoji.ttc")
+# --- end screen (every part: silent, after the last word) ---
+CARD_SIZE = 76             # headline ("Follow for more") px
+HANDLE_SIZE = 50           # each handle line px
+HANDLE_COLOR = (242, 193, 78, 255)  # the wipe's marker yellow
+CARD_Y = 0.5               # of frame height: the text block's vertical centre (the card is black and covers the captions)
+SOCIAL_NAMES = {"youtube": "YouTube", "instagram": "Instagram", "facebook": "Facebook"}
+END_SCREEN_FRAMES = round(END_SCREEN_S * FPS)  # appended after the story's last frame
 
 
 # ---------------- captions ----------------
@@ -327,36 +331,23 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
 # ---------------- end card ----------------
 
-def end_card_png(text: str, out: Path) -> None:
-    """a black 1080x1920 PNG with the text at CARD_Y (the sign-off is heard over it). Trailing emoji come from the first
-    EMOJI_FONTS found (Pillow draws colour emoji at 109 px, scaled to the text); none found -> left out"""
+def end_card_png(text: str, socials: dict, out: Path) -> None:
+    """the silent closing screen: black 1080x1920, the headline (text) in big white letters and, under it, one line per
+    filled-in handle ("YouTube  @name"), the block centred at CARD_Y"""
     from PIL import Image, ImageDraw, ImageFont
 
-    body, emoji = text.rstrip(), ""
-    while body and ord(body[-1]) >= 0x2600:
-        emoji, body = body[-1] + emoji, body[:-1]
-    body = body.rstrip()
-    font = ImageFont.truetype(str(FONTS / "FredokaOne-Regular.ttf"), CARD_SIZE)
-    x0, y0, x1, y1 = font.getbbox(body)
-    tw, th = x1 - x0, y1 - y0
-    glyph, path = None, next((f for f in EMOJI_FONTS if Path(f).is_file()), None) if emoji else None
-    if path:
-        g = Image.new("RGBA", (218 * len(emoji), 160), (0, 0, 0, 0))
-        ImageDraw.Draw(g).text((0, 0), emoji, font=ImageFont.truetype(path, 109), embedded_color=True)
-        g = g.crop(g.getbbox())
-        size = round(th * 1.25)
-        glyph = g.resize((round(g.width * size / g.height), size), Image.LANCZOS)
-    elif emoji:
-        print("warning: no colour emoji font found; end card drawn without the emoji")
-    gap = CARD_SIZE // 4
-    w = tw + (gap + glyph.width if glyph else 0)
-    cx, cy = W // 2, round(H * CARD_Y)
+    font = lambda size: ImageFont.truetype(str(FONTS / "FredokaOne-Regular.ttf"), size)  # noqa: E731
+    lines = [(text, font(CARD_SIZE), (255, 255, 255, 255))] + [
+        (f"{SOCIAL_NAMES[k]}  {v}", font(HANDLE_SIZE), HANDLE_COLOR) for k, v in socials.items() if v]
+    boxes = [f.getbbox(t) for t, f, _ in lines]
+    gaps = [CARD_SIZE] + [HANDLE_SIZE * 3 // 5] * (len(lines) - 2)  # a wider gap under the headline
+    height = sum(y1 - y0 for _, y0, _, y1 in boxes) + sum(gaps[:len(lines) - 1])
     img = Image.new("RGBA", (W, H), (0, 0, 0, 255))
     d = ImageDraw.Draw(img)
-    left = cx - w // 2
-    d.text((left - x0, cy - th // 2 - y0), body, font=font, fill=(255, 255, 255, 255))
-    if glyph:
-        img.alpha_composite(glyph, (left + tw + gap, cy - glyph.height // 2))
+    y = round(H * CARD_Y) - height // 2
+    for i, ((t, f, fill), (x0, y0, x1, y1)) in enumerate(zip(lines, boxes)):
+        d.text((W // 2 - (x1 - x0) // 2 - x0, y - y0), t, font=f, fill=fill)
+        y += y1 - y0 + (gaps[i] if i < len(gaps) else 0)
     img.save(out)
 
 
@@ -385,17 +376,22 @@ def subtitles_filter(captions: Path) -> str:
     return f"subtitles=filename={_filter_path(captions)}:fontsdir={_filter_path(FONTS)}"
 
 
-def encode(part_dir: Path, frames: int, captions: Path | None, card: tuple[Path, int] | None = None) -> None:
-    """frames/%06d.png + audio/mix.wav (+ burned-in captions, + end card (png, start frame) on top) -> final.mp4"""
+def encode(part_dir: Path, frames: int, captions: Path | None, card: Path | None = None) -> None:
+    """frames/%06d.png + audio/mix.wav (+ burned-in captions), then the end screen png held for END_SCREEN_FRAMES
+    with silence under it -> final.mp4"""
     out, tmp = part_dir / "final.mp4", part_dir / ".final.tmp.mp4"
+    total = frames + (END_SCREEN_FRAMES if card else 0)
     chain = [f"[0:v]{subtitles_filter(captions)}[c]"] if captions else []
-    if card:
-        chain.append(f"[{'c' if captions else '0:v'}][2:v]overlay=0:0:enable='gte(n,{card[1]})'[c]")
+    if card:  # both halves to one pixel format and aspect, then joined; the audio padded with silence to the end
+        chain += [f"[{'c' if captions else '0:v'}]format=yuv420p,setsar=1[v0]",
+                  f"[2:v]format=yuv420p,setsar=1,fps={FPS},trim=end_frame={END_SCREEN_FRAMES}[v1]",
+                  "[v0][v1]concat=n=2:v=1:a=0[c]", f"[1:a]apad=whole_dur={total / FPS:.3f}[a]"]
     graph = ["-filter_complex", ";".join(chain), "-map", "[c]"] if chain else ["-map", "0:v"]
     try:
         _ffmpeg("-v", "error", "-y", "-framerate", FPS, "-i", part_dir / "frames" / "%06d.png",
-                "-i", part_dir / "audio" / "mix.wav", *(["-loop", "1", "-i", card[0]] if card else []),
-                *graph, "-map", "1:a", "-frames:v", frames, "-t", f"{frames / FPS:.3f}",
+                "-i", part_dir / "audio" / "mix.wav",
+                *(["-loop", "1", "-framerate", FPS, "-t", f"{END_SCREEN_FRAMES / FPS:.3f}", "-i", card] if card else []),
+                *graph, "-map", "[a]" if card else "1:a", "-frames:v", total, "-t", f"{total / FPS:.3f}",
                 "-c:v", "libx264", "-profile:v", "high", "-preset", PRESET, "-crf", CRF, "-pix_fmt", "yuv420p",
                 "-r", FPS, "-s", f"{W}x{H}", "-c:a", "aac", "-b:a", AUDIO_BITRATE, "-ar", AUDIO_RATE,
                 "-movflags", "+faststart", tmp)
@@ -456,7 +452,8 @@ def qa(part_dir: Path, story: StoryModel, phrases: PhrasesModel, captions_on: bo
     frozen, black = scan(part_dir / "frames", story.duration_frames)
     lufs, tp = loudness(final)
     cap = caption_check(phrases, chunks(phrases)) if captions_on else None
-    want_s = story.duration_frames / FPS
+    want_n = story.duration_frames + (END_SCREEN_FRAMES if story.end_card else 0)  # the story, then the end screen
+    want_s = want_n / FPS
 
     def check(ok, value, want):
         return {"ok": bool(ok), "value": value, "want": want}
@@ -464,8 +461,7 @@ def qa(part_dir: Path, story: StoryModel, phrases: PhrasesModel, captions_on: bo
         "resolution": check(p.get("width") == str(W) and p.get("height") == str(H),
                             f"{p.get('width')}x{p.get('height')}", f"{W}x{H}"),
         "fps": check(abs(fps - FPS) < 0.01, round(fps, 3), FPS),
-        "frame_count": check(p.get("nb_frames") == str(story.duration_frames), int(p.get("nb_frames", 0)),
-                             story.duration_frames),
+        "frame_count": check(p.get("nb_frames") == str(want_n), int(p.get("nb_frames", 0)), want_n),
         "duration": check(abs(duration - want_s) <= QA_DURATION_TOL, round(duration, 3),
                           f"{want_s:.3f} +/-{QA_DURATION_TOL}"),
         "frozen": check(frozen <= QA_FREEZE_S, frozen, f"<= {QA_FREEZE_S} s"),
@@ -499,9 +495,11 @@ def check_gate(part_dir: Path) -> None:
 
 
 def extra_inputs(part_dir: Path) -> dict:
-    """the only series.json field finish uses (hashed instead of the whole file: approvals, new parts don't count)"""
+    """the only series.json field finish uses (hashed instead of the whole file: approvals, new parts don't count), and
+    the end screen's handles (library/settings.json: a changed handle re-runs finish, nothing else)"""
     f = part_dir.parent / "series.json"
-    return {"captions": json.loads(f.read_bytes()).get("style", {}).get("captions", True) if f.exists() else None}
+    return {"captions": json.loads(f.read_bytes()).get("style", {}).get("captions", True) if f.exists() else None,
+            "socials": settings.load(part_dir.parent.parent)["socials"]}
 
 
 def run(part_dir: Path) -> None:
@@ -525,12 +523,14 @@ def run(part_dir: Path) -> None:
     print(f"captions: {'on' if captions_on else 'off'}")
     card = part_dir / "end-card.png"
     if story.end_card:
-        end_card_png(story.end_card.text, card)
+        socials = settings.load(part_dir.parent.parent)["socials"]
+        end_card_png(story.end_card.text, socials, card)
+        handles = ", ".join(v for v in socials.values() if v) or "no handles set (Settings)"
+        print(f"end screen: {story.end_card.text} ({handles})")
     else:
         card.unlink(missing_ok=True)
-    print(f"end card: {story.end_card.text if story.end_card else 'none (final part)'}")
-    encode(part_dir, story.duration_frames, captions if captions_on else None,
-           (card, story.end_card.start_frame) if story.end_card else None)
+        print("end screen: none")
+    encode(part_dir, story.duration_frames, captions if captions_on else None, card if story.end_card else None)
 
     report = qa(part_dir, story, phrases, captions_on)
     atomic_write_json(part_dir / "qa.json", report)

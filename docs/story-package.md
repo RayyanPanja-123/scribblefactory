@@ -75,7 +75,8 @@ Plain text. Each marker is **alone on its own line**, in exactly this order:
   than 5 `@sfx`). Each names its section and
   its line in the pasted text.
 - **Warnings** (imported anyway): an `@sfx` whose sound file is missing from `library/sfx/`, VOICE differs from the script's narration (with the changed words), a word count
-  outside 110 to 175, more than one `!!`, a part before the last that does not end with "To be continued.".
+  outside 110 to 175, more than one `!!`, a part whose last line is a sign-off ("To be continued.", "on my profile":
+  every part ends on a silent "Follow for more" screen instead).
 - **Never overwrites.** A new item whose id the library already has is imported with a suffix (`lantern-2`), and
   the cast and scripts are rewritten to use it; a taken series slug gets a suffix too.
 - **All or nothing.** New items, then the series with its cast and parts. Each part starts at the story step:
@@ -124,7 +125,6 @@ Ava held it up to his face.
 @do ben: react
 Ben shrugged and grabbed a loaf of bread.
 !! The lantern turned toward Ava and roared.
-To be continued.
 <<<VOICE>>>
 Ava found a lantern that only glows for liars.
 It blazed the moment her brother Ben walked in.
@@ -132,7 +132,6 @@ Ben swore he had never lied. The flame doubled.
 Ava held it up to his face.
 Ben shrugged and grabbed a loaf of bread.
 The lantern turned toward Ava and roared.
-To be continued.
 <<<PART 2>>>
 <<<SCRIPT>>>
 # Who Lied

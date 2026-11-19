@@ -1,6 +1,14 @@
 # Changelog
 
 ## Unreleased
+- End screen: every part, the last one included, now ends 0.3 s after its last word on a silent 2.5 s black
+  "Follow for more" screen with the YouTube / Instagram / Facebook handles from Settings (empty ones left off).
+  The voice no longer carries a sign-off: no "To be continued." / "Part n on my profile" line, no stretched pause
+  before the last sentence, and the "Part n+1 on my profile 👆" card is gone. check-story warns when a part still
+  ends on a sign-off. Editing a handle only re-runs the final stage.
+- Art style: two-layer rain, inked and two-tone sets, distance haze, water detail, warm/cool lighting, eased camera
+  moves and idle life (all tunables in engine/page/style.js, see docs/style.md); new expression `dead` (X eyes);
+  custom action keys take an optional `ease`.
 - Weather: `@weather <clear | rain | snow | fog | wind | storm> [light | medium | heavy]` until the next `@weather`
   or `@set` (a `@set` starts the set's new `default_weather`, else clear), drawn in ink: rain streaks, scribble
   snowflakes, hatched fog bands behind the cast, wind lines; storm adds slanted rain, a darker tint and mild

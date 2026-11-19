@@ -10,7 +10,7 @@ import re
 from itertools import groupby
 from typing import NamedTuple
 
-from .schemas import BUILTIN_SETS, PhrasesModel, SeriesModel, StoryModel
+from .schemas import BUILTIN_SETS, PhrasesModel, StoryModel
 
 MAX_SHOT_FRAMES = 90
 WALK_SPEED = (0.6, 1.8)   # units/s, inclusive
@@ -40,42 +40,20 @@ class Error(NamedTuple):
     message: str
 
 
-END_CARD_S = 1.0          # non-final parts end on "Part n+1 on my profile" for this long after the last word
-FINAL_TAIL_S = 0.3        # the final part cuts this long after the last word
-# Non-final parts: the last sentence is the sign-off ("To be continued.", "Part two is on my profile."). timing
-# stretches the pause before it to SIGN_OFF_PAUSE_S, and the black end card cuts in SIGN_OFF_HOLD_S after the
-# sentence before it, so the sign-off is heard on black.
-SIGN_OFF_PAUSE_S = 1.75
-SIGN_OFF_HOLD_S = 0.3
+# Every part ends the same way: the story's last word, TAIL_S of picture (the end of story.json), then finish appends
+# the silent "Follow for more" end screen (with the handles from library/settings.json) for END_SCREEN_S.
+TAIL_S = 0.3
+END_SCREEN_S = 2.5
 SENTENCE_END = re.compile(r"[.!?…][\"')\]]*$")
-
-
-def is_final(series: SeriesModel, part: str) -> bool:
-    """the last part of a complete series: no end card, no sign-off"""
-    return series.status == "complete" and series.parts[-1:] == [part]
-
-
-def sign_off(texts: list[str]) -> int | None:
-    """index of the first word of the last sentence; None when there is only one sentence"""
-    ends = [i for i, t in enumerate(texts[:-1]) if SENTENCE_END.search(t)]
-    return ends[-1] + 1 if ends else None
-
-
-def end_card_start(phrases: PhrasesModel, total: int, fps: int) -> int:
-    """the frame the black end card cuts in: just after the sentence before the sign-off, else the last END_CARD_S"""
-    i = sign_off([w.text for w in phrases.words])
-    if i is None:
-        return total - round(END_CARD_S * fps)
-    return min(round((phrases.words[i - 1].end + SIGN_OFF_HOLD_S) * fps), total - 1)
 
 
 def duration_frames(seconds: float, fps: int) -> int:
     return math.ceil(round(seconds * fps, 6))  # round() guards float noise like 2.0000000001 * 30
 
 
-def end_frame(phrases: PhrasesModel, end_card: bool, fps: int) -> int:
-    """the video's length: the last word, then the end card (or the final part's short tail), then a hard cut"""
-    return duration_frames(phrases.words[-1].end + (END_CARD_S if end_card else FINAL_TAIL_S), fps)
+def end_frame(phrases: PhrasesModel, fps: int) -> int:
+    """the story's length: TAIL_S after the last word (finish appends the end screen after that)"""
+    return duration_frames(phrases.words[-1].end + TAIL_S, fps)
 
 
 def custom_speeds(move: float) -> tuple[float, float]:
@@ -92,12 +70,13 @@ def validate(story: StoryModel, phrases: PhrasesModel, cast_ids: set[str], outdo
     err = lambda sid, rule, msg: errs.append(Error(sid, rule, msg))
     fps = story.fps
 
-    want = end_frame(phrases, story.end_card is not None, fps)
+    want = end_frame(phrases, fps)
     if story.duration_frames != want:
         err(None, "duration", f"duration_frames {story.duration_frames} != {want} (last word "
-                              f"{phrases.words[-1].end} s + {'end card' if story.end_card else 'tail'}, x {fps})")
-    if story.end_card and story.end_card.start_frame != (at := end_card_start(phrases, story.duration_frames, fps)):
-        err(None, "end_card", f"end card starts at {story.end_card.start_frame}, expected {at} (before the sign-off)")
+                              f"{phrases.words[-1].end} s + {TAIL_S} s tail, x {fps})")
+    if story.end_card and story.end_card.start_frame != story.duration_frames:
+        err(None, "end_card", f"end screen starts at {story.end_card.start_frame}, expected {story.duration_frames} "
+                              "(where the story ends)")
 
     expected_start, prev, seen = 0, None, set()
     for s in story.shots:
