@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ArrowLeft, ArrowRight, Check, CircleAlert, CircleCheck, CircleX, Copy, ExternalLink, HardDrive, Instagram, Minus, Play, Plus, RefreshCw, Save, Trash2, Upload, Youtube } from 'lucide-vue-next'
+import { ArrowLeft, ArrowRight, Check, CircleAlert, CircleCheck, CircleX, Copy, ExternalLink, HardDrive, Instagram, Minus, Play, Plus, RefreshCw, Save, Sparkles, Trash2, Upload, Youtube } from 'lucide-vue-next'
 import { animate, motion } from 'motion-v'
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, media, type Approval, type Platform, type StoryCheck } from '../api/client'
 import PartStepper from '../components/PartStepper.vue'
 import SfxSuggestions from '../components/SfxSuggestions.vue'
+import AiBridge from '../components/AiBridge.vue'
 import ErrorCard from '../components/ErrorCard.vue'
 import IssueFix from '../components/IssueFix.vue'
 import StageChips from '../components/StageChips.vue'
@@ -19,6 +20,7 @@ import { bytes, expandFrom, label, reducedMotion, shortDate, SPRING, today } fro
 import { partNext, type PartState } from '../lib/partNext'
 import { partSteps } from '../lib/partSteps'
 import { fixPrompt } from '../lib/storyGuide'
+import { buildCaptionPrompt, parseCaptionReply } from '../lib/captionPrompt'
 
 const props = defineProps<{ slug: string; part: string }>()
 const route = useRoute()
@@ -293,6 +295,30 @@ async function save() {
   if (!dirty.value) return
   const body = text.value
   if (await act(() => api.saveUpload(props.slug, props.part, body), 'upload.md saved')) saved.value = body
+}
+
+// ---- captions with AI: the prompt goes out, the reply lands in the editor above (unsaved: review, then Save) ----
+const captions = reactive({ open: false, prompt: '', reply: '', error: '' })
+async function openCaptions() {
+  const s = series.value
+  const me = d.value
+  if (!s || !me) return
+  captions.open = true
+  const i = s.parts.indexOf(props.part)
+  const nextId = s.parts[i + 1]
+  const next = nextId ? await api.part(props.slug, nextId).catch(() => null) : null
+  captions.prompt = buildCaptionPrompt({
+    series: s.title, number: i + 1, parts: s.parts.length, title: me.part.title, story: me.story_md ?? '',
+    next: next?.story_md ? { title: next.part.title, story: next.story_md } : undefined,
+  })
+}
+function loadCaptions() {
+  const r = parseCaptionReply(captions.reply)
+  captions.error = r.error ?? ''
+  if (!r.md) return
+  text.value = r.md
+  Object.assign(captions, { open: false, reply: '' })
+  toast('Captions are in upload.md: check them, then Save', 'ok')
 }
 function onKey(e: KeyboardEvent) {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
@@ -619,9 +645,20 @@ watch(() => props.part, () => { chosen.value = null })
         <div class="flex items-center gap-2">
           <h3 class="font-display text-lg font-semibold">upload.md</h3>
           <span v-if="dirty" class="size-2.5 rounded-full bg-amber" title="Unsaved changes" aria-label="Unsaved changes" />
-          <button class="btn btn-primary ml-auto" :disabled="!dirty" @click="save"><Save :size="16" aria-hidden="true" /> Save</button>
+          <button v-if="!captions.open" class="btn btn-secondary ml-auto" :disabled="!d?.story_md" @click="openCaptions">
+            <Sparkles :size="16" aria-hidden="true" /> Write captions with AI</button>
+          <button class="btn btn-primary" :class="captions.open && 'ml-auto'" :disabled="!dirty" @click="save"><Save :size="16" aria-hidden="true" /> Save</button>
         </div>
         <p class="mt-1 text-xs text-muted">Ctrl+S saves. Written atomically; nothing else in the part is touched.</p>
+        <div v-if="captions.open" class="inset mt-4 p-4">
+          <div class="mb-3 flex items-center gap-2">
+            <p class="text-sm font-semibold">Captions with your AI</p>
+            <button class="btn btn-secondary ml-auto" @click="captions.open = false">Close</button>
+          </div>
+          <AiBridge v-model="captions.reply" :prompt="captions.prompt" :error="captions.error" load-label="Use these captions"
+            reply-label="Paste the AI's captions here" reply-hint="Its md block, or the whole message: it replaces the text below (not saved until you Save)."
+            @load="loadCaptions" />
+        </div>
         <label class="sr-only" for="upload-md">upload.md</label>
         <textarea id="upload-md" v-model="text" class="paper inset mt-4 block min-h-64 w-full resize-y p-5 font-mono text-sm leading-7 outline-none focus:border-blue"
           spellcheck="true" @keydown="onKey" />
