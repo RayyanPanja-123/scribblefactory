@@ -1,27 +1,25 @@
 # scribblefactory story guide (for AI assistants)
 
-**Important: do not**
+## Never
+- Formatting while brainstorming (images, cards, tables, headings): plain short chat only.
+- Scripts, cast or assets before the story (premise, parts, twists) is agreed.
+- The Story Package before the user says "approved".
+- Rename, reorder, skip `<<<...>>>` markers; split the package; text around it.
+- Ids not in the inventory list, section 4, or the package.
+- Digits, symbols or markdown in narration; narration on a directive line.
+- Flat scripts (one `@set`, few directives).
+- Characters by role ("the commander"): use their cast `name`.
 
-- Use images, cards, tables, headings or other formatting while brainstorming. Plain short chat only.
-- Write scripts, cast or assets before the story (premise, parts, twists) is agreed.
-- Send the Story Package before the user explicitly says "approved".
-- Rename, reorder or skip any `<<<...>>>` marker, split the package across messages or code blocks, or add text
-  around it.
-- Use an id (set, prop, cast, look, action, body, wardrobe) that is not in the library or created in the package.
-- Put digits, symbols or markdown in narration, or narration on a directive line.
-- Write a flat script (one `@set`, few directives). Every part must be staged (section 5, **Staging**).
-- Call characters by role ("the commander") instead of their cast `name`.
-
-Fill in **Your series** at the end and brainstorm. Each part becomes one vertical Short: a voice reads the narration,
-a rule-based planner turns each line into shots of stickmen in a 3D world. `@` lines are silent directives.
+## What this makes
+- Each part = one vertical Short: a voice reads the narration, a planner turns each line into stickman shots in 3D.
+- `@` lines are silent directives.
 
 ## 1. Workflow
-
-1. Brainstorm briefly (premise, cast, parts, each part's twist) as plain chat: a few short lines, one or two
-   questions at a time. No images, cards, tables, headings or scripts. Settle the story before cast and assets.
-2. Sum up the plan in a short list and wait for an explicit "approved". No package before that.
-3. Reply with **only** one Story Package in one fenced `text` block, using exactly this skeleton (full rules in
-   **Story Package format** at the end):
+1. Brainstorm: premise, cast, parts, each part's twist. A few short lines, one or two questions at a time.
+2. Sum up the plan as a short list; wait for "approved".
+3. Ask for the inventory list ("Please paste your library list: the Copy library list button in Scribble Factory"); wait for it.
+   - It has every set, prop, creature, action, wardrobe item, sound and existing cast by id. Never guess ids.
+4. Reply with only one Story Package in one fenced `text` block (full rules: **Story Package format**, at the end):
 
 ```text
 <<<SCRIBBLE_PACKAGE v1>>>
@@ -55,137 +53,106 @@ narration only
 <<<END>>>
 ```
 
-- Every marker exactly as shown, alone on its line, in this order, none skipped (empty sections are `[]`). No
-  markdown headings, no extra code blocks, never split across messages.
-- Asset sections (PROPS, SETS, CREATURES, ACTIONS, WARDROBE) hold only **new** items; `[]` when none.
-- CAST holds every character of the whole series.
-- VOICE = its SCRIPT's narration word for word, one line each, without `@` lines, title or `!!`.
-- Every id used must exist in the library or the package.
-
-4. The user checks the package and may paste back warnings that start with `staging:` (directives, `@do` density,
-   lines with no mood, unused looks, actions or sounds). Fix every one that fits the story and reply with the whole
-   corrected package again, never a partial one.
+   - Markers exactly as shown, alone on their line, in order, none skipped; empty sections `[]`.
+   - Asset sections: only new items.
+   - CAST: every character of the whole series.
+   - VOICE: its SCRIPT's narration word for word, one line each; no `@` lines, title or `!!`.
+5. User pastes back `staging:` warnings: fix every one that fits; resend the whole package.
 
 ## 2. Script format
-
-```md
-# Part title
-
-@set street
-@cast alice, bob
-Narration line.
-```
-
-- Line 1 `# Title`, blank line. One directive per line, alone (never narration on it).
-- `@do`, `@face`, `@fx` and `@sfx` affect only the next narration line, which must follow; other directives last until changed.
-- Narration: plain text, numbers as words, no digits, symbols, abbreviations, parentheses or markdown.
-- Name characters by their cast `name`.
+- Line 1 `# Title`, then a blank line.
+- One directive per line, alone.
+- `@do`, `@face`, `@fx`, `@sfx`: next narration line only (one must follow). Others last until changed.
+- Narration: plain text, numbers as words; no digits, symbols, abbreviations, parentheses, markdown.
 
 ## 3. Writing rules
-
-- **110 to 175 words** (aim under 145), at most 58 seconds (words / 2.6, plus 3 for non-final parts).
-- Short lines, one idea each. Never start a line with Then, After that, So, Next, Later.
-- **Line 1:** subject plus shocking claim, at most twelve words, concrete, starts with a name or noun. No date,
-  setting, question, "Did you know", "Imagine", "This is the story of".
-- **Line 2:** proof (a number, cost or odd detail). **Line 3:** flip an expectation ("X should have ended it. It
-  didn't."). Lines 1 to 3: at most thirty words, never reveal the twist.
-- **Exactly one `!! <line>`** (the twist), last line; non-final parts follow it with `To be continued.`
+- 110 to 175 words (aim under 145); at most 58 s (words / 2.6, plus 3 s for non-final parts).
+- Short lines, one idea each. Never start with Then, After that, So, Next, Later.
+- Line 1: name or noun + shocking claim, at most 12 words. No date, setting, question, "Did you know", "Imagine".
+- Line 2: proof (a number, cost, odd detail).
+- Line 3: flip an expectation ("X should have ended it. It didn't.").
+- Lines 1 to 3: at most 30 words; never reveal the twist.
+- Exactly one `!! <line>` (the twist), last. Non-final parts then end with `To be continued.`
 
 ## 4. Library basics
-
-- Sets: `room`, `office` (indoor), `street`, `dirt_road`, `countryside`, `orchard`, `stadium` (outdoor).
+- Sets: `room`, `office` (indoor); `street`, `dirt_road`, `countryside`, `orchard`, `stadium` (outdoor). All modern.
 - Props: `clipboard`, `stopwatch`, `bottle`, `syringe`, `apple`, `medal`.
 - Bodies: `human` (default), `monkey` (biped), `chicken` (bird), `cat`, `horse` (quadruped), `snake` (crawler).
-  Only `human`/humanoid and biped bodies have hands: others cannot hold, eat, give, carry or support.
-- More under *Available in this library*.
+- Only humanoid and biped bodies have hands (hold, eat, give, carry, support).
+- Everything else: the inventory list.
 
 ## 5. Directives
+- `@set <id>`: place for the following lines; resets `@crowd`, `@runners`. Required before the first line.
+- `@cast a, b`: who is on stage; named / `@do` ones in front. Max 12, max 6 named per scene.
+- `@do <cast>: <action> [prop] [target]`: they act through the next line. Must be in `@cast`.
+- `@look <cast>: <look>`: switch on a look from their CAST entry (held spear, crown). `default` restores; resets each part.
+- `@face <cast>: <expression>`: face for the next line: `neutral happy sad angry surprised sleepy cheeky exhausted worried`.
+- `@car arrive | ride | leave | off`: drives in and parks / carries the cast (travel shot) / drives off / gone.
+  `ride` seats max 3; no `@do` during `ride` except `car: broken`.
+- `@dogs N` (0 to 6): dog pack; chases on travel shots, else idles or barks.
+- `@runners N` (0 to 6): background runners; run along on travel shots, else cross behind.
+- `@crowd cheer | angry | gasp | neutral [N]`, `@crowd off`: extras behind the stage (army, mob). N 1 to 12, default 8;
+  not on travel shots.
+- `@fx drop | shake | pop`: next line's caption animation. Sparingly.
+- `@fx lightning [cast | prop]`: bolt and flash beside that character or the prop's holder. Max 3 per part.
+- `@weather clear | rain | snow | fog | wind | storm [light | medium | heavy]`: until the next `@weather` or `@set`.
+  After its `@set`.
+- `@sfx <id> [volume 0-1]`: sound on the next line. Max 5 per part; never on back-to-back lines.
+- `!! <line>`: the twist: push-in, music stops, low hit; read aloud.
 
-| Directive | Rule |
-|---|---|
-| `@set <id>` | Required before the first narration line. |
-| `@cast a, b` | At most 12; at most 6 named per scene. |
-| `@do <cast>: <action> [prop] [target]` | Everyone named must be in `@cast`. |
-| `@look <cast>: <look>` | A look from their CAST entry; `default` restores; resets each part. |
-| `@face <cast>: <expression>` | Their face for the next line only: `neutral happy sad angry surprised sleepy cheeky exhausted worried`. |
-| `@car arrive \| ride \| leave \| off` | `ride` seats at most 3. |
-| `@dogs N` / `@runners N` | 0 to 6. |
-| `@crowd cheer \| angry \| gasp \| neutral [N]` / `@crowd off` | 1 to 12 extras. |
-| `@fx drop \| shake \| pop` | Caption effect. Sparingly. |
-| `@weather clear \| rain \| snow \| fog \| wind \| storm [light\|medium\|heavy]` | After its `@set`. |
-| `@fx lightning [cast \| prop]` | At most 3 per part. |
-| `@sfx <id> [volume 0-1]` | A sound effect for the next line. At most 5 per part. |
+`@do` actions:
+- `idle talk point react wave cheer angry gasp walk run stagger lie collapse`
+- `eat [prop]`, `give <prop> <target>`, `carry <target>` (exactly 2 carriers), `support <target>` (1 or 2)
+- `car: broken` (car on stage)
+- Custom actions, optionally aimed: `@do marcus: attack-with-spears neptune` (faces and moves toward them)
+- Several: `@do fred: lie, amy: wave`
 
-`@do` actions: `idle talk point react wave cheer angry gasp walk run stagger lie collapse`, `eat [prop]`,
-`give <prop> <target>`, `carry <target>` (exactly 2 carriers), `support <target>` (1 or 2), `car: broken` (car on
-stage), or a custom action, optionally aimed at someone on stage (`@do marcus: attack-with-spears neptune`: they
-face and move toward the target instead of the middle of the stage). Several: `@do fred: lie, amy: wave`.
+### Staging (required: the video shows only what directives and names tell it)
+- New place, new `@set`, then a fitting `@weather`: `storm` sea, gods, war, villains; `rain` loss; `fog` mystery;
+  `snow` / `wind` journeys.
+- Match the era: built-in sets are modern. Past stories use a period set from the inventory, or add one under SETS.
+- Name a cast member in every line (the planner picks who acts by name).
+- Faces:
+  - A line's first mood word (angry, laughed, sobbed, gasped, scared...) sets the named character's face; each later
+    mood word switches it ("grinned, then screamed" = happy, then angry).
+  - No mood word: `@do angry | gasp | react | cheer` or `@face`.
+  - Otherwise the default face shows: every emotional beat needs one of these.
+- A `@do` every second or third line.
+- Groups: `@crowd` with the right mood; `@dogs`, `@runners` where they fit.
+- Objects are seen: props held through a `@look` switched on when used.
+- Punch: `@fx shake` or `drop` on line 1, `@fx pop` on line 3, `@fx lightning` on one to three big beats.
+- Ten or more directives besides `@set` and `@cast`.
+- Use the inventory: follow "use for" notes, switch on cast looks, give characters their custom actions (a god raises
+  a trident before `@fx lightning`).
 
-### Staging (required)
-
-The video only shows what the directives and names tell it. Without them every shot is people standing and talking.
-
-- **New place, new `@set`** (the Senate, the beach, a ship). Follow it with a `@weather` that fits the mood: `storm`
-  for sea, gods, war, villains; `rain` for loss; `fog` for mystery; `snow`, `wind` for journeys.
-- **Match the era.** The built-in sets are modern: `street` has apartment blocks, `office` desks, `stadium` a sports
-  ground. A story set in the past uses a library set of its time (the library's `roman-street` and `colosseum` for Rome) or adds
-  one under SETS.
-- **Name a cast member in every line**, by their cast `name`: the planner picks who acts by name.
-- **Faces follow the words.** A line's first mood word (angry, furious, stomped, laughed, sobbed, gasped,
-  scared...) sets the named character's face from the start of the line, and each later mood word switches it on
-  that word: "Caligula grinned, then screamed" goes happy, then angry at "screamed". `@do <cast>: angry`, `gasp`,
-  `react` or `cheer` sets it when the line has no mood word, and `@face <cast>: <expression>` fixes it for one line.
-  Otherwise they wear their default face (`cheeky` smirks), so give every emotional beat a mood word, an emotional
-  `@do` or an `@face`.
-- **A `@do` at least every second or third line** for physical beats: point, run, wave, cheer, angry, gasp,
-  react, stagger, collapse, give, carry, support, eat, custom actions.
-- **Groups are `@crowd`** (an army, senators, a mob) with the reaction that fits; `@dogs` and `@runners` where
-  they fit.
-- **Objects are seen:** spears, letters, swords are props held through a `@look` switched on when used.
-- **Punch:** `@fx shake` or `@fx drop` on line 1, `@fx pop` on line 3, `@fx lightning` on one to three big beats.
-- Aim for **ten or more** directives per part besides `@set` and `@cast`.
-- **Use what the library has.** Items under *Available in this library* may carry a "use for" note: when a moment
-  matches it, use that item. Switch on each cast member's looks where the story calls for them, give characters
-  their custom actions (a god raising a trident before `@fx lightning`), and show props in hands rather than
-  describing them.
-
-### Sound effects (`@sfx`)
-
-Real ids and what each is for are under *Available in this library* (**Sound effects**). Default set:
-
-| id | use for |
-|---|---|
-| `fahhh` | attention grab (the hook; plays after its line is said) |
-| `camera_flash` | smooth transition |
-| `metallic_riser` | tension before a reveal (ends as the line starts) |
-| `right` / `wrong` | correct / wrong, positive / negative feedback |
-| `vine_boom` | comedy timing, a reaction |
-| `bass_impact` | hype, weight before the main reveal |
-| `core` | a statement, emphasis |
-| `among_us` | an unexpected reveal (a traitor, a fake) |
-| `riser` | suspense before a payoff (ends as the line starts) |
-| `pop` / `click` | pop-up text, UI elements |
-| `glitch` | transition between clips |
-| `money` | money and financial moments |
-
-- `@sfx <id>` alone on its line, directly above the narration line it belongs to (next to `@do` / `@fx` is fine).
-  An optional volume `0` to `1` overrides the default (`@sfx riser 0.6`).
-- Only where it fits the moment: **at most 5 per part**, never two on lines right after each other.
-- Risers (`riser`, `metallic_riser`) only right before a payoff, usually the `!!` line. `vine_boom` only for comedy.
-  `money` only for money moments.
-- A good default: `fahhh` on line 1 of part 1, a `riser` plus `bass_impact` (or `among_us`) on the twist.
+### Sound effects
+- Real ids and purposes: inventory list. Defaults:
+  - `fahhh`: the hook (plays after its line)
+  - `camera_flash`: smooth transition
+  - `metallic_riser`, `riser`: tension before a payoff (end as the line starts)
+  - `right` / `wrong`: positive / negative
+  - `vine_boom`: comedy only
+  - `bass_impact`: weight before the main reveal
+  - `core`: a statement, emphasis
+  - `among_us`: unexpected reveal (traitor, fake)
+  - `pop` / `click`: pop-up text, UI
+  - `glitch`: transition between clips
+  - `money`: money moments only
+- `@sfx` goes directly above its narration line (next to `@do` / `@fx` is fine). Volume overrides: `@sfx riser 0.6`.
+- Risers only right before a payoff, usually the `!!` line.
+- Default: `fahhh` on line 1 of part 1; `riser` + `bass_impact` (or `among_us`) on the twist.
 
 ## 6. New items
-
-- Every object a character uses (axe, rope, letter) must exist as a prop and be held: cast `"props"`, a look with
-  `"props"` switched on via `@look`, or `@do eat` / `give`. One per hand (`left`/`right`).
-- Add sets, creatures, wardrobe only if nothing fits. Max per package: 2 sets, 3 props per part, 2 creatures,
-  4 wardrobe items. Ids: lowercase a-z, 0-9, dashes, not built-in names.
-- Follow the **Library item schemas** at the end. Props: hand at `[0,0]`, y down, canvas px (about -40 to 110).
-  Long props (staffs, spears, tridents, flags) get an `"angle"` so they read clearly: degrees like a clock hand,
-  top tipped away from the body (`30` = one o'clock, `75` = half past two), and a `"grip"` where the hand holds
-  the shaft. A character can hold one at its own angle: cast `"props": [{"kind": "trident", "hand": "right", "angle": 30}]`.
-  Sets: actors at y 0, z 0, x -2 to 2; scenery behind z -1.
+- Every object a character uses must be a held prop: cast `"props"`, a `@look` with `"props"`, or `@do eat` / `give`.
+  One per hand (`left` / `right`).
+- Add sets, creatures, wardrobe only if nothing fits.
+- Max per package: 2 sets, 3 props per part, 2 creatures, 4 wardrobe items.
+- Ids: lowercase a-z, 0-9, dashes; not built-in names.
+- Follow the **Library item schemas** at the end.
+- Props: hand at `[0,0]`, y down, canvas px (about -40 to 110).
+- Long props (staff, spear, trident, flag): `"angle"` in clock-hand degrees, top tipped away (`30` = one o'clock),
+  and a `"grip"` where the hand holds. Per character: `"props": [{"kind": "trident", "hand": "right", "angle": 30}]`.
+- Sets: actors at y 0, z 0, x -2 to 2; scenery behind z -1.
 
 ## 6b. Cast JSON
 
@@ -200,18 +167,18 @@ Real ids and what each is for are under *Available in this library* (**Sound eff
 ]
 ```
 
-- Distinct `color` per character. `body` defaults to `human`.
+- Distinct `color` each; `body` defaults to `human`.
 - Changes during the story are `"looks"` (only what changes; `"none"` removes an item), never a second character.
-- Wardrobe slots (humanoids): `hair`, `facial_hair`, `headwear`, `top`, `legwear`, `footwear`, `back`; lists of up
-  to 3 for `accessory`, `face`. Each id fits one slot. Built in: tops `plain suit tank shirt dress`; headwear
-  `flat_cap postman_cap bowler straw_hat wide_hat`; legwear `shorts ragged_shorts trousers`.
-- Optional: `"default_expression"` (`neutral happy sad angry surprised sleepy cheeky exhausted`),
-  `"eyes"` (`dots`, `half_closed`).
+- Wardrobe slots (humanoids): `hair`, `facial_hair`, `headwear`, `top`, `legwear`, `footwear`, `back`; lists of up to
+  3 for `accessory`, `face`. Each id fits one slot.
+- Built-in wardrobe: tops `plain suit tank shirt dress`; headwear `flat_cap postman_cap bowler straw_hat wide_hat`;
+  legwear `shorts ragged_shorts trousers`.
+- Optional: `"default_expression"` (`neutral happy sad angry surprised sleepy cheeky exhausted`), `"eyes"` (`dots`,
+  `half_closed`).
 
-## 7. Example (a full part: copy its staging, not its story)
-
-Cast: `fred`, `thomas`, `alice`, `hugh`, and `charles` with a look `bottle` (`{"props": [{"kind": "bottle", "hand": "right"}]}`).
-131 words, a name in every line, 23 directives besides `@set` and `@cast`.
+## 7. Example (copy the staging, not the story)
+- Cast: `fred`, `thomas`, `alice`, `hugh`; `charles` with look `bottle` (`{"props": [{"kind": "bottle", "hand": "right"}]}`).
+- 131 words, a name in every line, 23 directives besides `@set` and `@cast`.
 
 ```md
 # The Fake Finish
@@ -262,7 +229,6 @@ To be continued.
 ```
 
 ## Your series
-
-- **What the story is about:**
-- **Number of parts:**
-- **Tone** and anything to avoid:
+- **About:**
+- **Parts:**
+- **Tone / avoid:**

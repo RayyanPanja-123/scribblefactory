@@ -1,7 +1,8 @@
-// The story guide a chat AI gets: docs/STORY_GUIDE.md + what this library has right now (every id it may use) +
-// the Story Package format (docs/story-package.md, the one source) + the library item schemas for new items.
-// All bundled at build time and loaded on first use. Overview and Story Writer copy it.
+// The story guide a chat AI gets: docs/STORY_GUIDE.md + the Story Package format (docs/story-package.md, the one
+// source) + the library item schemas for new items. All bundled at build time and loaded on first use. Overview and
+// Story Writer copy it. The live library list is separate (libraryRecords): the guide tells the AI to ask for it.
 import { api } from '../api/client'
+import { toast } from '../composables/feedback'
 import { SLOTS } from './wardrobe'
 
 /** a custom item's "use for" note (when a story should use it), e.g. "; use for: Neptune's weapon" */
@@ -61,17 +62,30 @@ export async function libraryRecords(standalone = false): Promise<string> {
   }
 }
 
+/** copy the library list for a chat AI (it asks for it, per the guide); true when copied */
+export async function copyLibraryList(): Promise<boolean> {
+  const list = await libraryRecords(true)
+  try {
+    if (!list) throw new Error('empty')
+    await navigator.clipboard.writeText(list.trim() + '\n')
+    toast('Library list copied: paste it into your AI when it asks for the inventory', 'ok')
+    return true
+  } catch {
+    toast(list ? 'Could not copy to the clipboard.' : 'Could not load the library: is the API running?', 'error')
+    return false
+  }
+}
+
 export async function storyGuide(): Promise<string> {
-  const [guide, pkg, props, sets, creatures, actions, wardrobe, live] = await Promise.all([
+  const [guide, pkg, props, sets, creatures, actions, wardrobe] = await Promise.all([
     import('../../../docs/STORY_GUIDE.md?raw'), import('../../../docs/story-package.md?raw'),
     import('../../../docs/schemas/props.schema.json?raw'), import('../../../docs/schemas/sets.schema.json?raw'),
     import('../../../docs/schemas/creatures.schema.json?raw'), import('../../../docs/schemas/actions.schema.json?raw'),
     import('../../../docs/schemas/wardrobe.schema.json?raw'),
-    libraryRecords(),
   ])
   const compact = (m: { default: string }) => JSON.stringify(JSON.parse(m.default))
   return [
-    guide.default.replace('## Your series', `${live}## Your series`).trimEnd(),
+    guide.default.trimEnd(),
     '---',
     pkg.default.replace(/^## /gm, '### ').replace(/^# Story Package v1/, '## Story Package format (v1)').trimEnd(),
     '---',

@@ -54,9 +54,9 @@ reply back. Everything goes through **AI Creations** (`/ai-creations`, Studio in
 5. Import: one button writes it to the library and links to each new item. Nothing existing is overwritten: a
    clashing id gets a suffix.
 
-**Story Writer** (`/story-writer`) makes a whole series in one paste. Make the story guide (docs/STORY_GUIDE.md plus
-your library's ids and the [Story Package format](docs/story-package.md)), brainstorm with any chat AI, and paste the
-one Story Package it returns. It is checked as you paste (errors and warnings with their section and line), previewed,
+**Story Writer** (`/story-writer`) makes a whole series in one paste. Copy the story guide (docs/STORY_GUIDE.md plus
+the [Story Package format](docs/story-package.md)) into any chat AI and brainstorm; once the story is approved it asks for
+your library list (Copy library list), then returns one Story Package to paste. It is checked as you paste (errors and warnings with their section and line), previewed,
 and imported all or nothing: new props, sets, creatures and actions, then the series with its cast and every part's
 story.md and TTS script (script-for-tts.txt, shown on the part's Voice tab). Voice (FreeTTS) and uploading stay manual.
 "Copy story guide" on the Overview copies the same guide.

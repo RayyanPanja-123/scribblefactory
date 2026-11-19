@@ -11,17 +11,17 @@ import { refetchOn } from '../composables/live'
 import { useApi } from '../composables/useApi'
 import { bytes, label } from '../composables/ui'
 import { needsYou } from '../lib/partSteps'
-import { libraryRecords, storyGuide } from '../lib/storyGuide'
+import { copyLibraryList, storyGuide } from '../lib/storyGuide'
 
 const { data, error, loading, reload, refresh } = useApi(() => Promise.all([api.overview(), api.series()]))
 
-// the story guide with this library's ids (lib/storyGuide)
+// the story guide (lib/storyGuide); the AI asks for the library list separately
 const copied = ref(false)
 async function copyGuide() {
   try {
     await navigator.clipboard.writeText(await storyGuide())
     copied.value = true
-    toast('Story guide copied: paste it into any AI, brainstorm, then paste its Story Package in Story Writer', 'ok')
+    toast('Story guide copied: paste it into any AI and brainstorm. It asks for the library list when it needs it', 'ok')
     setTimeout(() => (copied.value = false), 2500)
   } catch {
     toast('Could not copy to the clipboard. Open docs/STORY_GUIDE.md and copy it from there.', 'error')
@@ -30,16 +30,9 @@ async function copyGuide() {
 // just what the library has (sets, props, creatures, actions, wardrobe, cast), without the rest of the guide
 const listCopied = ref(false)
 async function copyList() {
-  const list = await libraryRecords(true)
-  try {
-    if (!list) throw new Error('empty')
-    await navigator.clipboard.writeText(list.trim() + '\n')
-    listCopied.value = true
-    toast('Library list copied: paste it into any AI so it knows what you have', 'ok')
-    setTimeout(() => (listCopied.value = false), 2500)
-  } catch {
-    toast(list ? 'Could not copy to the clipboard.' : 'Could not load the library: is the API running?', 'error')
-  }
+  if (!(await copyLibraryList())) return
+  listCopied.value = true
+  setTimeout(() => (listCopied.value = false), 2500)
 }
 refetchOn(() => null, () => null, refresh)
 

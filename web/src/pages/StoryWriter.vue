@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { CircleAlert, CircleX, Copy, Sparkles } from 'lucide-vue-next'
+import { CircleAlert, CircleX, Copy, List, Sparkles } from 'lucide-vue-next'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, type PackageResult } from '../api/client'
 import AiBridge from '../components/AiBridge.vue'
 import IssueFix from '../components/IssueFix.vue'
 import { toast } from '../composables/feedback'
-import { fixPrompt, storyGuide } from '../lib/storyGuide'
+import { copyLibraryList, fixPrompt, storyGuide } from '../lib/storyGuide'
 
 // Story Writer: brainstorm a series with any chat AI (it gets the story guide), paste back its one Story Package
 // (docs/story-package.md), see what it creates, fix what the check finds right where it is reported (or have the AI
@@ -136,8 +136,11 @@ async function runImport() {
 
     <section class="raised space-y-4 p-6" aria-labelledby="sw-ai">
       <h3 id="sw-ai" class="font-display text-xl font-semibold">Write it with your AI</h3>
-      <p class="text-sm text-muted">Copy the story guide into your AI and tell it your idea. Brainstorm until you agree, say “approved”,
-        and it answers with one Story Package: paste that below. It is checked as you paste.</p>
+      <p class="text-sm text-muted">Copy the story guide into your AI and tell it your idea. Brainstorm until you agree and say “approved”.
+        It then asks for your library list: copy it with the button below and paste it in. It answers with one Story Package: paste
+        that below. It is checked as you paste.</p>
+      <button type="button" class="btn btn-secondary" title="Every set, prop, creature, action, wardrobe item, sound and cast member you have, by id" @click="copyLibraryList">
+        <List :size="16" aria-hidden="true" /> Copy library list</button>
       <AiBridge v-model="reply" :prompt="prompt" :error="checkError" load-label="Check again"
         reply-label="Paste the Story Package here"
         reply-hint="The text block, or the AI's whole message: only what is between <<<SCRIBBLE_PACKAGE v1>>> and <<<END>>> is read."
