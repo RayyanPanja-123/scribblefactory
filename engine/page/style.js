@@ -18,4 +18,19 @@ export const STYLE = {
   ink: { width: 4.5, lump: 0.6, segment: 0.35 },
   // set two-tone ramp: colour multipliers for tops (normal up), sides facing keyDir (cosine >= keyMin), the rest and undersides
   shade: { top: 1.12, side: 0.95, under: 0.76, keyDir: [0.6, 0.35, 1], keyMin: 0.35 },
+  // atmospheric perspective: set surfaces and outlines blend toward the set's background colour with depth behind the
+  // stage (-z world units): none at near, max share at far. sky: the sky band's gradient (overhead colour = sky x top;
+  // mid / low: where it reaches the sky colour and the horizon colour, 0 = top .. 1 = bottom of the band)
+  depth: { near: 4, far: 45, max: 0.55, sky: { top: 0.8, mid: 0.62, low: 0.93 } },
+  // water (outdoor custom sets whose floor colour is blue): detection, wave ticks on the floor texture (px of a 256 px
+  // tile), foam bands around pieces standing in it (world units), and what main.js draws under the cast
+  water: {
+    hue: [170, 250], minSat: 0.2, light: [0.25, 0.92],
+    wave: { count: 9, len: 11, width: 2, color: "#2b4a5e", alpha: 0.28 },
+    foam: { width: 0.45, color: "#f6fbff", alpha: 0.9 },
+    // rings on the ground expand from `from` to `to` world units across over `period` s, fading out
+    ripple: { period: 1.6, rings: 2, from: 0.3, to: 1.25, alpha: 0.6, color: "#f6fbff" },
+    wetRipple: 0.6, // ripples on wet ground (outdoors in rain or storm): this share of the alpha
+    reflection: { alpha: 0.2 }, // the cast mirrored in the water under their feet
+  },
 };

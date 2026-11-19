@@ -16,22 +16,30 @@ const STAGE = { x: 2.2, behind: -1.0, front: 0.6 };
 const H_PX = 1920; // frame height: the outline width is set in screen px of the final frame
 
 // shared uniforms of every set material and outline (one program each, updated per frame by setInk)
+const D = STYLE.depth;
 const U = {
   inkPx: { value: STYLE.ink.width }, inkLump: { value: STYLE.ink.lump }, inkBoil: { value: 0 }, inkH: { value: H_PX },
   shadeTop: { value: STYLE.shade.top }, shadeSide: { value: STYLE.shade.side }, shadeUnder: { value: STYLE.shade.under },
   shadeKey: { value: new THREE.Vector3(...STYLE.shade.keyDir).normalize() }, shadeKeyMin: { value: STYLE.shade.keyMin },
+  hazeColor: { value: new THREE.Color(0xffffff) }, haze: { value: new THREE.Vector3(D.near, D.far, D.max) },
 };
-/** the boil step of this frame (main.js: frame / BOIL_FRAMES): outlines re-wobble with the characters' lines */
-export const setInk = (boil) => { U.inkBoil.value = boil; };
+/** per frame: the boil step (main.js: frame / BOIL_FRAMES; outlines re-wobble with the characters' lines) and the
+ *  colour far scenery hazes toward (the set's background) */
+export const setInk = (boil, hazeColor) => { U.inkBoil.value = boil; if (hazeColor) U.hazeColor.value.copy(hazeColor); };
+
+// distance tint (atmospheric perspective): by depth behind the stage (-z), from haze.x (none) to haze.y (haze.z share)
+const HAZE_V = ["varying vec3 vInkW;\n", "#include <begin_vertex>\n  vInkW = (modelMatrix * vec4(transformed, 1.0)).xyz;"];
+const HAZE_F = ["varying vec3 vInkW;\nuniform vec3 hazeColor, haze;\n",
+  "\n  diffuseColor.rgb = mix(diffuseColor.rgb, hazeColor, haze.z * smoothstep(haze.x, haze.y, -vInkW.z));"];
 
 // outline: pushed out along inkNormal (the merged normal at a corner: no gaps) by inkPx screen px, its width lumped by
-// three harmonics of world position (like stickman.js wobble), re-seeded every boil step
+// three harmonics of world position (like stickman.js wobble), re-seeded every boil step; hazes with distance
 function outlineShader(sh) {
   Object.assign(sh.uniforms, U);
-  sh.vertexShader = "attribute vec3 inkNormal;\nuniform float inkPx, inkLump, inkBoil, inkH;\n" + sh.vertexShader.replace(
-    "#include <project_vertex>", `
+  sh.vertexShader = "attribute vec3 inkNormal;\nuniform float inkPx, inkLump, inkBoil, inkH;\n" + HAZE_V[0] + sh.vertexShader
+    .replace("#include <begin_vertex>", HAZE_V[1]).replace("#include <project_vertex>", `
     vec4 mvPosition = modelViewMatrix * vec4(transformed, 1.0);
-    vec3 wp = (modelMatrix * vec4(transformed, 1.0)).xyz;
+    vec3 wp = vInkW;
     float b = inkBoil * 1.618;
     float lump = 1.0 + inkLump * (sin(dot(wp, vec3(2.9, 1.7, 2.3)) + b) + 0.6 * sin(dot(wp, vec3(-4.3, 3.1, 1.1)) + 2.0 * b)
       + 0.4 * sin(dot(wp, vec3(6.7, -5.3, 3.7)) + 3.0 * b)) / 2.0;
@@ -39,21 +47,35 @@ function outlineShader(sh) {
     float unitsPerPx = 2.0 * clip.w / (projectionMatrix[1][1] * inkH);
     mvPosition.xyz += normalize(normalMatrix * inkNormal) * inkPx * unitsPerPx * max(0.2, lump);
     gl_Position = projectionMatrix * mvPosition;`);
+  sh.fragmentShader = HAZE_F[0] + sh.fragmentShader.replace("#include <map_fragment>", "#include <map_fragment>" + HAZE_F[1]);
 }
 const HULL = new THREE.MeshBasicMaterial({ color: INK, side: THREE.BackSide });
 HULL.onBeforeCompile = outlineShader;
 
 // two-tone: the surface colour (texture included) times a tone from its world normal: up-facing tops light, faces
-// toward the key direction mid, faces away and undersides dark. Pure colour ramp, no light objects.
+// toward the key direction mid, faces away and undersides dark. Pure colour ramp, no light objects. Then the distance
+// tint. Material defines: INK_FLAT (floors, foam: no tone), INK_SKY (no tone, no haze: the sky keeps its gradient).
 function shadeShader(sh) {
   Object.assign(sh.uniforms, U);
-  sh.vertexShader = "varying vec3 vInkN;\n" + sh.vertexShader.replace("#include <begin_vertex>",
-    "#include <begin_vertex>\n  vInkN = normalize(mat3(modelMatrix) * normal);");
+  sh.vertexShader = "varying vec3 vInkN;\n" + HAZE_V[0] + sh.vertexShader.replace("#include <begin_vertex>",
+    HAZE_V[1] + "\n  vInkN = normalize(mat3(modelMatrix) * normal);");
   sh.fragmentShader = "varying vec3 vInkN;\nuniform float shadeTop, shadeSide, shadeUnder, shadeKeyMin;\nuniform vec3 shadeKey;\n"
-    + sh.fragmentShader.replace("#include <map_fragment>", `#include <map_fragment>
+    + HAZE_F[0] + sh.fragmentShader.replace("#include <map_fragment>", `#include <map_fragment>
+  #if !defined(INK_FLAT) && !defined(INK_SKY)
     vec3 n = normalize(vInkN);
     float tone = n.y > 0.55 ? shadeTop : n.y < -0.4 || dot(n, shadeKey) < shadeKeyMin ? shadeUnder : shadeSide;
-    diffuseColor.rgb *= tone;`);
+    diffuseColor.rgb *= tone;
+  #endif
+  #ifndef INK_SKY${HAZE_F[1]}
+  #endif`);
+}
+/** a set material: the painted map through the shade ramp; kind "flat" (floors) or "sky" picks a variant */
+function setMaterial(map, kind = null) {
+  const m = new THREE.MeshBasicMaterial({ map });
+  m.onBeforeCompile = shadeShader;
+  if (kind === "flat") m.defines = { INK_FLAT: "" };
+  if (kind === "sky") m.defines = { INK_SKY: "" };
+  return m;
 }
 
 /** outline geometry for a piece: subdivided so a long edge wobbles along its length, with inkNormal = the sum of the
@@ -150,10 +172,12 @@ const crowd = (aspect) => (g, s, R) => {
     }
   }
 };
-/** distant sky band: haze colour near the horizon fading up into the sky colour */
+/** distant sky band: a deeper sky colour overhead fading through the sky colour to the haze colour at the horizon
+ *  (style.js depth.sky: the stops sit in the part of the band a camera sees) */
 const haze = (sky, low) => (g, s) => {
-  const gr = g.createLinearGradient(0, 0, 0, s);
-  gr.addColorStop(0, sky); gr.addColorStop(0.55, sky); gr.addColorStop(1, low);
+  const gr = g.createLinearGradient(0, 0, 0, s), S = STYLE.depth.sky;
+  gr.addColorStop(0, new THREE.Color(sky).multiplyScalar(S.top).getStyle());
+  gr.addColorStop(S.mid, sky); gr.addColorStop(S.low, low); gr.addColorStop(1, low);
   g.globalAlpha = 0.85; g.fillStyle = gr; g.fillRect(0, 0, s, s); g.globalAlpha = 1;
 };
 
@@ -165,12 +189,10 @@ class Builder {
   }
   /** everything added inside fn is one prop piece (hidden or shown together) */
   piece(fn) { this.piece_ = this.pieces.size; fn(); this.piece_ = null; }
-  mat(color, pattern = null, repeat = [1, 1]) {
+  mat(color, pattern = null, repeat = [1, 1], kind = null) {
     const map = paint(this.seed, this.n++, color, pattern, this.strength);
     map.repeat.set(...repeat);
-    const m = new THREE.MeshBasicMaterial({ map });
-    m.onBeforeCompile = shadeShader;
-    return m;
+    return setMaterial(map, kind);
   }
   /** centred primitive at pos; outline = inverted ink hull (hullGeometry); floor = exempt from clearance.
    *  Anything that is not floor or backdrop (walls, windows, posters, buildings) is a prop piece. */
@@ -207,7 +229,10 @@ class Builder {
     }
     return m;
   }
-  box(w, h, d, color, pos, opts = {}) { return this.add(new THREE.BoxGeometry(w, h, d), opts.mat || this.mat(color, opts.pattern, opts.repeat), pos, opts); }
+  box(w, h, d, color, pos, opts = {}) {
+    const kind = opts.floor ? "flat" : opts.sky ? "sky" : null;
+    return this.add(new THREE.BoxGeometry(w, h, d), opts.mat || this.mat(color, opts.pattern, opts.repeat, kind), pos, opts);
+  }
   cyl(r0, r1, h, color, pos, opts = {}) { return this.add(new THREE.CylinderGeometry(r0, r1, h, 20), opts.mat || this.mat(color, opts.pattern), pos, opts); }
   ball(r, color, pos, opts = {}) { return this.add(new THREE.SphereGeometry(r, 20, 14), opts.mat || this.mat(color), pos, opts); }
   /** squashed sphere (hills, bushes): sy scales the height */
@@ -219,7 +244,7 @@ class Builder {
 // --- outdoor sets. Floors reach z +12 so wides never see an edge; far scenery is backdrop (never hidden); fog
 // hazes everything past ~16 units, far behind any actor. Repeated props share one material (one texture).
 function sky(b, color, low) {
-  b.box(220, 70, 0.1, color, [0, 30, -75], { outline: false, backdrop: true, pattern: haze(color, low) });
+  b.box(220, 70, 0.1, color, [0, 30, -75], { outline: false, backdrop: true, sky: true, pattern: haze(color, low) });
 }
 
 /** posts + two rails from a to b along x (at depth `at`) or along z (at x `at`), in ~5-unit prop pieces so a
@@ -446,21 +471,67 @@ const FOG = { dirt_road: [16, 80], countryside: [20, 90], orchard: [18, 80], sta
 export const setKind = (name) => (SETS.includes(name) ? (INDOOR_SETS.has(name) ? "indoor" : "outdoor") : lookup("sets", name).kind);
 const INDOOR_SETS = new Set(["room", "office"]); // built-in sets with a back wall (pipeline: BUILTIN_SETS)
 
+// --- water: an outdoor custom set whose floor is blue is a sea or lake (no set field needed): ink wave ticks on the
+// floor, a foam band where each piece meets it, and main.js adds ripples and reflections under the cast
+/** true when an outdoor set's floor colour reads as water (style.js water.hue / minSat / light) */
+export function isWater(spec) {
+  if (spec.kind !== "outdoor") return false;
+  const W = STYLE.water, hsl = new THREE.Color(spec.floor).getHSL({}), hue = hsl.h * 360;
+  return hue >= W.hue[0] && hue <= W.hue[1] && hsl.s >= W.minSat && hsl.l >= W.light[0] && hsl.l <= W.light[1];
+}
+/** small "~" ink wave ticks scattered over a water tile */
+const waves = (g, s, R) => {
+  const W = STYLE.water.wave;
+  g.strokeStyle = W.color; g.globalAlpha = W.alpha; g.lineWidth = W.width; g.lineCap = "round";
+  for (let i = 0; i < W.count; i++) {
+    const x = R() * s, y = R() * s, L = W.len * (0.6 + 0.8 * R());
+    g.beginPath(); g.moveTo(x - L, y);
+    g.quadraticCurveTo(x - L / 2, y - L * 0.35, x, y); g.quadraticCurveTo(x + L / 2, y + L * 0.35, x + L, y);
+    g.stroke();
+  }
+  g.globalAlpha = 1;
+};
+/** where piece p meets the water surface (y = 0): [x half, z half] for a box, a radius for a round piece, or null */
+export function waterline(p) {
+  const y = p.at[1], spans = (h) => y - h / 2 <= 0.05 && y + h / 2 >= 0;
+  if (p.shape === "box") return spans(p.size[1]) ? [p.size[0] / 2, p.size[2] / 2] : null;
+  if (p.shape === "cyl") return spans(p.size[2]) ? Math.max(p.size[0], p.size[1]) : null;
+  const r = p.size[0], sy = p.shape === "mound" ? p.size[1] : 1, k = r * r - (y / sy) ** 2;
+  return k > 0 ? Math.sqrt(k) : null;
+}
+/** foam where a piece stands in the water: a scalloped band just outside its waterline, a child of the piece's mesh
+ *  (it moves and hides with it) */
+function foam(b, p, mesh) {
+  const half = waterline(p);
+  if (half === null) return;
+  const F = STYLE.water.foam, R = rng(b.seed, "foam", ...p.at), n = 48, pts = [];
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2, c = Math.cos(a), s = Math.sin(a), w = F.width * (0.6 + 0.8 * R());
+    const k = Array.isArray(half) ? 1 / Math.max(Math.abs(c) / half[0], Math.abs(s) / half[1]) : half;
+    pts.push(new THREE.Vector2(c * (k + w), s * (k + w)));
+  }
+  const m = new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape(pts)).rotateX(Math.PI / 2),
+    new THREE.MeshBasicMaterial({ color: F.color, transparent: true, opacity: F.alpha, depthWrite: false, side: THREE.DoubleSide }));
+  m.position.set(0, 0.012 - p.at[1], 0); // just over the water surface, under the piece
+  mesh.add(m);
+}
+
 function custom(b, spec) {
+  const water = isWater(spec);
+  b.group.userData.water = water;
   if (spec.kind === "indoor") {
     b.box(14, 0.1, 12, spec.floor, [0, -0.05, 2.5], { outline: false, floor: true, repeat: [4, 3] });
     b.box(14, 6, 0.2, spec.back, [0, 3, -2.7], { outline: false, backdrop: true, repeat: [5, 2] });
   } else {
-    b.box(140, 0.1, 100, spec.floor, [0, -0.07, -38], { outline: false, floor: true, repeat: [28, 20] });
+    b.box(140, 0.1, 100, spec.floor, [0, -0.07, -38], { outline: false, floor: true, repeat: [28, 20], pattern: water ? waves : null });
     sky(b, spec.back, "#f7f1e1");
   }
   for (const p of spec.pieces || []) {
     const opts = { backdrop: p.backdrop, outline: p.outline ?? true };
     b.piece(() => {
-      if (p.shape === "box") b.box(...p.size, p.color, p.at, opts);
-      else if (p.shape === "cyl") b.cyl(...p.size, p.color, p.at, opts);
-      else if (p.shape === "ball") b.ball(p.size[0], p.color, p.at, opts);
-      else b.mound(p.size[0], p.size[1], p.color, p.at, opts);
+      const m = p.shape === "box" ? b.box(...p.size, p.color, p.at, opts) : p.shape === "cyl" ? b.cyl(...p.size, p.color, p.at, opts)
+        : p.shape === "ball" ? b.ball(p.size[0], p.color, p.at, opts) : b.mound(p.size[0], p.size[1], p.color, p.at, opts);
+      if (water) foam(b, p, m);
     });
   }
 }

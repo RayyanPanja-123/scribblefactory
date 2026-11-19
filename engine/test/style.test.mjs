@@ -27,3 +27,16 @@ test("set outlines: subdivided hull, gap-free corner normals, deterministic", ()
   assert.deepEqual(hullGeometry(new THREE.CylinderGeometry(0.1, 0.2, 3, 20)).attributes.inkNormal.array,
     hullGeometry(new THREE.CylinderGeometry(0.1, 0.2, 3, 20)).attributes.inkNormal.array);
 });
+
+test("water: detected from a blue outdoor floor only; waterline footprints of pieces in it", async () => {
+  const { isWater, waterline } = await import("../page/world.js");
+  assert.equal(isWater({ kind: "outdoor", floor: "#add8e6" }), true);  // the Romans' beach sea
+  assert.equal(isWater({ kind: "outdoor", floor: "#3a8fb7" }), true);
+  assert.equal(isWater({ kind: "indoor", floor: "#add8e6" }), false);  // a blue carpet is not a sea
+  for (const floor of ["#d6c6a2", "#8cc152", "#5a5a60", "#f2d8a0"]) assert.equal(isWater({ kind: "outdoor", floor }), false, floor);
+  assert.ok(Math.abs(waterline({ shape: "mound", at: [0, 0, -25], size: [20, 0.5] }) - 20) < 1e-9);
+  assert.ok(Math.abs(waterline({ shape: "mound", at: [0, -1, -25], size: [10, 0.5] }) - Math.sqrt(100 - 4)) < 1e-9);
+  assert.equal(waterline({ shape: "box", at: [0, 0.5, -15], size: [30, 0.2, 3] }), null); // floats above the water
+  assert.deepEqual(waterline({ shape: "box", at: [0, 0.4, -5], size: [6, 0.8, 2] }), [3, 1]);
+  assert.equal(waterline({ shape: "cyl", at: [0, 1.5, -3], size: [0.1, 0.15, 3] }), 0.15);
+});

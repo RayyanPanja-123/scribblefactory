@@ -98,6 +98,41 @@ const SHADOW_TEX = (() => {
   return new THREE.CanvasTexture(c);
 })();
 const SHADOW_GEO = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+/** canvas texture from a 2D draw function (size x size) */
+const canvasTex = (size, draw) => {
+  const c = Object.assign(document.createElement("canvas"), { width: size, height: size });
+  draw(c.getContext("2d"), size);
+  return new THREE.CanvasTexture(c);
+};
+// water: a ripple ring (white, tinted by the material), and the reflection's fade: opaque at the feet (bottom of the
+// card's uv), gone half way up the figure
+const RIPPLE_TEX = canvasTex(128, (g, s) => { g.strokeStyle = "#fff"; g.lineWidth = 7; g.beginPath(); g.arc(s / 2, s / 2, s / 2 - 6, 0, Math.PI * 2); g.stroke(); });
+const FADE_TEX = canvasTex(64, (g, s) => {
+  const gr = g.createLinearGradient(0, s, 0, 0);
+  gr.addColorStop(0, "#fff"); gr.addColorStop(0.45, "#000"); g.fillStyle = gr; g.fillRect(0, 0, s, s);
+});
+
+/** ripples (water or wet ground) and, on water, a fading mirror image under a standing card c at (x, z) */
+function drawWater(c, x, z, yaw, t, key, water) {
+  const Wt = STYLE.water, Rp = Wt.ripple, off = rng(key, "ripple")();
+  c.ripples ??= Array.from({ length: Rp.rings }, () => Object.assign(new THREE.Mesh(SHADOW_GEO,
+    new THREE.MeshBasicMaterial({ map: RIPPLE_TEX, color: Rp.color, transparent: true, depthWrite: false })), { renderOrder: 0.6 }));
+  c.ripples.forEach((m, i) => {
+    const ph = (((t / Rp.period + off + i / Rp.rings) % 1) + 1) % 1, w = lerp(Rp.from, Rp.to, ph);
+    m.position.set(x, SHADOW.y + 0.003, z);
+    m.scale.set(w, 1, w);
+    m.material.opacity = Rp.alpha * (1 - ph) * (water ? 1 : Wt.wetRipple);
+    scene.add(m);
+  });
+  if (!water) return;
+  // the card's own texture, flipped about the feet; drawn over the water (no depth test: the floor would hide it)
+  c.reflect ??= Object.assign(new THREE.Mesh(c.mesh.geometry, new THREE.MeshBasicMaterial({ map: c.tex, alphaMap: FADE_TEX,
+    transparent: true, opacity: Wt.reflection.alpha, depthWrite: false, depthTest: false, side: THREE.DoubleSide })), { renderOrder: 0.6 });
+  c.reflect.position.set(x, 0, z);
+  c.reflect.rotation.set(0, yaw, 0);
+  c.reflect.scale.set(1, -1, 1);
+  scene.add(c.reflect);
+}
 
 function card(id, geo = CARD_GEO, w = CW, h = CH) {
   if (!cards[id]) {
@@ -350,7 +385,10 @@ function drawShot(shot, n) {
   const kf = Math.min(Math.max(n, shot.start_frame), shot.end_frame - 1); // held frame for shot motion
   const u = (kf - shot.start_frame) / (shot.end_frame - shot.start_frame), t = n / FPS;
   const group = useSet(shot);
-  setInk(Math.floor(n / BOIL_FRAMES)); // set outlines boil with the cast's lines
+  setInk(Math.floor(n / BOIL_FRAMES), group.userData.background); // set outlines boil with the cast's lines
+  // standing in water (a water set), or on wet ground (outdoors in rain or a storm): ripples under the cast
+  const water = !!group.userData.water;
+  const wet = setKind(shot.set) === "outdoor" && ["rain", "storm"].includes(shot.weather?.kind);
   const animals = shot.animals || [], vehicles = shot.vehicles || [];
   // riders sit in their car's seats: their spot is the car's spot plus the seat offset
   const seated = new Map();
@@ -429,6 +467,7 @@ function drawShot(shot, n) {
     shadow.position.set(x, SHADOW.y, z);
     shadow.scale.set(SHADOW.w * k * (1 + 1.3 * roll.k) * (a.action === "carried" ? 0.7 : 1), 1, SHADOW.d * k);
     scene.add(mesh, shadow);
+    if ((water || wet) && !roll.k && a.action !== "carried") drawWater(cards[a.cast_id], x, z, yaw, t, key, water);
   }
   drawAnimals(shot, animals, n, kf, u);
   const extras = drawExtras(shot, n, kf, u, extraShift);

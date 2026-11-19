@@ -4,7 +4,7 @@
 import * as THREE from "three";
 import { setLibrary } from "./library.js";
 import { fogAlpha, fogCanvas, paint, paintBack } from "./weather.js";
-import { buildSet } from "./world.js";
+import { buildSet, setInk } from "./world.js";
 
 let gl = null;
 const grey = new THREE.MeshBasicMaterial({ color: 0x9a948a });
@@ -38,6 +38,7 @@ export function previewSet(out, name, custom, weather = null) {
   try {
     setLibrary({ sets: custom || [] });
     const set = buildSet(name, "preview");
+    setInk(0, set.userData.background);
     scene.add(set, standIn(-0.9), standIn(0.9));
     if (fogAlpha(weather)) { // main.js FOG
       const tex = new THREE.CanvasTexture(fogCanvas("preview"));
