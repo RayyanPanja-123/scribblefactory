@@ -126,7 +126,7 @@ const ARM_SLIDERS = [[0, 0, 'Left arm'], [0, 1, 'Left bend'], [1, 0, 'Right arm'
           <button type="button" class="btn btn-secondary" :disabled="form.keys.length >= 40" @click="addKey"><Plus :size="16" aria-hidden="true" /> Add key</button>
         </div>
         <p class="text-xs text-muted">Angles in degrees from straight down, + toward screen right: an arm at 0 hangs, 90 points
-          right, 180 straight up (the left arm rests at −16, the right at +16). Bend turns the forearm (the elbow). Legs rest at −6 / +6; the
+          right, 180 straight up (the left arm rests at −16, the right at +16). Bend turns the forearm (the elbow; facing sideways both bends are 0 or more, an elbow only bends forward). Legs rest at −6 / +6; the
           feet stay on the ground. Knee bends the shin back (0 straight, 90 a right angle); with bent knees, lean bends at the
           hips. Face sideways for these: a one-knee kneel is legs 0 / 90, knees 90 / 90; a deep squat is legs 85 / 85,
           knees 160 / 160, and with lean 40 the front hand reaches the ground. A key without arms or legs keeps them at rest. The engine eases between keys in time order.</p>

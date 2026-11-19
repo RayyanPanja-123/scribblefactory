@@ -51,7 +51,9 @@ Each key: {"t": 0.5, "arms": [[L, Lbend], [R, Rbend]], "legs": [L, R], "knees": 
 - Measured from straight DOWN; positive turns toward screen RIGHT (the figure's left hand side is screen left).
 - Upper arm: 0 hangs down, 90 points right, -90 points left, 180 / -180 straight up. Rest: left -16, right 16.
 - Forearm bend: turns the forearm relative to the upper arm, same sign rule: for the right arm, + bends the hand
-  up and inward; for the left arm use - for the mirror image. 0 = straight arm.
+  up and inward; on a camera action use - for the left arm (the mirror image). 0 = straight arm.
+  On a side action both arms are seen in profile: both bends are 0..180 (+ folds the forearm forward and up,
+  like a real elbow); a negative bend there would bend the elbow backward and is refused.
 - Legs: rest -6 (left) and 6 (right); -20 kicks the left leg out to the left, 20 the right leg out to the right.
 - Lean: + leans toward screen right.
 - Arms are short (about a head and a half): raised hands end beside or just above the head.
@@ -116,6 +118,9 @@ export function importAction(text: string): { action?: CustomAction; error?: str
   const name = typeof a.name === 'string' && a.name.trim() ? a.name.trim().slice(0, 40) : 'New action'
   const duration = num(a.duration, 0.2, 10) ? a.duration! : 1.5
   const facing = a.facing === 'side' ? 'side' : 'camera'
+  const backward = facing === 'side' && keys.findIndex((k) => k.arms && Math.min(k.arms[0][1], k.arms[1][1]) < 0)
+  if (backward !== false && backward >= 0)
+    return { error: `Key #${backward + 1}: on a side action both arm bends must be 0..180 (an elbow only bends forward).` }
   const move = typeof a.move === 'number' && Number.isFinite(a.move) ? Math.max(-2.5, Math.min(2.5, a.move)) : 0
   return { action: { id: slugify(typeof a.id === 'string' ? a.id : name) || 'action', name, duration, loop: a.loop !== false, facing,
     move: facing === 'side' ? move : 0,

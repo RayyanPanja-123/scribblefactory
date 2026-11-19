@@ -291,6 +291,10 @@ def test_custom_action_schema():
                      ({"duration": 0}, "greater than or equal")]:
         with pytest.raises(ValueError, match=msg):
             CustomAction.model_validate({**SALUTE, **bad})
+    side = {"id": "jab", "name": "Jab", "duration": 1, "facing": "side"}
+    with pytest.raises(ValueError, match="elbow only bends forward"):
+        CustomAction.model_validate({**side, "keys": [{"t": 0, "arms": [[60, -30], [90, 0]]}]})
+    CustomAction.model_validate({**side, "facing": "camera", "keys": [{"t": 0, "arms": [[-60, -30], [60, 30]]}]})  # camera: - mirrors
     with pytest.raises(ValueError, match="duplicate action id"):
         ActionLibrary.model_validate({"actions": [SALUTE, SALUTE]})
 

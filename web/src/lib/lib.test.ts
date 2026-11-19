@@ -325,6 +325,8 @@ describe('action prompt', () => {
     expect(importAction('{"keys": [{"t": 0, "arms": [[200, -190], [360, 90]]}]}').action?.keys[0].arms).toEqual([[-160, 170], [0, 90]]) // rotations wrap
     expect(importAction('{"keys": [{"t": 0, "arms": [[1, 2, 3], [0, 0]]}]}').error).toMatch(/"arms"/)
     expect(importAction('{"keys": [{"t": 2}]}').error).toMatch(/"t"/)
+    expect(importAction('{"facing": "side", "keys": [{"t": 0, "arms": [[60, -30], [90, 0]]}]}').error).toMatch(/elbow only bends forward/)
+    expect(importAction('{"facing": "camera", "keys": [{"t": 0, "arms": [[-60, -30], [60, 30]]}]}').action).toBeTruthy()
     expect(importAction('{"name": "X"}').error).toMatch(/keys/)
   })
 })

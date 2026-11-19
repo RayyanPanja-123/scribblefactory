@@ -611,6 +611,9 @@ class CustomAction(Strict):
             raise ValueError("move: only a side action crosses the stage (set facing to side)")
         if self.move and abs(self.move) < 0.3:
             raise ValueError("move: at least 0.3 units/s, or 0 to stay in place")
+        if self.facing == "side" and any(k.arms and min(k.arms[0][1], k.arms[1][1]) < 0 for k in self.keys):
+            raise ValueError("arms: on a side action both arms are in profile and an elbow only bends forward: "
+                             "bends 0..180 (the - mirror bend is for the left arm of a camera action)")
         return self
 
     @field_validator("keys")
