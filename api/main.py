@@ -16,6 +16,9 @@ import shlex
 import subprocess
 import sys
 import threading
+import urllib.error
+import urllib.parse
+import urllib.request
 from collections import deque
 from datetime import date, datetime
 from pathlib import Path
@@ -1271,7 +1274,8 @@ def load_jobs() -> list[str]:
     return notes
 
 
-# library/settings.json held third-party AI provider settings and keys; AI help is copy/paste only now
+# library/settings.json held third-party AI provider settings and keys; AI help is copy/paste now, except captions
+# (Gemini, keyed in Settings: write_captions)
 OLD_AI_KEYS = {"provider", "base_url", "model", "omniroute_model", "gemini_model", "openrouter_model",
                "api_key", "gemini_api_key", "openrouter_api_key"}
 
@@ -1303,6 +1307,7 @@ class Settings(BaseModel):
     force_software_gl: bool = False
     socials: Socials = Field(default_factory=Socials, description="handles on every part's closing 'Follow for more' "
                                                                   "screen (empty: left off)")
+    brand_tags: str = Field("", max_length=300, description="hashtags every caption carries, e.g. #scribblefactory")
 
 
 class Machine(BaseModel):
@@ -1322,6 +1327,7 @@ class SettingsView(BaseModel):
     workers_now: int  # what the next render uses
     machine: Machine
     examples: list[PcExample]
+    gemini_key_last4: str  # '' when none is set; the key itself never leaves the server
 
 
 # typical machines -> what auto picks on them (same formula as this PC's recommendation)
@@ -1334,7 +1340,8 @@ PC_EXAMPLES = [("Laptop, 4 cores, 8 GB, Intel UHD", 8, 8, "Intel(R) UHD Graphics
 def settings_view() -> dict:
     return {"settings": settings.load(lib()), "workers_now": settings.render_workers(lib()),
             "machine": settings.machine(lib()),
-            "examples": [{"pc": pc, "workers": settings.recommend(t, r, g)} for pc, t, r, g in PC_EXAMPLES]}
+            "examples": [{"pc": pc, "workers": settings.recommend(t, r, g)} for pc, t, r, g in PC_EXAMPLES],
+            "gemini_key_last4": settings.gemini_key(lib())[-4:]}
 
 
 @app.get("/api/settings", response_model=SettingsView)
@@ -1355,6 +1362,73 @@ def put_settings(body: Settings):
         old = {}
     atomic_write_json(f, {**(old if isinstance(old, dict) else {}), **body.model_dump()})  # keep keys we don't know
     return settings_view()
+
+
+# ---------------- captions: Gemini, the one task an outside AI does here ----------------
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent"
+GEMINI_MODEL = "gemini-flash-latest"  # Google's alias for the current Flash; GEMINI_MODEL pins another
+
+
+class CaptionRequest(BaseModel):
+    prompt: str = Field(min_length=1, max_length=30000)
+
+
+class Captions(BaseModel):
+    youtube_title: str
+    youtube_description: str  # with its hashtags
+    youtube_pinned_comment: str
+    instagram_caption: str  # the whole post: hook, story, question, hashtags
+
+
+class GeminiKey(BaseModel):
+    key: str = Field("", max_length=200)  # empty: remove it
+
+
+@app.put("/api/settings/gemini-key", response_model=SettingsView)
+def put_gemini_key(body: GeminiKey):
+    """write-only: GET /api/settings shows only its last 4 characters"""
+    f = settings.path(lib())
+    try:
+        old = json.loads(f.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        old = {}
+    s = {k: v for k, v in (old if isinstance(old, dict) else {}).items() if k != "gemini_key"}
+    atomic_write_json(f, {**s, "gemini_key": body.key.strip()} if body.key.strip() else s)
+    return settings_view()
+
+
+@app.post("/api/captions", response_model=Captions)
+def write_captions(body: CaptionRequest):
+    """YouTube and Instagram captions from Gemini: the key from Settings (else $GEMINI_API_KEY), the model from
+    $GEMINI_MODEL if set"""
+    key = settings.gemini_key(lib()) or os.environ.get("GEMINI_API_KEY", "").strip()
+    if not key:
+        raise HTTPException(409, "No Gemini API key: add it in Settings")
+    model = os.environ.get("GEMINI_MODEL", "").strip() or GEMINI_MODEL
+    schema = {"type": "OBJECT", "properties": {k: {"type": "STRING"} for k in Captions.model_fields},
+              "required": list(Captions.model_fields), "propertyOrdering": list(Captions.model_fields)}
+    req = urllib.request.Request(
+        GEMINI_URL.format(urllib.parse.quote(model, safe="")), method="POST",
+        headers={"Content-Type": "application/json", "x-goog-api-key": key},
+        data=json.dumps({"contents": [{"role": "user", "parts": [{"text": body.prompt}]}],
+                         "generationConfig": {"responseMimeType": "application/json",
+                                              "responseSchema": schema}}).encode())
+    try:
+        with urllib.request.urlopen(req, timeout=120) as r:
+            out = json.load(r)
+    except urllib.error.HTTPError as e:
+        try:
+            msg = json.load(e)["error"]["message"]
+        except (ValueError, KeyError, TypeError, OSError):
+            msg = f"HTTP {e.code}"
+        raise HTTPException(502, f"Gemini ({model}): {msg}")
+    except (urllib.error.URLError, TimeoutError, ValueError) as e:
+        raise HTTPException(502, f"Gemini ({model}) did not answer: {e}")
+    try:
+        parts = out["candidates"][0]["content"]["parts"]
+        return Captions.model_validate_json("".join(p.get("text", "") for p in parts if not p.get("thought")))
+    except (KeyError, IndexError, TypeError, AttributeError, ValidationError):
+        raise HTTPException(502, f"Gemini ({model}) sent no usable captions: try again")
 
 
 def startup() -> None:

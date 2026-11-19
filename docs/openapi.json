@@ -274,6 +274,49 @@
         "title": "BuiltinWardrobeItem",
         "type": "object"
       },
+      "CaptionRequest": {
+        "properties": {
+          "prompt": {
+            "maxLength": 30000,
+            "minLength": 1,
+            "title": "Prompt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "title": "CaptionRequest",
+        "type": "object"
+      },
+      "Captions": {
+        "properties": {
+          "instagram_caption": {
+            "title": "Instagram Caption",
+            "type": "string"
+          },
+          "youtube_description": {
+            "title": "Youtube Description",
+            "type": "string"
+          },
+          "youtube_pinned_comment": {
+            "title": "Youtube Pinned Comment",
+            "type": "string"
+          },
+          "youtube_title": {
+            "title": "Youtube Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "youtube_title",
+          "youtube_description",
+          "youtube_pinned_comment",
+          "instagram_caption"
+        ],
+        "title": "Captions",
+        "type": "object"
+      },
       "CastApproval": {
         "properties": {
           "cast_id": {
@@ -1192,6 +1235,18 @@
           "back"
         ],
         "title": "CustomSet",
+        "type": "object"
+      },
+      "GeminiKey": {
+        "properties": {
+          "key": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Key",
+            "type": "string"
+          }
+        },
+        "title": "GeminiKey",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -2759,6 +2814,13 @@
       },
       "Settings": {
         "properties": {
+          "brand_tags": {
+            "default": "",
+            "description": "hashtags every caption carries, e.g. #scribblefactory",
+            "maxLength": 300,
+            "title": "Brand Tags",
+            "type": "string"
+          },
           "force_software_gl": {
             "default": false,
             "title": "Force Software Gl",
@@ -2795,6 +2857,10 @@
             "title": "Examples",
             "type": "array"
           },
+          "gemini_key_last4": {
+            "title": "Gemini Key Last4",
+            "type": "string"
+          },
           "machine": {
             "$ref": "#/components/schemas/Machine"
           },
@@ -2810,7 +2876,8 @@
           "settings",
           "workers_now",
           "machine",
-          "examples"
+          "examples",
+          "gemini_key_last4"
         ],
         "title": "SettingsView",
         "type": "object"
@@ -3983,6 +4050,45 @@
           }
         },
         "summary": "Put Action"
+      }
+    },
+    "/api/captions": {
+      "post": {
+        "description": "YouTube and Instagram captions from Gemini: the key from Settings (else $GEMINI_API_KEY), the model from\n$GEMINI_MODEL if set",
+        "operationId": "write_captions_api_captions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CaptionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Captions"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Write Captions"
       }
     },
     "/api/creatures": {
@@ -5714,6 +5820,45 @@
           }
         },
         "summary": "Put Settings"
+      }
+    },
+    "/api/settings/gemini-key": {
+      "put": {
+        "description": "write-only: GET /api/settings shows only its last 4 characters",
+        "operationId": "put_gemini_key_api_settings_gemini_key_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeminiKey"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Gemini Key"
       }
     },
     "/api/sfx": {

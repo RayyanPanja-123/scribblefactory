@@ -1,6 +1,10 @@
 # Changelog
 
 ## Unreleased
+- Captions: the upload.md textarea is now two cards, YouTube (title, description + tags, pinned comment) and
+  Instagram (one caption with everything), each field with a Copy button and a length count. **Write with Gemini**
+  (`POST /api/captions`, key in Settings → Gemini API key, write-only) writes them from the story, the next part's opening and the
+  new Settings > Brand tags. Gemini is used for captions only; every other AI step stays copy/paste.
 - End screen: every part, the last one included, now ends 0.3 s after its last word on a silent 2.5 s black
   "Follow for more" screen with the YouTube / Instagram / Facebook handles from Settings (empty ones left off).
   The voice no longer carries a sign-off: no "To be continued." / "Part n on my profile" line, no stretched pause

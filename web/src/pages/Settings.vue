@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Cpu, Megaphone, Save } from 'lucide-vue-next'
+import { Cpu, Hash, KeyRound, Megaphone, Save, Trash2 } from 'lucide-vue-next'
 import { computed, onMounted, ref } from 'vue'
 import { api, type SettingsView } from '../api/client'
 import { act, toast } from '../composables/feedback'
@@ -14,6 +14,16 @@ const softwareGl = ref(false)
 // handles on every part's closing "Follow for more" screen (finish); empty ones are left off it
 const SOCIALS = [['youtube', 'YouTube', '@yourchannel'], ['instagram', 'Instagram', '@yourname'], ['facebook', 'Facebook', 'yourpage']] as const
 const socials = ref({ youtube: '', instagram: '', facebook: '' })
+const brandTags = ref('') // on every Gemini-written caption, after the story's own tags
+// the Gemini key (captions only) is write-only: the page only ever learns whether one is set
+const geminiKey = ref('')
+async function saveKey(key: string) {
+  const v = await act(() => api.saveGeminiKey(key), key ? 'Gemini key saved' : 'Gemini key removed')
+  if (v) {
+    view.value = { ...view.value!, gemini_key_last4: v.gemini_key_last4 }
+    geminiKey.value = ''
+  }
+}
 
 function fill(v: SettingsView) {
   view.value = v
@@ -22,6 +32,7 @@ function fill(v: SettingsView) {
   workers.value = typeof w === 'number' ? w : v.machine.recommended_workers
   softwareGl.value = !!v.settings.force_software_gl
   socials.value = { ...socials.value, ...v.settings.socials }
+  brandTags.value = v.settings.brand_tags ?? ''
 }
 onMounted(async () => {
   try {
@@ -34,11 +45,13 @@ onMounted(async () => {
 const chosen = computed(() => (auto.value ? 'auto' : workers.value))
 const dirty = computed(() => !!view.value && (chosen.value !== view.value.settings.render_workers
   || softwareGl.value !== !!view.value.settings.force_software_gl
+  || brandTags.value.trim() !== (view.value.settings.brand_tags ?? '')
   || SOCIALS.some(([k]) => socials.value[k].trim() !== (view.value!.settings.socials?.[k] ?? ''))))
 const valid = computed(() => auto.value || (Number.isInteger(workers.value) && workers.value >= 1 && workers.value <= MAX))
 async function save() {
   const v = await act(() => api.saveSettings({ render_workers: chosen.value, force_software_gl: softwareGl.value,
-    socials: { youtube: socials.value.youtube.trim(), instagram: socials.value.instagram.trim(), facebook: socials.value.facebook.trim() } }), 'Settings saved')
+    socials: { youtube: socials.value.youtube.trim(), instagram: socials.value.instagram.trim(), facebook: socials.value.facebook.trim() },
+    brand_tags: brandTags.value.trim() }), 'Settings saved')
   if (v) fill(v)
 }
 const m = computed(() => view.value?.machine)
@@ -105,7 +118,30 @@ const field = 'inset mt-1 block h-10 w-28 rounded-md px-4 text-sm text-ink outli
         </div>
       </fieldset>
 
+      <label class="block text-sm font-semibold"><span class="flex items-center gap-2"><Hash :size="16" aria-hidden="true" /> Brand tags</span>
+        <span class="mt-1 block text-xs font-normal text-muted">Hashtags Gemini puts on every YouTube and Instagram caption, after the story's own.</span>
+        <input v-model="brandTags" type="text" maxlength="300" placeholder="#scribblefactory #stickman" autocomplete="off"
+          class="inset mt-2 block h-10 w-full rounded-md px-3 text-sm font-normal text-ink outline-none focus:border-blue" />
+      </label>
+
       <button class="btn btn-primary" :disabled="!dirty || !valid"><Save :size="16" aria-hidden="true" /> Save</button>
+    </form>
+
+    <form v-if="view" class="raised p-4" aria-labelledby="gemini" @submit.prevent="saveKey(geminiKey.trim())">
+      <h3 id="gemini" class="flex items-center gap-2 text-sm font-semibold"><KeyRound :size="16" aria-hidden="true" /> Gemini API key</h3>
+      <p class="mt-1 text-xs text-muted">Only used to write YouTube and Instagram captions. Get one at aistudio.google.com/apikey.
+        Kept in library/settings.json on this PC and never shown again, only its last 4 characters.</p>
+      <p class="mt-2 text-sm" :class="view.gemini_key_last4 ? 'text-green-ink' : 'text-muted'">
+        <template v-if="view.gemini_key_last4">Key set, ending in <span class="num font-semibold">••••{{ view.gemini_key_last4 }}</span></template>
+        <template v-else>No key set.</template></p>
+      <div class="mt-2 flex flex-wrap gap-2">
+        <label class="sr-only" for="gemini-key">Gemini API key</label>
+        <input id="gemini-key" v-model="geminiKey" type="password" maxlength="200" autocomplete="off" spellcheck="false"
+          :placeholder="view.gemini_key_last4 ? 'Paste a new key to replace it' : 'Paste your key'"
+          class="inset block h-10 min-w-0 flex-1 rounded-md px-3 text-sm text-ink outline-none focus:border-blue" />
+        <button class="btn btn-primary" :disabled="!geminiKey.trim()"><Save :size="16" aria-hidden="true" /> Save key</button>
+        <button v-if="view.gemini_key_last4" type="button" class="btn btn-secondary" @click="saveKey('')"><Trash2 :size="16" aria-hidden="true" /> Remove</button>
+      </div>
     </form>
 
     <section v-if="view" class="raised p-4" aria-labelledby="examples">

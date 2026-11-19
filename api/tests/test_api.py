@@ -1,3 +1,5 @@
+import contextlib
+import io
 import json
 import os
 import socket
@@ -685,13 +687,13 @@ def test_drop_old_ai_settings(tmp_path, monkeypatch):
 def test_settings(client, lib):
     r = client.get("/api/settings").json()
     none = {"youtube": "", "instagram": "", "facebook": ""}
-    assert r["settings"] == {"render_workers": "auto", "force_software_gl": False, "socials": none}
+    assert r["settings"] == {"render_workers": "auto", "force_software_gl": False, "socials": none, "brand_tags": ""}
     assert r["workers_now"] == r["machine"]["recommended_workers"] >= 1 and len(r["examples"]) == 4
     for bad in (0, 17, "lots"):
         assert client.put("/api/settings", json={"render_workers": bad}).status_code == 422
     (lib / "settings.json").write_text(json.dumps({"keep": 1}), encoding="utf-8")
     r = client.put("/api/settings", json={"render_workers": 6, "force_software_gl": True}).json()
-    assert r["settings"] == {"render_workers": 6, "force_software_gl": True, "socials": none} and r["workers_now"] == 6
+    assert r["settings"] == {"render_workers": 6, "force_software_gl": True, "socials": none, "brand_tags": ""} and r["workers_now"] == 6
     r = client.put("/api/settings", json={"render_workers": 6, "socials": {"youtube": "@chan", "facebook": "page"}}).json()
     assert r["settings"]["socials"] == {"youtube": "@chan", "instagram": "", "facebook": "page"}
     assert json.loads((lib / "settings.json").read_text(encoding="utf-8"))["keep"] == 1  # unknown keys kept
@@ -765,3 +767,29 @@ def test_sfx_suggestions_accept_reject(client, lib):
     assert "riser" not in [s["id"] for s in r["suggestions"]]
     stale = {**riser, "line": 2}
     assert client.post(f"{P}/sfx-suggestions", json={**stale, "accept": True}).status_code == 409
+
+
+def test_captions_gemini(client, lib, monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_MODEL", raising=False)
+    assert client.post("/api/captions", json={"prompt": "p"}).status_code == 409  # no key: says so, calls nothing
+    r = client.put("/api/settings/gemini-key", json={"key": " sekret-k "}).json()
+    assert r["gemini_key_last4"] == "et-k" and "sekret" not in json.dumps(client.get("/api/settings").json())
+    client.put("/api/settings", json={"render_workers": 3})  # saving other settings keeps the key
+    assert client.get("/api/settings").json()["gemini_key_last4"] == "et-k"
+    sent = {}
+    caps = {"youtube_title": "T", "youtube_description": "D #shorts", "youtube_pinned_comment": "C?",
+            "instagram_caption": "I #reels"}
+
+    def fake(req, timeout):
+        sent.update(url=req.full_url, key=req.get_header("X-goog-api-key"), body=json.loads(req.data))
+        reply = {"candidates": [{"content": {"parts": [{"text": "hmm", "thought": True}, {"text": json.dumps(caps)}]}}]}
+        return contextlib.nullcontext(io.BytesIO(json.dumps(reply).encode()))
+    monkeypatch.setattr(m.urllib.request, "urlopen", fake)
+    assert client.post("/api/captions", json={"prompt": "write"}).json() == caps
+    assert sent["key"] == "sekret-k" and sent["url"].endswith("/gemini-flash-latest:generateContent")
+    assert sent["body"]["contents"][0]["parts"][0]["text"] == "write"
+    monkeypatch.setattr(m.urllib.request, "urlopen", lambda req, timeout: contextlib.nullcontext(io.BytesIO(b'{"candidates": []}')))
+    assert client.post("/api/captions", json={"prompt": "write"}).status_code == 502
+    assert not client.put("/api/settings/gemini-key", json={"key": ""}).json()["gemini_key_last4"]
+    assert "gemini_key" not in json.loads((lib / "settings.json").read_text(encoding="utf-8"))

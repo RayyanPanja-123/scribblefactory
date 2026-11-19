@@ -39,6 +39,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/captions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Write Captions
+         * @description YouTube and Instagram captions from Gemini: the key from Settings (else $GEMINI_API_KEY), the model from
+         *     $GEMINI_MODEL if set
+         */
+        post: operations["write_captions_api_captions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/creatures": {
         parameters: {
             query?: never;
@@ -630,6 +651,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings/gemini-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Gemini Key
+         * @description write-only: GET /api/settings shows only its last 4 characters
+         */
+        put: operations["put_gemini_key_api_settings_gemini_key_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/sfx": {
         parameters: {
             query?: never;
@@ -842,6 +883,22 @@ export interface components {
              * @enum {string}
              */
             slot: "hair" | "facial_hair" | "headwear" | "top" | "legwear" | "footwear" | "back" | "accessory" | "face";
+        };
+        /** CaptionRequest */
+        CaptionRequest: {
+            /** Prompt */
+            prompt: string;
+        };
+        /** Captions */
+        Captions: {
+            /** Instagram Caption */
+            instagram_caption: string;
+            /** Youtube Description */
+            youtube_description: string;
+            /** Youtube Pinned Comment */
+            youtube_pinned_comment: string;
+            /** Youtube Title */
+            youtube_title: string;
         };
         /** CastApproval */
         CastApproval: {
@@ -1210,6 +1267,14 @@ export interface components {
              * @description when a story should use it (shown to the story AI; never changes the drawing)
              */
             use_for?: string | null;
+        };
+        /** GeminiKey */
+        GeminiKey: {
+            /**
+             * Key
+             * @default
+             */
+            key: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1827,6 +1892,12 @@ export interface components {
         /** Settings */
         Settings: {
             /**
+             * Brand Tags
+             * @description hashtags every caption carries, e.g. #scribblefactory
+             * @default
+             */
+            brand_tags: string;
+            /**
              * Force Software Gl
              * @default false
              */
@@ -1844,6 +1915,8 @@ export interface components {
         SettingsView: {
             /** Examples */
             examples: components["schemas"]["PcExample"][];
+            /** Gemini Key Last4 */
+            gemini_key_last4: string;
             machine: components["schemas"]["Machine"];
             settings: components["schemas"]["Settings"];
             /** Workers Now */
@@ -2432,6 +2505,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ActionCatalog"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    write_captions_api_captions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CaptionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Captions"];
                 };
             };
             /** @description Validation Error */
@@ -3708,6 +3814,39 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["Settings"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingsView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_gemini_key_api_settings_gemini_key_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GeminiKey"];
             };
         };
         responses: {

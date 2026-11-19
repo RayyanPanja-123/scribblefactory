@@ -4,6 +4,8 @@ render_workers: "auto" (recommended for this PC) or 1..MAX_WORKERS parallel Chro
 force_software_gl: render with SwiftShader (software WebGL) instead of the GPU, for debugging.
 socials: {youtube, instagram, facebook} handles shown on every part's closing "Follow for more" screen (finish);
   an empty one is left off the screen.
+brand_tags: hashtags every caption carries (the Gemini caption writer adds them to the story's own).
+gemini_key: the Gemini API key for captions; read only by gemini_key(), never by load(), so it never reaches the browser.
 """
 import ctypes
 import json
@@ -12,7 +14,7 @@ import sys
 from pathlib import Path
 
 SOCIALS = ("youtube", "instagram", "facebook")
-DEFAULTS = {"render_workers": "auto", "force_software_gl": False, "socials": dict.fromkeys(SOCIALS, "")}
+DEFAULTS = {"render_workers": "auto", "force_software_gl": False, "socials": dict.fromkeys(SOCIALS, ""), "brand_tags": ""}
 MAX_WORKERS = 16
 MAX_AUTO = 8
 GB_PER_WORKER = 1.5  # one Chromium with its page and frames in flight, plus headroom
@@ -33,6 +35,7 @@ def load(library: Path) -> dict:
     out = {k: s.get(k, v) for k, v in DEFAULTS.items()}
     so = out["socials"] if isinstance(out["socials"], dict) else {}
     out["socials"] = {k: str(so.get(k) or "").strip() for k in SOCIALS}
+    out["brand_tags"] = str(out["brand_tags"] or "").strip()
     return out
 
 
@@ -87,6 +90,14 @@ def render_workers(library: Path) -> int:
     if type(w) is int and 1 <= w <= MAX_WORKERS:
         return w
     return recommend(os.cpu_count() or 2, ram_gb(), last_gpu(library))
+
+
+def gemini_key(library: Path) -> str:
+    try:
+        s = json.loads(path(library).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ""
+    return str(s.get("gemini_key") or "").strip() if isinstance(s, dict) else ""
 
 
 def software_gl(library: Path) -> bool:
