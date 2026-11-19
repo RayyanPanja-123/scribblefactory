@@ -132,3 +132,17 @@ test("mouth: short words share a neighbour's cycle; flaps stop between phrases",
     }
   }
 });
+
+test("camera: moves ease in and out; a reaction close-up holds ~0.4 s before its move", async () => {
+  const { cameraProgress, isReactionClose } = await import("../page/motion.js");
+  const shot = (angle, action) => ({ start_frame: 0, end_frame: 60, camera: { angle }, actors: [{ action, expression: "neutral" }] });
+  const med = shot("medium", "talk");
+  assert.equal(cameraProgress(med, 0), 0); assert.equal(cameraProgress(med, 1), 1);
+  assert.ok(Math.abs(cameraProgress(med, 0.5) - 0.5) < 1e-9);
+  assert.ok(cameraProgress(med, 0.1) < 0.1 && cameraProgress(med, 0.9) > 0.9, "eased, not linear");
+  const rc = shot("close", "react");
+  assert.equal(isReactionClose(rc), true); assert.equal(isReactionClose(shot("close", "talk")), false);
+  assert.equal(cameraProgress(rc, 0.39 / 2), 0);       // 0.39 s into a 2 s shot: still holding
+  assert.ok(cameraProgress(rc, 0.5 / 2) > 0);           // moving by 0.5 s
+  assert.equal(cameraProgress(rc, 1), 1);
+});

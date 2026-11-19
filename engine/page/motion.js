@@ -109,3 +109,17 @@ export function waveAmount(ts) {
   const env = glide(Math.min(ts - WAVE.rise, end - ts) / WAVE.ease);
   return { k, swing: env * Math.sin(2 * Math.PI * WAVE.hz * (ts - WAVE.rise)) };
 }
+
+// Camera timing (style.js camera): every move eases in and out; a reaction close-up holds still first so the reaction
+// lands before the camera creeps.
+import { STYLE } from "./style.js";
+const REACTIONS = new Set(["react", "gasp"]);
+/** true for a close-up whose shot shows a reaction (an actor reacting or gasping, or a surprised face) */
+export const isReactionClose = (shot) => shot.camera.angle === "close"
+  && shot.actors.some((a) => REACTIONS.has(a.action) || a.expression === "surprised");
+/** 0..1 how far the camera move has gone at shot fraction u: eased in-out, after a reaction close-up's hold */
+export function cameraProgress(shot, u) {
+  const secs = (shot.end_frame - shot.start_frame) / 30, hold = isReactionClose(shot) ? Math.min(STYLE.camera.reactionHold, secs / 2) : 0;
+  const v = hold ? Math.max(0, (u * secs - hold) / (secs - hold)) : u;
+  return STYLE.camera.ease ? glide(v) : Math.min(1, Math.max(0, v));
+}

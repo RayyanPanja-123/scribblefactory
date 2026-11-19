@@ -6,7 +6,7 @@ import { BODY_W, CH, CW, FEET_Y, FIGURE_PX, HAT_TOP, HEAD_R, drawStickman, figur
 import { CRW, creature, drawCreature, measure as creatureSize } from "./creatures.js";
 import { lookup, setLibrary } from "./library.js";
 import { DH, DOG_FEET, DW, barkAmount, drawDog, gallopPhase } from "./dog.js";
-import { gestureAmount, gesturePlan, mouthCurve, mouthCycles, pointAmount, stressBob, waveAmount } from "./motion.js";
+import { cameraProgress, gestureAmount, gesturePlan, mouthCurve, mouthCycles, pointAmount, stressBob, waveAmount } from "./motion.js";
 import { BUILTIN_ACTIONS, CARRIED_LIFT, HELD_Z, HOLD_GAP, LIE, collapseAt, customPose, eatAt, gaitPhase, giveAt, handOf, heldPlace,
   propsByShot, sideToward, staggerAt, withProp, zzzAt } from "./actions.js";
 import { CAR_CARD_W, CAR_GROUND, DRIVER_X, RIDER_X, VH, VW, carEase, carSpeedShare, drawCar, seatOffset } from "./car.js";
@@ -238,34 +238,40 @@ function shotCamera(shot, sx, xs, u, drop = 0) {
   // a car pulling up / parked / leaving likewise frames the cast and where the car stands
   const wide = shot.camera.angle === "wide", chase = !!(shot.travel && shot.animals?.length)
     || !!(!shot.travel && shot.vehicles?.length);
+  const C = STYLE.camera, M = C.move; // move sizes at speed 1 (style.js camera.move)
   if ((wide || chase) && xs.length) {
+    // outdoor wides (style.js camera.wide): lower and closer, the cast filling the middle third; indoor as before
+    const Wd = setKind(shot.set) === "outdoor" ? C.wide : WIDE;
     const lo = Math.min(...xs), hi = Math.max(...xs), cx = (lo + hi) / 2;
     const end = shot.camera.speed, tan = Math.tan(rad(A.fov / 2)); // end = move size at u = 1
-    const width = hi - lo + WIDE.margin + (shot.camera.move.startsWith("truck") ? 2 * 1.4 * end : 0);
-    const reach = shot.camera.move === "push_in" ? 1 - 0.5 * end : 1;
+    const width = hi - lo + Wd.margin + (shot.camera.move.startsWith("truck") ? 2 * M.truck * end : 0);
+    const reach = shot.camera.move === "push_in" ? 1 - M.push * end : 1;
     const fit = width / (2 * tan * (W / H)) / reach;   // whole cast inside the frame edges all shot long
-    const notCloser = FIG_H / (2 * tan * WIDE.maxFill); // heads and feet win over size: only ever back off
-    pos = [cx, wide ? WIDE.camY : A.pos[1], Math.max(fit, notCloser)]; look = [cx, wide ? WIDE.lookY : A.look[1], 0];
+    const notCloser = FIG_H / (2 * tan * Wd.maxFill); // heads and feet win over size: only ever back off
+    pos = [cx, wide ? Wd.camY : A.pos[1], Math.max(fit, notCloser)]; look = [cx, wide ? Wd.lookY : A.look[1], 0];
   } else {
     const fx = sx * A.follow;
     pos = [fx + A.pos[0], A.pos[1], A.pos[2]]; look = [fx + A.look[0], A.look[1], A.look[2]];
   }
   // a lying subject: the framing comes down with it (drop: world units, 0 standing)
   if (drop) { pos[1] = Math.max(0.3, pos[1] - drop); look[1] -= drop; }
-  const k = shot.camera.speed * u; // the camera keeps creeping for the whole shot (speed >= 0.05)
+  // the camera creeps for the whole shot (speed >= 0.05), eased in and out; a reaction close-up holds first (motion.js)
+  const k = shot.camera.speed * cameraProgress(shot, u);
   switch (shot.camera.move) {
-    case "push_in": ({ pos, look } = dolly(pos, look, 1 - 0.5 * k)); break;
-    case "pull_out": ({ pos, look } = dolly(pos, look, 1 + 0.7 * k)); break;
-    case "truck_left": pos[0] -= 1.4 * k; look[0] -= 1.4 * k; break;
-    case "truck_right": pos[0] += 1.4 * k; look[0] += 1.4 * k; break;
-    case "crane_up": pos[1] += 1.6 * k; look[1] += 0.5 * k; break;
-    case "crane_down": pos[1] = Math.max(0.2, pos[1] - 1.6 * k); look[1] -= 0.4 * k; break;
+    case "push_in": ({ pos, look } = dolly(pos, look, 1 - M.push * k)); break;
+    case "pull_out": ({ pos, look } = dolly(pos, look, 1 + M.pull * k)); break;
+    case "truck_left": pos[0] -= M.truck * k; look[0] -= M.truck * k; break;
+    case "truck_right": pos[0] += M.truck * k; look[0] += M.truck * k; break;
+    case "crane_up": pos[1] += M.crane * k; look[1] += 0.31 * M.crane * k; break;
+    case "crane_down": pos[1] = Math.max(0.2, pos[1] - M.crane * k); look[1] -= 0.25 * M.crane * k; break;
   }
   camera.fov = A.fov;
   camera.position.set(...pos);
   camera.up.set(0, 1, 0);
   camera.lookAt(...look);
-  camera.rotateZ(rad((shot.camera.roll_deg || 0) * glide(u / 0.4)));
+  // a twist shot's roll; else the optional slight seeded horizon tilt (style.js camera.tilt degrees, capped at 2)
+  const tilt = Math.min(2, C.tilt) * (2 * rng(data.story.seed, shot.id, "tilt")() - 1);
+  camera.rotateZ(rad(shot.camera.roll_deg ? shot.camera.roll_deg * glide(u / 0.4) : tilt));
   camera.updateProjectionMatrix();
 }
 

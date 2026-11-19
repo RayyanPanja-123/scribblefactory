@@ -42,4 +42,14 @@ export const STYLE = {
     rim: { color: "#ffd28a", alpha: 0.75, width: 5, inset: 15 },
     shadow: "#27304d",
   },
+  // camera. wide: outdoor wide shots (lower, closer: the cast fills the middle third; camY / lookY world units,
+  // maxFill = never closer than a figure this share of the frame height, margin = extra x room around the cast).
+  // move: world units (truck, crane) or distance share (push, pull) a move covers at speed 1. ease: moves ease in and
+  // out. reactionHold: seconds a reaction close-up holds still before its move. tilt: max seeded horizon tilt in
+  // degrees per shot (0 = level; capped at 2; a twist shot's roll_deg wins).
+  camera: {
+    wide: { margin: 0.6, maxFill: 0.33, camY: 1.35, lookY: 0.85 },
+    move: { push: 0.35, pull: 0.5, truck: 0.9, crane: 1.0 },
+    ease: true, reactionHold: 0.4, tilt: 0,
+  },
 };
