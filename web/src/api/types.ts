@@ -861,7 +861,7 @@ export interface components {
             accessory?: components["schemas"]["WardrobeSlot"][] | null;
             back?: components["schemas"]["WardrobeSlot"] | null;
             /** Default Expression */
-            default_expression?: ("neutral" | "happy" | "sad" | "angry" | "surprised" | "sleepy" | "cheeky" | "exhausted" | "worried") | null;
+            default_expression?: ("neutral" | "happy" | "sad" | "angry" | "surprised" | "sleepy" | "cheeky" | "exhausted" | "worried" | "dead") | null;
             /** Eyes */
             eyes?: ("dots" | "half_closed") | null;
             /** Face */
@@ -905,7 +905,7 @@ export interface components {
              * @default neutral
              * @enum {string}
              */
-            default_expression: "neutral" | "happy" | "sad" | "angry" | "surprised" | "sleepy" | "cheeky" | "exhausted" | "worried";
+            default_expression: "neutral" | "happy" | "sad" | "angry" | "surprised" | "sleepy" | "cheeky" | "exhausted" | "worried" | "dead";
             /**
              * Eyes
              * @enum {string}
@@ -2294,7 +2294,7 @@ export interface components {
              * When
              * @description only with these expressions (blush: happy)
              */
-            when?: ("neutral" | "happy" | "sad" | "angry" | "surprised" | "sleepy" | "cheeky" | "exhausted" | "worried")[] | null;
+            when?: ("neutral" | "happy" | "sad" | "angry" | "surprised" | "sleepy" | "cheeky" | "exhausted" | "worried" | "dead")[] | null;
             /**
              * Width
              * @description outline / line width; 0: no outline

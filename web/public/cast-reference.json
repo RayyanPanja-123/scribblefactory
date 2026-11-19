@@ -6,7 +6,7 @@
     "body": "creature id, default human (the stickman): built in human, chicken, cat, horse, monkey, snake, or one from the Creatures page (custom humanoids are stickmen with their own proportions)",
     "headless": "true or false (default false): creatures with a stump only, the stump instead of the head",
     "looks": "named variants a story switches to with @look <id>: <name>, each setting only what changes: top, headwear, legwear, props, default_expression, eyes, headless. Example: {\"headless\": {\"headless\": true}}",
-    "default_expression": ["neutral", "happy", "sad", "angry", "surprised", "sleepy", "cheeky", "exhausted", "worried"],
+    "default_expression": ["neutral", "happy", "sad", "angry", "surprised", "sleepy", "cheeky", "exhausted", "worried", "dead"],
     "top.style": ["plain", "suit", "tank", "shirt", "dress"],
     "top.color": "#rrggbb (required)",
     "top.accent_color": "#rrggbb or null: suit = tie colour, dress = wide hat ribbon and flower",

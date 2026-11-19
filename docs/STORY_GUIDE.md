@@ -94,7 +94,7 @@ narration only
 - `@cast a, b`: who is on stage; named / `@do` ones in front. Max 12, max 6 named per scene.
 - `@do <cast>: <action> [prop] [target]`: they act through the next line. Must be in `@cast`.
 - `@look <cast>: <look>`: switch on a look from their CAST entry (held spear, crown). `default` restores; resets each part.
-- `@face <cast>: <expression>`: face for the next line: `neutral happy sad angry surprised sleepy cheeky exhausted worried`.
+- `@face <cast>: <expression>`: face for the next line: `neutral happy sad angry surprised sleepy cheeky exhausted worried dead` (dead: X eyes).
 - `@car arrive | ride | leave | off`: drives in and parks / carries the cast (travel shot) / drives off / gone.
   `ride` seats max 3; no `@do` during `ride` except `car: broken`.
 - `@dogs N` (0 to 6): dog pack; chases on travel shots, else idles or barks.
@@ -182,7 +182,7 @@ narration only
   3 for `accessory`, `face`. Each id fits one slot.
 - Built-in wardrobe: tops `plain suit tank shirt dress`; headwear `flat_cap postman_cap bowler straw_hat wide_hat`;
   legwear `shorts ragged_shorts trousers`.
-- Optional: `"default_expression"` (`neutral happy sad angry surprised sleepy cheeky exhausted`), `"eyes"` (`dots`,
+- Optional: `"default_expression"` (`neutral happy sad angry surprised sleepy cheeky exhausted worried dead`), `"eyes"` (`dots`,
   `half_closed`).
 
 ## 7. Example (copy the staging, not the story)

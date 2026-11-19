@@ -83,6 +83,7 @@ const BROWS = {
   cheeky: [[4, 4, 3], [-12, -8, 12]], // [left brow, right brow]: one brow up
   exhausted: [16, 0, 2],                // droopy: outer ends sag
   worried: [4, -12, 5],                 // inner ends lift: anxious brow
+  dead: [6, 6, 0],                      // flat, slack
 };
 
 /** closed wobbly loop: stable per-character lumps (shape) + small per-boil jitter (boil) */
@@ -632,14 +633,17 @@ function face(p, boil, o, fx, hy, look) {
   const expr = o.expression || "neutral";
   const big = expr === "surprised" || o.action === "react" || (o.action === "collapse" && (o.buckle || 0) > 0.3);
   // expression overrides the base eye style; blinks win over everything
-  const kind = o.lid >= 1 ? "closed" : o.lid === 0.5 ? "half"
+  const kind = expr === "dead" ? "x"                      // X eyes; a dead face never blinks
+    : o.lid >= 1 ? "closed" : o.lid === 0.5 ? "half"
     : expr === "surprised" ? "round"                      // wide open, small pupils, for every character
     : expr === "sleepy" ? "half"                          // flat lids
     : expr === "exhausted" ? "heavy"                      // lids drooping low over the pupils
     : expr === "happy" && o.eyes === "half_closed" ? "arc" // soft upward arcs; dot eyes keep their dots
     : o.eyes === "half_closed" ? "half" : "round";
   for (const x of ex) {
-    if (kind === "closed") {
+    if (kind === "x") {                                                                  // dead: a cross per eye
+      for (const s of [-1, 1]) p.stroke(jitter([[x - 24, ey - 24 * s], [x + 24, ey + 24 * s]], boil, 1.5), w("eye") * 1.4);
+    } else if (kind === "closed") {
       p.stroke(jitter(ellPts(x, ey - 6, 26, 10, 20, 160, 0, 12), boil, 1.5), w("eye"));  // blink: closed
     } else if (kind === "arc") {
       p.stroke(jitter(ellPts(x, ey + 10, 26, 18, 200, 340, 0, 12), boil, 1.5), w("eye")); // happy: upward arc
@@ -677,6 +681,7 @@ function face(p, boil, o, fx, hy, look) {
     angry: [[mx - 20, my + 5], [mx, my - 1], [mx + 20, my + 5]],
     sleepy: [[mx - 12, my], [mx + 12, my]],
     cheeky: quad([mx - 22, my + 2], [mx + 2, my + 14], [mx + 28, my - 12]), // lopsided grin
+    dead: [[mx - 24, my + 2], [mx - 12, my - 4], [mx, my + 2], [mx + 12, my - 4], [mx + 24, my + 2]], // slack wavy line
     worried: [[mx - 22, my + 5], [mx, my - 4], [mx + 22, my + 5]],
   };
   if (expr === "exhausted") p.poly(ellPts(mx, my + 2, 11, 9, 0, 360, 0, 16), "#1c1a1a", 0); // small open mouth

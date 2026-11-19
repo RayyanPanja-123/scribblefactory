@@ -46,7 +46,8 @@
             "sleepy",
             "cheeky",
             "exhausted",
-            "worried"
+            "worried",
+            "dead"
           ],
           "title": "Expression",
           "type": "string"
@@ -423,7 +424,8 @@
             "sleepy",
             "cheeky",
             "exhausted",
-            "worried"
+            "worried",
+            "dead"
           ],
           "title": "Expression",
           "type": "string"

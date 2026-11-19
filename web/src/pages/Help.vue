@@ -65,7 +65,7 @@ const DIRECTIVES: Directive[] = [
       'Several people at once: @look amy, bob: wedding.', 'Each cast member’s looks are set up in the cast.'],
     example: '@look mike: headless' },
   { id: 'face', syntax: '@face <cast>: <expression>', what: 'Sets someone’s face for the next spoken line only.',
-    rules: ['Faces: neutral, happy, sad, angry, surprised, sleepy, cheeky, exhausted, worried.',
+    rules: ['Faces: neutral, happy, sad, angry, surprised, sleepy, cheeky, exhausted, worried, dead.',
       'Often you don’t need it: feeling words in the line (angry, laughed, sobbed, gasped…) change the face by themselves, right on that word.',
       'Use @face when the line has no feeling word but the moment does.'],
     example: '@face caligula: angry\nCaligula stomped his little boots.' },

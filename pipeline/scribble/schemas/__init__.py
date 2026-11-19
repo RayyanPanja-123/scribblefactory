@@ -44,7 +44,7 @@ class Style(Strict):
     captions: bool = True  # burned-in captions in final.mp4
 
 
-Expression = Literal["neutral", "happy", "sad", "angry", "surprised", "sleepy", "cheeky", "exhausted", "worried"]
+Expression = Literal["neutral", "happy", "sad", "angry", "surprised", "sleepy", "cheeky", "exhausted", "worried", "dead"]
 
 
 # --- wardrobe: clothing, hair and cosmetics, one item per slot (engine/page/wardrobe.js) ---

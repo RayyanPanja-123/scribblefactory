@@ -48,7 +48,7 @@ test("every top, headwear, legwear, prop and expression builds and draws in its 
   for (const [kind, colour] of Object.entries(PROPS)) {
     assert.ok(fills(record({ ...BASE, props: [{ kind, hand: "right" }] }), colour).length, kind);
   }
-  for (const expression of ["cheeky", "exhausted"]) {
+  for (const expression of ["cheeky", "exhausted", "dead"]) {
     for (const facing of ["camera", "right", "left"]) record({ ...BASE, expression, facing });
   }
   // nothing costume-related is drawn for a plain figure: same ops with or without "none" costume parts
