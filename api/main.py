@@ -449,7 +449,7 @@ def busy(slug: str, part: str | None = None) -> str | None:
     """why this part (or, part None, any part of the series) can't be touched now, else None"""
     for j in list(JOBS):
         if j["status"] == "running" and j["slug"] == slug and part in (None, j["part"]):
-            return f"job {j['id']} is running on {slug} {j['part']}"
+            return f"job {j.get('tag', j['id'])} is running on {slug} {j['part']}"
     if part:
         pid = render_stage.lock_owner(lib() / slug / part)
         if pid:
@@ -659,7 +659,7 @@ def prop_catalog(cleared=()) -> PropCatalog:
 def check_no_jobs() -> None:
     """props.json feeds every render: no changes while one runs (its chunks would mix two drawings)"""
     if run := next((j for j in list(JOBS) if j["status"] == "running"), None):
-        raise HTTPException(409, f"job {run['id']} is running on {run['slug']} {run['part']}; wait for it or cancel it")
+        raise HTTPException(409, f"job {run.get('tag', run['id'])} is running on {run['slug']} {run['part']}; wait for it or cancel it")
 
 
 @app.get("/api/props", response_model=PropCatalog)

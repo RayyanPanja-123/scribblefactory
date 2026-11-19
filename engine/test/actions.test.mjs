@@ -54,6 +54,14 @@ test("carried: legs pedal at 1.5 Hz in the air, feet never touch the ground", ()
   }
 });
 
+test("carried dead: legs stay still instead of pedalling", () => {
+  const poses = [0, 0.17, 0.41, 0.83].map((phase) => skeleton({ action: "carried", expression: "dead", phase }));
+  for (const pose of poses.slice(1)) {
+    assert.deepEqual(pose.legs, poses[0].legs);
+    assert.deepEqual(pose.knees, poses[0].knees);
+  }
+});
+
 test("collapse: buckles first, falls over 0.6 s, then lies", () => {
   assert.deepEqual(collapseAt(0), { buckle: 0, fall: 0 });
   let prev = -1;

@@ -119,7 +119,12 @@ const GAIT_KNEE = { walk: 40, run: 85, stagger: 30, carry: 30, support: 30, supp
 const BUCKLE_KNEE = 45, CHEER_CROUCH = 30, FLINCH = { react: 14, gasp: 8 }, PEDAL_KNEE = [30, 35];
 function builtinKnees(o, act, s, buckle) {
   const c = Math.cos(TAU * (o.phase || 0)), k = [0, 0];
-  if (act === "carried") { k[0] = PEDAL_KNEE[0] + PEDAL_KNEE[1] * Math.max(0, -c); k[1] = PEDAL_KNEE[0] + PEDAL_KNEE[1] * Math.max(0, c); }
+  if (act === "carried") {
+    // A dead person is limp while being carried: keep the carried leg pose still instead of pedalling.
+    const pedal = o.expression === "dead" ? 0 : c;
+    k[0] = PEDAL_KNEE[0] + PEDAL_KNEE[1] * Math.max(0, -pedal);
+    k[1] = PEDAL_KNEE[0] + PEDAL_KNEE[1] * Math.max(0, pedal);
+  }
   else if (GAIT_KNEE[act] && o.facing !== "camera") { // the leg swinging forward lifts its foot
     k[0] = GAIT_KNEE[act] * Math.max(0, -c); k[1] = GAIT_KNEE[act] * Math.max(0, c);
   }
@@ -136,7 +141,8 @@ export function skeleton(o) {
   if (LOOSE.has(act)) lean = deg(4) + deg(8) * st.sway;
   // legs: gait phase drives the swing; a buckle (stagger dip, collapse) splays both legs outward so the hips drop.
   // The more upright leg stands on FEET_Y. A stressed-word bob lifts the hips; the legs reach the same planted feet.
-  const s = Math.sin(TAU * (o.phase || 0));
+  const phase = act === "carried" && o.expression === "dead" ? 0 : (o.phase || 0);
+  const s = Math.sin(TAU * phase);
   const swing = run ? 34 : act === "carried" ? 30 : LOOSE.has(act) ? 18 : 24;
   const A = moving ? deg(swing) * s : deg(IDLE_LEG), B = deg(BUCKLE) * Math.min(1, (o.buckle || 0) + st.buckle);
   const C = o.custom; // a custom action's pose (actions.js customPose): degrees, + toward +x

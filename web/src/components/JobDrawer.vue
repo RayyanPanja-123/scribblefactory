@@ -53,15 +53,15 @@ async function copyLog(j: Job) {
 async function cancel(j: Job) {
   const queuedOnly = j.status === 'queued'
   const ok = await confirm({
-    title: queuedOnly ? `Remove job ${j.id} from the queue?` : `Cancel job ${j.id}?`,
+    title: queuedOnly ? `Remove ${j.tag} from the queue?` : `Cancel ${j.tag}?`,
     body: queuedOnly ? `${j.slug} ${j.part}: it has not started; nothing is touched.`
       : `${j.slug} ${j.part}: stops "${j.steps[j.current_step ?? 0]}" and kills its processes. Finished steps stay done.`,
     confirm: queuedOnly ? 'Remove' : 'Cancel job', danger: true,
   })
-  if (ok) await act(() => api.cancelJob(j.id), queuedOnly ? `Job ${j.id} removed` : `Job ${j.id} cancelled`)
+  if (ok) await act(() => api.cancelJob(j.id), queuedOnly ? `${j.tag} removed` : `${j.tag} cancelled`)
 }
 async function retry(j: Job) {
-  await act(() => api.submitJob(j.slug, j.part, j.steps), `Job ${j.id} queued again`)
+  await act(() => api.submitJob(j.slug, j.part, j.steps), `${j.tag} queued again`)
 }
 
 // ---- history ----
@@ -119,7 +119,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           <motion.section class="console rounded-lg p-4 text-[#e9eef3]" v-bind="row(0)" aria-label="Running job">
             <div class="flex items-center gap-2">
               <span class="led size-2.5 rounded-full bg-[#3dbb7a]" aria-hidden="true" />
-              <span class="text-xs font-semibold tracking-wide text-[#9fb0c0] uppercase">Running · {{ run.tag }} · #{{ run.id }}</span>
+              <span class="text-xs font-semibold tracking-wide text-[#9fb0c0] uppercase">Running · {{ run.tag }}</span>
               <span class="num ml-auto text-lg" :aria-label="`elapsed ${elapsed}`">{{ elapsed }}</span>
             </div>
             <RouterLink :to="`/series/${run.slug}/${run.part}`" class="mt-1 block font-display text-lg font-semibold hover:underline"
@@ -167,7 +167,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
               <span class="block truncate font-mono text-xs text-muted">{{ j.tag }} · {{ summary(j) }}</span>
             </span>
             <button class="grid size-8 shrink-0 place-items-center rounded-sm text-muted hover:bg-well hover:text-red-ink"
-              :aria-label="`Remove job ${j.id} from the queue`" @click="cancel(j)"><X :size="16" /></button>
+              :aria-label="`Remove ${j.tag} from the queue`" @click="cancel(j)"><X :size="16" /></button>
           </motion.div>
         </section>
 
@@ -202,9 +202,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
               :animate="still ? { opacity: 1 } : { clipPath: 'inset(0 0 0% 0)', opacity: 1 }" :transition="SPRING">
               <div class="relative">
                 <pre class="terminal scroll scrolling max-h-52 overflow-auto rounded-md p-3 pt-6 font-mono text-[12px] leading-5 whitespace-pre-wrap text-[#dfe6ed]"
-                  tabindex="0" :aria-label="`Log of job ${j.id}`">{{ j.output.map(shortPaths).join('\n') || '(no output)' }}</pre>
+                  tabindex="0" :aria-label="`Log of ${j.tag}`">{{ j.output.map(shortPaths).join('\n') || '(no output)' }}</pre>
                 <button class="absolute top-2 right-2 grid size-7 place-items-center rounded-sm bg-[#1e2730] text-[#dfe6ed] hover:bg-[#2a3541]"
-                  :aria-label="`Copy log of job ${j.id}`" @click="copyLog(j)"><Copy :size="13" /></button>
+                  :aria-label="`Copy log of ${j.tag}`" @click="copyLog(j)"><Copy :size="13" /></button>
               </div>
               <div class="mt-2 flex flex-wrap gap-2">
                 <RouterLink :to="`/series/${j.slug}/${j.part}`" class="btn btn-secondary text-xs" @click="drawerOpen = false">Open part</RouterLink>
