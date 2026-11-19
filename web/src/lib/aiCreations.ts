@@ -1,4 +1,4 @@
-// AI Creations: one place to create a library item or cast with AI (a whole series is a Story Package: Story Writer).
+// AI Creations: one place to create a library item or cast with AI. Series are created from the Series flow.
 // The per-asset prompt builders and importers live in their own files (propPrompt, setPrompt, creatures,
 // actionPrompt); this routes a brief to them, adds the cast prompt (docs/STORY_GUIDE.md does the teaching), and turns
 // a reply into a reviewable plan that never overwrites.

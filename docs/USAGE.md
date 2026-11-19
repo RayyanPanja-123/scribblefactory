@@ -71,8 +71,7 @@ He jogged across the line and accepted a gold medal.
 
 Without `@do`, actions and expressions are guessed from the words (walked, ran, waved, laughed, shocked...).
 
-Having an AI write the series: Story Writer gives it the story guide; paste back its
-[Story Package](story-package.md) to create everything at once.
+To create a series, use **Series → Create series**. After the series exists, use the story guide when writing individual parts and paste the resulting `story.md` into the part editor.
 
 ## 3. Check the story
 

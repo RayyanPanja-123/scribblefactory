@@ -11,7 +11,7 @@ import { RIG_LIST, RIG_NOTES, type CustomCreature, type Rig } from '../lib/creat
 import type { CustomProp } from '../lib/props'
 import type { CustomSet } from '../lib/sets'
 
-// One screen to create library items and cast with AI (a whole series: Story Writer): pick a type, describe it, get a reply (any chat AI, via copy/paste), review what it creates, import. Existing library items are never overwritten.
+// One screen to create library items and cast with AI. Series are created from the Series flow.
 const route = useRoute()
 const router = useRouter()
 const { data, error, loading, reload } = useApi(() => Promise.all([api.props(), api.sets(), api.creatures(), api.actions(), api.series()]))
@@ -128,7 +128,7 @@ const when = (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyl
     <div>
       <h2 class="font-display text-2xl font-semibold">AI Creations</h2>
       <p class="text-sm text-muted">Create props, sets, creatures, actions and cast with AI. You review it all before anything is written.
-        A whole series: <RouterLink to="/story-writer" class="underline">Story Writer</RouterLink>.</p>
+        To create a series, use <RouterLink to="/new-series" class="underline">Create series</RouterLink>.</p>
     </div>
     <ErrorCard v-if="error" :message="error" @retry="reload" />
     <div v-else-if="loading" class="skeleton h-72" aria-busy="true" aria-label="Loading library" />

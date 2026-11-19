@@ -21,7 +21,7 @@ Everything runs on the creator's own machine: the renderer (Three.js + Playwrigh
 - Long-running render jobs run one at a time on a worker; the UI shows live job status over SSE.
 - AI Creations (`/ai-creations`): one screen to create a prop, set, creature, action, cast or whole series with any chat AI via copy/paste, then review every item (new or existing, uncheck to skip) and import. Never overwrites: a clashing id gets a suffix. Each editor's "Build with AI" opens it pre-filled.
 - Actions page: custom `@do` actions as keyframed poses, facing the camera or sideways, with a move speed (negative glides backwards).
-- Story Writer (the Series type in AI Creations; `/story-writer` redirects there): the chat AI plans a multi-part series from a premise and the library; Import creates the missing props, sets, creatures and actions, then the series and its parts. Voice (FreeTTS) and upload stay manual. Also: copy the Story Guide from the Overview into a chat AI, or write stories by hand.
+- Series are created from the Series flow (`/new-series`), with cast and optional whole-series JSON import. Parts, stories, voice and assets are then managed from the series workspace.
 - All four jobs are frequent and equally important: pipeline status, building assets, writing parts, reviewing renders.
 
 ## Capabilities and Constraints

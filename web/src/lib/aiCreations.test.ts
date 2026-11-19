@@ -11,7 +11,7 @@ const PROP = (id: string) => ({ id, name: id, shapes: [{ shape: 'circle', pts: [
 const fence = (j: unknown) => '```json\n' + JSON.stringify(j) + '\n```'
 
 describe('type switching', () => {
-  it('each type gets its own prompt; a series is not one of them (Story Writer)', () => {
+  it('each type gets its own prompt; a series is not one of them', () => {
     expect(TYPES).not.toContain('series')
     const b = { description: 'A shiny red umbrella', rig: 'bird' as const, cast: ['bob'] }
     const p = Object.fromEntries(TYPES.map((t) => [t, buildCreationPrompt(t, b, LIB, 'GUIDE')]))
