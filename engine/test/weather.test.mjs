@@ -106,3 +106,27 @@ test("the strike shows on its frame (bolt + flash), not the frame before", () =>
   assert.doesNotMatch(R.strike.out.split("\n").find((l) => l.includes("000069")), /lightning/);
   assert.deepEqual(png(part + "/s", 70), png(part + "/t", 70));
 });
+
+test("rain: a back layer (behind the cast) and a sparse front one that never crosses a face; counts come from style.js", async () => {
+  const { STYLE } = await import("../page/style.js");
+  for (const [lv, intensity] of ["light", "medium", "heavy"].entries()) {
+    const all = strokes(W("rain", intensity), 7, 1.3, 1080, 1920);
+    const back = all.filter((s) => s.layer === "back"), front = all.filter((s) => s.layer === "front");
+    assert.equal(back.length, STYLE.rain.back.count[lv]);
+    assert.equal(front.length, STYLE.rain.front.count[lv]);
+    assert.ok(front.length * 5 < back.length, "front is sparse");
+    assert.ok(back.every((s) => s.width < front[0].width && s.alpha < front[0].alpha), "back is thinner and fainter");
+    assert.deepEqual(strokes(W("rain", intensity), 7, 1.3, 1080, 1920, 1, { only: "back" }), back);
+  }
+  // a face rect across the whole middle of the frame: no front drop may cross it, at any time
+  const face = [200, 600, 880, 1100];
+  for (let t = 0; t < 3; t += 0.1) {
+    for (const s of strokes(W("storm", "heavy"), 3, t, 1080, 1920, 1, { only: "front", avoid: [face] })) {
+      const [[x0, y0], [x1, y1]] = s.pts;
+      assert.ok(Math.max(x0, x1) <= face[0] || Math.min(x0, x1) >= face[2] || Math.max(y0, y1) <= face[1] || Math.min(y0, y1) >= face[3]);
+    }
+  }
+  // snow and wind are front-only
+  assert.deepEqual(strokes(W("snow"), 7, 1, 1080, 1920, 1, { only: "back" }), []);
+  assert.ok(strokes(W("wind"), 7, 1, 1080, 1920).every((s) => s.layer === "front"));
+});

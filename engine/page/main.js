@@ -14,7 +14,8 @@ import { HEAD_GROW, MOOD_EXPRESSION, extraLook, fitCrowd, moodAt, placeExtras } 
 const growRect = (r, k) => { const mx = (r[2] - r[0]) * k, my = (r[3] - r[1]) * k; return [r[0] - mx, r[1] - my, r[2] + mx, r[3] + my]; };
 import { rng, setVariant } from "./rng.js";
 import { SETS, VARIANTS, buildSet, loopExcess, scrollSet, setKind } from "./world.js";
-import { fadePlan, fogAlpha, fogCanvas, layersAt, paint, strikeAt } from "./weather.js";
+import { fadePlan, fogAlpha, fogCanvas, layersAt, paint, paintBack, strikeAt } from "./weather.js";
+import { STYLE } from "./style.js";
 
 const FPS = 30, W = 1080, H = 1920;
 const CARD_H = 1.6, CARD_W = CARD_H * (CW / CH); // the whole canvas, held props included
@@ -67,6 +68,18 @@ wtex.colorSpace = THREE.SRGBColorSpace;
 const overlay = new THREE.Scene().add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2),
   new THREE.MeshBasicMaterial({ map: wtex, transparent: true, depthTest: false, depthWrite: false })));
 const flatCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+// back weather layer (rain behind the cast): a half-resolution canvas on a camera-locked quad, drawn after the set and
+// fog but before the cast cards (renderOrder), never depth tested, so it covers the whole frame behind the cast
+const BACK_K = STYLE.rain.back.scale;
+const bcv = Object.assign(document.createElement("canvas"), { width: W * BACK_K, height: H * BACK_K }), bg = bcv.getContext("2d");
+const btex = new THREE.CanvasTexture(bcv);
+btex.colorSpace = THREE.SRGBColorSpace;
+const backMesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1),
+  new THREE.MeshBasicMaterial({ map: btex, transparent: true, depthTest: false, depthWrite: false, fog: false }));
+backMesh.renderOrder = 0.7; // over the set (opaque) and fog bands (0.5), under the cards (1)
+backMesh.frustumCulled = false;
+backMesh.position.z = -1;
+camera.add(backMesh);
 const FOG = { z: -1.05, y: 1.5, w: 40, h: 3.2, tile: 8 }; // behind the front row and back row (z -0.9), before the crowd
 let fogTex = null, fadeByShot = new Map();
 const fogMeshes = [];
@@ -421,6 +434,7 @@ function drawShot(shot, n) {
   const cars = drawVehicles(shot, vehicles, riders, n, u);
   const layers = layersAt(shot, fadeByShot.get(shot.id), n);
   drawFog(layers, t, shift);
+  drawBackWeather(layers, t);
   renderer.render(scene, camera);
   const weather = drawWeather(shot, layers, n, t, place);
   const travel = shot.travel ? { travel: `${shot.travel.speed} u/s ${dir < 0 ? "left" : "right"}, shift ${shift.toFixed(2)}`
@@ -449,6 +463,24 @@ function drawFog(layers, t, shift) {
   });
 }
 
+/** back weather layer: painted, and the quad sized to fill the view at its distance (1 unit) for this shot's fov */
+function drawBackWeather(layers, t) {
+  backMesh.visible = paintBack(bg, { layers, seed: data.story.seed, t, w: W, h: H, scale: BACK_K });
+  if (!backMesh.visible) return;
+  btex.needsUpdate = true;
+  const hh = 2 * Math.tan(rad(camera.fov / 2));
+  backMesh.scale.set(hh * (W / H), hh, 1);
+  scene.add(camera); // renders the camera's child quad
+}
+
+/** screen rects (px) of the cast's heads, grown by STYLE.rain.faceMargin: front rain never crosses them */
+function faceRects(shot, place) {
+  return shot.actors.filter((a) => a.action !== "lie").map((a) => {
+    const [x, z] = place(a), r = growRect(headRect(x, z, a.action === "carried" ? CARRIED_LIFT : 0), STYLE.rain.faceMargin);
+    return [((r[0] + 1) / 2) * W, ((1 - r[3]) / 2) * H, ((r[2] + 1) / 2) * W, ((1 - r[1]) / 2) * H];
+  });
+}
+
 /** the 2D weather overlay over the frame just rendered; a strike lands beside its target (else behind the stage) */
 function drawWeather(shot, layers, n, t, place) {
   const strikes = data.story.lightning || [];
@@ -463,7 +495,7 @@ function drawWeather(shot, layers, n, t, place) {
     const v = new THREE.Vector3(x + side, 0, z - 0.25).project(camera);
     target = [Math.min(W - 80, Math.max(80, ((v.x + 1) / 2) * W)), Math.min(H, ((1 - v.y) / 2) * H)]; // kept in frame
   }
-  const info = paint(wg, { layers, seed: data.story.seed, t, n, w: W, h: H, strikes, target });
+  const info = paint(wg, { layers, seed: data.story.seed, t, n, w: W, h: H, strikes, target, avoid: faceRects(shot, place) });
   wtex.needsUpdate = true;
   renderer.autoClear = false;
   renderer.render(overlay, flatCam);

@@ -3,6 +3,7 @@
 // function of (seed, index, time) from a fixed, capped pool, so a test render of frame n matches the final one.
 // The stroke math is pure (node tests import it); paint() and fogCanvas() need a 2D canvas.
 import { rng } from "./rng.js";
+import { STYLE } from "./style.js";
 
 export const INK = "#1c1a1a";
 export const FADE_FRAMES = 15;      // 0.5 s cross-fade when the weather changes mid-scene (a set change wipes instead)
@@ -10,8 +11,13 @@ export const BOLT_FRAMES = 4;       // a strike's bolt shows this many frames ..
 export const FLASH = [0.32, 0.14];  // ... and the screen flashes white this much on its first frames (storm; else x0.7)
 export const AMBIENT = { window: 75, gap: 12, alpha: [0.14, 0.06] }; // storm: <= 1 flash per window, never near a strike
 const LEVEL = { light: 0, medium: 1, heavy: 2 };
-// particles per intensity (light, medium, heavy): the pool size, so the cost per frame is capped
-export const COUNT = { rain: [90, 150, 220], storm: [180, 240, 300], snow: [36, 70, 110], wind: [4, 7, 11] };
+// particles per intensity (light, medium, heavy): the pool size, so the cost per frame is capped. Rain and storm are
+// the back + front layers together (style.js rain)
+const RAIN = STYLE.rain;
+const rainCount = (layer, storm, lv) => Math.round(RAIN[layer].count[lv] * (storm ? RAIN.storm.density : 1));
+export const COUNT = { rain: [0, 1, 2].map((lv) => rainCount("back", false, lv) + rainCount("front", false, lv)),
+  storm: [0, 1, 2].map((lv) => rainCount("back", true, lv) + rainCount("front", true, lv)),
+  snow: [36, 70, 110], wind: [4, 7, 11] };
 // r g b, alpha by level: strong enough to read on the stills sheet (a still there is about a fifth of the frame)
 const TINT = { storm: [20, 24, 40, [0.24, 0.34, 0.44]], rain: [40, 48, 60, [0.1, 0.14, 0.18]] };
 const FOG_ALPHA = [0.45, 0.65, 0.85];
@@ -52,22 +58,34 @@ function pool(kind, seed, n) {
   return pools.get(k);
 }
 
-/** ink strokes for one weather layer at time t (s) on a w x h frame: [{ pts: [[x, y], ...], width, color, alpha }] */
-export function strokes(weather, seed, t, w, h, amount = 1) {
+const hits = (r, x0, y0, x1, y1) => Math.min(x0, x1) < r[2] && Math.max(x0, x1) > r[0] && Math.min(y0, y1) < r[3] && Math.max(y0, y1) > r[1];
+
+/** ink strokes for one weather layer at time t (s) on a w x h frame: [{ pts: [[x, y], ...], width, color, alpha, layer }].
+ *  Rain and storm come in two layers (layer "back": behind the cast, "front": over it); only = "back" | "front"
+ *  returns just that one (snow and wind are front). avoid: screen rects [x0, y0, x1, y1] no front drop may cross. */
+export function strokes(weather, seed, t, w, h, amount = 1, { only = null, avoid = [] } = {}) {
   if (!weather || weather.kind === "fog") return [];
   const lv = LEVEL[weather.intensity] ?? 1, kind = weather.kind, out = [];
   const n = COUNT[kind][lv];
   const wrap = (v, m) => ((v % m) + m) % m;
   if (kind === "rain" || kind === "storm") {
-    const storm = kind === "storm", slant = storm ? 0.5 : 0.22; // storm: wind-driven, strongly slanted; rain: enough to stand out from vertical lines in a set
-    const len = (storm ? 80 : 44 + 14 * lv), speed = h * (storm ? 2.4 : 1.7);
-    for (const [a, b, c, d] of pool(kind, seed, n)) {
-      const L = len * (0.7 + 0.6 * c), span = h + L;
-      const y = wrap(b * span + speed * (0.85 + 0.3 * d) * t, span) - L;
-      const x = wrap(a * (w + 200) + slant * y, w + 200) - 100;
-      out.push({ pts: [[x, y], [x + slant * L, y + L]], width: storm ? 3.5 : 3 + 0.5 * lv, color: INK, alpha: 0.6 * amount });
+    const storm = kind === "storm", slant = storm ? RAIN.storm.slant : RAIN.slant; // storm: wind-driven, strongly slanted
+    const len = storm ? RAIN.storm.len : RAIN.len + RAIN.lenPerLevel * lv, speed = h * (storm ? RAIN.storm.speed : RAIN.speed);
+    for (const layer of ["back", "front"]) {
+      if (only && only !== layer) continue;
+      const S = RAIN[layer], back = layer === "back";
+      for (const [a, b, c, d] of pool(`${kind}:${layer}`, seed, rainCount(layer, storm, lv))) {
+        // back: one length and speed band; front: each drop its own length and speed (varied)
+        const L = len * (back ? S.len * (0.7 + 0.6 * c) : S.len[0] + (S.len[1] - S.len[0]) * c), span = h + L;
+        const v = speed * (back ? S.speed * (0.85 + 0.3 * d) : S.speed[0] + (S.speed[1] - S.speed[0]) * d) / RAIN.speed;
+        const y = wrap(b * span + v * t, span) - L;
+        const x = wrap(a * (w + 200) + slant * y, w + 200) - 100;
+        if (!back && avoid.some((r) => hits(r, x, y, x + slant * L, y + L))) continue;
+        out.push({ pts: [[x, y], [x + slant * L, y + L]], width: S.width + (back ? 0 : 0.5 * lv), color: S.color,
+          alpha: S.alpha * amount, layer, ...(back ? {} : { edge: S.edge, edgeAlpha: S.edgeAlpha * amount }) });
+      }
     }
-  } else if (kind === "snow") {
+  } else if (kind === "snow" && only !== "back") {
     for (const [a, b, c, d, e] of pool(kind, seed, n)) {
       const r = 5 + 6 * c, span = h + 4 * r;
       const y = wrap(b * span + h * (0.06 + 0.06 * d) * t, span) - 2 * r;
@@ -75,10 +93,10 @@ export function strokes(weather, seed, t, w, h, amount = 1) {
       const rot = e * 3 + t * (d - 0.5);
       for (let k = 0; k < 3; k++) { // a scribbled asterisk: three crossing ticks
         const ang = rot + (k * Math.PI) / 3, dx = r * Math.cos(ang), dy = r * Math.sin(ang);
-        out.push({ pts: [[x - dx, y - dy], [x + dx, y + dy]], width: 2.5, color: INK, alpha: 0.75 * amount });
+        out.push({ pts: [[x - dx, y - dy], [x + dx, y + dy]], width: 2.5, color: INK, alpha: 0.75 * amount, layer: "front" });
       }
     }
-  } else if (kind === "wind") {
+  } else if (kind === "wind" && only !== "back") {
     for (const [a, b, c, d] of pool(kind, seed, n)) {
       const len = w * (0.18 + 0.14 * c), span = w + len + 200;
       const x0 = wrap(a * span + w * (0.55 + 0.3 * d) * t, span) - len - 100, y0 = h * (0.12 + 0.7 * b);
@@ -92,7 +110,7 @@ export function strokes(weather, seed, t, w, h, amount = 1) {
         const ang = -Math.PI / 2 + (k / 8) * 1.6 * Math.PI;
         pts.push([ex + 16 * Math.cos(ang), ey + 16 + 16 * Math.sin(ang)]);
       }
-      out.push({ pts, width: 3, color: INK, alpha: 0.5 * amount });
+      out.push({ pts, width: 3, color: INK, alpha: 0.5 * amount, layer: "front" });
     }
   }
   return out;
@@ -141,17 +159,45 @@ export function bolt(seed, index, x, y) {
   return [main, fork];
 }
 
-/** draw one frame's weather overlay into a cleared 2D context */
-export function paint(g, { layers, seed, t, n, w, h, strikes = [], target = null }) {
+/** rain's tint is drawn behind the cast (back); a storm's darkening covers everything (front) */
+const tintLayer = (weather) => (weather?.kind === "rain" ? "back" : "front");
+
+function drawStrokes(g, list) {
+  for (const s of list) {
+    const line = () => { g.beginPath(); s.pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.stroke(); };
+    if (s.edge) { g.globalAlpha = s.edgeAlpha; g.strokeStyle = s.edge; g.lineWidth = s.width + 3; line(); } // ink rim
+    g.globalAlpha = s.alpha; g.strokeStyle = s.color; g.lineWidth = s.width; line();
+  }
+  g.globalAlpha = 1;
+}
+
+/** draw the back weather layer (behind the cast: rain tint, back rain) into a cleared 2D context of w*scale x h*scale.
+ *  Returns false when there is nothing to draw (the engine then skips the layer). */
+export function paintBack(g, { layers, seed, t, w, h, scale = 1 }) {
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.clearRect(0, 0, w * scale, h * scale);
+  g.setTransform(scale, 0, 0, scale, 0, 0);
+  g.lineCap = g.lineJoin = "round";
+  let any = false;
+  for (const { weather, amount } of layers) {
+    const c = tintLayer(weather) === "back" && tint(weather, amount);
+    if (c) { g.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},${c[3]})`; g.fillRect(0, 0, w, h); any = true; }
+    const list = strokes(weather, seed, t, w, h, amount, { only: "back" });
+    drawStrokes(g, list);
+    any ||= list.length > 0;
+  }
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  return any;
+}
+
+/** draw one frame's front weather overlay into a cleared 2D context (avoid: face rects front drops skip) */
+export function paint(g, { layers, seed, t, n, w, h, strikes = [], target = null, avoid = [] }) {
   g.clearRect(0, 0, w, h);
   g.lineCap = g.lineJoin = "round";
   for (const { weather, amount } of layers) {
-    const c = tint(weather, amount);
+    const c = tintLayer(weather) === "front" && tint(weather, amount);
     if (c) { g.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},${c[3]})`; g.fillRect(0, 0, w, h); }
-    for (const s of strokes(weather, seed, t, w, h, amount)) {
-      g.globalAlpha = s.alpha; g.strokeStyle = s.color; g.lineWidth = s.width;
-      g.beginPath(); s.pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.stroke();
-    }
+    drawStrokes(g, strokes(weather, seed, t, w, h, amount, { only: "front", avoid }));
   }
   g.globalAlpha = 1;
   const main = layers.find((l) => l.amount >= 0.5)?.weather || null, hit = strikeAt(strikes, n);
