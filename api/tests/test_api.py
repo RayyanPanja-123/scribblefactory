@@ -7,6 +7,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.error
 
 import httpx2 as httpx
 import pytest
@@ -687,13 +688,13 @@ def test_drop_old_ai_settings(tmp_path, monkeypatch):
 def test_settings(client, lib):
     r = client.get("/api/settings").json()
     none = {"youtube": "", "instagram": "", "facebook": ""}
-    assert r["settings"] == {"render_workers": "auto", "force_software_gl": False, "socials": none, "brand_tags": ""}
+    assert r["settings"] == {"render_workers": "auto", "force_software_gl": False, "socials": none, "brand_tags": "", "caption_model": "gemini-flash-latest"}
     assert r["workers_now"] == r["machine"]["recommended_workers"] >= 1 and len(r["examples"]) == 4
     for bad in (0, 17, "lots"):
         assert client.put("/api/settings", json={"render_workers": bad}).status_code == 422
     (lib / "settings.json").write_text(json.dumps({"keep": 1}), encoding="utf-8")
     r = client.put("/api/settings", json={"render_workers": 6, "force_software_gl": True}).json()
-    assert r["settings"] == {"render_workers": 6, "force_software_gl": True, "socials": none, "brand_tags": ""} and r["workers_now"] == 6
+    assert r["settings"] == {"render_workers": 6, "force_software_gl": True, "socials": none, "brand_tags": "", "caption_model": "gemini-flash-latest"} and r["workers_now"] == 6
     r = client.put("/api/settings", json={"render_workers": 6, "socials": {"youtube": "@chan", "facebook": "page"}}).json()
     assert r["settings"]["socials"] == {"youtube": "@chan", "instagram": "", "facebook": "page"}
     assert json.loads((lib / "settings.json").read_text(encoding="utf-8"))["keep"] == 1  # unknown keys kept
@@ -789,6 +790,24 @@ def test_captions_gemini(client, lib, monkeypatch):
     assert client.post("/api/captions", json={"prompt": "write"}).json() == caps
     assert sent["key"] == "sekret-k" and sent["url"].endswith("/gemini-flash-latest:generateContent")
     assert sent["body"]["contents"][0]["parts"][0]["text"] == "write"
+    # the chosen free model first; busy (503) or out of quota (429), the next free one answers
+    assert client.put("/api/settings", json={"caption_model": "gemini-pro-latest"}).status_code == 422  # free only
+    client.put("/api/settings", json={"caption_model": "gemini-3.5-flash"})
+    tried = []
+
+    def busy(req, timeout):
+        tried.append(req.full_url.split("/")[-1].split(":")[0])
+        if len(tried) < 3:
+            raise urllib.error.HTTPError(req.full_url, 503 if len(tried) == 1 else 429, "x", {},
+                                         io.BytesIO(b'{"error": {"message": "high demand"}}'))
+        return fake(req, timeout)
+    monkeypatch.setattr(m.urllib.request, "urlopen", busy)
+    assert client.post("/api/captions", json={"prompt": "write"}).json() == caps
+    assert tried == ["gemini-3.5-flash", "gemini-flash-latest", "gemini-3.8-flash"]
+    monkeypatch.setattr(m.urllib.request, "urlopen", lambda req, timeout: (_ for _ in ()).throw(
+        urllib.error.HTTPError(req.full_url, 503, "x", {}, io.BytesIO(b'{"error": {"message": "high demand"}}'))))
+    r = client.post("/api/captions", json={"prompt": "write"})
+    assert r.status_code == 502 and "every free model is busy" in r.json()["detail"]
     monkeypatch.setattr(m.urllib.request, "urlopen", lambda req, timeout: contextlib.nullcontext(io.BytesIO(b'{"candidates": []}')))
     assert client.post("/api/captions", json={"prompt": "write"}).status_code == 502
     assert not client.put("/api/settings/gemini-key", json={"key": ""}).json()["gemini_key_last4"]

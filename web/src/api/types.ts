@@ -50,8 +50,8 @@ export interface paths {
         put?: never;
         /**
          * Write Captions
-         * @description YouTube and Instagram captions from Gemini: the key from Settings (else $GEMINI_API_KEY), the model from
-         *     $GEMINI_MODEL if set
+         * @description YouTube and Instagram captions from Gemini: the key from Settings (else $GEMINI_API_KEY). The model chosen in
+         *     Settings first (else $GEMINI_MODEL); busy, out of quota or gone, the other free models in turn
          */
         post: operations["write_captions_api_captions_post"];
         delete?: never;
@@ -1898,6 +1898,13 @@ export interface components {
              */
             brand_tags: string;
             /**
+             * Caption Model
+             * @description free Gemini model captions try first; busy or out of quota, the next free one answers
+             * @default gemini-flash-latest
+             * @enum {string}
+             */
+            caption_model: "gemini-flash-latest" | "gemini-3.8-flash" | "gemini-3.7-flash" | "gemini-3.6-flash" | "gemini-3.5-flash" | "gemini-3-flash-preview" | "gemini-flash-lite-latest" | "gemini-3.5-flash-lite" | "gemini-3.1-flash-lite";
+            /**
              * Force Software Gl
              * @default false
              */
@@ -1913,6 +1920,8 @@ export interface components {
         };
         /** SettingsView */
         SettingsView: {
+            /** Caption Models */
+            caption_models: string[];
             /** Examples */
             examples: components["schemas"]["PcExample"][];
             /** Gemini Key Last4 */

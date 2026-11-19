@@ -5,6 +5,7 @@ force_software_gl: render with SwiftShader (software WebGL) instead of the GPU, 
 socials: {youtube, instagram, facebook} handles shown on every part's closing "Follow for more" screen (finish);
   an empty one is left off the screen.
 brand_tags: hashtags every caption carries (the Gemini caption writer adds them to the story's own).
+caption_model: the free Gemini model captions try first (FREE_GEMINI).
 gemini_key: the Gemini API key for captions; read only by gemini_key(), never by load(), so it never reaches the browser.
 """
 import ctypes
@@ -14,7 +15,12 @@ import sys
 from pathlib import Path
 
 SOCIALS = ("youtube", "instagram", "facebook")
-DEFAULTS = {"render_workers": "auto", "force_software_gl": False, "socials": dict.fromkeys(SOCIALS, ""), "brand_tags": ""}
+# free-tier Gemini text models (Pro has no free quota), probed 2026-11-19. The chosen one goes first; when it is busy
+# (503), out of quota (429) or gone (404) the captions fall through the rest in this order.
+FREE_GEMINI = ("gemini-flash-latest", "gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash",
+               "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite")
+DEFAULTS = {"render_workers": "auto", "force_software_gl": False, "socials": dict.fromkeys(SOCIALS, ""), "brand_tags": "",
+            "caption_model": FREE_GEMINI[0]}
 MAX_WORKERS = 16
 MAX_AUTO = 8
 GB_PER_WORKER = 1.5  # one Chromium with its page and frames in flight, plus headroom
@@ -36,6 +42,8 @@ def load(library: Path) -> dict:
     so = out["socials"] if isinstance(out["socials"], dict) else {}
     out["socials"] = {k: str(so.get(k) or "").strip() for k in SOCIALS}
     out["brand_tags"] = str(out["brand_tags"] or "").strip()
+    if out["caption_model"] not in FREE_GEMINI:
+        out["caption_model"] = FREE_GEMINI[0]
     return out
 
 

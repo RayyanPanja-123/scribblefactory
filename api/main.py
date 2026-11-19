@@ -1308,6 +1308,8 @@ class Settings(BaseModel):
     socials: Socials = Field(default_factory=Socials, description="handles on every part's closing 'Follow for more' "
                                                                   "screen (empty: left off)")
     brand_tags: str = Field("", max_length=300, description="hashtags every caption carries, e.g. #scribblefactory")
+    caption_model: Literal[settings.FREE_GEMINI] = Field(settings.FREE_GEMINI[0], description=(
+        "free Gemini model captions try first; busy or out of quota, the next free one answers"))
 
 
 class Machine(BaseModel):
@@ -1328,6 +1330,7 @@ class SettingsView(BaseModel):
     machine: Machine
     examples: list[PcExample]
     gemini_key_last4: str  # '' when none is set; the key itself never leaves the server
+    caption_models: list[str]  # the free Gemini models, in fallback order
 
 
 # typical machines -> what auto picks on them (same formula as this PC's recommendation)
@@ -1341,7 +1344,7 @@ def settings_view() -> dict:
     return {"settings": settings.load(lib()), "workers_now": settings.render_workers(lib()),
             "machine": settings.machine(lib()),
             "examples": [{"pc": pc, "workers": settings.recommend(t, r, g)} for pc, t, r, g in PC_EXAMPLES],
-            "gemini_key_last4": settings.gemini_key(lib())[-4:]}
+            "gemini_key_last4": settings.gemini_key(lib())[-4:], "caption_models": list(settings.FREE_GEMINI)}
 
 
 @app.get("/api/settings", response_model=SettingsView)
@@ -1366,7 +1369,7 @@ def put_settings(body: Settings):
 
 # ---------------- captions: Gemini, the one task an outside AI does here ----------------
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent"
-GEMINI_MODEL = "gemini-flash-latest"  # Google's alias for the current Flash; GEMINI_MODEL pins another
+GEMINI_NEXT = {404, 429, 503}  # gone, out of quota, high demand: the next free model tries
 
 
 class CaptionRequest(BaseModel):
@@ -1399,31 +1402,34 @@ def put_gemini_key(body: GeminiKey):
 
 @app.post("/api/captions", response_model=Captions)
 def write_captions(body: CaptionRequest):
-    """YouTube and Instagram captions from Gemini: the key from Settings (else $GEMINI_API_KEY), the model from
-    $GEMINI_MODEL if set"""
+    """YouTube and Instagram captions from Gemini: the key from Settings (else $GEMINI_API_KEY). The model chosen in
+    Settings first (else $GEMINI_MODEL); busy, out of quota or gone, the other free models in turn"""
     key = settings.gemini_key(lib()) or os.environ.get("GEMINI_API_KEY", "").strip()
     if not key:
         raise HTTPException(409, "No Gemini API key: add it in Settings")
-    model = os.environ.get("GEMINI_MODEL", "").strip() or GEMINI_MODEL
+    first = os.environ.get("GEMINI_MODEL", "").strip() or settings.load(lib())["caption_model"]
     schema = {"type": "OBJECT", "properties": {k: {"type": "STRING"} for k in Captions.model_fields},
               "required": list(Captions.model_fields), "propertyOrdering": list(Captions.model_fields)}
-    req = urllib.request.Request(
-        GEMINI_URL.format(urllib.parse.quote(model, safe="")), method="POST",
-        headers={"Content-Type": "application/json", "x-goog-api-key": key},
-        data=json.dumps({"contents": [{"role": "user", "parts": [{"text": body.prompt}]}],
-                         "generationConfig": {"responseMimeType": "application/json",
-                                              "responseSchema": schema}}).encode())
-    try:
-        with urllib.request.urlopen(req, timeout=120) as r:
-            out = json.load(r)
-    except urllib.error.HTTPError as e:
+    data = json.dumps({"contents": [{"role": "user", "parts": [{"text": body.prompt}]}],
+                       "generationConfig": {"responseMimeType": "application/json", "responseSchema": schema}}).encode()
+    for model in dict.fromkeys([first, *settings.FREE_GEMINI]):
+        req = urllib.request.Request(GEMINI_URL.format(urllib.parse.quote(model, safe="")), method="POST", data=data,
+                                     headers={"Content-Type": "application/json", "x-goog-api-key": key})
         try:
-            msg = json.load(e)["error"]["message"]
-        except (ValueError, KeyError, TypeError, OSError):
-            msg = f"HTTP {e.code}"
-        raise HTTPException(502, f"Gemini ({model}): {msg}")
-    except (urllib.error.URLError, TimeoutError, ValueError) as e:
-        raise HTTPException(502, f"Gemini ({model}) did not answer: {e}")
+            with urllib.request.urlopen(req, timeout=120) as r:
+                out = json.load(r)
+            break
+        except urllib.error.HTTPError as e:
+            try:
+                msg = json.load(e)["error"]["message"]
+            except (ValueError, KeyError, TypeError, OSError):
+                msg = f"HTTP {e.code}"
+            if e.code not in GEMINI_NEXT:
+                raise HTTPException(502, f"Gemini ({model}): {msg}")
+        except (urllib.error.URLError, TimeoutError, ValueError) as e:
+            raise HTTPException(502, f"Gemini ({model}) did not answer: {e}")
+    else:
+        raise HTTPException(502, f"Gemini: every free model is busy or out of quota, try again later ({model}: {msg})")
     try:
         parts = out["candidates"][0]["content"]["parts"]
         return Captions.model_validate_json("".join(p.get("text", "") for p in parts if not p.get("thought")))

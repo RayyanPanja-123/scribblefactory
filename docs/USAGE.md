@@ -111,8 +111,8 @@ Any stage can be re-run from its chip menu. Captions on or off: `cli set-caption
 2. **Captions** (saved as upload.md): a YouTube card (title, description with tags, pinned comment) and an Instagram
    card (one caption with everything), each field with Copy. **Write with Gemini** fills them from the story plus the
    brand tags in Settings; review, then Ctrl+S. Gemini is the only outside AI and only writes captions: paste
-   your key in **Settings → Gemini API key** (write-only; `GEMINI_MODEL` env var picks a model, default
-   `gemini-flash-latest`).
+   your key in **Settings → Gemini API key** (write-only). **Settings → Caption model** picks the free model tried
+   first (default `gemini-flash-latest`); when it is busy or out of quota the next free one answers.
 3. Upload final.mp4 to YouTube Shorts and Instagram Reels by hand.
 4. **Mark posted** with each link (`cli mark-posted <slug> <part> youtube --url https://...`).
 

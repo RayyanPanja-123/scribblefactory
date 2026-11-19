@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Cpu, Hash, KeyRound, Megaphone, Save, Trash2 } from 'lucide-vue-next'
 import { computed, onMounted, ref } from 'vue'
-import { api, type SettingsView } from '../api/client'
+import { api, type Settings, type SettingsView } from '../api/client'
 import { act, toast } from '../composables/feedback'
 
 // Machine-level options in library/settings.json. Moving to a stronger PC: open this page, check "This PC", and
@@ -15,6 +15,7 @@ const softwareGl = ref(false)
 const SOCIALS = [['youtube', 'YouTube', '@yourchannel'], ['instagram', 'Instagram', '@yourname'], ['facebook', 'Facebook', 'yourpage']] as const
 const socials = ref({ youtube: '', instagram: '', facebook: '' })
 const brandTags = ref('') // on every Gemini-written caption, after the story's own tags
+const captionModel = ref('') // free Gemini model tried first; the API falls through the other free ones
 // the Gemini key (captions only) is write-only: the page only ever learns whether one is set
 const geminiKey = ref('')
 async function saveKey(key: string) {
@@ -33,6 +34,7 @@ function fill(v: SettingsView) {
   softwareGl.value = !!v.settings.force_software_gl
   socials.value = { ...socials.value, ...v.settings.socials }
   brandTags.value = v.settings.brand_tags ?? ''
+  captionModel.value = v.settings.caption_model ?? v.caption_models[0]
 }
 onMounted(async () => {
   try {
@@ -51,8 +53,15 @@ const valid = computed(() => auto.value || (Number.isInteger(workers.value) && w
 async function save() {
   const v = await act(() => api.saveSettings({ render_workers: chosen.value, force_software_gl: softwareGl.value,
     socials: { youtube: socials.value.youtube.trim(), instagram: socials.value.instagram.trim(), facebook: socials.value.facebook.trim() },
-    brand_tags: brandTags.value.trim() }), 'Settings saved')
+    brand_tags: brandTags.value.trim(), caption_model: captionModel.value as Settings['caption_model'] }), 'Settings saved')
   if (v) fill(v)
+}
+// saved on its own, from the last saved settings: unsaved edits in the form above stay as they are
+async function saveModel() {
+  const caption_model = captionModel.value as Settings['caption_model']
+  const v = await act(() => api.saveSettings({ ...view.value!.settings, caption_model }), 'Caption model saved')
+  if (v) view.value = { ...view.value!, settings: { ...view.value!.settings, caption_model } }
+  else captionModel.value = view.value!.settings.caption_model ?? view.value!.caption_models[0]
 }
 const m = computed(() => view.value?.machine)
 const field = 'inset mt-1 block h-10 w-28 rounded-md px-4 text-sm text-ink outline-none focus:border-blue'
@@ -142,6 +151,14 @@ const field = 'inset mt-1 block h-10 w-28 rounded-md px-4 text-sm text-ink outli
         <button class="btn btn-primary" :disabled="!geminiKey.trim()"><Save :size="16" aria-hidden="true" /> Save key</button>
         <button v-if="view.gemini_key_last4" type="button" class="btn btn-secondary" @click="saveKey('')"><Trash2 :size="16" aria-hidden="true" /> Remove</button>
       </div>
+      <label class="mt-4 block text-sm font-semibold">Caption model
+        <span class="mt-1 block text-xs font-normal text-muted">Free Gemini models only, saved when picked. When this one is
+          busy or out of quota, the next one in the list writes the captions.</span>
+        <select v-model="captionModel" class="inset mt-2 block h-10 w-full rounded-md px-3 text-sm font-normal text-ink outline-none focus:border-blue sm:w-80"
+          @change="saveModel">
+          <option v-for="id in view.caption_models" :key="id" :value="id">{{ id }}</option>
+        </select>
+      </label>
     </form>
 
     <section v-if="view" class="raised p-4" aria-labelledby="examples">
