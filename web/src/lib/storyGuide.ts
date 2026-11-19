@@ -1,6 +1,6 @@
 // The story guide a chat AI gets: docs/STORY_GUIDE.md + the Story Package format (docs/story-package.md, the one
 // source) + the library item schemas for new items. All bundled at build time and loaded on first use. Overview and
-// Story Writer copy it. The live library list is separate (libraryRecords): the guide tells the AI to ask for it.
+// Story Writer copy it. The live library list is separate (libraryRecords): the user shares it alongside the guide.
 import { api } from '../api/client'
 import { toast } from '../composables/feedback'
 import { SLOTS } from './wardrobe'
@@ -62,13 +62,13 @@ export async function libraryRecords(standalone = false): Promise<string> {
   }
 }
 
-/** copy the library list for a chat AI (it asks for it, per the guide); true when copied */
+/** copy the library list for a chat AI to share alongside the story guide; true when copied */
 export async function copyLibraryList(): Promise<boolean> {
   const list = await libraryRecords(true)
   try {
     if (!list) throw new Error('empty')
     await navigator.clipboard.writeText(list.trim() + '\n')
-    toast('Library list copied: paste it into your AI when it asks for the inventory', 'ok')
+    toast('Library list copied: paste it into your AI alongside the story guide', 'ok')
     return true
   } catch {
     toast(list ? 'Could not copy to the clipboard.' : 'Could not load the library: is the API running?', 'error')

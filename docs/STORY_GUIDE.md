@@ -1,8 +1,16 @@
 # scribblefactory story guide (for AI assistants)
 
+## Interaction contract
+- This is a staged conversation, not a one-shot package-generation task. Stop at every gate below and wait for the user's explicit next instruction.
+- The user first shares this guide and the current library list, then supplies a story title and the agreed number of parts.
+- For the title phase, check the web for the real story, distinguish sourced facts from uncertainty, and write narration-only TTS scripts for exactly the agreed number of parts.
+- After the TTS scripts, stop. Do not suggest or create props, expressions, creatures, wardrobe, sets, actions or sounds until the user explicitly asks for library planning.
+- In library planning, give items one at a time in this order: props, expressions, creatures, wardrobe, sets, actions, sounds. Stop after each item and wait for `next` or an equivalent explicit request.
+- After the library items are concluded, stop again. Only when the user explicitly asks for directive scripts may you convert the approved TTS scripts into `story.md` scripts with directives and a Story Package.
+
 ## Never
 - Formatting while brainstorming (images, cards, tables, headings): plain short chat only.
-- Scripts, cast or assets before the story (premise, parts, twists) is agreed.
+- Directive scripts, staging, or a Story Package before the TTS scripts and library items are explicitly approved.
 - The Story Package before the user says "approved".
 - Rename, reorder, skip `<<<...>>>` markers; split the package; text around it.
 - Ids not in the inventory list, section 4, or the package.
@@ -14,13 +22,18 @@
 - Each part = one vertical Short: a voice reads the narration, a planner turns each line into stickman shots in 3D.
 - `@` lines are silent directives.
 
-## 1. Workflow
-1. Brainstorm: premise, cast, parts; per part its hook, rehook and twist (section 3). A few short lines, one or two
-   questions at a time.
-2. Sum up the plan as a short list (per part: hook, rehook, twist); wait for "approved".
-3. Ask for the inventory list ("Please paste your library list: the Copy library list button in Scribble Factory"); wait for it.
-   - It has every set, prop, creature, action, wardrobe item, sound and existing cast by id. Never guess ids.
-4. Reply with only one Story Package in one fenced `text` block (full rules: **Story Package format**, at the end):
+## 1. Workflow and stop gates
+1. The user provides this guide and the current library list, then gives a story title and the agreed part count. Never ask the user to repeat the inventory if it was already provided.
+   - The library list contains every set, prop, expression, creature, action, wardrobe item, sound and existing cast by id. Never guess ids.
+2. Research the title on the web. Use the real story's known events, names and historical context where available; flag uncertainty instead of presenting guesses as fact.
+3. Write narration-only TTS scripts for exactly the agreed number of parts. These are the words the voice will read: no `@` directives, no staging, no props JSON, no Story Package, and no extra parts.
+   - Keep the hook, intensifier, rehook and twist rules in section 3.
+4. Stop and wait for explicit approval or requested edits to the TTS scripts. Do not continue automatically.
+5. When the user explicitly asks to plan library items, work through the categories in this exact order: props, expressions, creatures, wardrobe, sets, actions, sounds.
+   - Give one proposed item at a time, explain which TTS line requires it, and wait for `next` before giving the next item.
+   - Props are exhaustive: every tool or object possessed, held, carried, eaten, given or used by any cast member in the TTS scripts is a prop, from a single coin to a bazooka. Do not omit an object because it is small, ordinary or used only once.
+   - Capture every emotional beat as an expression requirement, then continue through the remaining categories only when asked.
+6. Stop after the library categories are concluded. Only after the user explicitly asks for directive scripts, write the staged `story.md` scripts and assemble the Story Package:
 
 ```text
 <<<SCRIBBLE_PACKAGE v1>>>
@@ -58,7 +71,7 @@ narration only
    - Asset sections: only new items.
    - CAST: every character of the whole series.
    - VOICE: its SCRIPT's narration word for word, one line each; no `@` lines, title or `!!`.
-5. User pastes back `staging:` warnings: fix every one that fits; resend the whole package.
+7. User pastes back `staging:` warnings: fix every one that fits; resend the whole package.
 
 ## 2. Script format
 - Line 1 `# Title`, then a blank line.
@@ -180,6 +193,7 @@ narration only
 ## 6. New items
 - Every object a character uses must be a held prop: cast `"props"`, a `@look` with `"props"`, or `@do eat` / `give`.
   One per hand (`left` / `right`).
+- During library planning, list every cast-owned object discovered in the TTS scripts before proposing sets or any other category. The three-props-per-part limit applies to the final Story Package format, not to the completeness of the discovery list; if more are needed, explain the conflict and wait for the user's decision.
 - Add sets, creatures, wardrobe only if nothing fits.
 - Max per package: 2 sets, 3 props per part, 2 creatures, 4 wardrobe items.
 - Ids: lowercase a-z, 0-9, dashes; not built-in names.

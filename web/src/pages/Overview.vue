@@ -15,13 +15,13 @@ import { copyLibraryList, storyGuide } from '../lib/storyGuide'
 
 const { data, error, loading, reload, refresh } = useApi(() => Promise.all([api.overview(), api.series()]))
 
-// the story guide (lib/storyGuide); the AI asks for the library list separately
+// the story guide (lib/storyGuide) and live library list are shared together with the AI
 const copied = ref(false)
 async function copyGuide() {
   try {
     await navigator.clipboard.writeText(await storyGuide())
     copied.value = true
-    toast('Story guide copied: paste it into any AI and brainstorm. It asks for the library list when it needs it', 'ok')
+    toast('Story guide copied: paste it into any AI alongside the library list', 'ok')
     setTimeout(() => (copied.value = false), 2500)
   } catch {
     toast('Could not copy to the clipboard. Open docs/STORY_GUIDE.md and copy it from there.', 'error')
@@ -118,7 +118,7 @@ const diskTotal = computed(() => disk.value.reduce((a, b) => a + b.value, 0))
 
     <p class="flex max-w-3xl items-start gap-2 text-sm text-muted max-sm:order-3">
       <NotebookPen :size="16" class="mt-0.5 shrink-0" aria-hidden="true" />
-      Write a part with any AI: copy the story guide, paste it into Claude, ChatGPT or another assistant, fill in your cast at the end and ask for a part.
+      Copy the guide and library list to your AI, provide a story title and agreed part count, then follow the guided stops: TTS scripts, library items one by one, and directive scripts last.
     </p>
 
     <!-- cast sheets waiting (series level, not a part row) -->
