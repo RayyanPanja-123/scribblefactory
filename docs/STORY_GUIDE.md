@@ -147,6 +147,8 @@ narration only
 - Death: `@do <victim>: collapse` + `@face <victim>: dead` on the next line. On every later line of that scene keep
   them down: `lie` in that line's shared `@do` plus `@face <victim>: dead` (else they stand up again).
 - Every on-stage character with a role in the beat gets the `@do`; bystanders stay idle (no `@do`).
+- Moving actions (`walk`, `run`, `stagger`) need free stage room: with four or more on stage they often have none and
+  play as idle. Use an in-place action there (`react` for a hit, `gasp`, `angry`, `cheer`, an in-place custom action).
 
 ### Scene shape (the model part)
 - Build-up scene: one `@set`, the full cast, a crowd, six or seven lines of escalation.
