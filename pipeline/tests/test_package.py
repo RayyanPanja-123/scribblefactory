@@ -154,7 +154,7 @@ def test_doc_example_is_valid(lib):
     doc = (Path(__file__).resolve().parents[2] / "docs" / "story-package.md").read_text(encoding="utf-8")
     r = package.parse(doc.split("## Example")[1], lib)
     assert r["ok"], r["errors"]
-    assert [w["section"] for w in r["warnings"] if "words" not in w["message"]] == []
+    assert [w["section"] for w in r["warnings"] if "words" not in w["message"] and "staging: " not in w["message"]] == []
 
 
 def test_wardrobe_without_colors_gets_defaults(lib):

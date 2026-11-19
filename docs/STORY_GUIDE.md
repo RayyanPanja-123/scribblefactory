@@ -62,6 +62,10 @@ narration only
 - VOICE = its SCRIPT's narration word for word, one line each, without `@` lines, title or `!!`.
 - Every id used must exist in the library or the package.
 
+4. The user checks the package and may paste back warnings that start with `staging:` (directives, `@do` density,
+   lines with no mood, unused looks, actions or sounds). Fix every one that fits the story and reply with the whole
+   corrected package again, never a partial one.
+
 ## 2. Script format
 
 ```md
@@ -139,6 +143,10 @@ The video only shows what the directives and names tell it. Without them every s
 - **Objects are seen:** spears, letters, swords are props held through a `@look` switched on when used.
 - **Punch:** `@fx shake` or `@fx drop` on line 1, `@fx pop` on line 3, `@fx lightning` on one to three big beats.
 - Aim for **ten or more** directives per part besides `@set` and `@cast`.
+- **Use what the library has.** Items under *Available in this library* may carry a "use for" note: when a moment
+  matches it, use that item. Switch on each cast member's looks where the story calls for them, give characters
+  their custom actions (a god raising a trident before `@fx lightning`), and show props in hands rather than
+  describing them.
 
 ### Sound effects (`@sfx`)
 

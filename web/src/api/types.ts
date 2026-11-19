@@ -1070,6 +1070,11 @@ export interface components {
             move: number;
             /** Name */
             name: string;
+            /**
+             * Use For
+             * @description when a story should use it (shown to the story AI; never changes the drawing)
+             */
+            use_for?: string | null;
         };
         /** CustomCreature */
         CustomCreature: {
@@ -1115,6 +1120,11 @@ export interface components {
              * @enum {string}
              */
             rig: "humanoid" | "bird" | "quadruped" | "biped" | "crawler";
+            /**
+             * Use For
+             * @description when a story should use it (shown to the story AI; never changes the drawing)
+             */
+            use_for?: string | null;
         };
         /** CustomProp */
         CustomProp: {
@@ -1144,6 +1154,11 @@ export interface components {
              * @description drawn in order: later ones on top
              */
             shapes: components["schemas"]["PropShape"][];
+            /**
+             * Use For
+             * @description when a story should use it (shown to the story AI; never changes the drawing)
+             */
+            use_for?: string | null;
         };
         /** CustomSet */
         CustomSet: {
@@ -1175,6 +1190,11 @@ export interface components {
              * @default []
              */
             pieces: components["schemas"]["SetPiece"][];
+            /**
+             * Use For
+             * @description when a story should use it (shown to the story AI; never changes the drawing)
+             */
+            use_for?: string | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {

@@ -23,10 +23,10 @@ const copy = <T,>(v: T): T => JSON.parse(JSON.stringify(v))
 type Weather = NonNullable<CustomSet['default_weather']>
 const WEATHER = ['clear', 'rain', 'snow', 'fog', 'wind', 'storm'] as const
 const INTENSITY = ['light', 'medium', 'heavy'] as const
-const form = reactive({ id: '', name: '', idEdited: false, kind: 'indoor' as SetKind, floor: '', back: '', pieces: [] as SetPiece[],
+const form = reactive({ id: '', name: '', use_for: '', idEdited: false, kind: 'indoor' as SetKind, floor: '', back: '', pieces: [] as SetPiece[],
   weather: 'clear' as Weather['kind'] | 'clear', intensity: 'medium' as Weather['intensity'] })
 function load(s: CustomSet) {
-  Object.assign(form, { id: s.id, name: s.name, kind: s.kind, floor: s.floor, back: s.back, pieces: copy(s.pieces ?? []),
+  Object.assign(form, { id: s.id, name: s.name, use_for: s.use_for ?? '', kind: s.kind, floor: s.floor, back: s.back, pieces: copy(s.pieces ?? []),
     weather: s.default_weather?.kind ?? 'clear', intensity: s.default_weather?.intensity ?? 'medium' })
 }
 const showWeather = ref(true) // preview the default weather over the set
@@ -34,7 +34,7 @@ watch(data, (c) => {
   if (!c) return
   const s = c.custom.find((x) => x.id === props.id)
   if (s) { load(s); form.idEdited = true }
-  else if (isNew.value) Object.assign(form, { id: '', name: '', idEdited: false, kind: 'indoor', weather: 'clear', intensity: 'medium' }, copy(STARTER.indoor))
+  else if (isNew.value) Object.assign(form, { id: '', name: '', use_for: '', idEdited: false, kind: 'indoor', weather: 'clear', intensity: 'medium' }, copy(STARTER.indoor))
 }, { immediate: true })
 const missing = computed(() => !isNew.value && data.value && !data.value.custom.some((x) => x.id === props.id))
 watch(() => form.name, (n) => { if (isNew.value && !form.idEdited) form.id = slugify(n) })
@@ -61,7 +61,7 @@ const move = (i: number, d: number) => form.pieces.splice(i + d, 0, ...form.piec
 const saving = ref(false)
 async function save() {
   saving.value = true
-  const body = { ...draft.value, name: form.name.trim() }
+  const body = { ...draft.value, name: form.name.trim(), use_for: form.use_for.trim() || null }
   const c = await act(() => api.saveSet(body), `Set “${body.name}” saved`)
   saving.value = false
   if (!c) return
@@ -100,6 +100,9 @@ const num = 'inset mt-1 block h-10 w-full rounded-md px-3 text-sm text-ink outli
             <input v-model="form.id" required :readonly="!isNew" pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="kitchen"
               :class="[field, !isNew && 'opacity-70']" :aria-invalid="!!taken" @input="form.idEdited = true" />
             <span v-if="taken" class="mt-1 block text-red-ink" role="alert">“{{ form.id }}” is already a set</span>
+          </label>
+          <label class="block text-xs font-semibold text-muted sm:col-span-2">Use for (tells the story AI when to use it)
+            <input v-model="form.use_for" maxlength="200" placeholder="ancient Rome: markets, senators, emperors walking by" :class="field" />
           </label>
         </div>
 

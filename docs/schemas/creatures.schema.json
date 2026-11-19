@@ -246,6 +246,20 @@
           ],
           "title": "Rig",
           "type": "string"
+        },
+        "use_for": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "when a story should use it (shown to the story AI; never changes the drawing)",
+          "title": "Use For"
         }
       },
       "required": [

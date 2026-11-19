@@ -4,12 +4,14 @@
 import { api } from '../api/client'
 import { SLOTS } from './wardrobe'
 
-const ids = (xs: { id: string; name: string }[]) => xs.map((x) => `\`${x.id}\` (${x.name})`).join(', ')
+/** a custom item's "use for" note (when a story should use it), e.g. "; use for: Neptune's weapon" */
+const use = (x: { use_for?: string | null }) => (x.use_for ? `; use for: ${x.use_for}` : '')
+const ids = (xs: { id: string; name: string; use_for?: string | null }[]) => xs.map((x) => `\`${x.id}\` (${x.name}${use(x)})`).join(', ')
 type Weather = { kind: string; intensity: string } | null | undefined
 const wx = (w: Weather) => (w ? `${w.kind} ${w.intensity}` : '')
 /** custom sets with their default weather, e.g. `harbour` (Harbour, default weather fog light) */
-const setIds = (xs: { id: string; name: string; default_weather?: Weather }[]) =>
-  xs.map((x) => `\`${x.id}\` (${x.name}${x.default_weather ? `, default weather ${wx(x.default_weather)}` : ''})`).join(', ')
+const setIds = (xs: { id: string; name: string; default_weather?: Weather; use_for?: string | null }[]) =>
+  xs.map((x) => `\`${x.id}\` (${x.name}${x.default_weather ? `, default weather ${wx(x.default_weather)}` : ''}${use(x)})`).join(', ')
 /** cast members with their named looks (@look), e.g. `mike` (Mike; looks: headless) */
 const castIds = (xs: { id: string; name: string; looks?: Record<string, unknown> }[]) =>
   xs.map((x) => { const l = Object.keys(x.looks ?? {}); return `\`${x.id}\` (${x.name}${l.length ? `; looks: ${l.map((k) => `\`${k}\``).join(', ')}` : ''})` }).join(', ')
@@ -37,7 +39,7 @@ export async function libraryRecords(standalone = false): Promise<string> {
       `- **Props** (${props.builtin.length + props.custom.length}): built in ${props.builtin.map((p) => `\`${p}\``).join(', ')}` +
         (props.custom.length ? `; custom ${ids(props.custom)}` : ''),
       `- **Creatures** (cast bodies, by rig; default \`human\`): ${[...creatures.builtin, ...creatures.custom]
-        .map((c) => `\`${c.id}\` (${c.rig})`).join(', ')}`,
+        .map((c) => `\`${c.id}\` (${c.rig}${use(c as { use_for?: string | null })})`).join(', ')}`,
       `- **Actions** for \`@do <cast>: <action>\`: built in ${actions.do.map((a) => `\`${a}\``).join(', ')}` +
         (actions.custom.length ? `; custom (humanoids only) ${ids(actions.custom)}` : ''),
       `- **Wardrobe** (cast slots, by slot; worn by id, \`null\` for none): ${SLOTS.map((s) => {

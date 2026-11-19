@@ -400,3 +400,19 @@ def test_workers_default_from_settings_and_flag_wins(part, capsys):
     part.state["starts"] = 0
     assert cli_render("--force", "--workers", "5") == 0
     assert part.state["starts"] == 2  # explicit flag beats the setting (capped to the 2 chunks)
+
+
+def test_use_for_notes_never_change_the_frames_hash(tmp_path):
+    import json as _json
+    from pipeline.scribble.stages.render import pixel_bytes
+    f = tmp_path / "props.json"
+    raw = _json.dumps({"props": [{"id": "staff", "name": "Staff", "shapes": []}]}).encode()
+    f.write_bytes(raw)
+    assert pixel_bytes(f) == raw  # no notes: the raw bytes, so frames rendered before notes existed stay valid
+    noted = lambda note: _json.dumps({"props": [{"id": "staff", "name": "Staff", "use_for": note, "shapes": []}]})  # noqa: E731
+    f.write_text(noted("a wizard's staff"))
+    a = pixel_bytes(f)
+    f.write_text(noted("any magic moment"))
+    assert pixel_bytes(f) == a
+    f.write_text(noted("any magic moment").replace('"shapes": []', '"shapes": [1]'))
+    assert pixel_bytes(f) != a  # the drawing itself still counts

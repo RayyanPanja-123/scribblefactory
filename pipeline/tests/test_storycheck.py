@@ -37,6 +37,11 @@ The end.
 """
 
 
+def plain(r: dict) -> dict:
+    """a check result without its staging notes (test_staging_report covers those)"""
+    return {**r, "warnings": [w for w in r["warnings"] if not w["message"].startswith("staging: ")]}
+
+
 def setup(tmp_path, story, approve=("bob", "amy")):
     lib = str(tmp_path)
     assert cli(["new-series", "demo", "--title", "Demo", "--library", lib]) == 0
@@ -107,7 +112,7 @@ def test_ready_story_and_cast_approvals(tmp_path, capsys):
     r = check_story(pdir)
     assert [(p["line"], p["message"].split(" (")[0]) for p in r["problems"]] == [(4, "cast fred is not approved yet")]
     assert cli(["approve-cast", "demo", "fred", "--library", str(tmp_path)]) == 0
-    assert check_story(pdir) == {"ok": True, "problems": [], "warnings": [], "words": 3, "seconds": 3.9,
+    assert plain(check_story(pdir)) == {"ok": True, "problems": [], "warnings": [], "words": 3, "seconds": 3.9,
                                  "wps": 2.6}  # 3 words / 2.6 per s + 1 s end card
     assert cli(["check-story", "demo", "part-01", "--library", str(tmp_path)]) == 0
     assert capsys.readouterr().out.rstrip().endswith("ready")
@@ -117,7 +122,7 @@ def test_changed_words_against_the_recorded_script(tmp_path):
     pdir = setup(tmp_path, "# T\n\nBob met Amy.\n\n@set office\nThey sat down.\n")
     (pdir / "script-for-tts.txt").write_text("Bob met Amy.\n\nThey stood up.\n", encoding="utf-8")
     r = check_story(pdir)  # no voice yet: prep just rewrites the script
-    assert r["ok"] and [w["line"] for w in r["warnings"]] == [6]
+    assert r["ok"] and [w["line"] for w in plain(r)["warnings"]] == [6]
     (pdir / "voice.mp3").write_bytes(b"ID3")
     r = check_story(pdir)
     assert [(p["line"], p["message"]) for p in r["problems"]] == [
@@ -162,10 +167,10 @@ def test_runtime_warning_over_58_seconds(tmp_path):
     pdir = setup(tmp_path, "# T\n\n" + "Bob met Amy. " * 50 + "\n")  # 150 words / 2.6 + 1 = 58.7 s
     r = check_story(pdir)
     assert r["ok"] and r["seconds"] == 60.4
-    assert [w["message"] for w in r["warnings"]] == [
+    assert [w["message"] for w in plain(r)["warnings"]] == [
         "estimated 60.4 s is 2.4 s over 58 s (150 words at 2.60 words/s): cut about 6 words"]
     (pdir / "story.md").write_text("# T\n\n" + "Bob met Amy. " * 40 + "\n", encoding="utf-8")
-    assert check_story(pdir)["warnings"] == []
+    assert plain(check_story(pdir))["warnings"] == []
 
 
 @pytest.mark.parametrize("first,slow", [
@@ -184,7 +189,7 @@ def test_hook_check(tmp_path, first, slow):
 
 def test_hook_warning_in_check_story(tmp_path):
     pdir = setup(tmp_path, "# T\n\n@cast bob\nOnce upon a time Bob met Amy.\n")
-    assert [(w["line"], w["message"].split(":")[0]) for w in check_story(pdir)["warnings"]] == [
+    assert [(w["line"], w["message"].split(":")[0]) for w in plain(check_story(pdir))["warnings"]] == [
         (4, "the first line opens on a date or backstory")]
 
 
@@ -194,3 +199,24 @@ def test_face_directive(tmp_path):
     assert not any(line == 5 for line, _ in msgs)
     assert any(line == 7 and "unknown cast id 'zed'" in m for line, m in msgs)
     assert (9, "@face has no narration line after it") in msgs
+
+
+def test_staging_report(tmp_path):
+    from pipeline.scribble.io import load_series, save_series
+    pdir = setup(tmp_path, "# T\n\n@set office\n@cast bob, amy\nBob sat down.\nAmy laughed.\nBob read.\n")
+    f = tmp_path / "demo" / "series.json"
+    s = load_series(f)
+    s.cast[0] = type(s.cast[0]).model_validate({**s.cast[0].model_dump(), "default_expression": "cheeky",
+                                                "looks": {"party": {"props": []}}})
+    save_series(f, s)
+    warn = [w["message"] for w in check_story(pdir)["warnings"] if w["message"].startswith("staging: ")]
+    assert any("directives besides @set and @cast" in w for w in warn)
+    assert any(w.startswith("staging: 0 @do in 3 narration lines") for w in warn)
+    assert any("lines 5, 7: no mood word" in w and "bob (cheeky)" in w for w in warn)  # Amy laughed: has a mood
+    assert any("no @sfx" in w for w in warn)
+    assert any("looks never switched on in this series: bob: party" in w for w in warn)
+    # an emotional @do or @face covers its line; staging notes are warnings only, never problems
+    pdir.joinpath("story.md").write_text("# T\n\n@set office\n@cast bob, amy\n@face bob: sad\nBob sat down.\n"
+                                         "@do bob: angry\nBob read.\n", encoding="utf-8")
+    r = check_story(pdir)
+    assert r["ok"] and not any("no mood word" in w["message"] for w in r["warnings"])

@@ -22,9 +22,9 @@ const slugify = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0
 // one shape per line, points as [x, y]
 const drawingOf = (c: CustomCreature) => JSON.stringify({ joints: c.joints, face: c.face, parts: c.parts }, null, 2)
   .replace(/\[\s+(-?[\d.]+),\s+(-?[\d.]+)\s+\]/g, '[$1, $2]')
-const form = reactive({ id: '', name: '', idEdited: false, rig: 'bird' as Rig, accent: '#3a2a1e', drawing: '', build: { ...DEFAULT_BUILD } })
+const form = reactive({ id: '', name: '', use_for: '', idEdited: false, rig: 'bird' as Rig, accent: '#3a2a1e', drawing: '', build: { ...DEFAULT_BUILD } })
 const load = (c: CustomCreature, keepId = false) => Object.assign(form, {
-  ...(keepId ? {} : { id: c.id, idEdited: true }), name: c.name, rig: c.rig, accent: c.accent ?? '#3a2a1e', drawing: drawingOf(c),
+  ...(keepId ? {} : { id: c.id, idEdited: true }), name: c.name, use_for: c.use_for ?? '', rig: c.rig, accent: c.accent ?? '#3a2a1e', drawing: drawingOf(c),
   build: { ...DEFAULT_BUILD, ...(c.build ?? {}) } })
 
 watch(data, (cat) => {
@@ -75,7 +75,7 @@ const saving = ref(false)
 async function save() {
   if (!draft.value) return
   saving.value = true
-  const body = { ...draft.value, name: form.name.trim() }
+  const body = { ...draft.value, name: form.name.trim(), use_for: form.use_for.trim() || null }
   const c = await act(() => api.saveCreature(body), `Creature “${body.name}” saved`)
   saving.value = false
   if (!c) return
@@ -114,6 +114,9 @@ const field = 'inset mt-1 block h-10 w-full rounded-md px-4 text-sm text-ink out
             <input v-model="form.id" required :readonly="!isNew" pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="dog"
               :class="[field, !isNew && 'opacity-70']" :aria-invalid="!!taken" @input="form.idEdited = true" />
             <span v-if="taken" class="mt-1 block text-red-ink" role="alert">“{{ form.id }}” is already taken</span>
+          </label>
+          <label class="block text-xs font-semibold text-muted sm:col-span-2">Use for (tells the story AI when to use it)
+            <input v-model="form.use_for" maxlength="200" placeholder="a pet or farm animal in the background" :class="field" />
           </label>
           <label class="block text-xs font-semibold text-muted">Rig (how it moves)
             <select v-model="form.rig" :class="field">

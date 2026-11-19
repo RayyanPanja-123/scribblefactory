@@ -399,6 +399,8 @@ class PropShape(Strict):
 class CustomProp(Strict):
     id: Slug = Field(description="the prop kind used in cast props and @do eat / give")  # checked: _not_builtin
     name: str = Field(min_length=1, max_length=40)
+    use_for: str | None = Field(default=None, max_length=200, description="when a story should use it (shown to the "
+                                                                       "story AI; never changes the drawing)")
     shapes: list[PropShape] = Field(min_length=1, max_length=40, description="drawn in order: later ones on top")
     angle: PropAngle = 0
     grip: tuple[float, float] | None = Field(default=None, description="the point of the shapes the hand holds "
@@ -479,6 +481,8 @@ class SetPiece(Strict):
 class CustomSet(Strict):
     id: Slug = Field(description="the name used in @set")  # checked: _not_builtin
     name: str = Field(min_length=1, max_length=40)
+    use_for: str | None = Field(default=None, max_length=200, description="when a story should use it (shown to the "
+                                                                       "story AI; never changes the drawing)")
     kind: SetKind = Field(description="indoor: floor and back wall; outdoor: wide floor and sky, allows travel shots")
     floor: HexColor
     back: HexColor = Field(description="indoor: the back wall; outdoor: the sky")
@@ -577,6 +581,8 @@ class CustomAction(Strict):
     <id> plays it; other creatures stand idle through it."""
     id: Slug
     name: str = Field(min_length=1, max_length=40)
+    use_for: str | None = Field(default=None, max_length=200, description="when a story should use it (shown to the "
+                                                                       "story AI; never changes the drawing)")
     duration: float = Field(ge=0.2, le=10, description="seconds for one pass through the keys")
     loop: bool = Field(default=True, description="repeat for the whole shot; false: play once and hold the last key")
     facing: Literal["camera", "side"] = Field(default="camera", description="camera: front view; side: the figure "
@@ -659,6 +665,8 @@ class CreatureFace(Strict):
 class CustomCreature(Strict):
     id: Slug = Field(description="the body name used in series.json cast")  # checked: _not_builtin
     name: str = Field(min_length=1, max_length=40)
+    use_for: str | None = Field(default=None, max_length=200, description="when a story should use it (shown to the "
+                                                                       "story AI; never changes the drawing)")
     rig: CreatureRig = Field(description="how it moves: humanoid (a stickman: face, costume, hands), bird, quadruped, "
                                          "biped (has hands), crawler")
     accent: HexColor = Field(default="#3a2a1e", description="$accent when the cast member has no accent colour")

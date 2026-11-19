@@ -30,7 +30,7 @@ const STARTER: Row[] = [
 ]
 const slugify = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 
-const form = reactive({ id: '', name: '', idEdited: false, rows: [] as Row[], angle: 0, grip: '' })
+const form = reactive({ id: '', name: '', use_for: '', idEdited: false, rows: [] as Row[], angle: 0, grip: '' })
 const hand = ref<Hand>('right')
 const toRow = (s: PropShape): Row => ({
   shape: s.shape, pts: s.pts.map(([x, y]) => `${x},${y}`).join(' '), r: s.r ?? 20,
@@ -40,8 +40,8 @@ watch(data, (c) => {
   if (!c) return
   const p = c.custom.find((x) => x.id === props.id)
   if (!isNew.value && !p) return
-  Object.assign(form, p ? { id: p.id, name: p.name, idEdited: true, rows: p.shapes.map(toRow), angle: p.angle ?? 0, grip: p.grip ? p.grip.join(',') : '' }
-    : { id: '', name: '', idEdited: false, rows: STARTER.map((r) => ({ ...r })), angle: 0, grip: '' })
+  Object.assign(form, p ? { id: p.id, name: p.name, use_for: p.use_for ?? '', idEdited: true, rows: p.shapes.map(toRow), angle: p.angle ?? 0, grip: p.grip ? p.grip.join(',') : '' }
+    : { id: '', name: '', use_for: '', idEdited: false, rows: STARTER.map((r) => ({ ...r })), angle: 0, grip: '' })
 }, { immediate: true })
 const missing = computed(() => !isNew.value && data.value && !data.value.custom.some((x) => x.id === props.id))
 watch(() => form.name, (n) => { if (isNew.value && !form.idEdited) form.id = slugify(n) })
@@ -79,7 +79,7 @@ const move = (i: number, d: number) => form.rows.splice(i + d, 0, ...form.rows.s
 const saving = ref(false)
 async function save() {
   saving.value = true
-  const body = { ...draft.value, name: form.name.trim() }
+  const body = { ...draft.value, name: form.name.trim(), use_for: form.use_for.trim() || null }
   const c = await act(() => api.saveProp(body), `Prop “${body.name}” saved`)
   saving.value = false
   if (!c) return
@@ -116,6 +116,9 @@ const field = 'inset mt-1 block h-10 w-full rounded-md px-4 text-sm text-ink out
             <input v-model="form.id" required :readonly="!isNew" pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="torch"
               :class="[field, !isNew && 'opacity-70']" :aria-invalid="!!taken" @input="form.idEdited = true" />
             <span v-if="taken" class="mt-1 block text-red-ink" role="alert">“{{ form.id }}” is already a prop</span>
+          </label>
+          <label class="block text-xs font-semibold text-muted sm:col-span-2">Use for (tells the story AI when to use it)
+            <input v-model="form.use_for" maxlength="200" placeholder="Neptune's weapon: lightning, commanding the sea" :class="field" />
           </label>
         </div>
 

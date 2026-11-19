@@ -79,8 +79,19 @@ def frames_hash(part_dir: Path) -> str:
     h = hashlib.sha256()
     for f in [part_dir / "story.json", part_dir / "phrases.json", part_dir.parent / "series.json",
               *(part_dir.parent.parent / f for f in LIBRARY_FILES), *PAGE_FILES]:
-        h.update(f.name.encode() + b"\0" + (f.read_bytes() if f.exists() else b"<missing>") + b"\0")
+        h.update(f.name.encode() + b"\0" + (pixel_bytes(f) if f.exists() else b"<missing>") + b"\0")
     return h.hexdigest()
+
+
+def pixel_bytes(f: Path) -> bytes:
+    """the file's bytes as far as pixels go: a library file's "use_for" notes (for the story AI) are left out, so
+    editing a note never re-renders. A file without notes hashes as its raw bytes, so older chunks stay valid."""
+    data = f.read_bytes()
+    if f.name not in LIBRARY_FILES or b'"use_for"' not in data:
+        return data
+    strip = lambda v: ({k: strip(x) for k, x in v.items() if k != "use_for"} if isinstance(v, dict)  # noqa: E731
+                       else [strip(x) for x in v] if isinstance(v, list) else v)
+    return json.dumps(strip(json.loads(data)), sort_keys=True).encode()
 
 
 def frame_path(frames: Path, n: int) -> Path:

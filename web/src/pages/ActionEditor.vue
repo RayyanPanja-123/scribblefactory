@@ -25,12 +25,12 @@ const STARTER: Key[] = [ // a wave hello: rest, the right arm up, back down
   { t: 0.4, arms: [[-16, 0], [140, 40]], legs: null, lean: 2 },
   { t: 1, arms: null, legs: null, lean: 0 },
 ]
-const form = reactive({ id: '', name: '', idEdited: false, duration: 1.5, loop: true, facing: 'camera' as 'camera' | 'side', move: 0, keys: structuredClone(STARTER) })
+const form = reactive({ id: '', name: '', use_for: '', idEdited: false, duration: 1.5, loop: true, facing: 'camera' as 'camera' | 'side', move: 0, keys: structuredClone(STARTER) })
 
 watch(data, (cat) => {
   if (!cat || isNew.value) return
   const a = cat.custom.find((x) => x.id === props.id)
-  if (a) Object.assign(form, { id: a.id, name: a.name, idEdited: true, duration: a.duration, loop: a.loop ?? true, facing: a.facing ?? 'camera', move: a.move ?? 0,
+  if (a) Object.assign(form, { id: a.id, name: a.name, use_for: a.use_for ?? '', idEdited: true, duration: a.duration, loop: a.loop ?? true, facing: a.facing ?? 'camera', move: a.move ?? 0,
     keys: a.keys.map((k) => ({ t: k.t, arms: k.arms ?? null, legs: k.legs ?? null, lean: k.lean ?? 0 })) })
 }, { immediate: true })
 const missing = computed(() => !isNew.value && data.value && !data.value.custom.some((x) => x.id === props.id))
@@ -56,7 +56,7 @@ const toggle = (k: Key, part: 'arms' | 'legs') => { k[part] = (k[part] ? null : 
 const saving = ref(false)
 async function save() {
   saving.value = true
-  const body = { ...draft.value, name: form.name.trim() }
+  const body = { ...draft.value, name: form.name.trim(), use_for: form.use_for.trim() || null }
   const c = await act(() => api.saveAction(body), `Action “${body.name}” saved`)
   saving.value = false
   if (c && isNew.value) router.replace(`/actions/${body.id}`)
@@ -91,6 +91,9 @@ const ARM_SLIDERS = [[0, 0, 'Left arm'], [0, 1, 'Left bend'], [1, 0, 'Right arm'
             <input v-model="form.id" required :readonly="!isNew" pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="salute"
               :class="[field, !isNew && 'opacity-70']" :aria-invalid="taken" @input="form.idEdited = true" />
             <span v-if="taken" class="mt-1 block text-red-ink" role="alert">“{{ form.id }}” is already taken</span>
+          </label>
+          <label class="block text-xs font-semibold text-muted sm:col-span-2">Use for (tells the story AI when to use it)
+            <input v-model="form.use_for" maxlength="200" placeholder="a god or king showing power, right before lightning" :class="field" />
           </label>
           <label class="block text-xs font-semibold text-muted">Duration (seconds for one pass)
             <input v-model.number="form.duration" type="number" min="0.2" max="10" step="0.1" required :class="field" />

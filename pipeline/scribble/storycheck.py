@@ -20,7 +20,8 @@ from .stages.finish import MAX_RUNTIME_S
 from .stages.prep import (DO_CAR, FX_LIGHTNING, FX_MODES, MAX_LIGHTNING, TWIST_PREFIX, clean_markdown, parse_do,
                           parse_face, parse_lightning, parse_look, parse_weather, strip_directives)
 from .stages.runner import StageError
-from .stages.shots import CAR_MODES, CAR_SEATS, DEFAULT_CAST_SIZE, MAX_CAST, MAX_DOGS, MAX_ON_STAGE, MAX_RUNNERS, parse_crowd
+from .stages.shots import (ACTION_FACE, CAR_MODES, CAR_SEATS, DEFAULT_CAST_SIZE, EXPRESSIONS, MAX_CAST, MAX_DOGS, MAX_ON_STAGE,
+                           MAX_RUNNERS, parse_crowd, token)
 from .validate import END_CARD_S, SIGN_OFF_PAUSE_S
 
 DIRECTIVES = ("set", "cast", "dogs", "car", "fx", "do", "look", "crowd", "runners", "weather", "sfx", "face")
@@ -219,6 +220,8 @@ def check_story(part_dir: Path) -> dict:
     if hook := slow_open(md):
         warnings.append({"line": hook[0], "message": "the first line opens on a date or backstory: lead with the twist "
                                                      "or the most surprising claim, and move the date to line two"})
+    if not problems:
+        warnings += staging(md, series, library, part_dir.name)
     wps = measured_wps(library)
     seconds = estimate_runtime(len(words), wps)
     if seconds > MAX_RUNTIME_S:
@@ -228,6 +231,69 @@ def check_story(part_dir: Path) -> dict:
                                                   f"cut about {cut} words"})
     return {"ok": not problems, "problems": problems, "warnings": warnings, "words": len(words), "seconds": seconds,
             "wps": round(wps, 2)}
+
+
+STAGING = ("do", "look", "face", "fx", "crowd", "dogs", "runners", "car", "weather", "sfx")
+MIN_STAGING = 10  # directives besides @set and @cast (STORY_GUIDE.md section 5)
+
+
+def staging(md: str, series, library: Path, part: str) -> list[dict]:
+    """How fully the script uses the library and the directives: warnings starting "staging: ", for the writer (and
+    the story AI the warnings are pasted back to). Never problems: a sparse script still renders."""
+    out = []
+    note = lambda line, msg: out.append({"line": line, "message": f"staging: {msg}"})  # noqa: E731
+    lines = md.replace("\r\n", "\n").split("\n")
+    names = {token(c.name): c for c in series.cast}
+    used = {d: 0 for d in STAGING}
+    narration, pending, flat = 0, {}, []  # pending: cast id -> face set by @do / @face for the next line
+    for no, line in enumerate(lines, 1):
+        s = line.strip()
+        if s.startswith("@"):
+            name, _, arg = s[1:].partition(" ")
+            if name in used:
+                used[name] += 1
+            who, _, what = arg.partition(":")
+            for w in (x.strip() for x in who.split(",")):
+                if name == "face" or (name == "do" and what.split()[:1] and what.split()[0] in ACTION_FACE):
+                    pending[w] = True
+            continue
+        text = clean_markdown(TWIST_PREFIX.sub(r"\1", line))
+        if not text:
+            continue
+        narration += 1
+        toks = [token(w) for w in text.split()]
+        subject = next((names[t] for t in toks if t in names), None)
+        if subject and subject.default_expression != "neutral" and subject.id not in pending \
+                and not any(t in EXPRESSIONS for t in toks):
+            flat.append((no, subject))
+        pending = {}
+    rich = sum(used.values())
+    if rich < MIN_STAGING:
+        note(None, f"{rich} directives besides @set and @cast; aim for {MIN_STAGING} or more (@do, @look, @face, "
+                   "@crowd, @weather, @fx, @sfx): without them every shot is people standing and talking")
+    if narration and used["do"] * 3 < narration:
+        note(None, f"{used['do']} @do in {narration} narration lines: give a physical beat every second or third line")
+    if flat:
+        who = sorted({f"{c.id} ({c.default_expression})" for _, c in flat})
+        note(flat[0][0], f"line{'s' * (len(flat) > 1)} {', '.join(str(n) for n, _ in flat[:6])}"
+                         f"{' ...' if len(flat) > 6 else ''}: no mood word, emotional @do or @face, so the face is the "
+                         f"default one: {', '.join(who)}. Add a mood word (angry, laughed, sobbed...) or @face where "
+                         "the moment has a feeling")
+    if not used["sfx"]:
+        note(None, "no @sfx: 2 to 4 sound effects where the moment needs one (the Review tab suggests some)")
+    # the series' unused looks and the library's unused custom actions, over every part's story.md
+    series_md = "\n".join(f.read_text(encoding="utf-8") for f in sorted((library / series.slug).glob("part-*/story.md")))
+    looked = {(w.strip(), look.strip()) for ln in series_md.split("\n") if ln.strip().startswith("@look ")
+              for who, _, look in [ln.strip()[6:].partition(":")] for w in who.split(",")}
+    on_stage = {c.id for t in map(token, clean_markdown(strip_directives(md)).split()) if (c := names.get(t))}
+    idle_looks = [f"{c.id}: {k}" for c in series.cast if c.id in on_stage for k in c.looks if (c.id, k) not in looked]
+    if idle_looks:
+        note(None, f"looks never switched on in this series: {', '.join(idle_looks)} (@look <cast>: <look>)")
+    acted = {w for ln in series_md.split("\n") if ln.strip().startswith("@do ") for w in ln.replace(",", " ").split()}
+    idle_actions = [a for a in custom_actions(library) if a not in acted]
+    if idle_actions:
+        note(None, f"custom actions never used in this series: {', '.join(idle_actions[:8])} (@do <cast>: <action>)")
+    return out
 
 
 def _check_do(line: int, clauses, cast: tuple, car: str, bad) -> None:
