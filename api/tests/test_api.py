@@ -60,7 +60,7 @@ def wait_job(client, job_id, timeout=30):
     end = time.time() + timeout
     while time.time() < end:
         job = next(j for j in client.get("/api/jobs").json() if j["id"] == job_id)
-        if job["status"] in ("done", "failed", "cancelled"):
+        if job["status"] in ("done", "failed", "cancelled") and job["finished_at"]:  # a cancel is final once its runner is done
             return job
         time.sleep(0.05)
     raise AssertionError(f"job {job_id} still {job['status']}")
@@ -391,19 +391,29 @@ def test_job_failure_stops(client, monkeypatch, lib):
     assert not (lib / "ran").exists()
 
 
-def test_job_cancel_kills_tree(client, monkeypatch):
+def test_job_cancel_kills_tree(client, lib, monkeypatch):
     slow = ("import subprocess, sys, time; c = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)']); "
-            "print(c.pid, flush=True); time.sleep(60)")
+            "import os; print(c.pid, os.getpid(), flush=True); time.sleep(60)")
     fake_steps(monkeypatch, {"slow": slow})
     job = client.post("/api/jobs", json={"slug": "demo", "part": "part-01", "steps": ["slow", "slow"]}).json()
     end = time.time() + 10
     while not (out := next(j for j in client.get("/api/jobs").json() if j["id"] == job["id"])["output"]):
         assert time.time() < end
         time.sleep(0.05)
-    child = int(out[0])
+    child, step_pid = map(int, out[0].split())
+    # as a real render would: its stage running under the step's pid, and its lock
+    d = lib / "demo" / "part-01"
+    p = load_part(d / "part.json")
+    p.stages.render.status, p.stages.render.pid = "running", step_pid
+    save_part(d / "part.json", p)
+    render_stage.lock_path(d).parent.mkdir(parents=True, exist_ok=True)
+    render_stage.lock_path(d).write_text(f"{step_pid}\n", encoding="utf-8")
     assert client.delete(f"/api/jobs/{job['id']}").json()["status"] == "cancelled"
     j = wait_job(client, job["id"])
     assert j["status"] == "cancelled" and j["current_step"] == 0
+    # killed before it could clean up: the API does it, so the part can run again
+    assert load_part(d / "part.json").stages.render.status == "failed" and not render_stage.lock_path(d).exists()
+    assert "render: cancelled, marked failed" in j["output"]
     end = time.time() + 5
     while pid_alive(child) and time.time() < end:
         time.sleep(0.05)

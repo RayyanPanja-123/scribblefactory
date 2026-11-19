@@ -1564,6 +1564,10 @@ def _run(job: dict) -> None:
         with _cv:
             _procs.pop(job["id"], None)
         job["returncode"] = proc.returncode
+        if job["status"] == "cancelled" and job["part"]:  # killed: its stage never got to say so, nor drop its lock
+            d = lib() / job["slug"] / job["part"]
+            notes = render_stage.clear_stale_lock(d) + [f"{n}: cancelled, marked failed" for n in recover_stuck(d)]
+            job["output"] += notes
         publish("part-changed", {"slug": job["slug"], "part": job["part"]})
         publish("series-changed", {"slug": job["slug"]})
         if job["status"] == "cancelled":
