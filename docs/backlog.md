@@ -14,6 +14,11 @@ Known gaps and ideas, one line each. Not planned work.
 - A job's output is kept as its last 200 lines, saved on state changes only: a crash loses lines since the last step.
 - An API restart stops a job's orphaned process instead of following it to the end.
 - No auth: the API binds to 127.0.0.1 only and must stay there.
+- Water is detected from a blue outdoor floor colour; a set can't yet say "not water" (or "water") explicitly.
+- Rim light, ripples and reflections are cast-only: extras, dogs and cars don't get them.
+- Two-hander turn is a card yaw plus a glance; the stickman has no true three-quarter drawing.
+- Outdoor wides are bounded by the cast's x spread: actors far apart still read small in 9:16.
+- Long hair or capes drawn "behind" the head tilt with it, but held props near the head don't.
 
 ## Ideas
 
@@ -26,3 +31,6 @@ Known gaps and ideas, one line each. Not planned work.
 - Disk budget warning on the overview when library/ passes a size.
 - Batch "Run next" across every part of a series.
 - Export a series as one long video (compilation).
+- Art style presets per series (ink weight, wobble, palette warmth) on top of engine/page/style.js.
+- Per-shot camera tilt and a "handheld" drift as story directives (style.js camera.tilt is global, off by default).
+- Snow and wind in two layers like rain (snow behind the cast, a few flakes in front).

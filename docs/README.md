@@ -3,6 +3,7 @@
 - [USAGE.md](USAGE.md): making a video, step by step, with every story directive.
 - [STORY_GUIDE.md](STORY_GUIDE.md): self-contained guide to share with any AI so it writes valid story.md files.
 - [story-package.md](story-package.md): the Story Package format: a whole series in one paste (Story Writer).
+- [style.md](style.md): the renderer's art style config (`engine/page/style.js`): every tunable in one place.
 - [backlog.md](backlog.md): known gaps and ideas.
 - [future-desktop-app.md](future-desktop-app.md): plan for packaging ScribbleFactory as a self-contained desktop app.
 - [brief.md](brief.md): the project brief and build order.
