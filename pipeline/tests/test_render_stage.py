@@ -391,3 +391,12 @@ def test_nothing_left_still_checks_renderer_with_one_worker(part, capsys):
     render.run(part, workers=4)  # renderer changed: everything again, pool grows to the work
     assert part.state["starts"] == 2 and part.state["calls"] == [(0, 149), (150, 179)]
     assert "renderer changed (driver: 1.0 -> 9.9)" in capsys.readouterr().out
+
+
+def test_workers_default_from_settings_and_flag_wins(part, capsys):
+    (part.parents[1] / "settings.json").write_text(json.dumps({"render_workers": 1}))
+    assert cli_render() == 0
+    assert part.state["starts"] == 1 and "render: 1 worker" in capsys.readouterr().out
+    part.state["starts"] = 0
+    assert cli_render("--force", "--workers", "5") == 0
+    assert part.state["starts"] == 2  # explicit flag beats the setting (capped to the 2 chunks)

@@ -588,6 +588,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Settings */
+        get: operations["get_settings_api_settings_get"];
+        /**
+         * Put Settings
+         * @description applies to the next render job; a running one keeps its workers
+         */
+        put: operations["put_settings_api_settings_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/wardrobe": {
         parameters: {
             query?: never;
@@ -1186,6 +1207,17 @@ export interface components {
              */
             kind: string;
         };
+        /** Machine */
+        Machine: {
+            /** Cpu Threads */
+            cpu_threads: number;
+            /** Gpu */
+            gpu: string | null;
+            /** Ram Gb */
+            ram_gb: number | null;
+            /** Recommended Workers */
+            recommended_workers: number;
+        };
         /** MonthPosts */
         MonthPosts: {
             /** Instagram */
@@ -1434,6 +1466,13 @@ export interface components {
              */
             waiting: string[];
         };
+        /** PcExample */
+        PcExample: {
+            /** Pc */
+            pc: string;
+            /** Workers */
+            workers: number;
+        };
         /** Post */
         Post: {
             /** Posted At */
@@ -1634,6 +1673,29 @@ export interface components {
              * @description box: width, height, depth; cyl: top radius, bottom radius, height; ball: radius; mound: radius, height factor
              */
             size: number[];
+        };
+        /** Settings */
+        Settings: {
+            /**
+             * Force Software Gl
+             * @default false
+             */
+            force_software_gl: boolean;
+            /**
+             * Render Workers
+             * @description 'auto' or 1..16 parallel browsers per render
+             * @default auto
+             */
+            render_workers: "auto" | number;
+        };
+        /** SettingsView */
+        SettingsView: {
+            /** Examples */
+            examples: components["schemas"]["PcExample"][];
+            machine: components["schemas"]["Machine"];
+            settings: components["schemas"]["Settings"];
+            /** Workers Now */
+            workers_now: number;
         };
         /** SheetRow */
         SheetRow: {
@@ -3220,6 +3282,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SetCatalog"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_settings_api_settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingsView"];
+                };
+            };
+        };
+    };
+    put_settings_api_settings_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Settings"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingsView"];
                 };
             };
             /** @description Validation Error */

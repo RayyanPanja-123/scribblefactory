@@ -666,6 +666,21 @@ def test_drop_old_ai_settings(tmp_path, monkeypatch):
     assert m.drop_ai_settings() == []
     f.write_text("{not json", encoding="utf-8")
     assert "could not" in m.drop_ai_settings()[0]  # a broken file never stops startup
+    f.write_text(json.dumps({"api_key": "s", "render_workers": 4}), encoding="utf-8")
+    m.drop_ai_settings()
+    assert json.loads(f.read_text(encoding="utf-8")) == {"render_workers": 4}  # render settings survive the cleanup
+
+
+def test_settings(client, lib):
+    r = client.get("/api/settings").json()
+    assert r["settings"] == {"render_workers": "auto", "force_software_gl": False}
+    assert r["workers_now"] == r["machine"]["recommended_workers"] >= 1 and len(r["examples"]) == 4
+    for bad in (0, 17, "lots"):
+        assert client.put("/api/settings", json={"render_workers": bad}).status_code == 422
+    (lib / "settings.json").write_text(json.dumps({"keep": 1}), encoding="utf-8")
+    r = client.put("/api/settings", json={"render_workers": 6, "force_software_gl": True}).json()
+    assert r["settings"] == {"render_workers": 6, "force_software_gl": True} and r["workers_now"] == 6
+    assert json.loads((lib / "settings.json").read_text(encoding="utf-8"))["keep"] == 1  # unknown keys kept
 
 
 def test_story_package_validate_then_import(client, lib):

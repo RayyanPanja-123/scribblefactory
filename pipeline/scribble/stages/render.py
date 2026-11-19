@@ -24,6 +24,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
+from .. import settings
 from ..io import LIBRARY_FILES, WARDROBE_SEED, atomic_write_json, load_part
 from ..schemas import SeriesModel, StoryModel
 from .runner import StageError
@@ -34,7 +35,6 @@ RENDER_MJS = ENGINE / "render.mjs"
 PAGE_FILES = [*sorted((ENGINE / "page").glob("*.js")), WARDROBE_SEED]  # the seed draws while the library has no wardrobe.json
 FPS = 30
 CHUNK = 150
-WORKERS = 2
 TEST_FRAMES = 150  # 5 s
 POLL_S = 0.5           # how often the scheduler wakes up (keeps Ctrl+C responsive)
 READY_TIMEOUT_S = 120  # browser start + page build per worker
@@ -432,8 +432,13 @@ def encode(frames: Path, first: int, count: int, voice: Path, out: Path) -> Path
 
 # ---------------- entry points ----------------
 
-def run(part_dir: Path, workers: int = WORKERS, swiftshader: bool = False, force: bool = False) -> None:
+def run(part_dir: Path, workers: int | None = None, swiftshader: bool = False, force: bool = False) -> None:
+    """workers None: library/settings.json (auto: recommended for this PC); swiftshader also when settings force it"""
     story = check_gate(part_dir, ("stills", "test_render"))
+    library = part_dir.parents[1]
+    workers = workers or settings.render_workers(library)
+    swiftshader = swiftshader or settings.software_gl(library)
+    print(f"render: {workers} worker{'s' * (workers > 1)}{' (software GL)' * swiftshader}")
     with render_lock(part_dir):
         render_chunks(part_dir, story.duration_frames, workers, swiftshader, force)
         check_frames(part_dir / "frames", 0, story.duration_frames)
@@ -444,6 +449,7 @@ def run(part_dir: Path, workers: int = WORKERS, swiftshader: bool = False, force
 def test_render(part_dir: Path, at: float = 0.0, swiftshader: bool = False) -> Path:
     """TEST_FRAMES frames from `at` seconds (clamped to the part) -> part-NN/test-render.mp4 with its voice slice."""
     story = check_gate(part_dir, ("stills",))
+    swiftshader = swiftshader or settings.software_gl(part_dir.parents[1])
     total = story.duration_frames
     count = min(TEST_FRAMES, total)
     first = max(0, min(round(at * FPS), total - count))

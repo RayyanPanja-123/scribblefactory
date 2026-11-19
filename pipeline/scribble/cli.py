@@ -673,7 +673,8 @@ def build_parser() -> Parser:
     c = sub.add_parser("render", parents=[common], help="full render in parallel chunks (resumable) -> preview.mp4")
     c.add_argument("slug")
     c.add_argument("part")
-    c.add_argument("--workers", type=int, default=render_stage.WORKERS, help="parallel browser processes")
+    c.add_argument("--workers", type=int, default=None,
+                   help="parallel browser processes (default: library/settings.json, auto: recommended for this PC)")
     c.add_argument("--force", action="store_true", help="delete all frames and render again")
     c.add_argument("--swiftshader", action="store_true", help="software WebGL instead of the GPU")
     c.set_defaults(func=cmd_render)

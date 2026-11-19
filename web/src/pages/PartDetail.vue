@@ -79,6 +79,7 @@ const focus = computed(() => {
 })
 const approvalOf = (key: Approval) => APPROVALS.find((a) => a.key === key)!
 const workers = ref(2)
+api.settings().then((v) => { workers.value = v.workers_now }).catch(() => {}) // start from Settings; 2 if unreachable
 
 async function run(steps: string[]) {
   await act(() => api.submitJob(props.slug, props.part, steps), `Job queued: ${steps.join(' → ')}`)
@@ -650,7 +651,7 @@ watch(() => props.part, () => { chosen.value = null })
                   :disabled="workers <= 1" @click="workers--"><Minus :size="14" /></button>
                 <span class="num w-5 text-center" :aria-label="`${workers} workers`">{{ workers }}</span>
                 <button class="grid size-7 place-items-center rounded-sm hover:bg-panel disabled:opacity-40" aria-label="More workers"
-                  :disabled="workers >= 3" @click="workers++"><Plus :size="14" /></button>
+                  :disabled="workers >= 16" @click="workers++"><Plus :size="14" /></button>
               </div>
             </div>
             <span class="mt-1 text-xs text-muted">{{ why('render') ?? `${workers} parallel browser${workers > 1 ? 's' : ''}` }}</span>

@@ -35,6 +35,7 @@ const router = createRouter({
     { path: '/help', name: 'help', component: () => import('./pages/Help.vue') },
     { path: '/posted', name: 'posted', component: () => import('./pages/Posted.vue') },
     { path: '/history', name: 'history', component: () => import('./pages/History.vue') },
+    { path: '/settings', name: 'settings', component: () => import('./pages/Settings.vue') },
   ],
 })
 

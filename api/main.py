@@ -25,10 +25,10 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from PIL import Image
-from pydantic import BaseModel, TypeAdapter, ValidationError
+from pydantic import BaseModel, Field, TypeAdapter, ValidationError
 from sse_starlette import EventSourceResponse
 
-from pipeline.scribble import cli, package, storycheck
+from pipeline.scribble import cli, package, settings, storycheck
 from pipeline.scribble.io import (atomic_write_bytes, atomic_write_json, atomic_write_text, delete_prop, delete_set, load_part, load_props,
                                   load_series, load_sets, prop_kinds, save_prop, save_series, save_set, unknown_cast_props,
                                   cast_body_problems, cast_files, cast_render_current, delete_creature, load_creatures, save_creature, delete_action,
@@ -1127,6 +1127,63 @@ def drop_ai_settings() -> list[str]:
         return []
     except (OSError, ValueError) as e:
         return [f"settings.json: could not clean up old AI settings ({e})"]
+
+
+class Settings(BaseModel):
+    render_workers: Literal["auto"] | int = Field("auto", description="'auto' or 1..16 parallel browsers per render")
+    force_software_gl: bool = False
+
+
+class Machine(BaseModel):
+    cpu_threads: int
+    ram_gb: float | None
+    gpu: str | None  # from the newest rendered chunk; None before any render
+    recommended_workers: int
+
+
+class PcExample(BaseModel):
+    pc: str
+    workers: int
+
+
+class SettingsView(BaseModel):
+    settings: Settings
+    workers_now: int  # what the next render uses
+    machine: Machine
+    examples: list[PcExample]
+
+
+# typical machines -> what auto picks on them (same formula as this PC's recommendation)
+PC_EXAMPLES = [("Laptop, 4 cores, 8 GB, Intel UHD", 8, 8, "Intel(R) UHD Graphics"),
+               ("Desktop, 6 cores, 16 GB, GTX 1660", 12, 16, "NVIDIA GeForce GTX 1660"),
+               ("Desktop, 8 cores, 32 GB, RTX 3070", 16, 32, "NVIDIA GeForce RTX 3070"),
+               ("Workstation, 16 cores, 64 GB, RTX 4090", 32, 64, "NVIDIA GeForce RTX 4090")]
+
+
+def settings_view() -> dict:
+    return {"settings": settings.load(lib()), "workers_now": settings.render_workers(lib()),
+            "machine": settings.machine(lib()),
+            "examples": [{"pc": pc, "workers": settings.recommend(t, r, g)} for pc, t, r, g in PC_EXAMPLES]}
+
+
+@app.get("/api/settings", response_model=SettingsView)
+def get_settings():
+    return settings_view()
+
+
+@app.put("/api/settings", response_model=SettingsView)
+def put_settings(body: Settings):
+    """applies to the next render job; a running one keeps its workers"""
+    w = body.render_workers
+    if w != "auto" and not 1 <= w <= settings.MAX_WORKERS:
+        raise HTTPException(422, f"render_workers must be 'auto' or 1 to {settings.MAX_WORKERS}")
+    f = settings.path(lib())
+    try:
+        old = json.loads(f.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        old = {}
+    atomic_write_json(f, {**(old if isinstance(old, dict) else {}), **body.model_dump()})  # keep keys we don't know
+    return settings_view()
 
 
 def startup() -> None:

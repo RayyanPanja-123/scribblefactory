@@ -1397,6 +1397,48 @@
         "title": "Legwear",
         "type": "object"
       },
+      "Machine": {
+        "properties": {
+          "cpu_threads": {
+            "title": "Cpu Threads",
+            "type": "integer"
+          },
+          "gpu": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gpu"
+          },
+          "ram_gb": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ram Gb"
+          },
+          "recommended_workers": {
+            "title": "Recommended Workers",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cpu_threads",
+          "ram_gb",
+          "gpu",
+          "recommended_workers"
+        ],
+        "title": "Machine",
+        "type": "object"
+      },
       "MonthPosts": {
         "properties": {
           "instagram": {
@@ -2062,6 +2104,24 @@
         "title": "PartSummary",
         "type": "object"
       },
+      "PcExample": {
+        "properties": {
+          "pc": {
+            "title": "Pc",
+            "type": "string"
+          },
+          "workers": {
+            "title": "Workers",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pc",
+          "workers"
+        ],
+        "title": "PcExample",
+        "type": "object"
+      },
       "Post": {
         "additionalProperties": false,
         "properties": {
@@ -2539,6 +2599,60 @@
           "color"
         ],
         "title": "SetPiece",
+        "type": "object"
+      },
+      "Settings": {
+        "properties": {
+          "force_software_gl": {
+            "default": false,
+            "title": "Force Software Gl",
+            "type": "boolean"
+          },
+          "render_workers": {
+            "anyOf": [
+              {
+                "const": "auto",
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "default": "auto",
+            "description": "'auto' or 1..16 parallel browsers per render",
+            "title": "Render Workers"
+          }
+        },
+        "title": "Settings",
+        "type": "object"
+      },
+      "SettingsView": {
+        "properties": {
+          "examples": {
+            "items": {
+              "$ref": "#/components/schemas/PcExample"
+            },
+            "title": "Examples",
+            "type": "array"
+          },
+          "machine": {
+            "$ref": "#/components/schemas/Machine"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/Settings"
+          },
+          "workers_now": {
+            "title": "Workers Now",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "settings",
+          "workers_now",
+          "machine",
+          "examples"
+        ],
+        "title": "SettingsView",
         "type": "object"
       },
       "SheetRow": {
@@ -4983,6 +5097,61 @@
           }
         },
         "summary": "Put Set"
+      }
+    },
+    "/api/settings": {
+      "get": {
+        "operationId": "get_settings_api_settings_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Settings"
+      },
+      "put": {
+        "description": "applies to the next render job; a running one keeps its workers",
+        "operationId": "put_settings_api_settings_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Settings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Settings"
       }
     },
     "/api/wardrobe": {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Backpack, CircleHelp, ClipboardCheck, Film, History, Layers, LayoutDashboard, Menu, Monitor, Moon, Mountain, PawPrint, PersonStanding, Search, Send, Settings, Shirt, Smile, Sun, X, WandSparkles, NotebookPen } from 'lucide-vue-next'
+import { Backpack, CircleHelp, ClipboardCheck, Film, History, Layers, LayoutDashboard, Menu, Monitor, Moon, Mountain, PawPrint, PersonStanding, Search, Send, Settings, Shirt, SlidersHorizontal, Smile, Sun, X, WandSparkles, NotebookPen } from 'lucide-vue-next'
 import { AnimatePresence, motion, MotionConfig } from 'motion-v'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -36,6 +36,7 @@ const utilityLinks = [
   { to: '/posted', name: 'Posted', icon: Send, position: 'translate(-148px, -18px)' },
   { to: '/history', name: 'History', icon: History, position: 'translate(-124px, -82px)' },
   { to: '/help', name: 'Help', icon: CircleHelp, position: 'translate(-74px, -132px)' },
+  { to: '/settings', name: 'Settings', icon: SlidersHorizontal, position: 'translate(-10px, -152px)' },
 ]
 const THEMES: { id: Theme; label: string; icon: typeof Sun }[] = [
   { id: 'light', label: 'Light', icon: Sun },
