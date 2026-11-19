@@ -1453,10 +1453,15 @@
             },
             "title": "Steps",
             "type": "array"
+          },
+          "tag": {
+            "title": "Tag",
+            "type": "string"
           }
         },
         "required": [
           "id",
+          "tag",
           "slug",
           "part",
           "steps",

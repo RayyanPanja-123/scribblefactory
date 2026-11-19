@@ -16,15 +16,17 @@ const finished = computed(() => jobs.value.filter((j) => !['queued', 'running'].
 const from = ref('')
 const to = ref('')
 const status = ref<'all' | 'done' | 'failed' | 'cancelled'>('all')
+const tag = ref('')
 const shown = computed(() => finished.value.filter((j) => (!from.value || day(j) >= from.value)
-  && (!to.value || day(j) <= to.value) && (status.value === 'all' || j.status === status.value)))
+  && (!to.value || day(j) <= to.value) && (status.value === 'all' || j.status === status.value)
+  && (!tag.value || j.tag.toLowerCase().includes(tag.value.trim().toLowerCase()))))
 const days = computed(() => {
   const by = new Map<string, Job[]>()
   for (const j of shown.value) by.set(day(j), [...(by.get(day(j)) ?? []), j])
   return [...by]
 })
-const filtered = computed(() => !!(from.value || to.value || status.value !== 'all'))
-function clearFilters() { from.value = ''; to.value = ''; status.value = 'all' }
+const filtered = computed(() => !!(from.value || to.value || status.value !== 'all' || tag.value))
+function clearFilters() { from.value = ''; to.value = ''; status.value = 'all'; tag.value = '' }
 
 const longDay = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
 const clock = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '-')
@@ -84,6 +86,9 @@ const field = 'inset mt-1 block h-10 w-full rounded-md px-4 text-sm text-ink out
               <option value="cancelled">Cancelled</option>
             </select>
           </label>
+          <label class="min-w-48 flex-1 text-xs font-semibold text-muted">Job tag or series prefix
+            <input v-model="tag" type="search" placeholder="e.g. TRWDWOTO" :class="field" />
+          </label>
           <button v-if="filtered" type="button" class="btn btn-secondary" @click="clearFilters">Clear</button>
         </form>
 
@@ -98,6 +103,7 @@ const field = 'inset mt-1 block h-10 w-full rounded-md px-4 text-sm text-ink out
                 <summary class="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 rounded-md px-1 py-2.5 hover:bg-panel [&::-webkit-details-marker]:hidden">
                   <span class="num w-12 text-sm text-muted">{{ clock(j.finished_at) }}</span>
                   <span class="chip" :class="statusChip(j.status)">{{ j.status }}</span>
+                  <span class="num text-xs text-muted">{{ j.tag }}</span>
                   <span class="order-last min-w-0 basis-full truncate text-sm sm:order-none sm:basis-0 sm:flex-1">
                     <span class="font-semibold">{{ j.slug }}</span> <span class="text-muted">{{ j.part }}</span>
                     <span class="text-muted"> · {{ j.steps.join(' → ') }}</span>

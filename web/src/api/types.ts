@@ -1368,6 +1368,8 @@ export interface components {
             status: "queued" | "running" | "done" | "failed" | "cancelled";
             /** Steps */
             steps: string[];
+            /** Tag */
+            tag: string;
         };
         /** JobCleanup */
         JobCleanup: {

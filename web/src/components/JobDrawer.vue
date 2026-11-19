@@ -119,7 +119,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           <motion.section class="console rounded-lg p-4 text-[#e9eef3]" v-bind="row(0)" aria-label="Running job">
             <div class="flex items-center gap-2">
               <span class="led size-2.5 rounded-full bg-[#3dbb7a]" aria-hidden="true" />
-              <span class="text-xs font-semibold tracking-wide text-[#9fb0c0] uppercase">Running · #{{ run.id }}</span>
+              <span class="text-xs font-semibold tracking-wide text-[#9fb0c0] uppercase">Running · {{ run.tag }} · #{{ run.id }}</span>
               <span class="num ml-auto text-lg" :aria-label="`elapsed ${elapsed}`">{{ elapsed }}</span>
             </div>
             <RouterLink :to="`/series/${run.slug}/${run.part}`" class="mt-1 block font-display text-lg font-semibold hover:underline"
@@ -164,7 +164,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             <span class="num grid size-7 shrink-0 place-items-center rounded-sm bg-well text-muted">{{ i + 1 }}</span>
             <span class="min-w-0 flex-1">
               <span class="block truncate font-semibold">{{ j.slug }} · {{ j.part }}</span>
-              <span class="block truncate font-mono text-xs text-muted">{{ summary(j) }}</span>
+              <span class="block truncate font-mono text-xs text-muted">{{ j.tag }} · {{ summary(j) }}</span>
             </span>
             <button class="grid size-8 shrink-0 place-items-center rounded-sm text-muted hover:bg-well hover:text-red-ink"
               :aria-label="`Remove job ${j.id} from the queue`" @click="cancel(j)"><X :size="16" /></button>
@@ -191,7 +191,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
               <span class="size-2.5 shrink-0 rounded-full" :class="DOT[j.status] ?? 'bg-faint'" aria-hidden="true" />
               <span class="min-w-0 flex-1">
                 <span class="block truncate text-sm font-semibold">{{ j.slug }} · {{ j.part }}<span class="sr-only">: {{ j.status }}</span></span>
-                <span class="block truncate font-mono text-xs text-muted">{{ summary(j) }}</span>
+                <span class="block truncate font-mono text-xs text-muted">{{ j.tag }} · {{ summary(j) }}</span>
               </span>
               <span class="shrink-0 text-right text-xs text-muted">
                 <span class="num block text-sm text-ink">{{ duration(j) }}</span>{{ ago(j.finished_at) }}

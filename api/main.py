@@ -12,6 +12,7 @@ import io
 import itertools
 import json
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -279,6 +280,7 @@ class PartDetail(BaseModel):
 
 class Job(BaseModel):
     id: int
+    tag: str
     slug: str
     part: str
     steps: list[str]
@@ -1201,6 +1203,23 @@ _ids = itertools.count(1)
 _worker: threading.Thread | None = None
 
 
+def series_code(title: str, fallback: str = "series") -> str:
+    """A readable uppercase code from a series title, e.g. TRWDWOTO."""
+    words = re.findall(r"[A-Za-z]+", title)
+    code = "".join(word[0] for word in words).upper()
+    if not code:
+        code = "".join(re.findall(r"[A-Za-z]", fallback)).upper()
+    return code or "SERIES"
+
+
+def job_tag(slug: str, part: str) -> str:
+    """Stable human-facing tag: series initials + three-digit part number."""
+    d = series_path(slug)
+    title = load_series(d / "series.json").title
+    number = load_part(d / part / "part.json").number
+    return f"{series_code(title, slug)}{number:03d}"
+
+
 class JobRequest(BaseModel):
     slug: str
     part: str
@@ -1253,6 +1272,16 @@ def load_jobs() -> list[str]:
     except (OSError, ValueError) as e:
         return [f"ignoring unreadable {f.name}: {e}"]
     for j in saved:
+        # Jobs written before tags were introduced are still valid history. Derive their tag once
+        # from the current series title and keep it in the persisted record from then on.
+        if "tag" not in j:
+            try:
+                j["tag"] = job_tag(j["slug"], j["part"])
+            except (HTTPException, OSError, ValueError, KeyError):
+                # A finished job can outlive a deleted series; preserve that history with a
+                # deterministic slug-based fallback rather than failing API startup.
+                number = int(j["part"].removeprefix("part-"))
+                j["tag"] = f"{series_code(j['slug'])}{number:03d}"
         j["output"] = deque(j.get("output", []), maxlen=OUTPUT_LINES)
         if j["status"] == "running":
             pid = j.get("pid")
@@ -1459,7 +1488,8 @@ def submit_job(body: JobRequest):
         argv = [step_argv(body.slug, body.part, s) for s in body.steps]
     except ValueError as e:
         raise HTTPException(409, str(e))
-    job = {"id": next(_ids), "slug": body.slug, "part": body.part, "steps": body.steps, "argv": argv,
+    job = {"id": next(_ids), "tag": job_tag(body.slug, body.part), "slug": body.slug, "part": body.part,
+           "steps": body.steps, "argv": argv,
            "current_step": None, "status": "queued", "queued_at": _iso(utcnow()), "started_at": None,
            "finished_at": None, "returncode": None, "output": deque(maxlen=OUTPUT_LINES), "error": None, "pid": None}
     with _cv:
