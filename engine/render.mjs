@@ -101,6 +101,8 @@ async function openPage(port, swiftshader) {
     const page = await browser.newPage({ viewport: { width: 1080, height: 1920 } });
     let pageError = null;
     page.on("console", (m) => {
+      // a lost context draws nothing but black: fail instead of writing black frames
+      if (!pageError && m.text().includes("CONTEXT_LOST")) pageError = new Error("WebGL context lost (GPU reset or out of memory)");
       if (["warning", "error"].includes(m.type()) && !m.text().includes("GL Driver Message")) {
         console.error(`[page ${m.type()}] ${m.text()}`); // SwiftShader perf notes are noise
       }
@@ -188,7 +190,9 @@ async function runWorker(a) {
       if (!Number.isInteger(first) || !Number.isInteger(last) || first > last) throw new Error(`bad job line: ${line}`);
       const t0 = performance.now();
       for (let n = first; n <= last; n++) {
-        writePng(framePng(outDir, n), await opened.page.evaluate((f) => window.renderFrame(f), n));
+        const url = await opened.page.evaluate((f) => window.renderFrame(f), n);
+        if (opened.getError()) throw opened.getError(); // before writing: a bad frame never lands on disk
+        writePng(framePng(outDir, n), url);
       }
       if (opened.getError()) throw opened.getError();
       console.error(`frames ${first}-${last}: ${((performance.now() - t0) / (last - first + 1)).toFixed(0)} ms per frame`);
