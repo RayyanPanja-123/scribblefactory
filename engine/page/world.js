@@ -19,13 +19,26 @@ const H_PX = 1920; // frame height: the outline width is set in screen px of the
 const D = STYLE.depth;
 const U = {
   inkPx: { value: STYLE.ink.width }, inkLump: { value: STYLE.ink.lump }, inkBoil: { value: 0 }, inkH: { value: H_PX },
-  shadeTop: { value: STYLE.shade.top }, shadeSide: { value: STYLE.shade.side }, shadeUnder: { value: STYLE.shade.under },
+  shadeTop: { value: new THREE.Color() }, shadeSide: { value: new THREE.Color() }, shadeUnder: { value: new THREE.Color() },
   shadeKey: { value: new THREE.Vector3(...STYLE.shade.keyDir).normalize() }, shadeKeyMin: { value: STYLE.shade.keyMin },
   hazeColor: { value: new THREE.Color(0xffffff) }, haze: { value: new THREE.Vector3(D.near, D.far, D.max) },
 };
 /** per frame: the boil step (main.js: frame / BOIL_FRAMES; outlines re-wobble with the characters' lines) and the
  *  colour far scenery hazes toward (the set's background) */
-export const setInk = (boil, hazeColor) => { U.inkBoil.value = boil; if (hazeColor) U.hazeColor.value.copy(hazeColor); };
+export function setInk(boil, hazeColor, outdoor = false) {
+  U.inkBoil.value = boil;
+  if (hazeColor) U.hazeColor.value.copy(hazeColor);
+  const [top, side, under] = toneColors(outdoor);
+  U.shadeTop.value.copy(top); U.shadeSide.value.copy(side); U.shadeUnder.value.copy(under);
+}
+/** the shade ramp as colours [top, side, under]: grey multipliers, warmed (key) and cooled (shadow side) outdoors when
+ *  style.js light.outdoor is on. Pure colour ramp, no light objects. */
+export function toneColors(outdoor) {
+  const S = STYLE.shade, L = STYLE.light, warm = outdoor && L.outdoor;
+  const tint = (k, col, share) => new THREE.Color(k, k, k).multiply(warm ? new THREE.Color(1, 1, 1).lerp(new THREE.Color(col), share) : new THREE.Color(1, 1, 1));
+  return [tint(S.top, L.key, 1), tint(S.side, L.key, L.sideWarm), tint(S.under, L.cool, 1)];
+}
+setInk(0);
 
 // distance tint (atmospheric perspective): by depth behind the stage (-z), from haze.x (none) to haze.y (haze.z share)
 const HAZE_V = ["varying vec3 vInkW;\n", "#include <begin_vertex>\n  vInkW = (modelMatrix * vec4(transformed, 1.0)).xyz;"];
@@ -59,11 +72,11 @@ function shadeShader(sh) {
   Object.assign(sh.uniforms, U);
   sh.vertexShader = "varying vec3 vInkN;\n" + HAZE_V[0] + sh.vertexShader.replace("#include <begin_vertex>",
     HAZE_V[1] + "\n  vInkN = normalize(mat3(modelMatrix) * normal);");
-  sh.fragmentShader = "varying vec3 vInkN;\nuniform float shadeTop, shadeSide, shadeUnder, shadeKeyMin;\nuniform vec3 shadeKey;\n"
+  sh.fragmentShader = "varying vec3 vInkN;\nuniform float shadeKeyMin;\nuniform vec3 shadeKey, shadeTop, shadeSide, shadeUnder;\n"
     + HAZE_F[0] + sh.fragmentShader.replace("#include <map_fragment>", `#include <map_fragment>
   #if !defined(INK_FLAT) && !defined(INK_SKY)
     vec3 n = normalize(vInkN);
-    float tone = n.y > 0.55 ? shadeTop : n.y < -0.4 || dot(n, shadeKey) < shadeKeyMin ? shadeUnder : shadeSide;
+    vec3 tone = n.y > 0.55 ? shadeTop : n.y < -0.4 || dot(n, shadeKey) < shadeKeyMin ? shadeUnder : shadeSide;
     diffuseColor.rgb *= tone;
   #endif
   #ifndef INK_SKY${HAZE_F[1]}

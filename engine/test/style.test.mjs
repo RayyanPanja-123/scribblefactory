@@ -40,3 +40,13 @@ test("water: detected from a blue outdoor floor only; waterline footprints of pi
   assert.deepEqual(waterline({ shape: "box", at: [0, 0.4, -5], size: [6, 0.8, 2] }), [3, 1]);
   assert.equal(waterline({ shape: "cyl", at: [0, 1.5, -3], size: [0.1, 0.15, 3] }), 0.15);
 });
+
+test("lighting accent: warm tops and cool undersides outdoors, neutral indoors, shadows never black", async () => {
+  const { toneColors } = await import("../page/world.js");
+  const [top, , under] = toneColors(true), [itop, iside, iunder] = toneColors(false);
+  assert.ok(top.r > top.b, "outdoor tops are warm"); assert.ok(under.b > under.r, "outdoor undersides are cool");
+  for (const c of [itop, iside, iunder]) assert.ok(c.r === c.g && c.g === c.b, "indoor stays neutral");
+  for (const c of [...toneColors(true), ...toneColors(false)]) assert.ok(Math.min(c.r, c.g, c.b) > 0.3, "never near black");
+  const shadow = new THREE.Color(STYLE.light.shadow);
+  assert.ok(shadow.getHSL({}, THREE.SRGBColorSpace).l > 0.1 && shadow.b > shadow.r, "contact shadows are a cool dark, not black");
+});

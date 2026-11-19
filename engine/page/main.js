@@ -93,7 +93,7 @@ const SHADOW_TEX = (() => {
   const c = document.createElement("canvas");
   c.width = c.height = 128;
   const g = c.getContext("2d"), grad = g.createRadialGradient(64, 64, 0, 64, 64, 64);
-  grad.addColorStop(0, "rgba(0,0,0,1)"); grad.addColorStop(0.55, "rgba(0,0,0,0.6)"); grad.addColorStop(1, "rgba(0,0,0,0)");
+  grad.addColorStop(0, "rgba(255,255,255,1)"); grad.addColorStop(0.55, "rgba(255,255,255,0.6)"); grad.addColorStop(1, "rgba(255,255,255,0)");
   g.fillStyle = grad; g.fillRect(0, 0, 128, 128);
   return new THREE.CanvasTexture(c);
 })();
@@ -143,7 +143,7 @@ function card(id, geo = CARD_GEO, w = CW, h = CH) {
     const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.05, depthWrite: false }));
     mesh.renderOrder = 1; // after its shadow
     const shadow = new THREE.Mesh(SHADOW_GEO, new THREE.MeshBasicMaterial({
-      map: SHADOW_TEX, transparent: true, opacity: SHADOW.opacity, depthWrite: false }));
+      map: SHADOW_TEX, color: STYLE.light.shadow, transparent: true, opacity: SHADOW.opacity, depthWrite: false })); // cool, never black
     cards[id] = { cv, tex, mesh, shadow };
   }
   return cards[id];
@@ -206,11 +206,27 @@ const creatureDrop = (id) => {
 };
 const CREATURE_GEO = new THREE.PlaneGeometry(CARD_W * (CRW / CW), CARD_H).translate(0, CARD_H / 2 - CARD_H * (1 - FEET_Y / CH), 0);
 
-function drawCard(id, o) {
+function drawCard(id, o, rim = false) {
   const d = creatureOf(id), c = d ? card(id, CREATURE_GEO, CRW, CH) : card(id);
   if (d) drawCreature(c.cv, d, figure(id, o)); else drawStickman(c.cv, figure(id, o));
+  if (rim) rimLight(c.cv, o.px || 1);
   c.tex.needsUpdate = true;
   return c.mesh;
+}
+
+const rimCv = document.createElement("canvas"), rg = rimCv.getContext("2d");
+/** warm key-light rim (style.js light.rim) on the right of a drawn card: the band of the silhouette lying between
+ *  `inset` and `inset + width` (screen px) of its right edge, so the ink outline itself stays ink */
+function rimLight(cv, px) {
+  const R = STYLE.light.rim, inner = R.inset, outer = inner + R.width / px;
+  rimCv.width = cv.width; rimCv.height = cv.height; // also clears it
+  rg.drawImage(cv, 0, 0);
+  rg.globalCompositeOperation = "destination-out"; rg.drawImage(cv, -outer, 0); // within `outer` of the right edge
+  rg.globalCompositeOperation = "destination-in"; rg.drawImage(cv, -inner, 0);  // ... but past the outline
+  rg.globalCompositeOperation = "source-in"; rg.fillStyle = R.color; rg.fillRect(0, 0, rimCv.width, rimCv.height);
+  rg.globalCompositeOperation = "source-over";
+  const g = cv.getContext("2d");
+  g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = R.alpha; g.drawImage(rimCv, 0, 0); g.restore();
 }
 
 /** xs: x of every actor at the start and end of the shot. Wide centres on all of them and backs off until the
@@ -385,10 +401,11 @@ function drawShot(shot, n) {
   const kf = Math.min(Math.max(n, shot.start_frame), shot.end_frame - 1); // held frame for shot motion
   const u = (kf - shot.start_frame) / (shot.end_frame - shot.start_frame), t = n / FPS;
   const group = useSet(shot);
-  setInk(Math.floor(n / BOIL_FRAMES), group.userData.background); // set outlines boil with the cast's lines
+  const outdoor = setKind(shot.set) === "outdoor";
+  setInk(Math.floor(n / BOIL_FRAMES), group.userData.background, outdoor); // set outlines boil with the cast's lines
   // standing in water (a water set), or on wet ground (outdoors in rain or a storm): ripples under the cast
   const water = !!group.userData.water;
-  const wet = setKind(shot.set) === "outdoor" && ["rain", "storm"].includes(shot.weather?.kind);
+  const wet = outdoor && ["rain", "storm"].includes(shot.weather?.kind);
   const animals = shot.animals || [], vehicles = shot.vehicles || [];
   // riders sit in their car's seats: their spot is the car's spot plus the seat offset
   const seated = new Map();
@@ -452,7 +469,7 @@ function drawShot(shot, n) {
     };
     const roll = actionPose(shot, a, o, x, u, ts, n);
     if (seated.has(a.cast_id)) { riders.set(a.cast_id, figure(a.cast_id, o)); continue; }
-    const mesh = drawCard(a.cast_id, o), yaw = Math.atan2(camera.position.x - x, camera.position.z - z);
+    const mesh = drawCard(a.cast_id, o, outdoor && STYLE.light.outdoor), yaw = Math.atan2(camera.position.x - x, camera.position.z - z);
     // lying (lie, the end of a collapse): the card rolls 90 degrees about the feet in its own plane and lifts so the
     // body rests on the floor; carried: lifted clear of the ground
     // the lying body is centred on the actor's spot (feet half a figure one way, head the other), so it stays in

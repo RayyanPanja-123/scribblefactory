@@ -33,4 +33,13 @@ export const STYLE = {
     wetRipple: 0.6, // ripples on wet ground (outdoors in rain or storm): this share of the alpha
     reflection: { alpha: 0.2 }, // the cast mirrored in the water under their feet
   },
+  // lighting accent (a colour ramp, not lights). outdoor: on for outdoor sets (false: neutral greys everywhere).
+  // Set tops take the warm key colour, sides sideWarm of it, faces away / undersides the cool colour. rim: a warm
+  // edge inside each cast card's outline on the key side (screen right), `width` screen px wide, starting `inset`
+  // card px in from the silhouette (past the ink outline). shadow: contact shadows' colour (never pure black).
+  light: {
+    outdoor: true, key: "#ffe8c6", sideWarm: 0.35, cool: "#b4c3e8",
+    rim: { color: "#ffd28a", alpha: 0.75, width: 5, inset: 15 },
+    shadow: "#27304d",
+  },
 };
