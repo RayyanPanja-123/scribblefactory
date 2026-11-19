@@ -79,6 +79,17 @@
             "description": "[[upper arm, forearm bend] left, [upper arm, forearm bend] right]; none: at rest",
             "title": "Arms"
           },
+          "ease": {
+            "default": "in-out",
+            "description": "how the pose moves into this key from the one before: in-out (eases both ends), linear (steady), back-out (overshoots a little, then settles)",
+            "enum": [
+              "linear",
+              "in-out",
+              "back-out"
+            ],
+            "title": "Ease",
+            "type": "string"
+          },
           "knees": {
             "anyOf": [
               {

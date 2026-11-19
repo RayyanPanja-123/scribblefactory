@@ -56,3 +56,14 @@ test("built-in knees: a gait bends the swinging leg only (hips don't bob), camer
   const squat = skeleton({ seed: "t", action: "x", facing: "camera", t: 0, custom: { arms: [[-16, 0], [16, 0]], legs: [-6, 6], knees: [60, 60], lean: 0 } });
   assert.ok(squat.knees[0][0] < squat.legs[0][0][0] && squat.knees[1][0] > squat.legs[1][0][0], "knees point outward");
 });
+
+test("ActionKey ease: in-out by default (unchanged), linear, back-out overshoots then settles", async () => {
+  const { customPose, EASES } = await import("../page/actions.js");
+  const def = (ease) => ({ duration: 1, loop: false, keys: [{ t: 0, lean: 0 }, { t: 1, lean: 20, ...(ease ? { ease } : {}) }] });
+  const at = (ease, u) => customPose(def(ease), u).lean;
+  assert.equal(at(null, 0.25), at("in-out", 0.25));                       // default = in-out
+  assert.ok(Math.abs(at(null, 0.25) - 20 * EASES["in-out"](0.25)) < 1e-9); // = the smoothstep every action used
+  assert.ok(Math.abs(at("linear", 0.25) - 5) < 1e-9);
+  assert.ok(Math.max(...[0.6, 0.7, 0.8, 0.9].map((u) => at("back-out", u))) > 20, "back-out overshoots");
+  assert.equal(at("back-out", 1), 20);                                     // and settles on the key
+});

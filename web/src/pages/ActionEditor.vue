@@ -17,13 +17,14 @@ const router = useRouter()
 const isNew = computed(() => props.id === 'new')
 const { data, error, loading, reload } = useApi(() => api.actions())
 
-type Key = { t: number; arms: [[number, number], [number, number]] | null; legs: [number, number] | null; knees?: [number, number] | null; lean: number }
+type Ease = 'in-out' | 'linear' | 'back-out'
+type Key = { t: number; arms: [[number, number], [number, number]] | null; legs: [number, number] | null; knees?: [number, number] | null; lean: number; ease: Ease }
 const REST = { arms: [[-16, 0], [16, 0]] as [[number, number], [number, number]], legs: [-6, 6] as [number, number] }
 const slugify = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 const STARTER: Key[] = [ // a wave hello: rest, the right arm up, back down
-  { t: 0, arms: null, legs: null, lean: 0 },
-  { t: 0.4, arms: [[-16, 0], [140, 40]], legs: null, lean: 2 },
-  { t: 1, arms: null, legs: null, lean: 0 },
+  { t: 0, arms: null, legs: null, lean: 0, ease: 'in-out' },
+  { t: 0.4, arms: [[-16, 0], [140, 40]], legs: null, lean: 2, ease: 'in-out' },
+  { t: 1, arms: null, legs: null, lean: 0, ease: 'in-out' },
 ]
 const form = reactive({ id: '', name: '', use_for: '', idEdited: false, duration: 1.5, loop: true, facing: 'camera' as 'camera' | 'side', move: 0, keys: structuredClone(STARTER) })
 
@@ -31,7 +32,7 @@ watch(data, (cat) => {
   if (!cat || isNew.value) return
   const a = cat.custom.find((x) => x.id === props.id)
   if (a) Object.assign(form, { id: a.id, name: a.name, use_for: a.use_for ?? '', idEdited: true, duration: a.duration, loop: a.loop ?? true, facing: a.facing ?? 'camera', move: a.move ?? 0,
-    keys: a.keys.map((k) => ({ t: k.t, arms: k.arms ?? null, legs: k.legs ?? null, knees: k.knees ?? (k.legs ? [0, 0] : null), lean: k.lean ?? 0 })) })
+    keys: a.keys.map((k) => ({ t: k.t, arms: k.arms ?? null, legs: k.legs ?? null, knees: k.knees ?? (k.legs ? [0, 0] : null), lean: k.lean ?? 0, ease: k.ease ?? 'in-out' })) })
 }, { immediate: true })
 const missing = computed(() => !isNew.value && data.value && !data.value.custom.some((x) => x.id === props.id))
 watch(() => form.name, (n) => { if (isNew.value && !form.idEdited) form.id = slugify(n) })
@@ -49,7 +50,7 @@ const color = ref('#3a7bd5')
 function addKey() {
   const last = sorted.value.at(-1)
   form.keys.push({ t: Math.min(1, +((last?.t ?? 0) + 0.25).toFixed(2)), arms: last?.arms ? structuredClone(last.arms) : null,
-    legs: last?.legs ? [...last.legs] as [number, number] : null, knees: last?.knees ? [...last.knees] as [number, number] : null, lean: last?.lean ?? 0 })
+    legs: last?.legs ? [...last.legs] as [number, number] : null, knees: last?.knees ? [...last.knees] as [number, number] : null, lean: last?.lean ?? 0, ease: 'in-out' })
 }
 const toggle = (k: Key, part: 'arms' | 'legs') => {
   k[part] = (k[part] ? null : structuredClone(REST[part])) as never
@@ -162,6 +163,13 @@ const ARM_SLIDERS = [[0, 0, 'Left arm'], [0, 1, 'Left bend'], [1, 0, 'Right arm'
               <label class="block text-xs font-semibold text-muted">
                 <span class="flex justify-between">Lean <span class="font-mono font-normal">{{ k.lean }}°</span></span>
                 <input v-model.number="k.lean" type="range" min="-60" max="60" step="1" class="mt-1 block w-full" @input="scrub = k.t" />
+              </label>
+              <label class="block text-xs font-semibold text-muted">Into this key
+                <select v-model="k.ease" :class="field">
+                  <option value="in-out">Ease in and out</option>
+                  <option value="linear">Steady</option>
+                  <option value="back-out">Overshoot and settle</option>
+                </select>
               </label>
             </div>
           </li>

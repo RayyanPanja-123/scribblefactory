@@ -763,6 +763,13 @@ export interface components {
                 ]
             ] | null;
             /**
+             * Ease
+             * @description how the pose moves into this key from the one before: in-out (eases both ends), linear (steady), back-out (overshoots a little, then settles)
+             * @default in-out
+             * @enum {string}
+             */
+            ease: "linear" | "in-out" | "back-out";
+            /**
              * Knees
              * @description [left, right] knee bends, 0 (straight) to 170: on a side action the shin folds back, behind the figure; facing the camera the knees bend outward (a front squat); none: straight
              */

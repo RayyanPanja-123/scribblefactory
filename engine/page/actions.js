@@ -25,22 +25,31 @@ export const BUILTIN_ACTIONS = new Set(["idle", "walk", "run", "talk", "point", 
   "collapse", "eat", "give", "receive", "carry", "carried", "support", "supported", "cheer", "angry", "gasp"]);
 
 const REST = { arms: [[-16, 0], [16, 0]], legs: [-6, 6], knees: [0, 0], lean: 0 }; // the idle stickman, degrees (stickman.js)
-const ease = (u) => u * u * (3 - 2 * u);
+// per-key easing (schema ActionKey.ease): how the pose moves INTO that key from the one before. in-out (default) is
+// the smoothstep every custom action always used; back-out overshoots a little and settles
+const BACK = 1.70158;
+export const EASES = {
+  linear: (u) => u,
+  "in-out": (u) => u * u * (3 - 2 * u),
+  "back-out": (u) => 1 + (BACK + 1) * (u - 1) ** 3 + BACK * (u - 1) ** 2,
+};
+const easeOf = (key) => EASES[key.ease] || EASES["in-out"];
 /** a custom action (schema CustomAction) at ts seconds into its shot: { arms [[upper, bend] x2], legs [l, r], knees [l, r], lean },
  *  degrees from straight down, + toward +x. Eased between the keys; a key leaving a part out holds it at rest. A
  *  looping action wraps from its last key back to its first; a once action holds its last key. */
 export function customPose(def, ts) {
   const d = def.duration, u = def.loop ? (((ts % d) + d) % d) / d : Math.min(1, Math.max(0, ts / d));
-  const keys = def.keys.map((k) => ({ t: k.t, arms: k.arms ?? REST.arms, legs: k.legs ?? REST.legs, knees: k.knees ?? REST.knees, lean: k.lean ?? 0 }));
+  const keys = def.keys.map((k) => ({ t: k.t, arms: k.arms ?? REST.arms, legs: k.legs ?? REST.legs, knees: k.knees ?? REST.knees, lean: k.lean ?? 0,
+    ease: k.ease }));
   let i = keys.findIndex((k) => k.t > u);
   if (i === -1) { // past the last key: loop back to the first, or hold
     if (!def.loop || keys.length === 1) return keys[keys.length - 1];
     const a = keys[keys.length - 1], b = { ...keys[0], t: keys[0].t + 1 };
-    return mix(a, b, ease((u - a.t) / Math.max(1e-6, b.t - a.t)));
+    return mix(a, b, easeOf(b)((u - a.t) / Math.max(1e-6, b.t - a.t)));
   }
   if (i === 0) return keys[0];
   const a = keys[i - 1], b = keys[i];
-  return mix(a, b, ease((u - a.t) / Math.max(1e-6, b.t - a.t)));
+  return mix(a, b, easeOf(b)((u - a.t) / Math.max(1e-6, b.t - a.t)));
 }
 const lerp = (a, b, k) => a + (b - a) * k;
 const mix = (a, b, k) => ({ arms: a.arms.map((arm, s) => arm.map((v, j) => lerp(v, b.arms[s][j], k))),

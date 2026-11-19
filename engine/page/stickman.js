@@ -141,6 +141,7 @@ export function skeleton(o) {
   const C = o.custom; // a custom action's pose (actions.js customPose): degrees, + toward +x
   const legA = C ? C.legs.map(deg) : [-A - B, A + B];
   if (C) lean = deg(C.lean);
+  lean += deg(o.shift || 0); // idle weight shift (main.js, style.js idle): a slow sway about the feet
   // knees: thigh and shin are half a leg each. Side on, the shin folds back (toward -x) by the knee bend; facing the
   // camera the knees bend outward (the thighs splay by half the bend, the shins fold back in: a front-view squat).
   // The leg that reaches lowest stands on FEET_Y (a straight leg: LEG * cos, as before).
@@ -314,7 +315,7 @@ export function drawStickman(canvas, o) {
 
   if (W.length) { // "behind" layers (long hair, capes, the back of a hood) go under everything
     wear((_, L) => L.behind && !head(L));
-    g.save(); if (S.head !== 1) { g.translate(hx, hy); g.scale(S.head, S.head); g.translate(-hx, -hy); }
+    g.save(); headSpace(g, hx, hy, S.head, o.tilt);
     wear((_, L) => L.behind && head(L));
     g.restore();
   }
@@ -355,7 +356,7 @@ export function drawStickman(canvas, o) {
   // the head, face and headwear are drawn at the default size, scaled about the head centre by the build (only when
   // it differs: the extra translate pair alone shifts a leaning figure by float rounding)
   g.save();
-  if (S.head !== 1) { g.translate(hx, hy); g.scale(S.head, S.head); g.translate(-hx, -hy); }
+  headSpace(g, hx, hy, S.head, o.tilt);
   const headPts = wobble(hx, hy, HEAD_R, HEAD_R * HEAD_SQUASH, rng(o.seed, "head"), boil);
   p.poly(headPts, S.b.head_color, 14 + boil() * 1.5);
   face(p, boil, o, hx + 26 * look, hy, look);
@@ -370,6 +371,13 @@ export function drawStickman(canvas, o) {
   }
   for (const i of k.late) drawArm(k.arms[i], i); // eating / gasping: the hands come up in front of the face
   if (o.zzz != null) zzz(p, g, boil, o, hx, hy);
+}
+
+/** the head's own space: scaled by the build and tilted (o.tilt radians, + = top toward canvas +x) about its centre;
+ *  nothing at all when neither applies (a lone translate pair shifts a leaning figure by float rounding) */
+function headSpace(g, hx, hy, scale, tilt) {
+  if (scale === 1 && !tilt) return;
+  g.translate(hx, hy); if (tilt) g.rotate(tilt); if (scale !== 1) g.scale(scale, scale); g.translate(-hx, -hy);
 }
 
 /** a built-in headwear / legwear value as the drawing code takes it ({ kind, color }), or null (none or custom) */
@@ -645,7 +653,7 @@ function face(p, boil, o, fx, hy, look) {
     } else {
       const r = big ? 36 : 30;
       p.poly(ellPts(x, ey, r, r, 0, 360, 0, 28), "#ffffff", w("eyeRim"));
-      p.dot(x + 8 * look, ey + 2, w("pupil") * (big ? 0.75 : 1));
+      p.dot(x + 8 * look + 10 * (o.gaze || 0), ey + 2, w("pupil") * (big ? 0.75 : 1)); // gaze: a glance sideways
     }
   }
   // bold curved brows

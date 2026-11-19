@@ -571,6 +571,9 @@ class ActionKey(Strict):
                                                                           "outward (a front squat); none: straight")
     lean: float = Field(default=0, ge=-60, le=60, description="whole figure, about the feet; + leans toward +x. With "
                                                              "bent knees it bends at the hips instead (legs stay put)")
+    ease: Literal["linear", "in-out", "back-out"] = Field(
+        default="in-out", description="how the pose moves into this key from the one before: in-out (eases both ends), "
+                                      "linear (steady), back-out (overshoots a little, then settles)")
 
     @model_validator(mode="after")
     def _ranges(self):

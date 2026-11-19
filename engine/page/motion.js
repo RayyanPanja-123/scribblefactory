@@ -123,3 +123,21 @@ export function cameraProgress(shot, u) {
   const v = hold ? Math.max(0, (u * secs - hold) / (secs - hold)) : u;
   return STYLE.camera.ease ? glide(v) : Math.min(1, Math.max(0, v));
 }
+
+// Idle life (style.js idle): standing actors (idle, talk) breathe with a small bob and shift their weight slowly; each
+// actor's phase is seeded, so two characters never sway in step.
+export const LIFE_ACTIONS = new Set(["idle", "talk"]);
+/** { bob 0..1 (hip lift share, on top of a stressed-word bob), shift degrees (lean about the feet) } at time t for a
+ *  standing actor, or null for any other action. key: the character's seed key. */
+export function idleLife(key, t, action, breath) {
+  if (!LIFE_ACTIONS.has(action)) return null;
+  const I = STYLE.idle, ph = 2 * Math.PI * rng(key, "shift")();
+  return { bob: I.bob * (0.5 + 0.5 * breath), shift: I.shift * Math.sin((2 * Math.PI * t) / I.shiftPeriod + ph) };
+}
+/** who actor a looks toward in its shot: whom it addresses (target), else the speaker, else (two-handers) the other
+ *  one; null when nobody. actors: the shot's standing actors. */
+export function lookTarget(a, actors) {
+  const others = actors.filter((b) => b.cast_id !== a.cast_id);
+  return others.find((b) => b.cast_id === a.target) || others.find((b) => b.action === "talk")
+    || (actors.length === 2 ? others[0] : null);
+}

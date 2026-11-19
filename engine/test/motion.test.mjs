@@ -146,3 +146,17 @@ test("camera: moves ease in and out; a reaction close-up holds ~0.4 s before its
   assert.ok(cameraProgress(rc, 0.5 / 2) > 0);           // moving by 0.5 s
   assert.equal(cameraProgress(rc, 1), 1);
 });
+
+test("idle life: seeded, standing actions only; looks at the addressed, else the speaker, else the other of two", async () => {
+  const { idleLife, lookTarget } = await import("../page/motion.js");
+  assert.deepEqual(idleLife("a", 1.3, "idle", 0.2), idleLife("a", 1.3, "idle", 0.2));
+  assert.notDeepEqual(idleLife("a", 1.3, "idle", 0.2), idleLife("b", 1.3, "idle", 0.2)); // never in step
+  assert.equal(idleLife("a", 1, "walk", 0), null);
+  const l = idleLife("a", 2, "talk", 1);
+  assert.ok(l.bob > 0 && Math.abs(l.shift) <= 2);
+  const A = { cast_id: "a", action: "idle" }, B = { cast_id: "b", action: "talk" }, C = { cast_id: "c", action: "idle", target: "a" };
+  assert.equal(lookTarget(A, [A, B]), B);
+  assert.equal(lookTarget(B, [A, B]), A);        // two-hander: the speaker looks at the other one
+  assert.equal(lookTarget(C, [A, B, C]), A);     // whom it addresses wins
+  assert.equal(lookTarget(A, [A, { cast_id: "d", action: "idle" }, C]), null); // nobody talking, three people
+});

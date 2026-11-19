@@ -6,7 +6,7 @@ import { BODY_W, CH, CW, FEET_Y, FIGURE_PX, HAT_TOP, HEAD_R, drawStickman, figur
 import { CRW, creature, drawCreature, measure as creatureSize } from "./creatures.js";
 import { lookup, setLibrary } from "./library.js";
 import { DH, DOG_FEET, DW, barkAmount, drawDog, gallopPhase } from "./dog.js";
-import { cameraProgress, gestureAmount, gesturePlan, mouthCurve, mouthCycles, pointAmount, stressBob, waveAmount } from "./motion.js";
+import { cameraProgress, gestureAmount, idleLife, lookTarget, gesturePlan, mouthCurve, mouthCycles, pointAmount, stressBob, waveAmount } from "./motion.js";
 import { BUILTIN_ACTIONS, CARRIED_LIFT, HELD_Z, HOLD_GAP, LIE, collapseAt, customPose, eatAt, gaitPhase, giveAt, handOf, heldPlace,
   propsByShot, sideToward, staggerAt, withProp, zzzAt } from "./actions.js";
 import { CAR_CARD_W, CAR_GROUND, DRIVER_X, RIDER_X, VH, VW, carEase, carSpeedShare, drawCar, seatOffset } from "./car.js";
@@ -447,6 +447,7 @@ function drawShot(shot, n) {
   const extraShift = extrasFor(shot, camAt, placeAt2);
   shotCamera(shot, subject ? focusX(place) : 0, span, u, drop(kf));
   const gestures = [], riders = new Map(); // riders: cast id -> drawStickman options, drawn inside the car card
+  const standing = shot.actors.filter((b) => !seated.has(b.cast_id) && !["lie", "collapse", "carried"].includes(b.action));
   const ownMove = (a) => (a.end_pos ? Math.hypot(a.end_pos[0] - a.start_pos[0], a.end_pos[1] - a.start_pos[1]) : 0);
   for (const a of shot.actors) {
     const [x, z] = place(a), key = charSeed(a.cast_id);
@@ -475,7 +476,20 @@ function drawShot(shot, n) {
     };
     const roll = actionPose(shot, a, o, x, u, ts, n);
     if (seated.has(a.cast_id)) { riders.set(a.cast_id, figure(a.cast_id, o)); continue; }
-    const mesh = drawCard(a.cast_id, o, outdoor && STYLE.light.outdoor), yaw = Math.atan2(camera.position.x - x, camera.position.z - z);
+    // idle life (motion.js idleLife): breathing bob and weight shift; the head tilts toward whoever it looks at, and a
+    // camera-facing two-hander angles toward the other one (card turn + a glance)
+    const life = !roll.k && idleLife(key, t, o.action, o.breath);
+    let turn = 0;
+    if (life) {
+      o.bob = Math.max(o.bob, life.bob); o.shift = life.shift;
+      const other = lookTarget(a, standing);
+      if (other) {
+        const toward = place(other)[0] >= x ? 1 : -1;
+        o.tilt = sideToward(x, place(other)[0], o.facing) * rad(STYLE.idle.headTilt);
+        if (standing.length === 2 && o.facing === "camera") { turn = toward * rad(STYLE.idle.turn); o.gaze = toward * STYLE.idle.gaze; }
+      }
+    }
+    const mesh = drawCard(a.cast_id, o, outdoor && STYLE.light.outdoor), yaw = Math.atan2(camera.position.x - x, camera.position.z - z) + turn;
     // lying (lie, the end of a collapse): the card rolls 90 degrees about the feet in its own plane and lifts so the
     // body rests on the floor; carried: lifted clear of the ground
     // the lying body is centred on the actor's spot (feet half a figure one way, head the other), so it stays in

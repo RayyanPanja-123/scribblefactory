@@ -6,12 +6,12 @@ const slugify = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0
 
 const EXAMPLES: CustomAction[] = [
   { id: 'salute', name: 'Salute', duration: 1.4, loop: false, keys: [
-    { t: 0, lean: 0 },
-    { t: 0.5, arms: [[-16, 0], [150, 70]], lean: 2 },
+    { t: 0, lean: 0, ease: 'in-out' },
+    { t: 0.5, arms: [[-16, 0], [150, 70]], lean: 2, ease: 'back-out' },
   ], facing: 'camera', move: 0 },
   { id: 'dance', name: 'Dance', duration: 1, loop: true, keys: [
-    { t: 0, arms: [[-120, -40], [60, 30]], legs: [-20, 6], lean: -8 },
-    { t: 0.5, arms: [[-60, -30], [120, 40]], legs: [-6, 20], lean: 8 },
+    { t: 0, arms: [[-120, -40], [60, 30]], legs: [-20, 6], lean: -8, ease: 'in-out' },
+    { t: 0.5, arms: [[-60, -30], [120, 40]], legs: [-6, 20], lean: 8, ease: 'in-out' },
   ], facing: 'camera', move: 0 },
 ]
 
@@ -39,7 +39,9 @@ Reply with ONE JSON object in a \`\`\`json code block and nothing else.
 - keys: 2 to 8 keys (max 40) in time order. The engine eases smoothly between them; a looping move wraps from the
   last key back to the first, so make them flow.
 
-Each key: {"t": 0.5, "arms": [[L, Lbend], [R, Rbend]], "legs": [L, R], "knees": [L, R], "lean": 0}
+Each key: {"t": 0.5, "arms": [[L, Lbend], [R, Rbend]], "legs": [L, R], "knees": [L, R], "lean": 0, "ease": "in-out"}
+(ease: how the pose moves into this key: "in-out" smooth (default), "linear" steady, "back-out" overshoots then settles,
+good for a snappy salute or a punch)
 - t: when, 0 to 1 (share of the duration). Start with a key at t 0.
 - arms (optional): [left arm, right arm], each [upper arm angle, forearm bend]. Left out: both arms at rest.
 - legs (optional): [left thigh, right thigh] angles, -90..90. Left out: at rest. The lowest foot stays on the ground.
@@ -113,7 +115,8 @@ export function importAction(text: string): { action?: CustomAction; error?: str
     if (k.legs != null && !pair(k.legs, -90, 90)) return bad('"legs" must be [left, right], each -90..90.')
     if (k.knees != null && !pair(k.knees, 0, 170)) return bad('"knees" must be [left, right], each 0..170.')
     if (k.lean != null && !num(k.lean, -60, 60)) return bad('"lean" must be a number from -60 to 60.')
-    keys.push({ t: k.t as number, arms: (k.arms ?? null) as never, legs: (k.legs ?? null) as never, knees: (k.knees ?? null) as never, lean: (k.lean as number) ?? 0 })
+    const ease = (['in-out', 'linear', 'back-out'] as const).find((e) => e === k.ease) ?? 'in-out' // unknown: the default
+    keys.push({ t: k.t as number, arms: (k.arms ?? null) as never, legs: (k.legs ?? null) as never, knees: (k.knees ?? null) as never, lean: (k.lean as number) ?? 0, ease })
   }
   const name = typeof a.name === 'string' && a.name.trim() ? a.name.trim().slice(0, 40) : 'New action'
   const duration = num(a.duration, 0.2, 10) ? a.duration! : 1.5

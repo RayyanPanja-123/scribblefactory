@@ -52,4 +52,9 @@ export const STYLE = {
     move: { push: 0.35, pull: 0.5, truck: 0.9, crane: 1.0 },
     ease: true, reactionHold: 0.4, tilt: 0,
   },
+  // character life for standing actors (idle, talk). bob: hip lift share with each breath; shift: degrees of slow
+  // weight shift (lean about the feet) over shiftPeriod s; headTilt: degrees the head tilts toward whoever is speaking
+  // or being addressed; turn / gaze: two named characters facing the camera angle their cards this many degrees toward
+  // each other and glance that way (pupil shift share)
+  idle: { bob: 0.35, shift: 1.3, shiftPeriod: 4.5, headTilt: 6, turn: 22, gaze: 0.8 },
 };
