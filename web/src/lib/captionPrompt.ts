@@ -63,3 +63,12 @@ export function composeUpload(head: string, c: Captions): string {
   const yt = (Object.keys(YT) as (keyof typeof YT)[]).map((k) => `### ${YT[k]}\n\n${c[k].trim()}`).join('\n\n')
   return `# ${head}\n\n## YouTube\n\n${yt}\n\n## Instagram\n\n${c.instagram.trim()}\n`
 }
+
+/** text with hashtags gets the brand tags it lacks appended (case-insensitive match); text without any is left alone */
+export function withBrandTags(text: string, brand: string): string {
+  const t = text.trim()
+  const has = new Set((t.match(/#[\p{L}\p{N}_]+/gu) ?? []).map((h) => h.toLowerCase()))
+  if (!has.size) return t
+  const missing = (brand.match(/#[\p{L}\p{N}_]+/gu) ?? []).filter((h) => !has.has(h.toLowerCase()) && has.add(h.toLowerCase()))
+  return missing.length ? `${t} ${missing.join(' ')}` : t
+}
