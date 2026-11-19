@@ -722,3 +722,41 @@ def test_wardrobe(client, lib):
     assert "still worn by helms/ann" in client.delete("/api/wardrobe/plume_helm").json()["detail"]
     assert client.delete("/api/wardrobe/crown").status_code == 200
     assert "crown" not in {w["id"] for w in client.get("/api/wardrobe").json()["custom"]}
+
+
+# ---------------- sounds ----------------
+
+def test_sfx_library_crud(client, lib):
+    r = client.get("/api/sfx").json()
+    assert len(r["sfx"]) == 14 and all(x["missing"] for x in r["sfx"]) and len(r["warnings"]) == 14
+    pop = next(x for x in r["sfx"] if x["id"] == "pop")
+    body = {k: pop[k] for k in ("id", "file", "name", "purpose", "tags", "anchor", "default_volume")}
+    r = client.put("/api/sfx/pop", json={**body, "purpose": "pop-ups", "default_volume": 0.5}).json()
+    assert next(x for x in r["sfx"] if x["id"] == "pop")["default_volume"] == 0.5
+    assert (lib / "sfx" / "sfx.json").is_file()
+    assert client.put("/api/sfx/boing/audio?name=Boing.mp3", content=b"not audio").status_code == 415
+    assert client.put("/api/sfx/boing/audio?name=boing.exe", content=b"x").status_code == 415
+    # used in a story: delete refused
+    (lib / "demo" / "part-01" / "story.md").write_text("# T\n\n@sfx pop\nBob waved.\n", encoding="utf-8")
+    r = client.delete("/api/sfx/pop")
+    assert r.status_code == 409 and "demo/part-01" in r.json()["detail"]
+    assert client.delete("/api/sfx/click").status_code == 200
+    assert "click" not in [x["id"] for x in client.get("/api/sfx").json()["sfx"]]
+    assert client.get("/api/sfx/pop/audio").status_code == 404  # file missing
+
+
+def test_sfx_suggestions_accept_reject(client, lib):
+    md = "# T\n\n@set office\nBob found the gold.\nBob waved at everyone in the office and smiled for a very long time.\n!! Bob was the traitor.\n"
+    (lib / "demo" / "part-01" / "story.md").write_text(md, encoding="utf-8")
+    r = client.get(f"{P}/sfx-suggestions").json()
+    ids = [(s["line"], s["id"]) for s in r["suggestions"]]
+    assert (4, "fahhh") in ids and (6, "riser") in ids and (6, "among_us") in ids and not r["timed"]
+    hook = next(s for s in r["suggestions"] if s["id"] == "fahhh")
+    r = client.post(f"{P}/sfx-suggestions", json={**hook, "accept": True}).json()
+    assert (lib / "demo" / "part-01" / "story.md").read_text(encoding="utf-8").split("\n")[3:5] == ["@sfx fahhh", "Bob found the gold."]
+    assert r["written"] == 1 and "fahhh" not in [s["id"] for s in r["suggestions"]]
+    riser = next(s for s in r["suggestions"] if s["id"] == "riser")
+    r = client.post(f"{P}/sfx-suggestions", json={**riser, "accept": False}).json()
+    assert "riser" not in [s["id"] for s in r["suggestions"]]
+    stale = {**riser, "line": 2}
+    assert client.post(f"{P}/sfx-suggestions", json={**stale, "accept": True}).status_code == 409

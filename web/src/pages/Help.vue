@@ -9,8 +9,8 @@ import { useApi } from '../composables/useApi'
 // Every story.md directive in one place (the full rules for the AI live in docs/STORY_GUIDE.md section 5; keep the
 // two in step). The lists of sets, bodies, actions and props are live: built-ins plus this library's custom ones.
 const { data } = useApi(async () => {
-  const [sets, creatures, actions, props, wardrobe] = await Promise.all([api.sets(), api.creatures(), api.actions(), api.props(), api.wardrobe()])
-  return { sets, creatures, actions, props, wardrobe }
+  const [sets, creatures, actions, props, wardrobe, sfx] = await Promise.all([api.sets(), api.creatures(), api.actions(), api.props(), api.wardrobe(), api.sfx()])
+  return { sets, creatures, actions, props, wardrobe, sfx }
 })
 const live = computed(() => {
   const d = data.value
@@ -20,11 +20,12 @@ const live = computed(() => {
     bodies: allCreatures(d.creatures).map((c) => `${c.id} (${c.rig})`),
     actions: [...d.actions.do, ...d.actions.custom.map((a) => `${a.id} (custom)`)],
     props: propOptions(d.props).map((p) => p.id),
+    sounds: d.sfx.sfx.map((s) => `${s.id} (${s.purpose || s.name}${s.anchor === 'end_on_line' ? ', ends on line' : ''})`),
     wardrobe: SLOTS.map((s) => ({ slot: s, ids: wardrobeOptions(d.wardrobe).filter((w) => w.slot === s).map((w) => w.id) })),
   }
 })
 
-type Directive = { id: string; syntax: string; what: string; rules: string[]; example: string; list?: 'sets' | 'bodies' | 'actions' | 'props'; nav?: string }
+type Directive = { id: string; syntax: string; what: string; rules: string[]; example: string; list?: 'sets' | 'bodies' | 'actions' | 'props' | 'sounds'; nav?: string }
 const DIRECTIVES: Directive[] = [
   { id: 'set', syntax: '@set <name>', what: 'Where the scene is, for the following lines.', list: 'sets',
     rules: ['Default: room. Put one before the first narration line.', 'Indoor sets have a back wall; outdoor sets allow travelling shots.',
@@ -63,6 +64,13 @@ const DIRECTIVES: Directive[] = [
     rules: ['With a target it strikes beside that cast member (on stage) or whoever holds that prop.', 'At most 3 per part, on dramatic beats; a narration line must follow it.',
       'Works under any weather, strongest in a storm.'],
     example: '@do poseidon: raise_trident\n@fx lightning\nPoseidon raised his trident, and the sky split open.' },
+  { id: 'sfx', syntax: '@sfx <id> [volume 0-1]', what: 'A sound effect from the Sounds page, mixed under the voice, for the next narration line.', list: 'sounds',
+    rules: ['Alone on its line, directly above the narration line it belongs to (next to @do / @fx is fine).',
+      'Line start sounds play as that line starts; ends-on-line sounds (risers) end exactly as it starts.',
+      'Volume 0 to 1 overrides the sound’s default. Sounds always sit under the voice and duck while it speaks.',
+      'At most 5 per part, only where the moment needs one: risers only before a payoff, vine_boom only for comedy, money only for money.',
+      'The Review tab suggests some from the stills on; nothing is added without your OK.'],
+    example: '@sfx riser\n!! The tower was never his to sell.' },
   { id: 'twist', syntax: '!! <text>', what: 'The twist: a dramatic push-in, the music stops, a low hit sounds.', list: undefined,
     rules: ['Starts a narration line; the text is read aloud.', 'Exactly once per part, on the last or second-to-last narration line.'],
     example: '!! The tower was never his to sell.' },

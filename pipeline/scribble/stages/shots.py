@@ -172,8 +172,8 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
                 dogs = int(arg)
             elif name == "car" and arg in CAR_MODES:
                 car = arg
-            elif name == "fx" and arg in FX_MODES:
-                pass  # caption effect: finish reads it
+            elif name == "fx" and arg in FX_MODES or name == "sfx":
+                pass  # caption effect / sound effect: finish / audio read them
             elif name == "fx" and arg.split()[:1] == [FX_LIGHTNING]:
                 strike = (line, parse_lightning(arg, line, cast_ids, props))
             elif name == "do":

@@ -18,7 +18,7 @@ const castIds = (xs: { id: string; name: string; looks?: Record<string, unknown>
  * standalone: shared on its own (Overview's "Copy library list"), so the last line doesn't point into the guide */
 export async function libraryRecords(standalone = false): Promise<string> {
   try {
-    const [sets, props, creatures, actions, wardrobe, series] = await Promise.all([api.sets(), api.props(), api.creatures(), api.actions(), api.wardrobe(), api.series()])
+    const [sets, props, creatures, actions, wardrobe, series, sfx] = await Promise.all([api.sets(), api.props(), api.creatures(), api.actions(), api.wardrobe(), api.series(), api.sfx()])
     const casts = await Promise.all(series.map((s) => api.seriesDetail(s.slug).then((d) => d.series, () => null)))
     const indoor = sets.custom.filter((s) => s.kind === 'indoor')
     const outdoor = sets.custom.filter((s) => s.kind === 'outdoor')
@@ -44,6 +44,8 @@ export async function libraryRecords(standalone = false): Promise<string> {
         const xs = [...wardrobe.builtin.filter((w) => w.slot === s), ...wardrobe.custom.filter((w) => w.slot === s)]
         return `${s} ${xs.length ? xs.map((w) => `\`${w.id}\``).join(', ') : '(none yet)'}`
       }).join('; ')}`,
+      `- **Sound effects** for \`@sfx <id> [volume 0-1]\` (at most 5 per part): ${sfx.sfx.length ? sfx.sfx.map((s) =>
+        `\`${s.id}\` (${s.purpose || s.name}${s.anchor === 'end_on_line' ? '; ends as the line starts' : ''})`).join(', ') : 'none yet'}`,
       `- **Cast** in your existing series (a new series designs its own CAST; reuse a look by copying it):${cast.length ? '' : ' none yet'}`,
       ...cast,
       '',

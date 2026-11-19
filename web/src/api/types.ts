@@ -496,6 +496,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/series/{slug}/parts/{part}/sfx-suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Sfx Suggestions */
+        get: operations["sfx_suggestions_api_series__slug__parts__part__sfx_suggestions_get"];
+        put?: never;
+        /**
+         * Decide Sfx
+         * @description accept: "@sfx <id>" is written into story.md above the line; reject: never suggested again for that line
+         */
+        post: operations["decide_sfx_api_series__slug__parts__part__sfx_suggestions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/series/{slug}/parts/{part}/story.md": {
         parameters: {
             query?: never;
@@ -602,6 +623,69 @@ export interface paths {
          * @description applies to the next render job; a running one keeps its workers
          */
         put: operations["put_settings_api_settings_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sfx": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Sfx */
+        get: operations["get_sfx_api_sfx_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sfx/{sfx_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Sfx
+         * @description add or change a sound's entry (name, purpose, tags, anchor, volume, file name)
+         */
+        put: operations["put_sfx_api_sfx__sfx_id__put"];
+        post?: never;
+        /**
+         * Remove Sfx
+         * @description the entry and its file; refused while any story.md uses it
+         */
+        delete: operations["remove_sfx_api_sfx__sfx_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sfx/{sfx_id}/audio": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Sfx Audio */
+        get: operations["sfx_audio_api_sfx__sfx_id__audio_get"];
+        /**
+         * Put Sfx Audio
+         * @description Raw audio body (mp3 / wav / ogg / m4a) saved as library/sfx/<name>; a new id gets an entry with defaults
+         *     (anchor start, volume 0.8) to edit after.
+         */
+        put: operations["put_sfx_audio_api_sfx__sfx_id__audio_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1700,6 +1784,148 @@ export interface components {
             settings: components["schemas"]["Settings"];
             /** Workers Now */
             workers_now: number;
+        };
+        /** SfxCatalog */
+        SfxCatalog: {
+            /** Sfx */
+            sfx: components["schemas"]["SfxView"][];
+            /** Warnings */
+            warnings: string[];
+        };
+        /** SfxDecision */
+        SfxDecision: {
+            /** Accept */
+            accept: boolean;
+            /**
+             * At
+             * @default 0
+             */
+            at: number;
+            /** Id */
+            id: string;
+            /** Line */
+            line: number;
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+            /** Text */
+            text: string;
+        };
+        /** SfxEntry */
+        SfxEntry: {
+            /**
+             * Anchor
+             * @default start
+             * @enum {string}
+             */
+            anchor: "start" | "end_on_line";
+            /**
+             * Default Volume
+             * @default 0.8
+             */
+            default_volume: number;
+            /**
+             * File
+             * @description file name inside library/sfx/
+             */
+            file: string;
+            /**
+             * Id
+             * @description the name used in @sfx
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Purpose
+             * @description when to use it (shown to the story AI)
+             * @default
+             */
+            purpose: string;
+            /**
+             * Tags
+             * @default []
+             */
+            tags: string[];
+        };
+        /** SfxSuggestion */
+        SfxSuggestion: {
+            /**
+             * At
+             * @default 0
+             */
+            at: number;
+            /** Id */
+            id: string;
+            /** Line */
+            line: number;
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+            /** Text */
+            text: string;
+        };
+        /** SfxSuggestions */
+        SfxSuggestions: {
+            /** Max */
+            max: number;
+            /** Suggestions */
+            suggestions: components["schemas"]["SfxSuggestion"][];
+            /** Timed */
+            timed: boolean;
+            /** Written */
+            written: number;
+        };
+        /** SfxView */
+        SfxView: {
+            /**
+             * Anchor
+             * @default start
+             * @enum {string}
+             */
+            anchor: "start" | "end_on_line";
+            /**
+             * Default Volume
+             * @default 0.8
+             */
+            default_volume: number;
+            /**
+             * File
+             * @description file name inside library/sfx/
+             */
+            file: string;
+            /**
+             * Id
+             * @description the name used in @sfx
+             */
+            id: string;
+            /**
+             * Missing
+             * @default false
+             */
+            missing: boolean;
+            /** Name */
+            name: string;
+            /**
+             * Purpose
+             * @description when to use it (shown to the story AI)
+             * @default
+             */
+            purpose: string;
+            /**
+             * Tags
+             * @default []
+             */
+            tags: string[];
+            /**
+             * Users
+             * @default []
+             */
+            users: string[];
         };
         /** SheetRow */
         SheetRow: {
@@ -3110,6 +3336,74 @@ export interface operations {
             };
         };
     };
+    sfx_suggestions_api_series__slug__parts__part__sfx_suggestions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                part: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SfxSuggestions"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    decide_sfx_api_series__slug__parts__part__sfx_suggestions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                part: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SfxDecision"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SfxSuggestions"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     put_story_md_api_series__slug__parts__part__story_md_put: {
         parameters: {
             query?: never;
@@ -3342,6 +3636,156 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SettingsView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_sfx_api_sfx_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SfxCatalog"];
+                };
+            };
+        };
+    };
+    put_sfx_api_sfx__sfx_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sfx_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SfxEntry"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SfxCatalog"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_sfx_api_sfx__sfx_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sfx_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SfxCatalog"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sfx_audio_api_sfx__sfx_id__audio_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sfx_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_sfx_audio_api_sfx__sfx_id__audio_put: {
+        parameters: {
+            query: {
+                name: string;
+            };
+            header?: never;
+            path: {
+                sfx_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SfxCatalog"];
                 };
             };
             /** @description Validation Error */

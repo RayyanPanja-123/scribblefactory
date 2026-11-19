@@ -54,11 +54,13 @@ Plain text. Each marker is **alone on its own line**, in exactly this order:
   the slot it is worn in.
 - **SCRIPT**: the raw `story.md`, unchanged from the usual script format: `# Part title`, directives each alone on
   its line, narration. That includes `@weather <clear | rain | snow | fog | wind | storm> [light | medium | heavy]`
-  (after its `@set`) and `@fx lightning [cast | prop]` (at most 3 per part, a narration line right after it).
+  (after its `@set`), `@fx lightning [cast | prop]` (at most 3 per part, a narration line right after it) and
+  `@sfx <id> [volume 0-1]` (a sound effect from `library/sfx/sfx.json`, at most 5 per part, a narration line
+  right after it).
 - **VOICE**: what the text-to-speech voice reads: the script's narration lines in order, word for word, with no
   `@` lines, no `# title` line and no `!!` marker. It is saved as the part's `script-for-tts.txt`.
 - Every id a SCRIPT or the CAST uses (sets, props, creatures, actions, cast ids, looks) must exist in the library or
-  be created by this package.
+  be created by this package. Sound effect ids (`@sfx`) must exist in the library: a package cannot add sounds.
 
 ## What the importer does
 
@@ -68,9 +70,10 @@ Plain text. Each marker is **alone on its own line**, in exactly this order:
   JSON or an item that does not fit its schema, a wardrobe id that is unknown or worn in the wrong slot, and any
   script problem the dashboard's story check reports
   (unknown set, cast id, action, prop, look or body; bad directive, including an unknown `@weather` type or
-  intensity, more than 3 `@fx lightning` or a lightning target that is not on stage). Each names its section and
+  intensity, more than 3 `@fx lightning` or a lightning target that is not on stage, an unknown `@sfx` id or more
+  than 5 `@sfx`). Each names its section and
   its line in the pasted text.
-- **Warnings** (imported anyway): VOICE differs from the script's narration (with the changed words), a word count
+- **Warnings** (imported anyway): an `@sfx` whose sound file is missing from `library/sfx/`, VOICE differs from the script's narration (with the changed words), a word count
   outside 110 to 175, more than one `!!`, a part before the last that does not end with "To be continued.".
 - **Never overwrites.** A new item whose id the library already has is imported with a suffix (`lantern-2`), and
   the cast and scripts are rewritten to use it; a taken series slug gets a suffix too.

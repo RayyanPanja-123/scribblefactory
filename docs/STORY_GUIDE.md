@@ -73,7 +73,7 @@ Narration line.
 ```
 
 - Line 1 `# Title`, blank line. One directive per line, alone (never narration on it).
-- `@do` and `@fx` affect only the next narration line, which must follow; other directives last until changed.
+- `@do`, `@fx` and `@sfx` affect only the next narration line, which must follow; other directives last until changed.
 - Narration: plain text, numbers as words, no digits, symbols, abbreviations, parentheses or markdown.
 - Name characters by their cast `name`.
 
@@ -109,6 +109,7 @@ Narration line.
 | `@fx drop \| shake \| pop` | Caption effect. Sparingly. |
 | `@weather clear \| rain \| snow \| fog \| wind \| storm [light\|medium\|heavy]` | After its `@set`. |
 | `@fx lightning [cast \| prop]` | At most 3 per part. |
+| `@sfx <id> [volume 0-1]` | A sound effect for the next line. At most 5 per part. |
 
 `@do` actions: `idle talk point react wave cheer angry gasp walk run stagger lie collapse`, `eat [prop]`,
 `give <prop> <target>`, `carry <target>` (exactly 2 carriers), `support <target>` (1 or 2), `car: broken` (car on
@@ -131,6 +132,32 @@ The video only shows what the directives and names tell it. Without them every s
 - **Objects are seen:** spears, letters, swords are props held through a `@look` switched on when used.
 - **Punch:** `@fx shake` or `@fx drop` on line 1, `@fx pop` on line 3, `@fx lightning` on one to three big beats.
 - Aim for **ten or more** directives per part besides `@set` and `@cast`.
+
+### Sound effects (`@sfx`)
+
+Real ids and what each is for are under *Available in this library* (**Sound effects**). Default set:
+
+| id | use for |
+|---|---|
+| `fahhh` | attention grab (the hook) |
+| `camera_flash` | smooth transition |
+| `metallic_riser` | tension before a reveal (ends as the line starts) |
+| `right` / `wrong` | correct / wrong, positive / negative feedback |
+| `vine_boom` | comedy timing, a reaction |
+| `bass_impact` | hype, weight before the main reveal |
+| `core` | a statement, emphasis |
+| `among_us` | an unexpected reveal (a traitor, a fake) |
+| `riser` | suspense before a payoff (ends as the line starts) |
+| `pop` / `click` | pop-up text, UI elements |
+| `glitch` | transition between clips |
+| `money` | money and financial moments |
+
+- `@sfx <id>` alone on its line, directly above the narration line it belongs to (next to `@do` / `@fx` is fine).
+  An optional volume `0` to `1` overrides the default (`@sfx riser 0.6`).
+- Only where it fits the moment: **at most 5 per part**, never two on lines right after each other.
+- Risers (`riser`, `metallic_riser`) only right before a payoff, usually the `!!` line. `vine_boom` only for comedy.
+  `money` only for money moments.
+- A good default: `fahhh` on line 1 of part 1, a `riser` plus `bass_impact` (or `among_us`) on the twist.
 
 ## 6. New items
 

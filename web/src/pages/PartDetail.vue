@@ -5,6 +5,7 @@ import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, media, type Approval, type Platform, type StoryCheck } from '../api/client'
 import PartStepper from '../components/PartStepper.vue'
+import SfxSuggestions from '../components/SfxSuggestions.vue'
 import ErrorCard from '../components/ErrorCard.vue'
 import StageChips from '../components/StageChips.vue'
 import Switch from '../components/Switch.vue'
@@ -183,7 +184,7 @@ const tab = computed<Tab>(() => {
 })
 // every in-page link (#voice, #posting, ...) opens its tab, then scrolls to that section
 const TAB_OF: Record<string, Tab> = { story: 'story', voice: 'voice', video: 'review', review: 'review', approvals: 'review', qa: 'review',
-  thumbnails: 'review', upload: 'publish', posting: 'publish', run: 'tools', disk: 'tools', publish: 'publish', tools: 'tools' }
+  thumbnails: 'review', sfx: 'review', upload: 'publish', posting: 'publish', run: 'tools', disk: 'tools', publish: 'publish', tools: 'tools' }
 async function goTo(id: string) {
   if (!TAB_OF[id]) return
   chosen.value = TAB_OF[id]
@@ -550,6 +551,9 @@ watch(() => props.part, () => { chosen.value = null })
           </section>
         </div>
       </div>
+
+      <!-- @sfx suggestions: from the stills on, until the final is approved -->
+      <SfxSuggestions v-if="has('stills-sheet.png') && !approved('final')" :slug="slug" :part="part" :story-md="d?.story_md" :busy="busy" @changed="refresh" />
 
       <!-- light table: sheets + thumbnail polaroids -->
       <section v-if="show.review" id="review" :class="{ 'next-target': focus === 'review' }" class="raised p-6">

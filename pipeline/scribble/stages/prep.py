@@ -12,6 +12,7 @@ story.md directives (one per line) are stripped from the script:
   @look mike: headless  a cast member's named look from the next line on (default: its own; see parse_look)
   @crowd cheer 10    crowd extras behind the stage: cheer | angry | gasp | neutral [N, default 8, max 12] | off
   @runners 4         background runner extras (0-6)
+  @sfx riser 0.6     a sound effect (library/sfx/sfx.json id, optional volume 0-1) for the next line (see sfx.py)
   !! text            this line is the twist (prefix stripped, text kept)
 """
 

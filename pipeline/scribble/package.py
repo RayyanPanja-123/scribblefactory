@@ -310,6 +310,9 @@ def stage(result: dict, library: Path, root: Path, approved: bool = False) -> No
         lib = load(library)
         atomic_write_json(root / f"{field}.json", lib_model(**{field: [*getattr(lib, field), *result["assets"][sec]]})
                           .model_dump(mode="json"))
+    if approved and (library / "sfx").is_dir():  # the check copy: @sfx ids and files checked against the real ones
+        # ponytail: copies the sound files on every check; sound effects are small
+        shutil.copytree(library / "sfx", root / "sfx")
     s = result["series"]
     d = root / s["slug"]
     d.mkdir(parents=True)

@@ -25,7 +25,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from .. import settings
-from ..io import LIBRARY_FILES, WARDROBE_SEED, atomic_write_json, load_part
+from ..io import LIBRARY_FILES, WARDROBE_SEED, atomic_write_bytes, atomic_write_json, load_part
 from ..schemas import SeriesModel, StoryModel
 from .runner import StageError
 from .validate import load_model
@@ -465,5 +465,21 @@ def test_render(part_dir: Path, at: float = 0.0, swiftshader: bool = False) -> P
         secs = max(time.monotonic() - t0, 1e-3)
         print(f"rendered frames {first}-{first + count - 1} in {secs:.1f} s ({count / secs:.1f} fps)")
         check_frames(test, first, count)
-        return encode(test, first, count, part_dir / "voice-tight.wav", part_dir / "test-render.mp4")
+        return encode(test, first, count, voice_with_sfx(part_dir), part_dir / "test-render.mp4")
+
+
+def voice_with_sfx(part_dir: Path) -> Path:
+    """voice-tight.wav, or audio/voice-sfx.wav (the voice with its @sfx mixed in) when story.md has any"""
+    from .. import sfx as sfx_lib  # numpy and ffmpeg only when there is a test render
+    from .audio import decode, wav_bytes
+    voice_f = part_dir / "voice-tight.wav"
+    if not voice_f.exists():
+        return voice_f  # encode reports it
+    voice = decode(voice_f)
+    x = sfx_lib.stem(part_dir, voice)
+    if x is None:
+        return voice_f
+    out = part_dir / "audio" / "voice-sfx.wav"
+    atomic_write_bytes(out, wav_bytes(voice + x))
+    return out
 

@@ -1,4 +1,5 @@
 """audio: synth music + SFX from story.json cues, mixed under voice-tight.wav (timing) -> audio/{music,sfx,mix}.wav.
+Plus story.md's @sfx sounds from library/sfx/ (sfx.py: placed and ducked under the voice by ffmpeg).
 
 Our own synth (numpy + stdlib wave only): the reference repo's audio kit needs scipy and is built for one story.
 music.wav and sfx.wav are deterministic from story.json (seed, cues, shots) and the voice length.
@@ -14,6 +15,7 @@ from pathlib import Path
 
 import numpy as np
 
+from .. import sfx as sfx_lib
 from ..io import atomic_write_bytes, replace_file
 from ..schemas import StoryModel
 from .runner import StageError
@@ -26,7 +28,7 @@ LOUDNORM_TP = -1.5   # aim under -1 dBTP: loudnorm's true peak lands a few tenth
 # undershoots on short parts) gets its peaks limited by these amounts in turn, until one lands on the target
 PEAK_ROOM_DB = (3.0, 6.0, 9.0)
 
-INPUTS = ["story.json", "voice-tight.wav"]
+INPUTS = ["story.json", "voice-tight.wav", "story.md", "phrases.json", "../../sfx/sfx.json", "../../sfx"]
 OUTPUTS = ["audio/music.wav", "audio/sfx.wav", "audio/mix.wav"]
 
 SR, FPS = 48000, 30
@@ -360,6 +362,8 @@ def run(part_dir: Path) -> None:
     tmp = d / ".mix.tmp.wav"  # ffmpeg writes it; replaced into mix.wav only once it measures in range
     try:
         mix = voice + g_m * music + g_s * sfx
+        if (library_sfx := sfx_lib.stem(part_dir, voice)) is not None:
+            mix = mix + library_sfx
         loudnorm(mix, tmp)
         lufs, tp = loudness(tmp)
         print(f"mix: {lufs:.1f} LUFS integrated, true peak {tp:.1f} dBTP")

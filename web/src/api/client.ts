@@ -1,6 +1,7 @@
 // Thin typed client over fetch. Types come from docs/openapi.json (npm run gen:api).
 import type { CreatureCatalog, CustomCreature } from '../lib/creatures'
 import type { CustomSet, SetCatalog } from '../lib/sets'
+import type { SfxCatalog, SfxEntry, SfxSuggestion, SfxSuggestions } from '../lib/sfx'
 import type { WardrobeCatalog, WardrobeItem } from '../lib/wardrobe'
 import type { components } from './types'
 
@@ -55,6 +56,9 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
 const e = encodeURIComponent
 const part = (slug: string, p: string) => `/api/series/${e(slug)}/parts/${e(p)}`
 
+/** a library sound's audio file; v: a cache-buster after a re-upload */
+export const sfxAudio = (id: string, v?: number) => `/api/sfx/${e(id)}/audio${v ? `?v=${v}` : ''}`
+
 export const media = (slug: string, rel: string) => `/api/media/${e(slug)}/${rel.split('/').map(e).join('/')}`
 
 export const api = {
@@ -103,6 +107,13 @@ export const api = {
   wardrobe: () => call<WardrobeCatalog>('GET', '/api/wardrobe'),
   saveWardrobeItem: (w: WardrobeItem) => call<WardrobeCatalog>('PUT', `/api/wardrobe/${e(w.id)}`, w),
   deleteWardrobeItem: (id: string) => call<WardrobeCatalog>('DELETE', `/api/wardrobe/${e(id)}`),
+  sfx: () => call<SfxCatalog>('GET', '/api/sfx'),
+  saveSfx: (x: SfxEntry) => call<SfxCatalog>('PUT', `/api/sfx/${e(x.id)}`, x),
+  uploadSfx: (id: string, file: File) => call<SfxCatalog>('PUT', `/api/sfx/${e(id)}/audio?name=${e(file.name)}`, file),
+  deleteSfx: (id: string) => call<SfxCatalog>('DELETE', `/api/sfx/${e(id)}`),
+  sfxSuggestions: (slug: string, p: string) => call<SfxSuggestions>('GET', `${part(slug, p)}/sfx-suggestions`),
+  decideSfx: (slug: string, p: string, s: SfxSuggestion, accept: boolean) =>
+    call<SfxSuggestions>('POST', `${part(slug, p)}/sfx-suggestions`, { ...s, accept }),
   validatePackage: (text: string) => call<PackageResult>('POST', '/api/packages/validate', { text }),
   importPackage: (text: string) => call<PackageResult>('POST', '/api/packages/import', { text }),
 }

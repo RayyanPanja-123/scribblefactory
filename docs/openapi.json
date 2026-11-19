@@ -2663,6 +2663,271 @@
         "title": "SettingsView",
         "type": "object"
       },
+      "SfxCatalog": {
+        "properties": {
+          "sfx": {
+            "items": {
+              "$ref": "#/components/schemas/SfxView"
+            },
+            "title": "Sfx",
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "sfx",
+          "warnings"
+        ],
+        "title": "SfxCatalog",
+        "type": "object"
+      },
+      "SfxDecision": {
+        "properties": {
+          "accept": {
+            "title": "Accept",
+            "type": "boolean"
+          },
+          "at": {
+            "default": 0.0,
+            "title": "At",
+            "type": "number"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "line": {
+            "title": "Line",
+            "type": "integer"
+          },
+          "reason": {
+            "default": "",
+            "title": "Reason",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "line",
+          "text",
+          "id",
+          "accept"
+        ],
+        "title": "SfxDecision",
+        "type": "object"
+      },
+      "SfxEntry": {
+        "additionalProperties": false,
+        "properties": {
+          "anchor": {
+            "default": "start",
+            "enum": [
+              "start",
+              "end_on_line"
+            ],
+            "title": "Anchor",
+            "type": "string"
+          },
+          "default_volume": {
+            "default": 0.8,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Default Volume",
+            "type": "number"
+          },
+          "file": {
+            "description": "file name inside library/sfx/",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "File",
+            "type": "string"
+          },
+          "id": {
+            "description": "the name used in @sfx",
+            "maxLength": 60,
+            "pattern": "^[a-z0-9]+([_-][a-z0-9]+)*$",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "purpose": {
+            "default": "",
+            "description": "when to use it (shown to the story AI)",
+            "maxLength": 200,
+            "title": "Purpose",
+            "type": "string"
+          },
+          "tags": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "file",
+          "name"
+        ],
+        "title": "SfxEntry",
+        "type": "object"
+      },
+      "SfxSuggestion": {
+        "properties": {
+          "at": {
+            "default": 0.0,
+            "title": "At",
+            "type": "number"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "line": {
+            "title": "Line",
+            "type": "integer"
+          },
+          "reason": {
+            "default": "",
+            "title": "Reason",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "line",
+          "text",
+          "id"
+        ],
+        "title": "SfxSuggestion",
+        "type": "object"
+      },
+      "SfxSuggestions": {
+        "properties": {
+          "max": {
+            "title": "Max",
+            "type": "integer"
+          },
+          "suggestions": {
+            "items": {
+              "$ref": "#/components/schemas/SfxSuggestion"
+            },
+            "title": "Suggestions",
+            "type": "array"
+          },
+          "timed": {
+            "title": "Timed",
+            "type": "boolean"
+          },
+          "written": {
+            "title": "Written",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "suggestions",
+          "written",
+          "max",
+          "timed"
+        ],
+        "title": "SfxSuggestions",
+        "type": "object"
+      },
+      "SfxView": {
+        "additionalProperties": false,
+        "properties": {
+          "anchor": {
+            "default": "start",
+            "enum": [
+              "start",
+              "end_on_line"
+            ],
+            "title": "Anchor",
+            "type": "string"
+          },
+          "default_volume": {
+            "default": 0.8,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Default Volume",
+            "type": "number"
+          },
+          "file": {
+            "description": "file name inside library/sfx/",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "File",
+            "type": "string"
+          },
+          "id": {
+            "description": "the name used in @sfx",
+            "maxLength": 60,
+            "pattern": "^[a-z0-9]+([_-][a-z0-9]+)*$",
+            "title": "Id",
+            "type": "string"
+          },
+          "missing": {
+            "default": false,
+            "title": "Missing",
+            "type": "boolean"
+          },
+          "name": {
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "purpose": {
+            "default": "",
+            "description": "when to use it (shown to the story AI)",
+            "maxLength": 200,
+            "title": "Purpose",
+            "type": "string"
+          },
+          "tags": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "users": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Users",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "file",
+          "name"
+        ],
+        "title": "SfxView",
+        "type": "object"
+      },
       "SheetRow": {
         "properties": {
           "cells": {
@@ -4830,6 +5095,111 @@
         "summary": "Pick Thumbnail"
       }
     },
+    "/api/series/{slug}/parts/{part}/sfx-suggestions": {
+      "get": {
+        "operationId": "sfx_suggestions_api_series__slug__parts__part__sfx_suggestions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "part",
+            "required": true,
+            "schema": {
+              "title": "Part",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SfxSuggestions"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sfx Suggestions"
+      },
+      "post": {
+        "description": "accept: \"@sfx <id>\" is written into story.md above the line; reject: never suggested again for that line",
+        "operationId": "decide_sfx_api_series__slug__parts__part__sfx_suggestions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "part",
+            "required": true,
+            "schema": {
+              "title": "Part",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SfxDecision"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SfxSuggestions"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Decide Sfx"
+      }
+    },
     "/api/series/{slug}/parts/{part}/story.md": {
       "put": {
         "description": "replace story.md; the stages after it see the change on their next run (their inputs hash differently)",
@@ -5165,6 +5535,196 @@
           }
         },
         "summary": "Put Settings"
+      }
+    },
+    "/api/sfx": {
+      "get": {
+        "operationId": "get_sfx_api_sfx_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SfxCatalog"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Sfx"
+      }
+    },
+    "/api/sfx/{sfx_id}": {
+      "delete": {
+        "description": "the entry and its file; refused while any story.md uses it",
+        "operationId": "remove_sfx_api_sfx__sfx_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sfx_id",
+            "required": true,
+            "schema": {
+              "title": "Sfx Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SfxCatalog"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Sfx"
+      },
+      "put": {
+        "description": "add or change a sound's entry (name, purpose, tags, anchor, volume, file name)",
+        "operationId": "put_sfx_api_sfx__sfx_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sfx_id",
+            "required": true,
+            "schema": {
+              "title": "Sfx Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SfxEntry"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SfxCatalog"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Sfx"
+      }
+    },
+    "/api/sfx/{sfx_id}/audio": {
+      "get": {
+        "operationId": "sfx_audio_api_sfx__sfx_id__audio_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sfx_id",
+            "required": true,
+            "schema": {
+              "title": "Sfx Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sfx Audio"
+      },
+      "put": {
+        "description": "Raw audio body (mp3 / wav / ogg / m4a) saved as library/sfx/<name>; a new id gets an entry with defaults\n(anchor start, volume 0.8) to edit after.",
+        "operationId": "put_sfx_audio_api_sfx__sfx_id__audio_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sfx_id",
+            "required": true,
+            "schema": {
+              "title": "Sfx Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SfxCatalog"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Sfx Audio"
       }
     },
     "/api/wardrobe": {
