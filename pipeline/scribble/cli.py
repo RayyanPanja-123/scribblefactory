@@ -335,7 +335,7 @@ def cmd_check_story(args) -> int:
 
 def cmd_render(args) -> int:
     pdir = part_dir(args)
-    gate(pdir, ("stills", "test_render"))
+    gate(pdir, ("stills",))  # the test render is optional
     fn = functools.partial(render_stage.run, workers=args.workers, swiftshader=args.swiftshader, force=args.force)
     result = run_stage(pdir, "render", fn, force=args.force, inputs=render_stage.INPUTS, outputs=render_stage.OUTPUTS)
     return 1 if result == "failed" else 0

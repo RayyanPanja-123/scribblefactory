@@ -21,7 +21,6 @@ const DEFS: Def[] = [
   { key: 'voice', label: 'Voice', href: '#voice', stages: ['import_check', 'timing'], done: (s) => s.files.voice && ok(s, 'import_check', 'timing') },
   { key: 'plan', label: 'Plan shots', href: '#run', stages: ['shots', 'validate'], done: (s) => ok(s, 'shots', 'validate') },
   { key: 'stills', label: 'Stills', href: '#review', stages: [], done: (s) => s.approvals.stills, review: (s) => s.files.stillsSheet },
-  { key: 'test', label: 'Test render', href: '#video', stages: [], done: (s) => s.approvals.test_render, review: (s) => s.files.testRender },
   { key: 'final', label: 'Final', href: '#approvals', stages: ['render', 'audio', 'finish'], done: (s) => s.approvals.final,
     review: (s) => ok(s, 'render', 'audio', 'finish') },
   { key: 'thumbnail', label: 'Thumbnail', href: '#thumbnails', stages: ['thumbnails'], done: (s) => s.thumbnailPicked },

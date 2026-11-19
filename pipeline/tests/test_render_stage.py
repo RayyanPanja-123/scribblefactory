@@ -203,7 +203,6 @@ def test_user_files_untouched(part):
 
 @pytest.mark.parametrize("cmd,clear,msg", [
     (["render"], "stills", "not approved yet: stills"),
-    (["render"], "test_render", "not approved yet: test_render"),
     (["test-render"], "stills", "not approved yet: stills"),
 ])
 def test_gates_need_approvals(part, capsys, cmd, clear, msg):
@@ -214,6 +213,15 @@ def test_gates_need_approvals(part, capsys, cmd, clear, msg):
     assert msg in capsys.readouterr().err
     assert part.state["calls"] == []
     assert load_part(part / "part.json").stages.render.status == "pending"
+
+
+def test_render_does_not_need_the_test_render(part):
+    """the test render is optional: an unapproved one never blocks the full render"""
+    pj = json.loads((part / "part.json").read_text())
+    pj["approvals"]["test_render"] = {"approved_at": None}
+    (part / "part.json").write_text(json.dumps(pj))
+    assert cli_render() == 0
+    assert load_part(part / "part.json").stages.render.status == "done"
 
 
 @pytest.mark.parametrize("cmd", [["render"], ["test-render"]])

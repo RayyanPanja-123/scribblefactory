@@ -445,7 +445,7 @@ def encode(frames: Path, first: int, count: int, voice: Path, out: Path) -> Path
 
 def run(part_dir: Path, workers: int | None = None, swiftshader: bool = False, force: bool = False) -> None:
     """workers None: library/settings.json (auto: recommended for this PC); swiftshader also when settings force it"""
-    story = check_gate(part_dir, ("stills", "test_render"))
+    story = check_gate(part_dir, ("stills",))  # the test render is optional
     library = part_dir.parents[1]
     workers = workers or settings.render_workers(library)
     swiftshader = swiftshader or settings.software_gl(library)

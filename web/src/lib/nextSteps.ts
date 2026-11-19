@@ -35,10 +35,6 @@ export function nextSteps(s: PipelineState): Plan {
     if (steps.length || !s.files.stillsSheet) steps.push('render-stills')
     return { steps, stop: 'stills approval' }
   }
-  if (!s.approvals.test_render) {
-    if (steps.length || !s.files.testRender) steps.push('test-render')
-    return { steps, stop: 'test render approval' }
-  }
 
   if (steps.length || !done('render')) steps.push('render')
   for (const st of FINISH_STRETCH) if (steps.length || !done(st)) steps.push(`run --stage ${st}`)

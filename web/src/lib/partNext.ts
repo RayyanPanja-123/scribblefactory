@@ -42,7 +42,6 @@ export function partNext(s: PartState): PartStep {
   if (plan.stop?.startsWith('voice')) return { kind: 'voice', text: 'Record the voice: paste script-for-tts.txt into freetts.ai, download the mp3 and upload it here.' }
   if (plan.stop?.startsWith('cast')) return { kind: 'cast', text: 'The series cast is not approved yet. Approve it on the series page before stills can render.' }
   if (plan.stop === 'stills approval') return { kind: 'approve', approval: 'stills', text: APPROVE.stills }
-  if (plan.stop === 'test render approval') return { kind: 'approve', approval: 'test_render', text: APPROVE.test_render }
   if (plan.stop === 'final approval') return { kind: 'approve', approval: 'final', text: APPROVE.final }
   if (plan.stop) return { kind: 'wait', text: plan.stop } // 'a stage is running'
   if (s.thumbs && !s.thumbnailPicked) return { kind: 'thumbnail', text: 'Pick one of the thumbnail candidates on the light table.' }

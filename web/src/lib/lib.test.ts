@@ -42,12 +42,8 @@ describe('nextSteps', () => {
     const files = { voice: true, stillsSheet: true, testRender: false }
     expect(nextSteps(state(5, { files }))).toEqual({ steps: [], stop: 'stills approval' })
   })
-  it('stills approved: test render, stops at its gate', () => {
+  it('stills approved: full render to thumbnails (no test render), stops at final approval', () => {
     const p = nextSteps(state(5, { approvals: { ...NONE, stills: true } }))
-    expect(p).toEqual({ steps: ['test-render'], stop: 'test render approval' })
-  })
-  it('both approved: full render to thumbnails, stops at final approval', () => {
-    const p = nextSteps(state(5, { approvals: { ...NONE, stills: true, test_render: true } }))
     expect(p).toEqual({
       steps: ['render', 'run --stage audio', 'run --stage finish', 'run --stage thumbnails'], stop: 'final approval',
     })
@@ -222,7 +218,7 @@ describe('partNext', () => {
     expect(partNext(p(1, { files: { voice: false, stillsSheet: false, testRender: false } })).kind).toBe('voice')
     expect(partNext(p(5, { castApproved: false })).kind).toBe('cast')
     expect(partNext(p(5, { files: { voice: true, stillsSheet: true, testRender: false } }))).toMatchObject({ kind: 'approve', approval: 'stills' })
-    expect(partNext(p(5, { approvals: { ...NONE, stills: true }, files: { voice: true, stillsSheet: true, testRender: true } }))).toMatchObject({ approval: 'test_render' })
+    expect(partNext(p(5, { approvals: { ...NONE, stills: true }, files: { voice: true, stillsSheet: true, testRender: true } }))).toMatchObject({ kind: 'run', steps: ['render', 'run --stage audio', 'run --stage finish', 'run --stage thumbnails'] })
     expect(partNext(p(9, { approvals: { ...ALL_OK, final: false } }))).toMatchObject({ approval: 'final' })
     expect(partNext(p(9, { approvals: ALL_OK })).kind).toBe('thumbnail')
     expect(partNext(p(9, { approvals: ALL_OK, thumbnailPicked: true })).kind).toBe('post')
@@ -236,7 +232,7 @@ describe('partNext', () => {
   it('stepper: done steps, one current step, the rest to do', () => {
     const at = (s: PartState) => partSteps(s).map((x) => `${x.key}:${x.status}`).join(' ')
     expect(at(p(0))).toMatch(/^story:current voice:todo/)
-    expect(at(p(5))).toMatch(/^story:done voice:done plan:done stills:current test:todo/)
+    expect(at(p(5))).toMatch(/^story:done voice:done plan:done stills:current final:todo/)
     expect(at(p(5, { files: { voice: true, stillsSheet: true, testRender: false } }))).toContain('stills:review')
     expect(at(p(5, { busy: 'job 1' }))).toContain('stills:running')
     expect(at(p(2, { stages: { ...state(2).stages, timing: 'failed' } }))).toContain('voice:failed')

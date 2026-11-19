@@ -147,9 +147,9 @@ def posted_counts(d: Path) -> dict:
 
 
 def waiting_approvals(pdir: Path, p) -> list[str]:
-    """approvals with something to look at but no approval yet"""
+    """approvals with something to look at but no approval yet (not the test render: optional, never waited on)"""
     return [n for n, f in APPROVE_NEEDS.items()
-            if not getattr(p.approvals, n).approved_at and (pdir / f).is_file()
+            if n != "test_render" and not getattr(p.approvals, n).approved_at and (pdir / f).is_file()
             and (n != "final" or p.stages.finish.status == "done")]
 
 
@@ -297,7 +297,7 @@ def health():
 
 
 # the exposure sheet's columns: the same journey as web/src/lib/partSteps.ts, coarse (from files on disk + jobs)
-SHEET_STEPS = ["Story", "Voice", "Plan", "Stills", "Test", "Final", "Thumb", "Post"]
+SHEET_STEPS = ["Story", "Voice", "Plan", "Stills", "Final", "Thumb", "Post"]
 
 
 def sheet_cells(slug: str, pdir: Path, p) -> list[str]:
@@ -308,7 +308,6 @@ def sheet_cells(slug: str, pdir: Path, p) -> list[str]:
         ((pdir / "voice.mp3").is_file() and ok("import_check", "timing"), ["import_check", "timing"], False),
         (ok("shots", "validate"), ["shots", "validate"], False),
         (bool(p.approvals.stills.approved_at), [], (pdir / "stills-sheet.png").is_file()),
-        (bool(p.approvals.test_render.approved_at), [], (pdir / "test-render.mp4").is_file()),
         (bool(p.approvals.final.approved_at), ["render", "audio", "finish"], ok("render", "audio", "finish")),
         (bool(p.thumbnail_choice), ["thumbnails"], False),
         (bool(p.posted.youtube or p.posted.instagram), [], False),

@@ -96,10 +96,12 @@ Progress shows live in the jobs drawer. The stops, in order:
 
 1. **Cast approval** (if a new cast member appears): cast sheet, then approve.
 2. **Stills approval**: one still per shot on the light table. Approve the stills, or fix story.md and run again.
-3. **Test render approval**: a 5 s clip with voice. Approve it.
-4. **Final approval**: Run next renders all frames (parallel, resumable: a crash or restart continues where it
+3. **Final approval**: Run next renders all frames (parallel, resumable: a crash or restart continues where it
    stopped), adds music and sound effects, burns in captions, runs QA (qa.json) and makes three thumbnails.
    Watch final.mp4 to the end and check the QA card, then approve the final.
+
+Optional: **Test render (5 s)** in the part's Tools renders a 5 s clip with voice before the full render (a new
+machine, a new set, a sync worry). It never blocks anything; approving it is optional too.
 
 Any stage can be re-run from its chip menu. Captions on or off: `cli set-captions <slug> on|off`, then re-run finish.
 

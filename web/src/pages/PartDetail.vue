@@ -55,7 +55,7 @@ const gate = computed<Record<string, string | null>>(() => ({
   'render-stills': stages.value.shots !== 'done' ? 'shot plan not done yet'
     : unapprovedCast.value.length ? `cast not approved: ${unapprovedCast.value.join(', ')}` : null,
   'test-render': approved('stills') ? null : 'stills not approved yet',
-  render: !approved('stills') ? 'stills not approved yet' : !approved('test_render') ? 'test render not approved yet' : null,
+  render: approved('stills') ? null : 'stills not approved yet',
 }))
 const why = (cmd: string) => busy.value ?? gate.value[cmd]
 
@@ -557,7 +557,7 @@ watch(() => props.part, () => { chosen.value = null })
           <section v-if="show.approvals" id="approvals" :class="{ 'next-target': focus === 'approvals' }" class="raised p-6">
             <h3 class="font-display text-lg font-semibold">Approvals</h3>
             <div class="mt-4 flex flex-wrap gap-x-8 gap-y-4">
-              <div v-for="a in APPROVALS" :key="a.key">
+              <div v-for="a in APPROVALS.filter((x) => x.key !== 'test_render' || has(x.file) || approved(x.key))" :key="a.key">
                 <Switch :on="approved(a.key)" :label="a.label" :reason="approved(a.key) ? null : approvalReason(a)" @request="approve(a)" />
                 <p class="mt-1 text-xs text-muted">
                   {{ approved(a.key) ? shortDate(p.approvals[a.key].approved_at) : approvalReason(a) ?? 'ready to approve' }}

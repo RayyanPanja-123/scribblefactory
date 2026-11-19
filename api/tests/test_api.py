@@ -76,9 +76,9 @@ def test_health(client):
 
 def test_overview(client, lib):
     o = client.get("/api/overview").json()
-    assert len(o["sheet_steps"]) == 8
+    assert len(o["sheet_steps"]) == 7  # Story Voice Plan Stills Final Thumb Post (the test render is optional)
     [row] = o["sheet"]  # story not prepped yet: the first column is current, the rest to do
-    assert (row["part"], row["number"], row["cells"]) == ("part-01", 1, ["current"] + ["todo"] * 7)
+    assert (row["part"], row["number"], row["cells"]) == ("part-01", 1, ["current"] + ["todo"] * 6)
     cli(["mark-posted", "demo", "part-01", "youtube", "--url", "https://yt/x"])
     o = client.get("/api/overview").json()
     assert o["kpi"] == {"series": 1, "parts_in_progress": 1, "waiting_for_approval": 1, "posted_this_month": 1}
