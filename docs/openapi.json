@@ -1722,6 +1722,11 @@
       },
       "PackageItem": {
         "properties": {
+          "data": {
+            "additionalProperties": true,
+            "title": "Data",
+            "type": "object"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -1733,7 +1738,8 @@
         },
         "required": [
           "id",
-          "name"
+          "name",
+          "data"
         ],
         "title": "PackageItem",
         "type": "object"
@@ -1744,8 +1750,16 @@
             "title": "Number",
             "type": "integer"
           },
+          "story": {
+            "title": "Story",
+            "type": "string"
+          },
           "title": {
             "title": "Title",
+            "type": "string"
+          },
+          "voice": {
+            "title": "Voice",
             "type": "string"
           },
           "words": {
@@ -1756,7 +1770,9 @@
         "required": [
           "number",
           "title",
-          "words"
+          "words",
+          "story",
+          "voice"
         ],
         "title": "PackagePart",
         "type": "object"

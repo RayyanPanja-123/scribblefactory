@@ -1047,12 +1047,15 @@ class PackageIssue(BaseModel):
 class PackageItem(BaseModel):
     id: str
     name: str
+    data: dict  # the item as it will be saved (props.json ... series.json cast entry): the review page previews it
 
 
 class PackagePart(BaseModel):
     number: int
     title: str
     words: int
+    story: str  # story.md
+    voice: str  # script-for-tts.txt
 
 
 class PackageSeries(BaseModel):

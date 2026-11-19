@@ -1408,6 +1408,10 @@ export interface components {
         };
         /** PackageItem */
         PackageItem: {
+            /** Data */
+            data: {
+                [key: string]: unknown;
+            };
             /** Id */
             id: string;
             /** Name */
@@ -1417,8 +1421,12 @@ export interface components {
         PackagePart: {
             /** Number */
             number: number;
+            /** Story */
+            story: string;
             /** Title */
             title: string;
+            /** Voice */
+            voice: string;
             /** Words */
             words: number;
         };

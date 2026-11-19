@@ -1,8 +1,9 @@
 # Story Package v1
 
 One pasteable blob with everything for a new series: the new library items, the cast, the title, and every
-part's script and voice text. Paste it on the dashboard's **Story Writer** page: it is checked, previewed and
-imported in one go (all or nothing). This file is the single source of the format; the story guide the dashboard
+part's script and voice text. Paste it on the dashboard's **Story Writer** page: it is checked, then **Review** shows
+every new item as it will render and every part's script and voice; each one is approved on its own, and only then
+does Import unlock, writing it all in one go (all or nothing). This file is the single source of the format; the story guide the dashboard
 copies for chat AIs embeds it.
 
 ## Format

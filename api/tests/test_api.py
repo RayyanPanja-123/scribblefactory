@@ -700,6 +700,8 @@ def test_story_package_validate_then_import(client, lib):
     assert r.status_code == 200 and r.json()["ok"], r.json()["errors"]
     assert not (lib / "the-liar-lantern").exists()  # dry run
     assert [p["title"] for p in r.json()["parts"]] == ["Part 1", "Part 2"]
+    assert r.json()["parts"][0]["voice"].startswith("Ava") and r.json()["parts"][0]["story"]  # the review page shows both
+    assert all(x["data"]["id"] == x["id"] for k in ("props", "sets", "cast") for x in r.json()[k])  # and previews each item
     r = client.post("/api/packages/import", json={"text": pkg()})
     assert r.status_code == 200
     d = client.get("/api/series/the-liar-lantern/parts/part-01").json()

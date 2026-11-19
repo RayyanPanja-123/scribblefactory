@@ -14,6 +14,7 @@ const router = createRouter({
     { path: '/', name: 'overview', component: () => import('./pages/Overview.vue') },
     { path: '/ai-creations', name: 'ai-creations', component: () => import('./pages/AiCreations.vue') },
     { path: '/story-writer', name: 'story-writer', component: () => import('./pages/StoryWriter.vue') },
+    { path: '/story-writer/review', name: 'story-review', component: () => import('./pages/StoryReview.vue') },
     { path: '/series', name: 'series', component: () => import('./pages/SeriesList.vue') },
     { path: '/new-series', name: 'new-series', component: () => import('./pages/NewSeries.vue') },
     { path: '/series/:slug/new-part', name: 'new-part', component: () => import('./pages/NewPart.vue'), props: true },

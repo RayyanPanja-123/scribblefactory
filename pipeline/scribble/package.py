@@ -361,11 +361,11 @@ def import_package(text: str, library) -> dict:
 
 def summary(result: dict) -> dict:
     """the JSON-safe view of a parse result (the API's answer)"""
-    dump = lambda xs: [{"id": x.id, "name": x.name} for x in xs]
+    dump = lambda xs: [{"id": x.id, "name": x.name, "data": x.model_dump(mode="json", exclude_none=True)} for x in xs]
     return {"ok": result["ok"], "series": result["series"],
             "props": dump(result["assets"]["PROPS"]), "sets": dump(result["assets"]["SETS"]),
             "creatures": dump(result["assets"]["CREATURES"]), "actions": dump(result["assets"]["ACTIONS"]),
             "wardrobe": dump(result["assets"]["WARDROBE"]),
             "cast": dump(result["cast"]), "renames": {k.lower(): v for k, v in result["renames"].items()},
-            "parts": [{k: p[k] for k in ("number", "title", "words")} for p in result["parts"]],
+            "parts": [{k: p[k] for k in ("number", "title", "words", "story", "voice")} for p in result["parts"]],
             "warnings": result["warnings"], "errors": result["errors"]}

@@ -6,21 +6,23 @@ import { api, type PackageResult } from '../api/client'
 import AiBridge from '../components/AiBridge.vue'
 import IssueFix from '../components/IssueFix.vue'
 import { toast } from '../composables/feedback'
+import { packageText as reply } from '../composables/storyDraft'
 import { copyLibraryList, fixPrompt, storyGuide } from '../lib/storyGuide'
 
 // Story Writer: brainstorm a series with any chat AI (it gets the story guide), paste back its one Story Package
 // (docs/story-package.md), see what it creates, fix what the check finds right where it is reported (or have the AI
-// fix it), then import it all in one go. The API checks and writes; nothing is written until Import, which is all or
-// nothing.
+// fix it), then review it (StoryReview page: every item and part approved on its own) and import it all in one go.
+// The API checks and writes; nothing is written until Import, which is all or nothing.
 const router = useRouter()
 const prompt = ref('')
-const reply = ref('')
 const result = ref<PackageResult | null>(null)
 const checkError = ref('')
 const checking = ref(false)
-const importing = ref(false)
 
-onMounted(async () => { prompt.value = await storyGuide() })
+onMounted(async () => {
+  prompt.value = await storyGuide()
+  check() // a package kept from earlier (back from the review page)
+})
 
 let seq = 0
 async function check() {
@@ -111,19 +113,6 @@ async function copyFix() {
   }
 }
 
-async function runImport() {
-  importing.value = true
-  try {
-    const r = await api.importPackage(reply.value)
-    toast(`Imported “${r.series!.title}”: ${r.parts.length} part${r.parts.length === 1 ? '' : 's'}`, 'ok')
-    reply.value = ''
-    router.push(`/series/${r.series!.slug}`)
-  } catch (e) {
-    checkError.value = e instanceof Error ? e.message : String(e)
-  } finally {
-    importing.value = false
-  }
-}
 </script>
 
 <template>
@@ -151,14 +140,14 @@ async function runImport() {
       <!-- status bar: stays in view while working through the issues -->
       <div class="sticky top-0 z-10 -mx-6 -mt-6 mb-4 flex flex-wrap items-center gap-2 rounded-t-[inherit] border-b border-rule bg-panel px-6 py-3">
         <h3 id="sw-preview" class="font-display text-xl font-semibold">Preview</h3>
-        <span class="chip" :class="result.ok ? 'chip-green' : 'chip-red'">{{ result.ok ? 'ready to import' : `${result.errors.length} error${result.errors.length === 1 ? '' : 's'}` }}</span>
+        <span class="chip" :class="result.ok ? 'chip-green' : 'chip-red'">{{ result.ok ? 'ready to review' : `${result.errors.length} error${result.errors.length === 1 ? '' : 's'}` }}</span>
         <span v-if="result.warnings.length" class="chip chip-amber">{{ result.warnings.length }} warning{{ result.warnings.length === 1 ? '' : 's' }}</span>
         <span v-if="checking" class="text-xs text-muted" role="status">checking…</span>
         <div class="ml-auto flex flex-wrap gap-2">
           <button v-if="issueCount" type="button" class="btn btn-secondary" title="A prompt with every issue, for the chat the package came from" @click="copyFix">
             <Sparkles :size="16" aria-hidden="true" /> Copy fix request</button>
-          <button type="button" class="btn btn-primary" :disabled="!result.ok || checking || importing" :aria-busy="importing" @click="runImport">
-            {{ importing ? 'Importing…' : 'Import' }}</button>
+          <button type="button" class="btn btn-primary" :disabled="!result.ok || checking" title="See every new item and part, approve each, then import"
+            @click="router.push('/story-writer/review')">Review</button>
         </div>
       </div>
 
@@ -211,7 +200,7 @@ async function runImport() {
           </div>
         </div>
 
-        <p class="text-xs text-muted">Import writes it all or nothing and never overwrites. Each part starts at the story step: approve the cast,
+        <p class="text-xs text-muted">Review shows every new item and part to approve one by one; Import then writes it all or nothing and never overwrites. Each part starts at the story step: approve the cast,
           then record the voice from its TTS script and upload the mp3, as before.
           <template v-if="issueCount"> <Copy :size="12" class="inline" aria-hidden="true" /> Copy fix request hands every issue back to your AI.</template></p>
       </div>
