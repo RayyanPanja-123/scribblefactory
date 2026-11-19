@@ -11,8 +11,9 @@ export const FLASH = [0.32, 0.14];  // ... and the screen flashes white this muc
 export const AMBIENT = { window: 75, gap: 12, alpha: [0.14, 0.06] }; // storm: <= 1 flash per window, never near a strike
 const LEVEL = { light: 0, medium: 1, heavy: 2 };
 // particles per intensity (light, medium, heavy): the pool size, so the cost per frame is capped
-export const COUNT = { rain: [60, 120, 190], storm: [200, 200, 200], snow: [36, 70, 110], wind: [4, 7, 11] };
-const TINT = { storm: [20, 24, 40, [0.16, 0.22, 0.28]], rain: [40, 48, 60, [0.04, 0.07, 0.1]] }; // r g b, alpha by level
+export const COUNT = { rain: [90, 150, 220], storm: [180, 240, 300], snow: [36, 70, 110], wind: [4, 7, 11] };
+// r g b, alpha by level: strong enough to read on the stills sheet (a still there is about a fifth of the frame)
+const TINT = { storm: [20, 24, 40, [0.24, 0.34, 0.44]], rain: [40, 48, 60, [0.1, 0.14, 0.18]] };
 const FOG_ALPHA = [0.45, 0.65, 0.85];
 const AMBIENT_P = [0.3, 0.45, 0.6];
 
@@ -58,13 +59,13 @@ export function strokes(weather, seed, t, w, h, amount = 1) {
   const n = COUNT[kind][lv];
   const wrap = (v, m) => ((v % m) + m) % m;
   if (kind === "rain" || kind === "storm") {
-    const storm = kind === "storm", slant = storm ? 0.5 : 0.12; // storm: wind-driven, strongly slanted
-    const len = (storm ? 70 : 34 + 14 * lv), speed = h * (storm ? 2.4 : 1.7);
+    const storm = kind === "storm", slant = storm ? 0.5 : 0.22; // storm: wind-driven, strongly slanted; rain: enough to stand out from vertical lines in a set
+    const len = (storm ? 80 : 44 + 14 * lv), speed = h * (storm ? 2.4 : 1.7);
     for (const [a, b, c, d] of pool(kind, seed, n)) {
       const L = len * (0.7 + 0.6 * c), span = h + L;
       const y = wrap(b * span + speed * (0.85 + 0.3 * d) * t, span) - L;
       const x = wrap(a * (w + 200) + slant * y, w + 200) - 100;
-      out.push({ pts: [[x, y], [x + slant * L, y + L]], width: storm ? 3 : 2 + 0.5 * lv, color: INK, alpha: 0.45 * amount });
+      out.push({ pts: [[x, y], [x + slant * L, y + L]], width: storm ? 3.5 : 3 + 0.5 * lv, color: INK, alpha: 0.6 * amount });
     }
   } else if (kind === "snow") {
     for (const [a, b, c, d, e] of pool(kind, seed, n)) {
