@@ -783,3 +783,39 @@ def test_mood_covers_every_shot_of_its_line():
     md = "# T\n\n@cast bob, amy\nBob pointed at the big dark sky and then shouted at the clouds above.\n"
     fs = faces(md, "bob")
     assert len(fs) > 1 and set(fs) == {"angry"}  # "shouted" in the second phrase sets the first one too
+
+
+def bob_faces(md):
+    """per shot: (opening face, [(frame, face) changes]) of bob, and the phrases"""
+    story, ph = plan(md)
+    out = []
+    for s in story.shots:
+        a = next(a for a in s.actors if a.cast_id == "bob")
+        out.append((a.expression, [(f.frame, f.expression) for f in a.faces], s.start_frame, s.end_frame))
+    return out, ph
+
+
+def test_face_switches_on_the_mood_word():
+    rows, ph = bob_faces("# T\n\n@cast bob, amy\nBob grinned, then screamed.\n")
+    scream = round(next(w.start for w in ph.words if w.text.startswith("screamed")) * 30)
+    opening = [r[0] for r in rows]
+    changes = [c for r in rows for c in r[1]]
+    assert opening[0] == "happy"
+    # angry from "screamed" on: a change inside the shot that holds it, or the next shot opens angry
+    assert (scream, "angry") in changes or any(o == "angry" and s0 == scream for o, _c, s0, _e in rows)
+    for o, cs, s0, s1 in rows:
+        assert all(s0 < f < s1 for f, _ in cs)
+
+
+def test_face_directive_wins_for_its_line_only():
+    story, _ = plan("# T\n\n@cast bob, amy\n@face bob: sad\nBob laughed at the joke.\nBob laughed again.\n")
+    lines = [next(a for a in s.actors if a.cast_id == "bob") for s in story.shots]
+    assert lines[0].expression == "sad" and not lines[0].faces
+    assert lines[-1].expression == "happy"
+
+
+def test_face_directive_errors():
+    with pytest.raises(StageError, match=r"line 4: @face: expected"):
+        plan("# T\n\n@cast bob, amy\n@face bob: furious\nBob sat.\n")
+    with pytest.raises(StageError, match=r"line 4: @face: unknown cast id 'zed'"):
+        plan("# T\n\n@cast bob, amy\n@face zed: sad\nBob sat.\n")

@@ -10,6 +10,7 @@ story.md directives (one per line) are stripped from the script:
                      [light | medium | heavy, default medium]; @set starts the set's default_weather (else clear)
   @do fred: collapse actions for the next line's shots, overriding keyword guessing (see parse_do)
   @look mike: headless  a cast member's named look from the next line on (default: its own; see parse_look)
+  @face mike: angry  a cast member's face for the next line only (see parse_face)
   @crowd cheer 10    crowd extras behind the stage: cheer | angry | gasp | neutral [N, default 8, max 12] | off
   @runners 4         background runner extras (0-6)
   @sfx riser 0.6     a sound effect (library/sfx/sfx.json id, optional volume 0-1) for the next line (see sfx.py)
@@ -21,7 +22,7 @@ from pathlib import Path
 from typing import NamedTuple, get_args
 
 from ..io import LIBRARY_FILES, atomic_write_text, custom_actions, prop_kinds
-from ..schemas import BuiltinProp, Intensity, Weather, WeatherKind, actions_with
+from ..schemas import BuiltinProp, Expression, Intensity, Weather, WeatherKind, actions_with
 from .runner import StageError
 
 INPUTS = ["story.md", *(f"../../{f}" for f in LIBRARY_FILES)]
@@ -33,6 +34,7 @@ FX_LIGHTNING = "lightning"                  # @fx lightning [target]: read by th
 MAX_LIGHTNING = 3                           # strikes per part
 WEATHER_KINDS = ("clear", *get_args(WeatherKind))
 INTENSITIES = get_args(Intensity)
+EXPRESSIONS = get_args(Expression)
 
 QUOTES = str.maketrans({"‘": "'", "’": "'", "‚": "'", "‛": "'",
                         "“": '"', "”": '"', "„": '"', "‟": '"'})
@@ -141,6 +143,20 @@ def parse_look(arg: str, line: int, looks_of=None) -> tuple[tuple[str, ...], str
     return who, name
 
 
+def parse_face(arg: str, line: int, cast_ids=None) -> dict[str, str]:
+    """@face <cast>[, <cast>]: <expression> -> {cast id: expression} for the next narration line. cast_ids: the
+    series cast, or None to check the syntax only. Errors name the story.md line."""
+    who_txt, sep, face = arg.partition(":")
+    who, face = [w.strip() for w in who_txt.split(",") if w.strip()], face.strip()
+    if not sep or not who or face not in EXPRESSIONS:
+        raise StageError(f'story.md line {line}: @face: expected "@face <cast>: <{" | ".join(EXPRESSIONS)}>", '
+                         'e.g. "@face caligula: angry"')
+    for w in who if cast_ids is not None else ():
+        if w not in cast_ids:
+            raise StageError(f"story.md line {line}: @face: unknown cast id {w!r} (series cast: {', '.join(cast_ids)})")
+    return dict.fromkeys(who, face)
+
+
 def parse_weather(arg: str, line: int) -> Weather | None:
     """@weather <type> [intensity] -> Weather, or None for clear. Errors name the story.md line."""
     kind, *rest = arg.split() or [""]
@@ -183,7 +199,7 @@ def mark_directives(md: str) -> tuple[str, list[tuple[int, str]]]:
         if _is_directive(line):
             out.append(MARKER.format(len(found)))
             found.append((no, line.strip()[1:]))
-            close = close or line.strip()[1:].split(None, 1)[:1] == ["do"]
+            close = close or line.strip()[1:].split(None, 1)[:1] in (["do"], ["face"])
         else:
             line = TWIST_PREFIX.sub(lambda m: m[1] + MARKER.format("!") + " ", line)
             if close and line.strip():  # an @do covers exactly the next text line

@@ -114,6 +114,8 @@ const castOf = (id, look) => {
 };
 /** story expression "neutral" means the cast member's default expression (in its current look) */
 const expressionOf = (id, e, look) => (!e || e === "neutral" ? castOf(id, look).default_expression : e);
+/** an actor's face at frame n: its expression, or the last of its in-shot face changes (faces) reached by then */
+const faceAt = (a, n) => (a.faces || []).reduce((e, f) => (f.frame <= n ? f.expression : e), a.expression);
 const charSeed = (id) => `${data.series.slug}:${id}`; // same look in every part and on the cast sheet
 
 function lidAt(f, key) {
@@ -387,7 +389,7 @@ function drawShot(shot, n) {
     const feet = new THREE.Vector3(x, 0, z).project(camera), head = new THREE.Vector3(x, FIG_H, z).project(camera);
     const px = (((head.y - feet.y) / 2) * H) / FIGURE_PX; // screen px per card canvas px
     const o = {
-      boil: Math.floor(n / BOIL_FRAMES), action: a.action, expression: expressionOf(a.cast_id, a.expression, a.look), facing: a.facing, t, phase, px, look: a.look,
+      boil: Math.floor(n / BOIL_FRAMES), action: a.action, expression: expressionOf(a.cast_id, faceAt(a, kf), a.look), facing: a.facing, t, phase, px, look: a.look,
       lid: lidAt(n, key),
       breath: Math.sin((2 * Math.PI * t) / 3.4 + 2 * Math.PI * rng(key, "breath")()),
       mouth: a.action === "talk" && n === kf ? mouth[n] : 0, // shut while drawn outside its shot (wipe)

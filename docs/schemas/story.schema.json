@@ -51,6 +51,15 @@
           "title": "Expression",
           "type": "string"
         },
+        "faces": {
+          "default": [],
+          "description": "face changes inside the shot, in frame order: expression until the first, then each from its frame",
+          "items": {
+            "$ref": "#/$defs/FaceChange"
+          },
+          "title": "Faces",
+          "type": "array"
+        },
         "facing": {
           "enum": [
             "left",
@@ -399,6 +408,38 @@
         "variant"
       ],
       "title": "Extra",
+      "type": "object"
+    },
+    "FaceChange": {
+      "additionalProperties": false,
+      "properties": {
+        "expression": {
+          "enum": [
+            "neutral",
+            "happy",
+            "sad",
+            "angry",
+            "surprised",
+            "sleepy",
+            "cheeky",
+            "exhausted",
+            "worried"
+          ],
+          "title": "Expression",
+          "type": "string"
+        },
+        "frame": {
+          "description": "the face changes from this video frame on (the word that names the mood)",
+          "minimum": 0,
+          "title": "Frame",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "frame",
+        "expression"
+      ],
+      "title": "FaceChange",
       "type": "object"
     },
     "Shot": {

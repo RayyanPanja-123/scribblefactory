@@ -73,7 +73,7 @@ Narration line.
 ```
 
 - Line 1 `# Title`, blank line. One directive per line, alone (never narration on it).
-- `@do`, `@fx` and `@sfx` affect only the next narration line, which must follow; other directives last until changed.
+- `@do`, `@face`, `@fx` and `@sfx` affect only the next narration line, which must follow; other directives last until changed.
 - Narration: plain text, numbers as words, no digits, symbols, abbreviations, parentheses or markdown.
 - Name characters by their cast `name`.
 
@@ -103,6 +103,7 @@ Narration line.
 | `@cast a, b` | At most 12; at most 6 named per scene. |
 | `@do <cast>: <action> [prop] [target]` | Everyone named must be in `@cast`. |
 | `@look <cast>: <look>` | A look from their CAST entry; `default` restores; resets each part. |
+| `@face <cast>: <expression>` | Their face for the next line only: `neutral happy sad angry surprised sleepy cheeky exhausted worried`. |
 | `@car arrive \| ride \| leave \| off` | `ride` seats at most 3. |
 | `@dogs N` / `@runners N` | 0 to 6. |
 | `@crowd cheer \| angry \| gasp \| neutral [N]` / `@crowd off` | 1 to 12 extras. |
@@ -125,10 +126,12 @@ The video only shows what the directives and names tell it. Without them every s
   ground. A story set in the past uses a library set of its time (the library's `roman-street` and `colosseum` for Rome) or adds
   one under SETS.
 - **Name a cast member in every line**, by their cast `name`: the planner picks who acts by name.
-- **Faces follow the words.** A mood word anywhere in a line (angry, furious, stomped, laughed, sobbed, gasped,
-  scared...) sets the named character's face for the whole line. `@do <cast>: angry`, `gasp`, `react` or `cheer`
-  sets it too when the line has no mood word. Otherwise they wear their default face (`cheeky` smirks), so give
-  every emotional beat a mood word or an emotional `@do`.
+- **Faces follow the words.** A line's first mood word (angry, furious, stomped, laughed, sobbed, gasped,
+  scared...) sets the named character's face from the start of the line, and each later mood word switches it on
+  that word: "Caligula grinned, then screamed" goes happy, then angry at "screamed". `@do <cast>: angry`, `gasp`,
+  `react` or `cheer` sets it when the line has no mood word, and `@face <cast>: <expression>` fixes it for one line.
+  Otherwise they wear their default face (`cheeky` smirks), so give every emotional beat a mood word, an emotional
+  `@do` or an `@face`.
 - **A `@do` at least every second or third line** for physical beats: point, run, wave, cheer, angry, gasp,
   react, stagger, collapse, give, carry, support, eat, custom actions.
 - **Groups are `@crowd`** (an army, senators, a mob) with the reaction that fits; `@dogs` and `@runners` where

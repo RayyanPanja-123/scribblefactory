@@ -186,3 +186,11 @@ def test_hook_warning_in_check_story(tmp_path):
     pdir = setup(tmp_path, "# T\n\n@cast bob\nOnce upon a time Bob met Amy.\n")
     assert [(w["line"], w["message"].split(":")[0]) for w in check_story(pdir)["warnings"]] == [
         (4, "the first line opens on a date or backstory")]
+
+
+def test_face_directive(tmp_path):
+    pdir = setup(tmp_path, "# T\n\n@set office\n@cast bob, amy\n@face bob: angry\nBob sat.\n@face zed: sad\nAmy sat.\n@face amy: happy\n")
+    msgs = [(p["line"], p["message"]) for p in check_story(pdir)["problems"]]
+    assert not any(line == 5 for line, _ in msgs)
+    assert any(line == 7 and "unknown cast id 'zed'" in m for line, m in msgs)
+    assert (9, "@face has no narration line after it") in msgs

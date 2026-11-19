@@ -899,6 +899,11 @@ class Camera(Strict):
     roll_deg: float = 0
 
 
+class FaceChange(Strict):
+    frame: int = Field(ge=0, description="the face changes from this video frame on (the word that names the mood)")
+    expression: Expression
+
+
 class Actor(Strict):
     cast_id: str
     # partner roles: give <-> receive, carry (2 carriers) <-> carried, support (1-2) <-> supported
@@ -913,6 +918,8 @@ class Actor(Strict):
                                                          "actor carried / supported")
     prop: PropKind | None = Field(default=None, description="eat / give: the prop eaten / handed over")
     look: Slug | None = Field(default=None, description="the cast member's named look (@look), none: its own")
+    faces: list[FaceChange] = Field(default=[], description="face changes inside the shot, in frame order: expression "
+                                                            "until the first, then each from its frame")
 
 
 class Travel(Strict):

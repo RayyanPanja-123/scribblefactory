@@ -16,11 +16,11 @@ from ..io import (LIBRARY_FILES, atomic_write_json, cast_body_problems, creature
                   outdoor_sets,
                   prop_kinds, set_kinds, set_weather,
                   unknown_cast_props)
-from ..schemas import BUILTIN_CREATURES, BUILTIN_SETS, HAND_RIGS, actions_with, Actor, Animal, Camera, Cue, EndCard, Extra, PhrasesModel, SeriesModel, Shot, StoryModel, Strike, Travel, Vehicle
+from ..schemas import BUILTIN_CREATURES, BUILTIN_SETS, HAND_RIGS, actions_with, Actor, FaceChange, Animal, Camera, Cue, EndCard, Extra, PhrasesModel, SeriesModel, Shot, StoryModel, Strike, Travel, Vehicle
 from ..validate import (CAR_SPEED, CROWD_Z, DOG_RUN_SPEED, MAX_SHOT_FRAMES, MOODS, OUTDOOR_SETS, SPEEDS,
                         custom_speeds, end_card_start, end_frame, is_final, validate)
 from .prep import (BUILTIN_PROPS, DO_CAR, FX_LIGHTNING, FX_MODES, MARKER_RE, clean_markdown, mark_directives, parse_do,
-                   parse_lightning, parse_look, parse_weather)
+                   parse_face, parse_lightning, parse_look, parse_weather)
 from .runner import StageError
 from .validate import load_model
 
@@ -129,15 +129,16 @@ def seed_for(slug: str, part_number: int) -> int:
 def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILTIN_PROPS, looks_of=None, actions=(),
               weather_of=None):
     """Return (words, [(set, cast tuple, twist starts here, dogs, car mode, do, crowd, runners, looks, weather,
-    strike)]) from
+    strike, face)]) from
     story.md, words as prep's script has them. do: (story.md line, @do clauses) for the words of the line after an
     @do, else None. crowd: (mood, N) or None. A set change resets crowd and runners. looks: {cast id: look name} set
     by @look, kept for the rest of the part (default drops it). looks_of: cast id -> its look names. weather: Weather
     or None (clear), from @weather until the next @weather or @set; @set starts weather_of[set] (custom sets'
-    default_weather), else clear. strike: (story.md line, target) on the first word after an @fx lightning, else None."""
+    default_weather), else clear. strike: (story.md line, target) on the first word after an @fx lightning, else None.
+    face: {cast id: expression} for the words of the line after an @face, else None."""
     text, directives = mark_directives(md)
     set_, cast, twist_next, dogs, car, do = DEFAULT_SET, tuple(default_cast), False, 0, "off", None
-    crowd, runners, looks, strike = None, 0, {}, None
+    crowd, runners, looks, strike, face = None, 0, {}, None, None
     weather_of = weather_of or {}
     weather = weather_of.get(set_)
     looks_of = looks_of if looks_of is not None else {c: [] for c in cast_ids}
@@ -146,12 +147,12 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
         m = MARKER_RE.match(tok)
         if not m:
             words.append(tok)
-            tags.append((set_, cast, twist_next, dogs, car, do, crowd, runners, looks, weather, strike))
+            tags.append((set_, cast, twist_next, dogs, car, do, crowd, runners, looks, weather, strike, face))
             twist_next, strike = False, None
         elif m[1] == "!":
             twist_next = True
         elif m[1] == "/":
-            do = None  # the @do line is over
+            do = face = None  # the @do / @face line is over
         else:
             line, d = directives[int(m[1])]
             name, _, arg = d.strip().partition(" ")
@@ -179,8 +180,8 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
                 dogs = int(arg)
             elif name == "car" and arg in CAR_MODES:
                 car = arg
-            elif name == "fx" and arg in FX_MODES or name == "sfx":
-                pass  # caption effect / sound effect: finish / audio read them
+            elif name == "fx" and arg in FX_MODES:
+                pass  # caption effect: finish reads it
             elif name == "fx" and arg.split()[:1] == [FX_LIGHTNING]:
                 strike = (line, parse_lightning(arg, line, cast_ids, props))
             elif name == "do":
@@ -189,6 +190,10 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
                 crowd = parse_crowd(arg, line)
             elif name == "runners" and arg.isdigit() and int(arg) <= MAX_RUNNERS:
                 runners = int(arg)
+            elif name == "face":
+                face = {**(face or {}), **parse_face(arg, line, cast_ids)}
+            elif name == "sfx":
+                pass  # sound effect: the audio stage reads it
             elif name == "look":
                 who, look = parse_look(arg, line, looks_of)
                 looks = {**{k: v for k, v in looks.items() if k not in who}, **({w: look for w in who} if look != "default" else {})}
@@ -196,7 +201,7 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
                 raise StageError(f"story.md line {line}: bad directive @{d.strip()} (use @set <name>, @cast a, b, "
                                  f"@dogs 0-{MAX_DOGS}, @car {' | '.join(CAR_MODES)}, @fx {' | '.join(FX_MODES)} | lightning [target], "
                                  f"@weather <type> [intensity], "
-                                 f"@do <cast>: <action>, @look <cast>: <look>, @crowd <mood> [N] | off or @runners 0-{MAX_RUNNERS})")
+                                 f"@do <cast>: <action>, @look <cast>: <look>, @face <cast>: <expression>, @sfx <id>, @crowd <mood> [N] | off or @runners 0-{MAX_RUNNERS})")
     return words, tags
 
 
@@ -360,16 +365,20 @@ def fit_move(x: float, d: int, action: str, seconds: float, others=(), speeds=No
 
 
 def line_moods(md: str, words: list[str]) -> list[str | None]:
-    """per script word: the first mood word (EXPRESSIONS) of its whole story.md line, so every shot of a line split
-    over several phrases keeps it; all None when story.md and the words disagree"""
+    """per script word: the mood (EXPRESSIONS) in effect there. A line opens with its first mood word's mood (so every
+    shot of a line split over several phrases has it) and each later mood word switches it from that word on ("Bob
+    grinned, then screamed": happy, then angry at "screamed"). All None when story.md and the words disagree."""
     from ..sfx import line_words
     out = [None] * len(words)
     spans = line_words(md)
     if sum(b - a + 1 for a, b in spans.values()) != len(words):
         return out
     for a, b in spans.values():
-        mood = next((EXPRESSIONS[t] for t in map(token, words[a:b + 1]) if t in EXPRESSIONS), None)
-        out[a:b + 1] = [mood] * (b - a + 1)
+        toks = [token(w) for w in words[a:b + 1]]
+        mood = next((EXPRESSIONS[t] for t in toks if t in EXPRESSIONS), None)
+        for j, t in enumerate(toks):
+            mood = EXPRESSIONS.get(t, mood)
+            out[a + j] = mood
     return out
 
 
@@ -650,7 +659,7 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
     pos: dict[str, float] = {}  # where each actor stands now; reset on a set change
     fallen: set = set()  # (@do line, cast id) that already collapsed
     for i, p in enumerate(phrases.phrases):
-        set_, cast, _, dogs, mode, do, crowd, runners, looks, weather, _ = tags[p.word_start]
+        set_, cast, _, dogs, mode, do, crowd, runners, looks, weather, _, face = tags[p.word_start]
         if (set_, cast) != scene_key:
             scene_key, back_pos = (set_, cast), {}
         cast, back = rows[i]  # from here on, cast is the front row
@@ -763,8 +772,18 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
                 runners, seed, sid, seconds, [a for a in actors if not ride], way, tspeed if travel else 0.0, set_ not in outdoor)
             if bark:
                 cues.append(bark)
+            # a mood word later in the phrase switches the subject's face on that word (a phrase split into several
+            # shots: a later shot opens with the face switched to before it)
+            turns = [(round(phrases.words[j].start * FPS), moods[j]) for j in range(p.word_start + 1, p.word_end + 1)
+                     if j < len(moods) and moods[j] and moods[j] != moods[j - 1]]
+            opened = [e for f, e in turns if f <= s0]
+            switches = [FaceChange(frame=f, expression=e) for f, e in turns if s0 < f < s1]
             for ac in actors:  # @look: the look each cast member has on this line
                 ac.look = looks.get(ac.cast_id)
+                if face and ac.cast_id in face:  # @face: this face for the whole line, nothing else
+                    ac.expression, ac.faces = face[ac.cast_id], []
+                elif ac.cast_id == subject and ac.expression == expression:
+                    ac.expression, ac.faces = (opened[-1] if opened else expression), switches
             shots.append(Shot(id=sid, start_frame=s0, end_frame=s1, set=set_,
                               phrase_range=(i, i), camera=Camera(angle=angle, move=move, speed=speed, roll_deg=roll),
                               actors=actors, animals=animals, vehicles=vehicles, extras=extras, twist=is_twist,

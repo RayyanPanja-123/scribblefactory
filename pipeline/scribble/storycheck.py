@@ -18,12 +18,12 @@ from . import sfx as sfx_lib
 from .io import cast_body_problems, custom_actions, load_series, prop_kinds, set_kinds, unknown_cast_props
 from .stages.finish import MAX_RUNTIME_S
 from .stages.prep import (DO_CAR, FX_LIGHTNING, FX_MODES, MAX_LIGHTNING, TWIST_PREFIX, clean_markdown, parse_do,
-                          parse_lightning, parse_look, parse_weather, strip_directives)
+                          parse_face, parse_lightning, parse_look, parse_weather, strip_directives)
 from .stages.runner import StageError
 from .stages.shots import CAR_MODES, CAR_SEATS, DEFAULT_CAST_SIZE, MAX_CAST, MAX_DOGS, MAX_ON_STAGE, MAX_RUNNERS, parse_crowd
 from .validate import END_CARD_S, SIGN_OFF_PAUSE_S
 
-DIRECTIVES = ("set", "cast", "dogs", "car", "fx", "do", "look", "crowd", "runners", "weather", "sfx")
+DIRECTIVES = ("set", "cast", "dogs", "car", "fx", "do", "look", "crowd", "runners", "weather", "sfx", "face")
 LINE_PREFIX = re.compile(r"^story\.md line [0-9]+: ")
 FALLBACK_WPS = 2.6  # words per second before any part has been finished
 # a first line that opens on a date or backstory instead of the hook
@@ -104,7 +104,7 @@ def check_story(part_dir: Path) -> dict:
 
     sounds = sfx_lib.by_id(library)
     cast, car, pending_do, pending_strike, strikes = tuple(ids[:DEFAULT_CAST_SIZE]), "off", None, None, 0
-    pending_sfx, n_sfx = [], 0
+    pending_sfx, n_sfx, pending_face = [], 0, None
     first_seen: dict[str, int] = {}  # cast id -> first line it is on stage
     for no, line in enumerate(md.replace("\r\n", "\n").split("\n"), 1):
         s = line.strip()
@@ -146,6 +146,9 @@ def check_story(part_dir: Path) -> dict:
                     bad(no, f"@fx takes {' | '.join(FX_MODES)} | lightning [target], got {arg!r}")
                 elif name == "weather":
                     parse_weather(arg, no)
+                elif name == "face":
+                    parse_face(arg, no, ids)
+                    pending_face = no
                 elif name == "sfx":
                     sid, _vol = sfx_lib.parse_sfx(arg, no, list(sounds))
                     n_sfx += 1
@@ -181,7 +184,7 @@ def check_story(part_dir: Path) -> dict:
         if pending_do:
             _check_do(*pending_do, cast, car, bad)
             pending_do = None
-        pending_sfx = []
+        pending_sfx, pending_face = [], None
         if pending_strike:
             if pending_strike[1] in ids and pending_strike[1] not in cast:
                 bad(pending_strike[0], f"@fx lightning: {pending_strike[1]} is not on stage on the next line "
@@ -191,6 +194,8 @@ def check_story(part_dir: Path) -> dict:
         bad(pending_do[0], "@do has no text line after it to apply to")
     if pending_strike:
         bad(pending_strike[0], "@fx lightning has no text line after it to strike on")
+    if pending_face:
+        bad(pending_face, "@face has no narration line after it")
     for no in pending_sfx:
         bad(no, "@sfx has no narration line after it to play on")
 
