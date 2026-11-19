@@ -760,3 +760,26 @@ def test_with_look_overrides_only_what_it_sets():
     with pytest.raises(ValueError, match="default is reserved"):
         SeriesModel.model_validate({**LOOKS.model_dump(mode="json"), "cast": [
             {**LOOKS.model_dump(mode="json")["cast"][-1], "looks": {"default": {}}}]})
+
+
+# --- faces: @do emotions and moods that cover the whole line ---
+
+def faces(md, who):
+    story, _ = plan(md)
+    return [next(a.expression for a in s.actors if a.cast_id == who) for s in story.shots]
+
+
+def test_do_emotion_sets_the_face_when_the_line_names_no_mood():
+    # no mood word: a "neutral" face would show the cast's default_expression (a cheeky smirk while stomping)
+    assert set(faces("# T\n\n@cast bob, amy\n@do bob: angry\nBob stomped around the room.\n", "bob")) == {"angry"}
+    assert set(faces("# T\n\n@cast bob, amy\n@do amy: gasp\nBob opened the door.\n", "amy")) == {"surprised"}
+
+
+def test_mood_word_beats_the_action_face():
+    assert set(faces("# T\n\n@cast bob, amy\n@do bob: react\nBob laughed and patted the dog on its head.\n", "bob")) == {"happy"}
+
+
+def test_mood_covers_every_shot_of_its_line():
+    md = "# T\n\n@cast bob, amy\nBob pointed at the big dark sky and then shouted at the clouds above.\n"
+    fs = faces(md, "bob")
+    assert len(fs) > 1 and set(fs) == {"angry"}  # "shouted" in the second phrase sets the first one too

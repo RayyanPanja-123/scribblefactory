@@ -38,7 +38,7 @@ const DIRECTIVES: Directive[] = [
   { id: 'do', syntax: '@do <cast>: <action> [target | prop]', what: 'Forces an action for every shot of the next narration line only.', list: 'actions',
     rules: ['The narration line must follow directly; a second @do before it replaces the first.', 'Everyone named must be in the current @cast. Several clauses: @do fred: lie, amy: wave.',
       'eat [prop] (default apple) · give <prop> <target> · carry <target> (2 carriers) · support <target> (1–2 helpers).',
-      'collapse falls once, then lies; walk / run / stagger cross the stage.', '@do car: broken stalls the car on stage.',
+      'collapse falls once, then lies; walk / run / stagger cross the stage.', 'angry, gasp, react and cheer set the face too (angry, surprised, happy) unless the line names a mood; a mood word in a line sets the face for all of it.', '@do car: broken stalls the car on stage.',
       'Custom actions (Actions page) are in-place moves: humanoids play them, other creatures stand idle.'],
     example: '@do trainer1, trainer2: carry thomas' },
   { id: 'look', syntax: '@look <cast>: <look>', what: 'From the next line on, a cast member wears one of its named looks.',

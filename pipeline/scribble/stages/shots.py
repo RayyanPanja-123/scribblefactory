@@ -101,14 +101,21 @@ ACTIONS = {
 }
 EXPRESSIONS = {
     **dict.fromkeys(["happy", "glad", "smiled", "smiles", "laughed", "laughs", "laughing", "grinned", "joy",
-                     "cheerfully", "comfortably"], "happy"),
-    **dict.fromkeys(["sad", "cried", "cries", "sighed", "tears", "lonely", "upset", "cramps", "collapsed"], "sad"),
-    **dict.fromkeys(["angry", "mad", "furious", "yelled", "shouted", "screamed"], "angry"),
-    **dict.fromkeys(["surprised", "shocked", "gasped", "wow", "stunned", "chased"], "surprised"),
+                     "cheerfully", "comfortably", "giggled", "giggles", "cheered", "proudly", "delighted"], "happy"),
+    **dict.fromkeys(["sad", "cried", "cries", "sighed", "tears", "lonely", "upset", "cramps", "collapsed", "sobbed",
+                     "wept", "weeping", "miserable"], "sad"),
+    **dict.fromkeys(["angry", "mad", "furious", "furiously", "yelled", "shouted", "screamed", "stomped", "stomps",
+                     "fuming", "raged", "rage", "glared", "scowled", "snapped", "gritted", "grumbled", "annoyed",
+                     "tomato"], "angry"),
+    **dict.fromkeys(["surprised", "shocked", "gasped", "wow", "stunned", "chased", "astonished", "amazed"], "surprised"),
+    **dict.fromkeys(["worried", "nervous", "scared", "afraid", "terrified", "panicked", "trembled"], "worried"),
     **dict.fromkeys(["sleepy", "tired", "yawned", "yawns", "asleep", "nap", "napped", "slept", "dizzy", "exhaustion",
                      "exhausted"], "sleepy"),
 }
 DIRECTIONS = {"left": -1, "right": 1}
+# an @do action that is an emotion sets the face when the line names no mood (a "neutral" face shows the cast's
+# default_expression, e.g. a cheeky smirk on someone stomping in rage)
+ACTION_FACE = {"angry": "angry", "gasp": "surprised", "react": "surprised", "cheer": "happy"}
 
 
 def token(word: str) -> str:
@@ -352,11 +359,26 @@ def fit_move(x: float, d: int, action: str, seconds: float, others=(), speeds=No
     return fit_move(x, d, "walk", seconds, others) if action == "run" else None
 
 
-def _actors(cast, pos, subject, words, seconds, travel_dir=0, zs=None):
+def line_moods(md: str, words: list[str]) -> list[str | None]:
+    """per script word: the first mood word (EXPRESSIONS) of its whole story.md line, so every shot of a line split
+    over several phrases keeps it; all None when story.md and the words disagree"""
+    from ..sfx import line_words
+    out = [None] * len(words)
+    spans = line_words(md)
+    if sum(b - a + 1 for a, b in spans.values()) != len(words):
+        return out
+    for a, b in spans.values():
+        mood = next((EXPRESSIONS[t] for t in map(token, words[a:b + 1]) if t in EXPRESSIONS), None)
+        out[a:b + 1] = [mood] * (b - a + 1)
+    return out
+
+
+def _actors(cast, pos, subject, words, seconds, travel_dir=0, zs=None, mood=None):
     """Actors for one shot, starting at pos[cid]. Updates pos to where each one ends.
-    travel_dir (+1 right / -1 left): travel shot, every actor does the subject's walk/run in place at z zs[cid]."""
+    travel_dir (+1 right / -1 left): travel shot, every actor does the subject's walk/run in place at z zs[cid].
+    mood: the line's mood (line_moods), else the shot's own words decide."""
     action = next((ACTIONS[w] for w in words if w in ACTIONS), "talk")
-    expression = next((EXPRESSIONS[w] for w in words if w in EXPRESSIONS), "neutral")
+    expression = mood or next((EXPRESSIONS[w] for w in words if w in EXPRESSIONS), "neutral")
     if travel_dir:
         facing = "left" if travel_dir < 0 else "right"
         return [Actor(cast_id=cid, action=action, start_pos=(pos[cid], zs[cid]), end_pos=(pos[cid], zs[cid]),
@@ -488,7 +510,9 @@ def _apply_do(clauses, line, cast, pos, actors, vehicles, seconds, fallen, handl
                     action = "lie" if (line, cid) in fallen else action
                     fallen.add((line, cid))
                 by[cid] = Actor(cast_id=cid, action=action, start_pos=(x, 0.0), facing=facing,
-                                expression=old.expression, prop=c.prop if action == "eat" else None)
+                                expression=old.expression if old.expression != "neutral"
+                                else ACTION_FACE.get(action, "neutral"),  # a mood word in the line wins
+                                prop=c.prop if action == "eat" else None)
     return [by[a.cast_id] for a in actors]
 
 
@@ -574,6 +598,7 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
     words, tags = tag_words(md, ids, ids[:DEFAULT_CAST_SIZE], props, {c.id: list(c.looks) for c in series.cast}, actions,
                             weather_of)
     heard = [w.text for w in phrases.words]
+    moods = line_moods(md, words)
     if words != heard:
         i = next((i for i, (a, b) in enumerate(zip(words, heard)) if a != b), min(len(words), len(heard)))
         at = lambda ws: repr(ws[i]) if i < len(ws) else "(end)"
@@ -655,7 +680,8 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
         mentioned = next((names[w] for w in pw if names.get(w) in cast), None)
         subject = mentioned or (subject if subject in cast else cast[0])
         action = next((ACTIONS[w] for w in pw if w in ACTIONS), None)
-        expression = next((EXPRESSIONS[w] for w in pw if w in EXPRESSIONS), "neutral")
+        mood = moods[p.word_start] if p.word_start < len(moods) else None
+        expression = mood or next((EXPRESSIONS[w] for w in pw if w in EXPRESSIONS), "neutral")
         a, b = starts[i], ends[i]
         parts = math.ceil((b - a) / MAX_SHOT_FRAMES)
         for k in range(parts):
@@ -702,7 +728,7 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
                                     end_pos=(0.0, 0.0) if travel else None, facing=facing, riders=list(cast),
                                     variant=car_variant(seed, "car1"))]
             else:
-                actors = _actors(cast, pos, subject, pw, seconds, tdir, zs)
+                actors = _actors(cast, pos, subject, pw, seconds, tdir, zs, mood)
                 if car_here:
                     v = _car_move(car_mode, park, actors, subject, seconds, seed)
                     vehicles = [v]
