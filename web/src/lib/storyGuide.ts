@@ -84,3 +84,15 @@ export async function storyGuide(): Promise<string> {
     '',
   ].join('\n\n')
 }
+
+type Issue = { section?: string; line?: number | null; message: string }
+/** a prompt asking the chat AI to fix the checker's issues. body: a part's story.md (answer = that script only);
+ * none: a Story Package still open in the chat (answer = the whole package again) */
+export function fixPrompt(issues: Issue[], body?: string): string {
+  const list = issues.map((i) => `- ${[i.section, i.line ? `line ${i.line}` : ''].filter(Boolean).join(', ') || 'whole script'}: ${i.message}`)
+  return body
+    ? ['The scribblefactory checker found these issues in this part script. Fix every problem, and every warning that fits the story. Follow the story guide. Reply with only the whole corrected script in one fenced `md` block.',
+      '', ...list, '', '```md', body.trimEnd(), '```', ''].join('\n')
+    : ['The scribblefactory checker found these issues in your Story Package (line numbers are in the package as pasted). Fix every error, and every warning that fits the story. Reply with only the whole corrected Story Package: same markers, one `text` block, never a partial one.',
+      '', ...list, ''].join('\n')
+}

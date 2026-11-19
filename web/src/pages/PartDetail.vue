@@ -7,6 +7,7 @@ import { api, media, type Approval, type Platform, type StoryCheck } from '../ap
 import PartStepper from '../components/PartStepper.vue'
 import SfxSuggestions from '../components/SfxSuggestions.vue'
 import ErrorCard from '../components/ErrorCard.vue'
+import IssueFix from '../components/IssueFix.vue'
 import StageChips from '../components/StageChips.vue'
 import Switch from '../components/Switch.vue'
 import VideoPlayer from '../components/VideoPlayer.vue'
@@ -17,6 +18,7 @@ import { useApi } from '../composables/useApi'
 import { bytes, expandFrom, label, reducedMotion, shortDate, SPRING, today } from '../composables/ui'
 import { partNext, type PartState } from '../lib/partNext'
 import { partSteps } from '../lib/partSteps'
+import { fixPrompt } from '../lib/storyGuide'
 
 const props = defineProps<{ slug: string; part: string }>()
 const route = useRoute()
@@ -111,6 +113,16 @@ async function checkStory() {
 }
 watch(() => props.part, () => { story.value = null })
 const at = (line: number | null) => (line ? `line ${line}` : 'story')
+async function copyStoryFix() {
+  const r = story.value
+  if (!r) return
+  try {
+    await navigator.clipboard.writeText(fixPrompt([...r.problems, ...r.warnings], storyText.value))
+    toast('Fix request copied: paste it into your AI, then paste its script into the story box', 'ok')
+  } catch {
+    toast('Could not copy to the clipboard', 'error')
+  }
+}
 
 // ---- story.md (the voice is read from it: a changed story after recording means recording again) ----
 const storyText = ref('')
@@ -457,16 +469,24 @@ watch(() => props.part, () => { chosen.value = null })
               {{ story.ok ? 'story ready' : `${story.problems.length} problem${story.problems.length === 1 ? '' : 's'}` }}
             </span>
             <span class="text-muted">{{ story.words }} words · about {{ story.seconds }} s of video</span>
-            <button class="btn btn-secondary ml-auto" @click="story = null">Close</button>
+            <button v-if="story.problems.length || story.warnings.length" class="btn btn-secondary ml-auto" title="A prompt with every issue and the story, for your AI" @click="copyStoryFix">
+              <Copy :size="16" aria-hidden="true" /> Copy fix request</button>
+            <button class="btn btn-secondary" :class="!(story.problems.length || story.warnings.length) && 'ml-auto'" @click="story = null">Close</button>
           </div>
           <ul v-if="story.problems.length || story.warnings.length" class="mt-3 space-y-1.5">
             <li v-for="(x, i) in story.problems" :key="`p${i}`" class="flex items-start gap-2">
               <CircleX :size="16" class="mt-0.5 shrink-0 text-red-ink" aria-label="problem" />
-              <span><span class="num font-semibold">{{ at(x.line) }}</span> {{ x.message }}</span>
+              <div class="min-w-0 flex-1">
+                <p><span class="num font-semibold">{{ at(x.line) }}</span> {{ x.message }}</p>
+                <IssueFix v-if="x.line" v-model="storyText" :line="x.line" />
+              </div>
             </li>
             <li v-for="(x, i) in story.warnings" :key="`w${i}`" class="flex items-start gap-2">
               <CircleAlert :size="16" class="mt-0.5 shrink-0 text-amber-ink" aria-label="warning" />
-              <span><span class="num font-semibold">{{ at(x.line) }}</span> {{ x.message }}</span>
+              <div class="min-w-0 flex-1">
+                <p><span class="num font-semibold">{{ at(x.line) }}</span> {{ x.message }}</p>
+                <IssueFix v-if="x.line" v-model="storyText" :line="x.line" />
+              </div>
             </li>
           </ul>
         </div>

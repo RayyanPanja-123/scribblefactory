@@ -208,30 +208,56 @@ Real ids and what each is for are under *Available in this library* (**Sound eff
 - Optional: `"default_expression"` (`neutral happy sad angry surprised sleepy cheeky exhausted`),
   `"eyes"` (`dots`, `half_closed`).
 
-## 7. Example (shortened; real parts need 110+ words)
+## 7. Example (a full part: copy its staging, not its story)
+
+Cast: `fred`, `thomas`, `alice`, `hugh`, and `charles` with a look `bottle` (`{"props": [{"kind": "bottle", "hand": "right"}]}`).
+131 words, a name in every line, 23 directives besides `@set` and `@cast`.
 
 ```md
 # The Fake Finish
 
 @set dirt_road
+@weather wind light
 @cast fred
 @car ride
-The Olympic marathon winner rode most of it in a car.
-He rode eleven miles in his manager's car.
-Cheating should have ended his race. It didn't.
+@fx shake
+@sfx fahhh
+Fred won the Olympic marathon by riding most of it in a car.
+Fred rode eleven miles while Thomas ran in the heat.
+@fx pop
+@face fred: cheeky
+That should have ended Fred. It didn't.
 @do car: broken
-Eleven miles later, the car broke down.
+Eleven miles later, the car broke down and Fred laughed.
+@car off
+@cast fred, thomas, charles
+@do fred: run
+Fred jogged the last few miles, fresh as a daisy.
+@do thomas: stagger
+Behind him, Thomas staggered and begged Charles for water.
+@look charles: bottle
+@do charles: give bottle thomas
+Charles refused and gave Thomas a strange drink instead.
 
 @set stadium
-@car off
-@cast fred, daughter, thomas, trainer1, trainer2
-@crowd cheer
-@do daughter: give medal fred
-The president's daughter handed Fred the gold medal.
-@crowd angry
-A spectator had spotted him in the car.
-@do trainer1, trainer2: carry thomas
-!! Two men carried Thomas across the line, and he was crowned champion.
+@weather clear
+@cast fred, alice, thomas, charles, hugh
+@crowd cheer 8
+@do fred: cheer
+Fred jogged into the stadium, and the crowd roared for him.
+@do alice: give medal fred
+Alice handed Fred the gold medal with a proud smile.
+@crowd angry 8
+@do alice: point
+A furious spectator shouted that Fred had ridden in a car.
+@face fred: surprised
+Fred froze, and the cheering turned to boos.
+@do thomas: collapse
+Thomas collapsed a mile from the finish.
+@sfx riser
+@sfx bass_impact
+@do charles, hugh: carry thomas
+!! Charles and Hugh carried Thomas across the line, and he was crowned champion.
 To be continued.
 ```
 
