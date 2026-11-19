@@ -1,0 +1,165 @@
+{
+  "$defs": {
+    "SetPiece": {
+      "additionalProperties": false,
+      "description": "one primitive of a custom set, in world units: actors stand on y = 0, z = 0, x in -2..2; the back wall of an\nindoor set is at z -2.6. Anything across the stage (|x| < 2.2) must sit behind z -1, nothing forward of z 0.6\n(the engine checks this stage clearance when it builds the set).",
+      "properties": {
+        "at": {
+          "description": "the centre",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "At",
+          "type": "array"
+        },
+        "backdrop": {
+          "default": false,
+          "description": "scenery that is never hidden behind an actor (walls, far hills)",
+          "title": "Backdrop",
+          "type": "boolean"
+        },
+        "color": {
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "title": "Color",
+          "type": "string"
+        },
+        "outline": {
+          "default": true,
+          "title": "Outline",
+          "type": "boolean"
+        },
+        "shape": {
+          "enum": [
+            "box",
+            "cyl",
+            "ball",
+            "mound"
+          ],
+          "title": "Shape",
+          "type": "string"
+        },
+        "size": {
+          "description": "box: width, height, depth; cyl: top radius, bottom radius, height; ball: radius; mound: radius, height factor",
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 1,
+          "title": "Size",
+          "type": "array"
+        }
+      },
+      "required": [
+        "shape",
+        "at",
+        "size",
+        "color"
+      ],
+      "title": "SetPiece",
+      "type": "object"
+    },
+    "WorldObject": {
+      "additionalProperties": false,
+      "description": "Reusable geometry and interaction capabilities for a large scene object.\n\nUnlike a Prop, a WorldObject is not owned by a cast member and is not attached to a hand. Its state belongs to\nthe scene and can persist across shots. The renderer currently accepts the same primitives as set pieces so the\nasset can be introduced without adding a second drawing language.",
+      "properties": {
+        "capabilities": {
+          "items": {
+            "enum": [
+              "move",
+              "carry",
+              "enter",
+              "ride",
+              "open",
+              "close",
+              "break",
+              "steal",
+              "remove"
+            ],
+            "type": "string"
+          },
+          "maxItems": 9,
+          "title": "Capabilities",
+          "type": "array"
+        },
+        "carry_mode": {
+          "default": "none",
+          "enum": [
+            "none",
+            "one-hand",
+            "two-hand",
+            "vehicle"
+          ],
+          "title": "Carry Mode",
+          "type": "string"
+        },
+        "category": {
+          "default": "other",
+          "enum": [
+            "vehicle",
+            "container",
+            "furniture",
+            "equipment",
+            "debris",
+            "other"
+          ],
+          "title": "Category",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 40,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "pieces": {
+          "items": {
+            "$ref": "#/$defs/SetPiece"
+          },
+          "maxItems": 20,
+          "title": "Pieces",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "WorldObject",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "objects": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/WorldObject"
+      },
+      "title": "Objects",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    }
+  },
+  "title": "WorldObjectLibrary",
+  "type": "object"
+}

@@ -47,6 +47,16 @@
           "title": "Name",
           "type": "string"
         },
+        "objects": {
+          "default": [],
+          "description": "placed World Objects, targetable by staged interactions",
+          "items": {
+            "$ref": "#/$defs/WorldObjectInstance"
+          },
+          "maxItems": 60,
+          "title": "Objects",
+          "type": "array"
+        },
         "pieces": {
           "default": [],
           "description": "drawn in order",
@@ -180,6 +190,51 @@
         "kind"
       ],
       "title": "Weather",
+      "type": "object"
+    },
+    "WorldObjectInstance": {
+      "additionalProperties": false,
+      "description": "A named placement of a WorldObject in a set; its id is the story target.",
+      "properties": {
+        "at": {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "At",
+          "type": "array"
+        },
+        "id": {
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "object": {
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+          "title": "Object",
+          "type": "string"
+        },
+        "visible": {
+          "default": true,
+          "title": "Visible",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "object",
+        "at"
+      ],
+      "title": "WorldObjectInstance",
       "type": "object"
     }
   },

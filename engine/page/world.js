@@ -547,6 +547,21 @@ function custom(b, spec) {
       if (water) foam(b, p, m);
     });
   }
+  // World Objects are reusable, named scene instances. They are deliberately separate from held props: their
+  // geometry is authored in object-local coordinates and translated to the instance placement in the set.
+  for (const instance of spec.objects || []) {
+    const object = lookup("objects", instance.object);
+    for (const p of object.pieces || []) {
+      const at = [p.at[0] + instance.at[0], p.at[1] + instance.at[1], p.at[2] + instance.at[2]];
+      const placed = { ...p, at };
+      const opts = { backdrop: p.backdrop, outline: p.outline ?? true };
+      b.piece(() => {
+        const m = p.shape === "box" ? b.box(...p.size, p.color, at, opts) : p.shape === "cyl" ? b.cyl(...p.size, p.color, at, opts)
+          : p.shape === "ball" ? b.ball(p.size[0], p.color, at, opts) : b.mound(p.size[0], p.size[1], p.color, at, opts);
+        if (water) foam(b, placed, m);
+      });
+    }
+  }
 }
 
 /** build one set (one of its prop variants) into a new group: built in, else the library's (unknown: throws) */

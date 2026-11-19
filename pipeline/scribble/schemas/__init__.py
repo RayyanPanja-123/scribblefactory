@@ -478,6 +478,45 @@ class SetPiece(Strict):
         return self
 
 
+WorldObjectCategory = Literal["vehicle", "container", "furniture", "equipment", "debris", "other"]
+WorldObjectCapability = Literal["move", "carry", "enter", "ride", "open", "close", "break", "steal", "remove"]
+WorldObjectCarryMode = Literal["none", "one-hand", "two-hand", "vehicle"]
+
+
+class WorldObject(Strict):
+    """Reusable geometry and interaction capabilities for a large scene object.
+
+    Unlike a Prop, a WorldObject is not owned by a cast member and is not attached to a hand. Its state belongs to
+    the scene and can persist across shots. The renderer currently accepts the same primitives as set pieces so the
+    asset can be introduced without adding a second drawing language.
+    """
+    id: Slug
+    name: str = Field(min_length=1, max_length=40)
+    category: WorldObjectCategory = "other"
+    capabilities: list[WorldObjectCapability] = Field(default_factory=list, max_length=9)
+    carry_mode: WorldObjectCarryMode = "none"
+    pieces: list[SetPiece] = Field(default_factory=list, max_length=20)
+
+    @model_validator(mode="after")
+    def _capabilities(self):
+        caps = set(self.capabilities)
+        if "carry" in caps and self.carry_mode == "none":
+            raise ValueError("a carryable world object needs carry_mode")
+        if self.carry_mode != "none" and "carry" not in caps:
+            raise ValueError("a world object's carry_mode requires the carry capability")
+        if self.carry_mode == "two-hand" and "carry" not in caps:
+            raise ValueError("two-hand objects must be carryable")
+        return self
+
+
+class WorldObjectInstance(Strict):
+    """A named placement of a WorldObject in a set; its id is the story target."""
+    id: Slug
+    object: Slug
+    at: Point3
+    visible: bool = True
+
+
 class CustomSet(Strict):
     id: Slug = Field(description="the name used in @set")  # checked: _not_builtin
     name: str = Field(min_length=1, max_length=40)
@@ -487,6 +526,8 @@ class CustomSet(Strict):
     floor: HexColor
     back: HexColor = Field(description="indoor: the back wall; outdoor: the sky")
     pieces: list[SetPiece] = Field(default=[], max_length=60, description="drawn in order")
+    objects: list[WorldObjectInstance] = Field(default=[], max_length=60,
+                                                description="placed World Objects, targetable by staged interactions")
     default_weather: Weather | None = Field(default=None, description="weather each @set of this set starts with "
                                                                       "(until an @weather); none: clear")
 
@@ -507,6 +548,18 @@ class SetLibrary(Strict):
     def _unique(cls, v):
         if dupes := sorted({p.id for p in v if sum(q.id == p.id for q in v) > 1}):
             raise ValueError(f"set ids must be unique: {', '.join(dupes)}")
+        return v
+
+
+class WorldObjectLibrary(Strict):
+    schema_version: Literal[1] = 1
+    objects: list[WorldObject] = []
+
+    @field_validator("objects")
+    @classmethod
+    def _unique(cls, v):
+        if dupes := sorted({o.id for o in v if sum(q.id == o.id for q in v) > 1}):
+            raise ValueError(f"world object ids must be unique: {', '.join(dupes)}")
         return v
 
 

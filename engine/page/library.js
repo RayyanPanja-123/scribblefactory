@@ -3,7 +3,7 @@
 // in their own modules (stickman.js props, world.js sets, creatures.js bodies, actions.js moves); each module asks
 // here for anything it doesn't build in. A new kind of item is a new key here and one lookup where it is drawn.
 // Unknown ids throw: a typo never silently renders as something else.
-export const KINDS = ["props", "sets", "creatures", "actions", "wardrobe"];
+export const KINDS = ["props", "sets", "objects", "creatures", "actions", "wardrobe"];
 const lib = Object.fromEntries(KINDS.map((k) => [k, new Map()]));
 
 /** replace the custom items of each kind given ({ props: [...], sets: [...] }); kinds left out keep theirs */

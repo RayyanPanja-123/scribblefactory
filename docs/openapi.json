@@ -1203,6 +1203,16 @@
             "title": "Name",
             "type": "string"
           },
+          "objects": {
+            "default": [],
+            "description": "placed World Objects, targetable by staged interactions",
+            "items": {
+              "$ref": "#/components/schemas/WorldObjectInstance"
+            },
+            "maxItems": 60,
+            "title": "Objects",
+            "type": "array"
+          },
           "pieces": {
             "default": [],
             "description": "drawn in order",
@@ -3972,6 +3982,141 @@
         ],
         "title": "Weather",
         "type": "object"
+      },
+      "WorldObject": {
+        "additionalProperties": false,
+        "description": "Reusable geometry and interaction capabilities for a large scene object.\n\nUnlike a Prop, a WorldObject is not owned by a cast member and is not attached to a hand. Its state belongs to\nthe scene and can persist across shots. The renderer currently accepts the same primitives as set pieces so the\nasset can be introduced without adding a second drawing language.",
+        "properties": {
+          "capabilities": {
+            "items": {
+              "enum": [
+                "move",
+                "carry",
+                "enter",
+                "ride",
+                "open",
+                "close",
+                "break",
+                "steal",
+                "remove"
+              ],
+              "type": "string"
+            },
+            "maxItems": 9,
+            "title": "Capabilities",
+            "type": "array"
+          },
+          "carry_mode": {
+            "default": "none",
+            "enum": [
+              "none",
+              "one-hand",
+              "two-hand",
+              "vehicle"
+            ],
+            "title": "Carry Mode",
+            "type": "string"
+          },
+          "category": {
+            "default": "other",
+            "enum": [
+              "vehicle",
+              "container",
+              "furniture",
+              "equipment",
+              "debris",
+              "other"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
+          "id": {
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "pieces": {
+            "items": {
+              "$ref": "#/components/schemas/SetPiece"
+            },
+            "maxItems": 20,
+            "title": "Pieces",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "WorldObject",
+        "type": "object"
+      },
+      "WorldObjectCatalog": {
+        "properties": {
+          "objects": {
+            "items": {
+              "$ref": "#/components/schemas/WorldObject"
+            },
+            "title": "Objects",
+            "type": "array"
+          }
+        },
+        "required": [
+          "objects"
+        ],
+        "title": "WorldObjectCatalog",
+        "type": "object"
+      },
+      "WorldObjectInstance": {
+        "additionalProperties": false,
+        "description": "A named placement of a WorldObject in a set; its id is the story target.",
+        "properties": {
+          "at": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "At",
+            "type": "array"
+          },
+          "id": {
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "title": "Id",
+            "type": "string"
+          },
+          "object": {
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "title": "Object",
+            "type": "string"
+          },
+          "visible": {
+            "default": true,
+            "title": "Visible",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "object",
+          "at"
+        ],
+        "title": "WorldObjectInstance",
+        "type": "object"
       }
     }
   },
@@ -4450,6 +4595,112 @@
           }
         },
         "summary": "Media"
+      }
+    },
+    "/api/objects": {
+      "get": {
+        "operationId": "get_objects_api_objects_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorldObjectCatalog"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Objects"
+      }
+    },
+    "/api/objects/{object_id}": {
+      "delete": {
+        "operationId": "remove_object_api_objects__object_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "object_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+              "title": "Object Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorldObjectCatalog"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Object"
+      },
+      "put": {
+        "operationId": "put_object_api_objects__object_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "object_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+              "title": "Object Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorldObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorldObjectCatalog"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Object"
       }
     },
     "/api/overview": {

@@ -4,6 +4,7 @@ import type { CustomSet, SetCatalog } from '../lib/sets'
 import type { SfxCatalog, SfxEntry, SfxSuggestion, SfxSuggestions } from '../lib/sfx'
 import type { WardrobeCatalog, WardrobeItem } from '../lib/wardrobe'
 import type { components } from './types'
+import type { ObjectCatalog, WorldObject } from '../lib/objects'
 
 type S = components['schemas']
 export type Overview = S['Overview']
@@ -107,6 +108,9 @@ export const api = {
   sets: () => call<SetCatalog>('GET', '/api/sets'),
   saveSet: (s: CustomSet) => call<SetCatalog>('PUT', `/api/sets/${e(s.id)}`, s),
   deleteSet: (id: string) => call<SetCatalog>('DELETE', `/api/sets/${e(id)}`),
+  objects: () => call<ObjectCatalog>('GET', '/api/objects'),
+  saveObject: (o: WorldObject) => call<ObjectCatalog>('PUT', `/api/objects/${e(o.id)}`, o),
+  deleteObject: (id: string) => call<ObjectCatalog>('DELETE', `/api/objects/${e(id)}`),
   wardrobe: () => call<WardrobeCatalog>('GET', '/api/wardrobe'),
   saveWardrobeItem: (w: WardrobeItem) => call<WardrobeCatalog>('PUT', `/api/wardrobe/${e(w.id)}`, w),
   deleteWardrobeItem: (id: string) => call<WardrobeCatalog>('DELETE', `/api/wardrobe/${e(id)}`),

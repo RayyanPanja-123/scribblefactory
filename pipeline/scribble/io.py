@@ -12,13 +12,13 @@ from typing import get_args
 
 from .schemas import (ACTIONS, BUILTIN_CREATURES, BUILTIN_SETS, BUILTIN_WARDROBE, ActionLibrary, BuiltinProp,
                       CreatureLibrary, CustomAction, CustomCreature, CustomProp, CustomSet, PartModel, PropLibrary,
-                      SeriesModel, SetLibrary, WardrobeItem, WardrobeLibrary)
+                      SeriesModel, SetLibrary, WardrobeItem, WardrobeLibrary, WorldObject, WorldObjectLibrary)
 
 # User-owned files a save must never write to.
 PROTECTED = {"story.md", "voice.mp3"}
 # The library's custom items, one file per kind (engine/page/library.js KINDS): every stage that reads one, and the
 # render hash, depends on all of them, so a new kind of custom item is one entry here.
-LIBRARY_FILES = ["props.json", "sets.json", "creatures.json", "actions.json", "wardrobe.json"]
+LIBRARY_FILES = ["props.json", "sets.json", "objects.json", "creatures.json", "actions.json", "wardrobe.json"]
 REPLACE_RETRIES = 5
 
 
@@ -319,6 +319,31 @@ def load_sets(library) -> SetLibrary:
     """library/sets.json (custom sets, shared by every series); none yet: an empty library"""
     f = Path(library) / "sets.json"
     return SetLibrary.model_validate_json(f.read_bytes()) if f.exists() else SetLibrary()
+
+
+def load_objects(library) -> WorldObjectLibrary:
+    """library/objects.json: reusable geometry and capabilities for large scene objects."""
+    f = Path(library) / "objects.json"
+    return WorldObjectLibrary.model_validate_json(f.read_bytes()) if f.exists() else WorldObjectLibrary()
+
+
+def world_object_kinds(library) -> dict[str, WorldObject]:
+    """World Object definitions by id; set instances are validated against this catalog by callers."""
+    return {o.id: o for o in load_objects(library).objects}
+
+
+def save_object(library, obj: WorldObject) -> None:
+    lib = load_objects(library)
+    lib.objects = [obj if x.id == obj.id else x for x in lib.objects] if any(x.id == obj.id for x in lib.objects) else [*lib.objects, obj]
+    atomic_write_json(Path(library) / "objects.json", lib.model_dump(mode="json"))
+
+
+def delete_object(library, object_id: str) -> None:
+    lib = load_objects(library)
+    if not any(x.id == object_id for x in lib.objects):
+        raise KeyError(object_id)
+    lib.objects = [x for x in lib.objects if x.id != object_id]
+    atomic_write_json(Path(library) / "objects.json", lib.model_dump(mode="json"))
 
 
 def set_kinds(library) -> dict[str, str]:

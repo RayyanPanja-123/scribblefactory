@@ -34,13 +34,13 @@ from sse_starlette import EventSourceResponse
 
 from pipeline.scribble import cli, package, settings, storycheck
 from pipeline.scribble import sfx as sfx_lib
-from pipeline.scribble.io import (atomic_write_bytes, atomic_write_json, atomic_write_text, delete_prop, delete_set, load_part, load_props,
+from pipeline.scribble.io import (atomic_write_bytes, atomic_write_json, atomic_write_text, delete_prop, delete_set, delete_object, load_part, load_props,
                                   load_series, load_sets, prop_kinds, save_prop, save_series, save_set, unknown_cast_props,
                                   cast_body_problems, cast_files, cast_render_current, delete_creature, load_creatures, save_creature, delete_action,
-                                  load_actions, save_action, delete_wardrobe_item, load_wardrobe, save_wardrobe_item)
+                                  load_actions, save_action, delete_wardrobe_item, load_wardrobe, save_wardrobe_item, load_objects, save_object)
 from pipeline.scribble.schemas import (ACTIONS, BUILTIN_CREATURES, BUILTIN_SETS, BuiltinProp, CastMember, CreatureRig,
                                        CustomAction, CustomCreature, actions_with,
-                                       CustomProp, CustomSet, PartModel, Posted, SeriesModel, SetKind, Slug,
+                                       CustomProp, CustomSet, PartModel, Posted, SeriesModel, SetKind, Slug, WorldObject,
                                        Stage, Stages,
                                        BUILTIN_WARDROBE, WardrobeId, WardrobeItem, WardrobeSlotName, utcnow)
 from pipeline.scribble.stages import render as render_stage
@@ -883,6 +883,43 @@ def remove_set(set_id: Slug):
         raise HTTPException(409, str(e))
     publish("sets-changed", {"id": set_id})
     return set_catalog()
+
+
+# ---------------- world objects (library/objects.json, shared by every series) ----------------
+
+class WorldObjectCatalog(BaseModel):
+    objects: list[WorldObject]
+
+
+def object_catalog() -> WorldObjectCatalog:
+    return WorldObjectCatalog(objects=load_objects(lib()).objects)
+
+
+@app.get("/api/objects", response_model=WorldObjectCatalog)
+def get_objects():
+    return object_catalog()
+
+
+@app.put("/api/objects/{object_id}", response_model=WorldObjectCatalog)
+def put_object(object_id: Slug, body: WorldObject):
+    if body.id != object_id:
+        raise HTTPException(409, f"body id {body.id!r} does not match {object_id!r}")
+    check_no_jobs()
+    lib().mkdir(parents=True, exist_ok=True)
+    save_object(lib(), body)
+    publish("objects-changed", {"id": object_id})
+    return object_catalog()
+
+
+@app.delete("/api/objects/{object_id}", response_model=WorldObjectCatalog)
+def remove_object(object_id: Slug):
+    check_no_jobs()
+    try:
+        delete_object(lib(), object_id)
+    except KeyError:
+        raise HTTPException(404, f"no world object {object_id!r}")
+    publish("objects-changed", {"id": object_id})
+    return object_catalog()
 
 # ---------------- sounds (library/sfx/: audio files + sfx.json, the @sfx directive) ----------------
 

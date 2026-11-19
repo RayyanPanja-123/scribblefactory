@@ -8,6 +8,7 @@ import SetPreview from '../components/SetPreview.vue'
 import { act, confirm } from '../composables/feedback'
 import { useApi } from '../composables/useApi'
 import { SHAPES, STARTER, type CustomSet, type SetKind, type SetPiece } from '../lib/sets'
+import type { ObjectCatalog } from '../lib/objects'
 
 // Create (/sets/new) or edit one custom set: floor, back wall or sky, and a list of primitive pieces in world units,
 // previewed live by the engine's own set builder. The server (schema CustomSet) and the engine (stage clearance) have
@@ -16,6 +17,7 @@ const props = defineProps<{ id: string }>()
 const router = useRouter()
 const isNew = computed(() => props.id === 'new')
 const { data, error, loading, reload } = useApi(() => api.sets())
+const { data: objectData } = useApi<ObjectCatalog>(() => api.objects())
 
 const slugify = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 const copy = <T,>(v: T): T => JSON.parse(JSON.stringify(v))
@@ -23,10 +25,10 @@ const copy = <T,>(v: T): T => JSON.parse(JSON.stringify(v))
 type Weather = NonNullable<CustomSet['default_weather']>
 const WEATHER = ['clear', 'rain', 'snow', 'fog', 'wind', 'storm'] as const
 const INTENSITY = ['light', 'medium', 'heavy'] as const
-const form = reactive({ id: '', name: '', use_for: '', idEdited: false, kind: 'indoor' as SetKind, floor: '', back: '', pieces: [] as SetPiece[],
+const form = reactive({ id: '', name: '', use_for: '', idEdited: false, kind: 'indoor' as SetKind, floor: '', back: '', pieces: [] as SetPiece[], objects: [] as NonNullable<CustomSet['objects']>,
   weather: 'clear' as Weather['kind'] | 'clear', intensity: 'medium' as Weather['intensity'] })
 function load(s: CustomSet) {
-  Object.assign(form, { id: s.id, name: s.name, use_for: s.use_for ?? '', kind: s.kind, floor: s.floor, back: s.back, pieces: copy(s.pieces ?? []),
+  Object.assign(form, { id: s.id, name: s.name, use_for: s.use_for ?? '', kind: s.kind, floor: s.floor, back: s.back, pieces: copy(s.pieces ?? []), objects: copy(s.objects ?? []),
     weather: s.default_weather?.kind ?? 'clear', intensity: s.default_weather?.intensity ?? 'medium' })
 }
 const showWeather = ref(true) // preview the default weather over the set
@@ -34,7 +36,7 @@ watch(data, (c) => {
   if (!c) return
   const s = c.custom.find((x) => x.id === props.id)
   if (s) { load(s); form.idEdited = true }
-  else if (isNew.value) Object.assign(form, { id: '', name: '', use_for: '', idEdited: false, kind: 'indoor', weather: 'clear', intensity: 'medium' }, copy(STARTER.indoor))
+  else if (isNew.value) Object.assign(form, { id: '', name: '', use_for: '', idEdited: false, kind: 'indoor', weather: 'clear', intensity: 'medium', objects: [] }, copy(STARTER.indoor))
 }, { immediate: true })
 const missing = computed(() => !isNew.value && data.value && !data.value.custom.some((x) => x.id === props.id))
 watch(() => form.name, (n) => { if (isNew.value && !form.idEdited) form.id = slugify(n) })
@@ -46,7 +48,7 @@ function setKind(k: SetKind) {
   if (untouched) Object.assign(form, copy(STARTER[k]))
 }
 
-const draft = computed<CustomSet>(() => ({ id: form.id || 'draft', name: form.name, kind: form.kind, floor: form.floor, back: form.back, pieces: form.pieces,
+const draft = computed<CustomSet>(() => ({ id: form.id || 'draft', name: form.name, kind: form.kind, floor: form.floor, back: form.back, pieces: form.pieces, objects: form.objects,
   default_weather: form.weather === 'clear' ? null : { kind: form.weather, intensity: form.intensity } }))
 const previewList = computed(() => [...(data.value?.custom ?? []).filter((s) => s.id !== draft.value.id), draft.value])
 const taken = computed(() => data.value?.builtin.some((b) => b.id === form.id) || (isNew.value && data.value?.custom.some((s) => s.id === form.id)))
@@ -55,6 +57,7 @@ const badPiece = (p: SetPiece) => [...p.at, ...p.size].some((v) => typeof v !== 
 const valid = computed(() => form.name.trim() && /^[a-z0-9]+(-[a-z0-9]+)*$/.test(form.id) && !taken.value && !form.pieces.some(badPiece))
 
 const addPiece = (shape: SetPiece['shape']) => form.pieces.push(copy(SHAPES[shape].start))
+const addObject = (object: string) => form.objects.push({ id: `${object}-${form.objects.length + 1}`, object, at: [0, 0.5, -1.5], visible: true })
 const changeShape = (p: SetPiece, shape: SetPiece['shape']) => Object.assign(p, { shape, size: copy(SHAPES[shape].start.size) })
 const move = (i: number, d: number) => form.pieces.splice(i + d, 0, ...form.pieces.splice(i, 1))
 
@@ -132,6 +135,22 @@ const num = 'inset mt-1 block h-10 w-full rounded-md px-3 text-sm text-ink outli
           </label>
         </div>
         <p class="text-xs text-muted">Every <code>@set</code> of this set starts with this weather, until an <code>@weather</code> line changes it.</p>
+
+        <fieldset class="space-y-3">
+          <legend class="font-display text-lg font-semibold">World Objects</legend>
+          <p class="text-xs text-muted">Named objects can later be targeted by interactions such as stealing, carrying or removing them.</p>
+          <div v-for="(o, i) in form.objects" :key="o.id" class="inset grid gap-2 rounded-md p-3 sm:grid-cols-[1fr_1fr_auto]">
+            <label class="text-xs font-semibold text-muted">Object
+              <select v-model="o.object" :class="field"><option v-for="x in objectData?.objects ?? []" :key="x.id" :value="x.id">{{ x.name }}</option></select>
+            </label>
+            <div class="grid grid-cols-3 gap-2"><label v-for="axis in ['x', 'y', 'z']" :key="axis" class="text-xs font-semibold text-muted">{{ axis }}<input v-model.number="o.at[['x','y','z'].indexOf(axis)]" type="number" step="any" :class="num" /></label></div>
+            <button type="button" class="btn btn-secondary self-end text-red-ink" @click="form.objects.splice(i, 1)"><Trash2 :size="16" /> Remove</button>
+          </div>
+          <select v-if="objectData?.objects.length" class="btn btn-secondary" @change="($event.target as HTMLSelectElement).value && addObject(($event.target as HTMLSelectElement).value); ($event.target as HTMLSelectElement).value = ''">
+            <option value="">Add World Object…</option><option v-for="x in objectData.objects" :key="x.id" :value="x.id">{{ x.name }}</option>
+          </select>
+          <p v-else class="text-xs text-muted">Create a reusable object on the World Objects page first.</p>
+        </fieldset>
 
         <fieldset class="space-y-3">
           <legend class="font-display text-lg font-semibold">Pieces</legend>

@@ -31,6 +31,7 @@ const router = createRouter({
     { path: '/wardrobe/:id', name: 'wardrobe-edit', component: () => import('./pages/WardrobeEditor.vue'), props: true },
     { path: '/sets', name: 'sets', component: () => import('./pages/Sets.vue') },
     { path: '/sets/:id', name: 'set-edit', component: () => import('./pages/SetEditor.vue'), props: true },
+    { path: '/objects', name: 'objects', component: () => import('./pages/Objects.vue') },
     { path: '/sounds', name: 'sounds', component: () => import('./pages/Sounds.vue') },
     { path: '/actions', name: 'actions', component: () => import('./pages/Actions.vue') },
     { path: '/actions/:id', name: 'action-edit', component: () => import('./pages/ActionEditor.vue'), props: true },

@@ -59,7 +59,7 @@ const readJson = (f) => {
   return JSON.parse(fs.readFileSync(f, "utf8"));
 };
 /** every custom item of the library (library/<kind>.json, none yet: []), handed to the page once (library.js) */
-const loadLibrary = (library) => Object.fromEntries(["props", "sets", "creatures", "actions", "wardrobe"].map((k) => {
+const loadLibrary = (library) => Object.fromEntries(["props", "sets", "objects", "creatures", "actions", "wardrobe"].map((k) => {
   const f = path.join(library, `${k}.json`);
   if (!fs.existsSync(f) && k === "wardrobe") return [k, readJson(WARDROBE_SEED)[k]]; // the starter wardrobe (io.py)
   return [k, fs.existsSync(f) ? readJson(f)[k] : []];

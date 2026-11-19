@@ -22,6 +22,10 @@ Known gaps and ideas, one line each. Not planned work.
 
 ## Ideas
 
+- World Objects: add reusable, stateful scene objects such as vehicles, boxes, crates, barrels and other interactable
+  items. Objects should declare capabilities (for example, enter, carry, open, break, steal or remove), be targetable
+  by staged actions, and persist their state across shots. This is distinct from held props and supports cases such as
+  thieves removing maple syrup barrels from a warehouse.
 - More built-in sets: beach, kitchen, classroom, forest (or build them on the Sets page).
 - Custom sets: prop-placement variants and painted patterns (planks, windows) like the built-ins.
 - More animals (cat, horse) and vehicles (bike, bus).

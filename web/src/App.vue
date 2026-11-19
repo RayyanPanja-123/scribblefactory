@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AudioLines, Backpack, CircleHelp, ClipboardCheck, Film, History, Layers, LayoutDashboard, Menu, Monitor, Moon, Mountain, PawPrint, PersonStanding, Search, Send, Settings, Shirt, SlidersHorizontal, Smile, Sun, X } from 'lucide-vue-next'
+import { AudioLines, Backpack, Boxes, CircleHelp, ClipboardCheck, Film, History, Layers, LayoutDashboard, Menu, Monitor, Moon, Mountain, PawPrint, PersonStanding, Search, Send, Settings, Shirt, SlidersHorizontal, Smile, Sun, X } from 'lucide-vue-next'
 import { AnimatePresence, motion, MotionConfig } from 'motion-v'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -27,6 +27,7 @@ const groups: { title: string; tabs: Tab[] }[] = [
     { to: '/creatures', name: 'Creatures', icon: PawPrint, match: (n) => n.startsWith('creature') },
     { to: '/wardrobe', name: 'Wardrobe', icon: Shirt, match: (n) => n.startsWith('wardrobe') },
     { to: '/sets', name: 'Sets', icon: Mountain, match: (n) => n === 'sets' || n === 'set-edit' },
+    { to: '/objects', name: 'World Objects', icon: Boxes, match: (n) => n === 'objects' },
     { to: '/actions', name: 'Actions', icon: PersonStanding, match: (n) => n.startsWith('action') },
     { to: '/sounds', name: 'Sounds', icon: AudioLines, match: (n) => n === 'sounds' },
   ] },
