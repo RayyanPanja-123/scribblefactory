@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeft, Plus, Sparkles, Trash2 } from 'lucide-vue-next'
+import { ArrowLeft, Plus, Trash2 } from 'lucide-vue-next'
 import { computed, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, type CustomAction } from '../api/client'
@@ -83,9 +83,6 @@ const ARM_SLIDERS = [[0, 0, 'Left arm'], [0, 1, 'Left bend'], [1, 0, 'Right arm'
       <div class="min-w-0 space-y-5">
         <div class="flex flex-wrap items-center gap-3">
           <h2 class="font-display text-3xl font-semibold">{{ isNew ? 'New action' : form.name || id }}</h2>
-          <RouterLink :to="{ path: '/ai-creations', query: { type: 'action', name: form.name || undefined, id: form.id || undefined } }" class="btn btn-secondary ml-auto">
-            <Sparkles :size="16" aria-hidden="true" /> Build with AI
-          </RouterLink>
         </div>
         <div class="grid gap-4 sm:grid-cols-2">
           <label class="block text-xs font-semibold text-muted">Name

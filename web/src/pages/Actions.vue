@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import { Plus, Sparkles } from 'lucide-vue-next'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { api } from '../api/client'
 import ActionPreview from '../components/ActionPreview.vue'
 import ErrorCard from '../components/ErrorCard.vue'
 import LibraryCard from '../components/LibraryCard.vue'
 import LibrarySection from '../components/LibrarySection.vue'
+import AiGenerateModal from '../components/AiGenerateModal.vue'
 import WardrobePreview from '../components/WardrobePreview.vue'
 import { act, confirm } from '../composables/feedback'
 import { refetchOn } from '../composables/live'
 import { useApi } from '../composables/useApi'
+import { buildActionPrompt, importAction } from '../lib/actionPrompt'
 
 // Every move a story's @do can ask for: the engine's built-ins (code) and the library's custom ones (keyframes the
 // stickman plays), shared by every series.
@@ -17,6 +19,10 @@ const { data, error, loading, reload, refresh } = useApi(() => api.actions())
 refetchOn(() => null, () => null, refresh)
 const custom = computed(() => data.value?.custom ?? [])
 const title = (id: string) => id[0].toUpperCase() + id.slice(1).replaceAll('_', ' ')
+const aiOpen = ref(false)
+const aiPrompt = (description: string) => buildActionPrompt(description.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'new-action', [...(data.value?.do ?? []), ...custom.value.map((x) => x.id)], description)
+const aiParse = (text: string) => { const r = importAction(text); return { data: r.action, error: r.error } }
+const aiSave = async (data: unknown) => { await api.saveAction(data as Parameters<typeof api.saveAction>[0]); refresh() }
 
 // the server refuses (409, naming the parts) while a story's @do uses it
 async function remove(a: { id: string; name: string }) {
@@ -32,7 +38,7 @@ async function remove(a: { id: string; name: string }) {
     <div class="flex flex-wrap items-baseline gap-3">
       <h2 class="font-display text-2xl font-semibold">Actions</h2>
       <span class="text-sm text-muted">{{ data.do.length }} built in · {{ custom.length }} custom</span>
-      <RouterLink to="/ai-creations?type=action" class="btn btn-secondary ml-auto"><Sparkles :size="16" aria-hidden="true" /> Build with AI</RouterLink>
+      <button type="button" class="btn btn-secondary ml-auto" @click="aiOpen = true"><Sparkles :size="16" aria-hidden="true" /> Generate with AI</button>
       <RouterLink to="/actions/new" class="btn btn-primary"><Plus :size="16" aria-hidden="true" /> New action</RouterLink>
     </div>
     <p class="text-sm text-muted">
@@ -52,4 +58,5 @@ async function remove(a: { id: string; name: string }) {
       </LibraryCard>
     </LibrarySection>
   </div>
+  <AiGenerateModal :open="aiOpen" title="Generate an action" description-hint="A slow, proud bow with one arm across the chest" :prompt-builder="aiPrompt" :parser="aiParse" :save="aiSave" @close="aiOpen = false" @done="aiOpen = false" />
 </template>

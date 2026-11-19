@@ -1,16 +1,18 @@
 <script setup lang="ts">
 import { DEFAULT_TOP_COLOR } from '../lib/wardrobe'
 import { PawPrint, Plus, Sparkles } from 'lucide-vue-next'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { api } from '../api/client'
 import CreaturePreview from '../components/CreaturePreview.vue'
 import ErrorCard from '../components/ErrorCard.vue'
 import LibraryCard from '../components/LibraryCard.vue'
 import LibrarySection from '../components/LibrarySection.vue'
+import AiGenerateModal from '../components/AiGenerateModal.vue'
 import { act, confirm } from '../composables/feedback'
 import { refetchOn } from '../composables/live'
 import { useApi } from '../composables/useApi'
-import { RIG_LIST, RIG_NOTES, allCreatures, isBuiltinCreature } from '../lib/creatures'
+import { buildCreaturePrompt, importCreature } from '../lib/creatures'
+import { RIG_LIST, RIG_NOTES, allCreatures, isBuiltinCreature, type Rig } from '../lib/creatures'
 
 // Every body a cast member can have (default human): the engine's built-ins and the library's custom creatures, shared
 // by every series, with who uses each.
@@ -31,6 +33,11 @@ const users = computed(() => {
   return by
 })
 const byRig = computed(() => RIG_LIST.map((rig) => ({ rig, items: creatures.value.filter((c) => c.rig === rig) })))
+const aiOpen = ref(false)
+const aiRig = ref<Rig>('quadruped')
+const aiPrompt = (description: string, choice?: string) => buildCreaturePrompt(description.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'new-creature', (choice || aiRig.value) as Rig, creatures.value.map((x) => x.id), description)
+const aiParse = (text: string) => { const r = importCreature(text); return { data: r.creature, error: r.error } }
+const aiSave = async (data: unknown) => { await api.saveCreature(data as Parameters<typeof api.saveCreature>[0]); refresh() }
 
 // the server refuses (409, naming them) while a cast member has it as its body
 async function remove(o: { id: string; name: string }) {
@@ -46,7 +53,7 @@ async function remove(o: { id: string; name: string }) {
     <div class="flex flex-wrap items-baseline gap-3">
       <h2 class="font-display text-2xl font-semibold">Creatures</h2>
       <span class="text-sm text-muted">{{ creatures.length }} bodies for cast members · {{ custom }} custom</span>
-      <RouterLink to="/ai-creations?type=creature" class="btn btn-secondary ml-auto"><Sparkles :size="16" aria-hidden="true" /> Build with AI</RouterLink>
+      <button type="button" class="btn btn-secondary ml-auto" @click="aiOpen = true"><Sparkles :size="16" aria-hidden="true" /> Generate with AI</button>
       <RouterLink to="/creatures/new" class="btn btn-primary"><Plus :size="16" aria-hidden="true" /> New creature</RouterLink>
     </div>
     <p class="text-sm text-muted">
@@ -66,4 +73,5 @@ async function remove(o: { id: string; name: string }) {
       </LibraryCard>
     </LibrarySection>
   </div>
+  <AiGenerateModal :open="aiOpen" title="Generate a creature" description-hint="A grumpy goose with a long neck" choice-label="Body rig" :choice-options="RIG_LIST.map((r) => ({ value: r, label: r }))" v-model:choice="aiRig" :prompt-builder="aiPrompt" :parser="aiParse" :save="aiSave" @close="aiOpen = false" @done="aiOpen = false" />
 </template>

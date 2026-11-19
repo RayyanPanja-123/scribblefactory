@@ -44,15 +44,9 @@ take a move speed in units/second; a negative speed glides backwards (moonwalk).
 
 ## AI help (copy/paste)
 
-There is no AI provider and no API key: the app writes a prompt, you paste it into any chat AI, then paste the
-reply back. Everything goes through **AI Creations** (`/ai-creations`, Studio in the sidebar):
-
-1. Pick a type: Prop, Set, Creature, Action or Cast. Each editor's "Build with AI" opens it pre-filled.
-2. Describe it. Only the fields a type needs are added (Creature: rig, Cast: which series).
-3. Make the prompt, copy it into any chat AI, paste its JSON reply back.
-4. Review everything it would create, each marked new or existing; uncheck what you don't want.
-5. Import: one button writes it to the library and links to each new item. Nothing existing is overwritten: a
-   clashing id gets a suffix.
+There is no AI provider and no API key: each library page has its own **Generate with AI** button. Describe the
+item in the modal, click Next, copy the type-specific prompt into any chat AI, paste the JSON reply back, and click
+Done to import it directly into that library. Nothing existing is overwritten by the save APIs.
 
 **Series creation** (`/new-series`) is the single starting point for a new series. Create the series and cast there, optionally import a whole-series JSON file, then add and write parts from the series workspace. Voice (FreeTTS) and uploading stay manual.
 

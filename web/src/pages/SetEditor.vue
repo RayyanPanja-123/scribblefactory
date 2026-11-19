@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowDown, ArrowLeft, ArrowUp, Plus, Sparkles, Trash2 } from 'lucide-vue-next'
+import { ArrowDown, ArrowLeft, ArrowUp, Plus, Trash2 } from 'lucide-vue-next'
 import { computed, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../api/client'
@@ -87,9 +87,6 @@ const num = 'inset mt-1 block h-10 w-full rounded-md px-3 text-sm text-ink outli
       <div class="min-w-0 space-y-5">
         <div class="flex flex-wrap items-center gap-3">
           <h2 class="font-display text-3xl font-semibold">{{ isNew ? 'New set' : form.name || id }}</h2>
-          <RouterLink :to="{ path: '/ai-creations', query: { type: 'set', name: form.name || undefined, id: form.id || undefined } }" class="btn btn-secondary ml-auto">
-            <Sparkles :size="16" aria-hidden="true" /> Build with AI
-          </RouterLink>
         </div>
 
         <div class="grid gap-4 sm:grid-cols-2">

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeft, Sparkles, Trash2 } from 'lucide-vue-next'
+import { ArrowLeft, Trash2 } from 'lucide-vue-next'
 import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '../api/client'
@@ -101,9 +101,6 @@ const field = 'inset mt-1 block h-10 w-full rounded-md px-4 text-sm text-ink out
       <div class="min-w-0 space-y-5">
         <div class="flex flex-wrap items-center gap-3">
           <h2 class="font-display text-3xl font-semibold">{{ isNew ? 'New creature' : form.name || id }}</h2>
-          <RouterLink :to="{ path: '/ai-creations', query: { type: 'creature', name: form.name || undefined, id: form.id || undefined, rig: form.rig } }" class="btn btn-secondary ml-auto">
-            <Sparkles :size="16" aria-hidden="true" /> Build with AI
-          </RouterLink>
         </div>
 
         <div class="grid gap-4 sm:grid-cols-2">
@@ -149,7 +146,7 @@ const field = 'inset mt-1 block h-10 w-full rounded-md px-4 text-sm text-ink out
           <p v-if="parsed.err" class="text-sm text-red-ink" role="alert">{{ parsed.err }}</p>
           <p class="text-xs text-muted">Side view facing right, y down, the ground at y 0. The body is drawn around the ground
             point; every other part around its joint, at rest (legs hang down to the ground). Fills: <code>$main</code>,
-            <code>$accent</code>, or a fixed colour. Easiest: Build with AI, or copy a built-in from the Creatures page.</p>
+            <code>$accent</code>, or a fixed colour. Generate custom creatures from the Creatures page, or copy a built-in.</p>
         </template>
 
         <div class="flex flex-wrap justify-end gap-2">

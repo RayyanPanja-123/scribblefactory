@@ -19,7 +19,7 @@ Everything runs on the creator's own machine: the renderer (Three.js + Playwrigh
 - Workflow per part: story -> voice -> stills -> test render -> final -> thumbnail -> upload text -> posted.
 - Human approval gates: stills, test render, final, and per-series cast sheets.
 - Long-running render jobs run one at a time on a worker; the UI shows live job status over SSE.
-- AI Creations (`/ai-creations`): one screen to create a prop, set, creature, action, cast or whole series with any chat AI via copy/paste, then review every item (new or existing, uncheck to skip) and import. Never overwrites: a clashing id gets a suffix. Each editor's "Build with AI" opens it pre-filled.
+- Library generation: Props, Sets, Creatures, Actions and Wardrobe each have their own Generate with AI modal. The modal collects a description, creates a type-specific copy/paste prompt, accepts JSON, and imports directly into that library.
 - Actions page: custom `@do` actions as keyframed poses, facing the camera or sideways, with a move speed (negative glides backwards).
 - Series are created from the Series flow (`/new-series`), with cast and optional whole-series JSON import. Parts, stories, voice and assets are then managed from the series workspace.
 - All four jobs are frequent and equally important: pipeline status, building assets, writing parts, reviewing renders.
@@ -27,7 +27,7 @@ Everything runs on the creator's own machine: the renderer (Three.js + Playwrigh
 ## Capabilities and Constraints
 - Vue 3 + Vite + Tailwind 4 SPA (`web/`), FastAPI backend (`api/`), files on disk are the source of truth.
 - Localhost only, no accounts or auth.
-- Routes: Overview, AI Creations, Series list/detail, New series, New part, Part detail, Review, Props, Creatures, Sets, Actions (+ editors), Posted, History, Help.
+- Routes: Overview, Series list/detail, New series, New part, Part detail, Review, Props, Creatures, Sets, Actions (+ editors), Posted, History, Help.
 
 ## Brand Commitments
 - Name: Scribble Factory.

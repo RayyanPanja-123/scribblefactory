@@ -1,15 +1,16 @@
 <script setup lang="ts">
-import { Plus, Shirt } from 'lucide-vue-next'
-import { computed } from 'vue'
+import { Plus, Shirt, Sparkles } from 'lucide-vue-next'
+import { computed, ref } from 'vue'
 import { api } from '../api/client'
 import ErrorCard from '../components/ErrorCard.vue'
 import LibraryCard from '../components/LibraryCard.vue'
 import LibrarySection from '../components/LibrarySection.vue'
+import AiGenerateModal from '../components/AiGenerateModal.vue'
 import WardrobePreview from '../components/WardrobePreview.vue'
 import { act, confirm } from '../composables/feedback'
 import { refetchOn } from '../composables/live'
 import { useApi } from '../composables/useApi'
-import { SLOT_LABEL, SLOTS, wardrobeOptions, wearers } from '../lib/wardrobe'
+import { SLOT_LABEL, SLOTS, buildWardrobePrompt, importWardrobe, wardrobeOptions, wearers, type Slot } from '../lib/wardrobe'
 
 // Every wardrobe item a humanoid cast member can wear, by slot: the hand-drawn built-ins and the library's custom items,
 // shared by every series, with who wears each.
@@ -24,6 +25,11 @@ const bySlot = computed(() => SLOTS.map((slot) => ({ slot, items: wardrobeOption
 const worn = computed(() => Object.fromEntries(wardrobeOptions(data.value?.catalog)
   .map((o) => [o.id, wearers((data.value?.series ?? []) as never, o.id)])))
 const colorOf = (id: string) => custom.value.find((w) => w.id === id)?.default_color ?? '#6b4f3a'
+const aiOpen = ref(false)
+const aiSlot = ref<Slot>('top')
+const aiPrompt = (description: string, choice?: string) => buildWardrobePrompt(description.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'new-item', (choice || aiSlot.value) as Slot, wardrobeOptions(data.value?.catalog).map((x) => x.id), description)
+const aiParse = (text: string, choice?: string) => { const r = importWardrobe(text, (choice || aiSlot.value) as Slot); return { data: r.item, error: r.error } }
+const aiSave = async (data: unknown) => { await api.saveWardrobeItem(data as Parameters<typeof api.saveWardrobeItem>[0]); refresh() }
 
 // the server refuses (409, naming them) while anyone wears it
 async function remove(o: { id: string; name: string }) {
@@ -39,7 +45,8 @@ async function remove(o: { id: string; name: string }) {
     <div class="flex flex-wrap items-baseline gap-3">
       <h2 class="font-display text-2xl font-semibold">Wardrobe</h2>
       <span class="text-sm text-muted">{{ wardrobeOptions(data?.catalog).length }} items in {{ SLOTS.length }} slots · {{ custom.length }} custom</span>
-      <RouterLink to="/wardrobe/new" class="btn btn-primary ml-auto"><Plus :size="16" aria-hidden="true" /> New item</RouterLink>
+      <button type="button" class="btn btn-secondary ml-auto" @click="aiOpen = true"><Sparkles :size="16" aria-hidden="true" /> Generate with AI</button>
+      <RouterLink to="/wardrobe/new" class="btn btn-primary"><Plus :size="16" aria-hidden="true" /> New item</RouterLink>
     </div>
     <p class="text-sm text-muted">
       Clothing, hair and cosmetics for humanoid cast members, one item per slot (accessory and face: up to 3). In the cast
@@ -55,4 +62,5 @@ async function remove(o: { id: string; name: string }) {
       </LibraryCard>
     </LibrarySection>
   </div>
+  <AiGenerateModal :open="aiOpen" title="Generate wardrobe" description-hint="A bright red baker's hat with a soft, floppy crown" choice-label="Wardrobe slot" :choice-options="SLOTS.map((s) => ({ value: s, label: SLOT_LABEL[s] }))" v-model:choice="aiSlot" :prompt-builder="aiPrompt" :parser="aiParse" :save="aiSave" @close="aiOpen = false" @done="aiOpen = false" />
 </template>

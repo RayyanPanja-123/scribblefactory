@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import { Plus, Sparkles } from 'lucide-vue-next'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { api } from '../api/client'
 import ErrorCard from '../components/ErrorCard.vue'
 import LibraryCard from '../components/LibraryCard.vue'
 import LibrarySection from '../components/LibrarySection.vue'
+import AiGenerateModal from '../components/AiGenerateModal.vue'
 import SetPreview from '../components/SetPreview.vue'
 import { act, confirm } from '../composables/feedback'
 import { refetchOn } from '../composables/live'
 import { useApi } from '../composables/useApi'
 import { builtinNote } from '../lib/sets'
+import { buildSetPrompt, importSet } from '../lib/setPrompt'
 
 // Every place a story can happen (@set <name>): the engine's built-in sets and the library's custom ones, shared by
 // every series.
@@ -25,6 +27,10 @@ const groups = computed(() => [
   { kind: 'indoor', title: 'Indoor', note: 'a floor and a back wall', items: all.value.filter((s) => s.kind === 'indoor') },
   { kind: 'outdoor', title: 'Outdoor', note: 'floor and sky; walking lines become travelling shots', items: all.value.filter((s) => s.kind === 'outdoor') },
 ])
+const aiOpen = ref(false)
+const aiPrompt = (description: string) => buildSetPrompt(description.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'new-set', all.value.map((x) => x.id), description)
+const aiParse = (text: string) => { const r = importSet(text); return { data: r.set, error: r.error } }
+const aiSave = async (data: unknown) => { await api.saveSet(data as Parameters<typeof api.saveSet>[0]); refresh() }
 
 // the server refuses (409, naming the stories) while any part's story.md still has @set <id>
 async function remove(s: { id: string; name: string }) {
@@ -40,7 +46,7 @@ async function remove(s: { id: string; name: string }) {
     <div class="flex flex-wrap items-baseline gap-3">
       <h2 class="font-display text-2xl font-semibold">Sets</h2>
       <span class="text-sm text-muted">{{ all.length }} places a story can happen · {{ custom.length }} custom</span>
-      <RouterLink to="/ai-creations?type=set" class="btn btn-secondary ml-auto"><Sparkles :size="16" aria-hidden="true" /> Build with AI</RouterLink>
+      <button type="button" class="btn btn-secondary ml-auto" @click="aiOpen = true"><Sparkles :size="16" aria-hidden="true" /> Generate with AI</button>
       <RouterLink to="/sets/new" class="btn btn-primary"><Plus :size="16" aria-hidden="true" /> New set</RouterLink>
     </div>
     <p class="text-sm text-muted">
@@ -56,4 +62,5 @@ async function remove(s: { id: string; name: string }) {
       </LibraryCard>
     </LibrarySection>
   </div>
+  <AiGenerateModal :open="aiOpen" title="Generate a set" description-hint="A rainy bus stop at night with a flickering lamp" :prompt-builder="aiPrompt" :parser="aiParse" :save="aiSave" @close="aiOpen = false" @done="aiOpen = false" />
 </template>

@@ -12,7 +12,6 @@ const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/', name: 'overview', component: () => import('./pages/Overview.vue') },
-    { path: '/ai-creations', name: 'ai-creations', component: () => import('./pages/AiCreations.vue') },
     // Retain old bookmarks while the Story Writer UI is retired.
     { path: '/story-writer', redirect: '/new-series' },
     { path: '/story-writer/review', redirect: '/new-series' },

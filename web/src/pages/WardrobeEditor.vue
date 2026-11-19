@@ -1,15 +1,14 @@
 <script setup lang="ts">
-import { ArrowDown, ArrowLeft, ArrowUp, Plus, Sparkles, Trash2 } from 'lucide-vue-next'
+import { ArrowDown, ArrowLeft, ArrowUp, Plus, Trash2 } from 'lucide-vue-next'
 import { computed, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../api/client'
-import AiBridge from '../components/AiBridge.vue'
 import ErrorCard from '../components/ErrorCard.vue'
 import WardrobePreview from '../components/WardrobePreview.vue'
 import { act, confirm, toast } from '../composables/feedback'
 import { useApi } from '../composables/useApi'
 import { allCreatures } from '../lib/creatures'
-import { ANCHORS, PREVIEW_POSES, SHAPES, SLOT_LABEL, SLOTS, buildWardrobePrompt, importWardrobe, wardrobeOptions,
+import { ANCHORS, PREVIEW_POSES, SHAPES, SLOT_LABEL, SLOTS, wardrobeOptions,
   type Anchor, type Slot, type WardrobeItem, type WardrobeLayer } from '../lib/wardrobe'
 import { EXPRESSIONS } from '../lib/expressions'
 
@@ -84,23 +83,6 @@ const creatureBuild = computed(() => humanoids.value.find((c) => c.id === creatu
 const view = reactive({ pose: 'idle', expression: 'neutral', facing: 'camera' as 'camera' | 'left' | 'right', color: '' })
 const wornColor = computed(() => (form.colorable && view.color ? view.color : form.default_color))
 
-// Build with AI: the copy/paste bridge
-const aiOpen = ref(false)
-const details = ref('')
-const reply = ref('')
-const replyError = ref('')
-const prompt = computed(() => buildWardrobePrompt(form.name, form.slot, wardrobeOptions(data.value?.catalog).map((o) => o.id)
-  .filter((i) => isNew.value || i !== form.id), details.value, form.id))
-function loadReply() {
-  const r = importWardrobe(reply.value, form.slot)
-  replyError.value = r.error ?? ''
-  if (!r.item) return
-  const keepId = !isNew.value ? form.id : r.item.id
-  load({ ...r.item, id: keepId })
-  form.idEdited = true
-  toast('Loaded: check the preview, then save', 'ok')
-}
-
 const saving = ref(false)
 async function save() {
   saving.value = true
@@ -129,16 +111,7 @@ const field = 'inset mt-1 block h-10 w-full rounded-md px-3 text-sm text-ink out
       <div class="min-w-0 space-y-5">
         <div class="flex flex-wrap items-center gap-3">
           <h2 class="font-display text-3xl font-semibold">{{ isNew ? 'New wardrobe item' : form.name || id }}</h2>
-          <button type="button" class="btn btn-secondary ml-auto" :aria-expanded="aiOpen" @click="aiOpen = !aiOpen">
-            <Sparkles :size="16" aria-hidden="true" /> Build with AI
-          </button>
         </div>
-        <section v-if="aiOpen" class="inset space-y-3 rounded-md p-4" aria-label="Build with AI">
-          <label class="block text-xs font-semibold text-muted">What it should look like (optional)
-            <input v-model="details" placeholder="a tall feathered helmet with a red plume" :class="field" />
-          </label>
-          <AiBridge v-model="reply" :prompt="prompt" :error="replyError" load-label="Load into the editor" @load="loadReply" />
-        </section>
 
         <div class="grid gap-4 sm:grid-cols-2">
           <label class="block text-xs font-semibold text-muted">Name
