@@ -971,14 +971,20 @@ class Vehicle(Strict):
 
 
 class Extra(Strict):
-    """non-cast stickman: crowd (stands behind the stage in a mood) or runner (background runner); seeded look"""
+    """non-cast stickman: a seeded runner or a crowd member with optional team costume/prop."""
     id: str = Field(pattern=r"^[a-z0-9_-]+$")
     kind: Literal["crowd", "runner"]
-    action: Literal["cheer", "angry", "gasp", "neutral", "run"]  # crowd: a mood; runner: run
+    action: Literal["cheer", "angry", "gasp", "neutral", "fight", "run"]  # crowd: a mood; runner: run
+    group: str | None = Field(default=None, pattern=r"^[a-z0-9_-]+$")
+    target_group: str | None = Field(default=None, pattern=r"^[a-z0-9_-]+$")
     start_pos: Pos
     end_pos: Pos | None = None
     facing: Literal["left", "right", "camera"]
     variant: int = Field(ge=0, description="seeds the extra's look (top, hat, colours, runner number)")
+    top: Top | None = None
+    headwear: Headwear | None = None
+    legwear: Legwear | None = None
+    props: list[Prop] = Field(default_factory=list, max_length=2)
 
 
 class Shot(Strict):

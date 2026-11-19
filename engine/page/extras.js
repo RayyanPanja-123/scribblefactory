@@ -106,7 +106,11 @@ export function extraLook(slug, e) {
   const style = R() < 0.5 ? "plain" : "shirt", h = R();
   const headwear = h < 0.3 ? { kind: "flat_cap", color: desaturate(pick(HATS)) } : h < 0.5 ? { kind: "bowler", color: desaturate(pick(HATS)) } : { kind: "none" };
   const legwear = R() < 0.6 ? { kind: "trousers", color: desaturate(pick(TROUSERS)) } : { kind: "none" };
-  return { top: { style, color }, eyes, headwear, legwear, props: [] };
+  // Crowd entries may carry the same wardrobe and held-prop shape as a cast look.
+  // The seeded fallback remains unchanged for ordinary crowds.
+  return { top: { style, color }, eyes, headwear, legwear, props: [], ...(e.top ? { top: e.top } : {}),
+    ...(e.headwear ? { headwear: e.headwear } : {}), ...(e.legwear ? { legwear: e.legwear } : {}),
+    ...(e.props?.length ? { props: e.props } : {}) };
 }
 
 /** crowd mood pose at time t for the figure keyed `key` (each one's timing offset, so a crowd never moves in sync):
@@ -117,7 +121,7 @@ export function moodAt(mood, t, key) {
     const s = Math.sin(TAU * MOOD.cheerHz * tt);
     return { k: 0.85 + 0.15 * s, bounce: Math.max(0, s), crouch: Math.max(0, -s), shake: 0 }; // arms stay high: no sweep into neighbours; knees crouch between hops
   }
-  if (mood === "angry") return { k: 1, bounce: 0, shake: Math.sin(TAU * MOOD.shakeHz * tt) };
+  if (mood === "angry" || mood === "fight") return { k: 1, bounce: 0, shake: Math.sin(TAU * MOOD.shakeHz * tt) };
   if (mood === "gasp") return { k: 1, bounce: 0, shake: 0.15 * Math.sin(TAU * 7 * tt) }; // a small tremble
   return { k: 0, bounce: 0, shake: 0 };
 }

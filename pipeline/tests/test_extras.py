@@ -105,6 +105,25 @@ def test_no_crowd_in_travel_shots():
     assert s.travel is not None and crowd(s) == []
 
 
+def test_named_crowds_face_each_other_and_accept_costume_and_weapon():
+    md = ("# Army\n\n@set stadium\n@cast fred, amy\n"
+          "@crowd-look red: suit, flat_cap, trousers\n@crowd-weapon red: apple\n"
+          "@crowd red angry 4\n@crowd blue angry 4\n@crowd red fight blue\nFred spoke.\n")
+    s = planned(md).shots[0]
+    red, blue = [e for e in crowd(s) if e.group == "red"], [e for e in crowd(s) if e.group == "blue"]
+    assert len(red) == len(blue) == 4
+    assert all(e.action == "fight" and e.target_group == "blue" and e.facing == "right" for e in red)
+    assert all(e.facing == "left" and e.start_pos[0] > 0 for e in blue)
+    assert all(e.top.style == "suit" and e.headwear.kind == "flat_cap" and e.legwear.kind == "trousers" for e in red)
+    assert all(e.props[0].kind == "apple" for e in red)
+
+
+def test_named_crowd_can_be_turned_off():
+    md = "# Army\n\n@set stadium\n@cast fred\n@crowd red angry 4\nFred spoke.\n@crowd red off\nFred sat.\n"
+    story = planned(md)
+    assert len(crowd(story.shots[0])) == 4 and not crowd(story.shots[-1])
+
+
 # --- runners ---
 
 def _min_gap(a, b, c):

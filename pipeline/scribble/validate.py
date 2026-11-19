@@ -317,8 +317,10 @@ def _check_extras(s, seconds, err) -> None:
         err(s.id, "extra_id", f"extra ids repeat: {ids}")
     for e in s.extras:
         if e.kind == "crowd":
-            if e.action not in MOODS:
-                err(s.id, "extras", f"{e.id} crowd {e.action}: a crowd extra takes a mood ({', '.join(sorted(MOODS))})")
+            if e.action not in MOODS and e.action != "fight":
+                err(s.id, "extras", f"{e.id} crowd {e.action}: a crowd extra takes a mood ({', '.join(sorted(MOODS))}) or fight")
+            if e.action == "fight" and not e.target_group:
+                err(s.id, "extras", f"{e.id}: fighting crowd needs a target_group")
             if e.end_pos is not None:
                 err(s.id, "extras", f"{e.id}: crowd extras never move (end_pos must be null)")
             if s.travel:

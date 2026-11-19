@@ -736,8 +736,8 @@ function drawExtras(shot, n, kf, u, shift) {
     const c = card(`extra:${e.id}`);
     drawStickman(c.cv, { seed: key, ...look, color: look.top.color, boil: Math.floor(n / BOIL_FRAMES), lid: lidAt(n, key),
       breath: Math.sin((2 * Math.PI * t) / 3.4 + 2 * Math.PI * rng(key, "breath")()), mouth: 0, t, phase, mood,
-      px: (((head.y - feet.y) / 2) * H) / FIGURE_PX, action: e.action === "neutral" ? "idle" : e.action, facing: e.facing,
-      expression: MOOD_EXPRESSION[e.action] || "neutral" });
+      px: (((head.y - feet.y) / 2) * H) / FIGURE_PX, action: e.action === "neutral" ? "idle" : e.action === "fight" ? "angry" : e.action, facing: e.facing,
+      expression: e.action === "fight" ? "angry" : MOOD_EXPRESSION[e.action] || "neutral" });
     c.tex.needsUpdate = true;
     c.mesh.position.set(x, mood ? MOOD_HOP * mood.bounce : 0, z);
     c.mesh.rotation.set(0, Math.atan2(camera.position.x - x, camera.position.z - z), 0);

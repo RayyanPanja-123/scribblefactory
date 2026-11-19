@@ -45,7 +45,8 @@ type Directive = { id: string; syntax: string; what: string; rules: string[]; ex
 const DIRECTIVES: Directive[] = [
   { id: 'set', syntax: '@set <name>', what: 'Where we are. Every line after it happens here.', list: 'sets',
     rules: ['Put one before the first spoken line. If you forget, it is a plain room.', 'Inside places have a back wall. Outside places can have moving travel shots.',
-      'A new place gets a wipe and a wide shot so the viewer knows where we are.', 'Make your own places on the Sets page.'],
+      'A new place gets a wipe and a wide shot so the viewer knows where we are.', 'It resets crowds, crowd costumes/weapons, runners and actor positions, then applies the set weather default.',
+      'The car keeps its current state until @car off or another car mode.', 'Make your own places on the Sets page.'],
     example: '@set office' },
   { id: 'cast', syntax: '@cast a, b, c', what: 'Who is on stage. Everyone listed is there until the next @cast.', list: 'bodies',
     rules: ['If you forget, the first two cast members are on stage.', 'Someone who should appear later (a god popping out of the sea): leave them out, then add a new @cast with them right before their line.',
@@ -53,15 +54,16 @@ const DIRECTIVES: Directive[] = [
       'Stickmen can do every action. Birds, four-legged animals and snakes have no hands.'],
     example: '@cast bob, karen' },
   { id: 'do', syntax: '@do <cast>: <action> [target | prop]', what: 'Makes someone do something during the next spoken line only.', list: 'actions',
-    rules: ['Put the spoken line right under it.', 'Several people at once: @do fred: lie, amy: wave.',
+    rules: ['Put the spoken line right under it. Indented directives work too.', 'Several people at once: @do fred: lie, amy: wave.',
       'With things or people: eat apple · give medal amy · carry tom (needs 2 people) · support tom (1 or 2 people).',
+      'eat with no prop uses an apple. give accepts the prop and target in either order.',
       'walk, run and stagger move across the stage. collapse falls down once, then they lie there.',
       'angry, gasp, react and cheer change the face too, unless the line already has a feeling word.',
       'Custom actions can aim at someone: @do marcus: attack-with-spears neptune turns Marcus toward Neptune.',
       '@do car: broken makes the car on stage break down.'],
     example: '@do marcus: attack-with-spears neptune\nMarcus stabbed at the god of the sea.' },
   { id: 'look', syntax: '@look <cast>: <look>', what: 'Changes someone’s outfit from the next line on.',
-    rules: ['It stays on until you change it again, even in a new place.', '@look mike: default puts their normal outfit back.',
+    rules: ['It stays on until you change it again, even in a new place, and resets at the start of a new part.', '@look mike: default puts their normal outfit back.',
       'Several people at once: @look amy, bob: wedding.', 'Each cast member’s looks are set up in the cast.'],
     example: '@look mike: headless' },
   { id: 'face', syntax: '@face <cast>: <expression>', what: 'Sets someone’s face for the next spoken line only.',
@@ -73,20 +75,26 @@ const DIRECTIVES: Directive[] = [
     rules: ['arrive: it drives in and parks.', 'ride: up to 3 people sit in it and drive.', 'leave: it drives away. off: no car.'],
     example: '@car ride' },
   { id: 'dogs', syntax: '@dogs N', what: 'Adds 0 to 6 dogs.', rules: ['They chase in travel shots, and bark or sit otherwise.'], example: '@dogs 3' },
-  { id: 'crowd', syntax: '@crowd <cheer | angry | gasp | neutral> [N]', what: 'Adds people in the background (an army, a mob, fans).',
-    rules: ['1 to 12 people, 8 if you don’t say. @crowd off sends them away.', 'A new place starts with no crowd.'], example: '@crowd cheer 10' },
+  { id: 'crowd', syntax: '@crowd <mood> [N] | @crowd <group> <mood> [N]', what: 'Adds people in the background (an army, a mob, fans).',
+    rules: ['1 to 12 people, 8 if you don’t say. @crowd off sends them away.', 'Named groups face each other; use fight <target> for a battle.', '@crowd-look gives a group wardrobe items and @crowd-weapon gives it a library prop.', 'A new place starts with no crowd.'], example: '@crowd red angry 10\n@crowd blue fight red' },
   { id: 'runners', syntax: '@runners N', what: 'Adds 0 to 6 people running past in the background.', rules: ['A new place starts with none.'], example: '@runners 4' },
-  { id: 'fx', syntax: '@fx drop | shake | pop | none', what: 'Makes the caption of the next line jump out.', rules: ['Great on the first line. Don’t overdo it.'], example: '@fx shake' },
+  { id: 'crowd-look', syntax: '@crowd-look <group>: <wardrobe ids>', what: 'Gives every member of a named crowd team a costume.', list: 'props',
+    rules: ['Use up to one top, one headwear item and one legwear item.', 'Built-in and library wardrobe IDs work.',
+      'Set it before or after @crowd; it persists until the set changes or another look is assigned.'], example: '@crowd-look red: suit, flat_cap, trousers' },
+  { id: 'crowd-weapon', syntax: '@crowd-weapon <group>: <prop>', what: 'Gives every member of a named crowd team the same held prop.', list: 'props',
+    rules: ['The prop must be built-in or present in the props library.', 'Use it for weapons, flags, tools, torches or banners.',
+      'It persists until the set changes or the team receives another prop.'], example: '@crowd-weapon red: rifle' },
+  { id: 'fx', syntax: '@fx drop | shake | pop | none', what: 'Makes the caption of the next line jump out.', rules: ['It applies only to the next spoken line.', 'Use shake for impact, pop for a reveal, and drop for a dramatic entrance.'], example: '@fx shake' },
   { id: 'weather', syntax: '@weather <type> [strength]', what: 'Sky and weather: clear, rain, snow, fog, wind or storm.',
     rules: ['Strength: light, medium or heavy.', 'Put it after @set: a new place resets the weather.',
       'Pick it by mood: storm for gods, sea and villains; rain for sad; fog for mystery; clear for calm.'],
     example: '@set countryside\n@weather storm heavy' },
   { id: 'lightning', nav: '@fx lightning', syntax: '@fx lightning [cast | prop]', what: 'A lightning bolt as the next line starts.', list: 'props',
-    rules: ['Name someone to strike right next to them.', 'At most 3 per part: save it for big moments.'],
+    rules: ['The target may be a cast ID, a prop ID, or omitted.', 'A prop target strikes whoever holds that prop on the next line.', 'At most 3 per part: save it for big moments.'],
     example: '@do neptune: raise-trident\n@fx lightning\nNeptune raised his trident, and the sky split open.' },
   { id: 'sfx', syntax: '@sfx <id> [volume 0-1]', what: 'Plays a sound effect with the next line.', list: 'sounds',
-    rules: ['Put it right above the line it belongs to.', 'Most sounds play as the line starts. Risers end just as it starts. fahhh plays after the line.',
-      'At most 5 per part, and not on two lines in a row.', 'The Review tab suggests sounds for you.'],
+    rules: ['Put it right above the line it belongs to. Multiple @sfx lines can attach to the same line.', 'Most sounds play as the line starts. Risers end just as it starts. fahhh plays after the line.',
+      'Use @sfx id 0.6 for a one-use volume override.', 'At most 5 per part, and not on two lines in a row.', 'The Review tab suggests sounds for you.'],
     example: '@sfx riser\n!! The tower was never his to sell.' },
   { id: 'twist', syntax: '!! <text>', what: 'The big twist: the camera pushes in, the music stops, a deep boom hits.',
     rules: ['Use it once per part, on the last or second-to-last line.', 'The words are spoken like any other line.'],
@@ -105,6 +113,14 @@ const DIRECTIVES: Directive[] = [
 @cast caligula, marcus          ← who is there
 @do marcus: run                 ← what Marcus does…</span>
 Marcus ran into the waves.      <span class="text-muted">← …while this is spoken</span></pre>
+      <div class="rounded-md border border-subtle bg-surface/50 p-3 text-xs text-muted">
+        <p class="font-semibold text-foreground">Useful details</p>
+        <p class="mt-1">Directive lines may be indented and several may stack above one spoken line. <code>@do</code>,
+          <code>@face</code>, <code>@fx</code>, <code>@fx lightning</code>, and <code>@sfx</code> affect the next spoken line;
+          other directives persist until changed. Multiple <code>@face</code>/<code>@look</code> targets can be comma-separated.
+          Without explicit staging, actions and faces are inferred from narration words. A prop-targeted lightning strike
+          resolves to whoever holds that prop on the next line.</p>
+      </div>
     </div>
     <nav aria-label="Directives" class="flex flex-wrap gap-1.5">
       <a v-for="d in DIRECTIVES" :key="d.id" :href="`#${d.id}`" class="chip font-mono hover:underline">{{ d.nav ?? d.syntax.split(' ')[0] }}</a>

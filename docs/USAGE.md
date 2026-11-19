@@ -42,6 +42,9 @@ One per line. A directive holds until it is changed, except `@do` and `!!`, whic
 | `@car <mode>` | `arrive` (drives in, parks beside the subject), `ride` (the @cast ride, max 3; travel shot outdoors), `leave` (drives off), `off`. | `@car ride` |
 | `@do <cast>: <action> ...` | Overrides the guessed action for every shot of the next line. Actions: idle, talk, walk, run, point, react, wave, stagger, lie, collapse, eat [prop], give &lt;prop&gt; &lt;target&gt;, carry &lt;target&gt; (2 carriers), support &lt;target&gt; (1-2), cheer, angry, gasp; and `car: broken`. Several clauses: comma-separated. | `@do trainer1, trainer2: carry thomas` |
 | `@crowd <mood> [N]` | Crowd extras behind the stage: cheer, angry, gasp or neutral; N 1-12 (default 8). `@crowd off`. Not in travel shots. | `@crowd cheer 10` |
+| `@crowd <group> <mood> [N]` | Named crowd team; teams occupy opposite sides. Use `fight <target>` for a fighting team. | `@crowd red angry 8` |
+| `@crowd-look <group>: <wardrobe ids>` | Gives a crowd team built-in or library wardrobe items (top, headwear, legwear). | `@crowd-look red: suit, flat_cap, trousers` |
+| `@crowd-weapon <group>: <prop>` | Gives every member of a crowd team a held prop from the props library. | `@crowd-weapon red: rifle` |
 | `@runners N` | Background runners (0-6): run along in travel shots, cross the background otherwise. | `@runners 4` |
 | `@fx <effect>` | Caption effect for the next line: drop, shake, pop or none. | `@fx shake` |
 | `@fx lightning [target]` | One lightning strike (bolt + brief flash) at the next line, beside a cast id on stage or whoever holds a prop id. At most 3 per part. | `@fx lightning poseidon` |
@@ -67,6 +70,17 @@ His car broke down just outside the stadium.
 @do daughter: give medal fred
 He jogged across the line and accepted a gold medal.
 !! It was all a joke.
+```
+
+Two opposing armies can be staged with reusable costumes and weapons:
+
+```md
+@crowd-look red: suit, flat_cap, trousers
+@crowd-weapon red: rifle
+@crowd red angry 8
+@crowd blue angry 8
+@crowd red fight blue
+@crowd blue fight red
 ```
 
 Without `@do`, actions and expressions are guessed from the words (walked, ran, waved, laughed, shocked...).

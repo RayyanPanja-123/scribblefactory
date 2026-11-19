@@ -73,6 +73,8 @@ library/<series-slug>/
 - "@car <mode>": arrive | ride | leave | off, for the following lines until changed. arrive: a car drives in and stops beside the subject (then stays parked). ride: the current @cast ride in the car (travel shot on outdoor sets; wave keywords make riders wave). leave: the car drives off-screen. off: no car. Default off.
 - "@do <cast>: <action> [<target>|<prop>] [, <cast>: <action> ...]": overrides keyword guessing for every shot of the next line only; cast not named keep the planner's choice. Actions: idle, talk, walk, run, point, react, wave, stagger, lie, collapse, eat [prop], give <prop> <target>, carry <target> (2 carriers), support <target> (1-2), and "car: broken". Unknown cast, action, target or prop fails prep / shots with the story.md line. A collapse happens once per line (later shots of the line lie).
 - "@crowd <cheer|angry|gasp|neutral> [N]": crowd extras (N default 8, max 12) standing behind the stage, until changed; "@crowd off". Not in travel shots.
+- Named crowds: "@crowd <group> <mood> [N]", "@crowd <group> fight <target>", "@crowd-look <group>: <wardrobe ids>",
+  and "@crowd-weapon <group>: <prop>"; named teams face each other and share the existing wardrobe/prop library.
 - "@runners N": background runner extras (0-6) until changed: they run with the scroll in travel shots, cross the background otherwise. @crowd and @runners reset on a set change unless repeated.
 - "!! text": this line is the twist (push-in with roll, music stops, low hit).
 - prep strips directives from script-for-tts.txt. The shot planner reads them.

@@ -16,16 +16,16 @@ import re
 from pathlib import Path
 
 from . import sfx as sfx_lib
-from .io import cast_body_problems, custom_actions, load_series, prop_kinds, set_kinds, unknown_cast_props
+from .io import cast_body_problems, custom_actions, load_series, prop_kinds, set_kinds, unknown_cast_props, wardrobe_slots
 from .stages.finish import MAX_RUNTIME_S
 from .stages.prep import (DO_CAR, FX_LIGHTNING, FX_MODES, MAX_LIGHTNING, TWIST_PREFIX, clean_markdown, parse_do,
                           parse_face, parse_lightning, parse_look, parse_weather, strip_directives)
 from .stages.runner import StageError
 from .stages.shots import (ACTION_FACE, CAR_MODES, CAR_SEATS, DEFAULT_CAST_SIZE, EXPRESSIONS, MAX_CAST, MAX_DOGS, MAX_ON_STAGE,
-                           MAX_RUNNERS, parse_crowd, token)
+                           MAX_RUNNERS, parse_crowd, parse_crowd_look, parse_crowd_weapon, token)
 from .validate import END_SCREEN_S, TAIL_S
 
-DIRECTIVES = ("set", "cast", "dogs", "car", "fx", "do", "look", "crowd", "runners", "weather", "sfx", "face")
+DIRECTIVES = ("set", "cast", "dogs", "car", "fx", "do", "look", "crowd", "crowd-look", "crowd-weapon", "runners", "weather", "sfx", "face")
 LINE_PREFIX = re.compile(r"^story\.md line [0-9]+: ")
 FALLBACK_WPS = 2.6  # words per second before any part has been finished
 # a first line that opens on a date or backstory instead of the hook
@@ -182,6 +182,10 @@ def check_story(part_dir: Path) -> dict:
                         bad(no, f"@car takes {' | '.join(CAR_MODES)}, got {arg!r}")
                 elif name == "crowd":
                     parse_crowd(arg, no)
+                elif name == "crowd-look":
+                    parse_crowd_look(arg, no, wardrobe_slots(library))
+                elif name == "crowd-weapon":
+                    parse_crowd_weapon(arg, no, props)
                 elif name == "look":
                     parse_look(arg, no, {c.id: list(c.looks) for c in series.cast})
                 elif name == "do":

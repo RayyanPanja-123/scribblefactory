@@ -14,9 +14,11 @@ from pathlib import Path
 
 from ..io import (LIBRARY_FILES, atomic_write_json, cast_body_problems, creature_bodies, custom_actions, custom_moves,
                   outdoor_sets,
-                  prop_kinds, set_kinds, set_weather,
+                  prop_kinds, set_kinds, set_weather, wardrobe_slots,
                   unknown_cast_props)
-from ..schemas import BUILTIN_CREATURES, BUILTIN_SETS, HAND_RIGS, actions_with, Actor, FaceChange, Animal, Camera, Cue, EndCard, Extra, PhrasesModel, SeriesModel, Shot, StoryModel, Strike, Travel, Vehicle
+from ..schemas import (BUILTIN_CREATURES, BUILTIN_SETS, BUILTIN_WARDROBE, HAND_RIGS, Prop, Top, Headwear, Legwear,
+                       actions_with, Actor, FaceChange, Animal, Camera, Cue, EndCard, Extra, PhrasesModel, SeriesModel,
+                       Shot, StoryModel, Strike, Travel, Vehicle)
 from ..validate import (CAR_SPEED, CROWD_Z, DOG_RUN_SPEED, MAX_SHOT_FRAMES, MOODS, OUTDOOR_SETS, SPEEDS,
                         custom_speeds, end_frame, validate)
 from .prep import (BUILTIN_PROPS, DO_CAR, FX_LIGHTNING, FX_MODES, MARKER_RE, clean_markdown, mark_directives, parse_do,
@@ -69,7 +71,7 @@ CAR_BESIDE = 1.9           # arrive: car centre stops this far (x) from the subj
 CAR_Z = -0.6               # arrive / leave: the car stays a little behind the actors' line
 CAR_RUN_D = 5.0            # arrive / leave: distance driven (from / to off-screen), shortened for short shots
 CAR_TRAVEL_SPEED = 4.0     # ride: travel-shot scroll speed (units/s)
-# extras (@crowd <mood> [N], @runners N; both reset on a set change unless repeated)
+# extras (@crowd <mood> [N], named teams, and crowd wardrobe/props; all reset on a set change unless repeated)
 CROWD_DEFAULT, CROWD_MAX = 8, 12
 CROWD_W = 2.8              # crowd spread across x -2.8..2.8
 CROWD_GAP = 0.55           # min x between neighbours in a crowd row
@@ -128,7 +130,7 @@ def seed_for(slug: str, part_number: int) -> int:
 
 
 def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILTIN_PROPS, looks_of=None, actions=(),
-              weather_of=None):
+              weather_of=None, wardrobe=None):
     """Return (words, [(set, cast tuple, twist starts here, dogs, car mode, do, crowd, runners, looks, weather,
     strike, face)]) from
     story.md, words as prep's script has them. do: (story.md line, @do clauses) for the words of the line after an
@@ -139,7 +141,7 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
     face: {cast id: expression} for the words of the line after an @face, else None."""
     text, directives = mark_directives(md)
     set_, cast, twist_next, dogs, car, do = DEFAULT_SET, tuple(default_cast), False, 0, "off", None
-    crowd, runners, looks, strike, face = None, 0, {}, None, None
+    crowd, crowd_wardrobe, runners, looks, strike, face = {}, {}, 0, {}, None, None
     weather_of = weather_of or {}
     weather = weather_of.get(set_)
     looks_of = looks_of if looks_of is not None else {c: [] for c in cast_ids}
@@ -148,7 +150,10 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
         m = MARKER_RE.match(tok)
         if not m:
             words.append(tok)
-            tags.append((set_, cast, twist_next, dogs, car, do, crowd, runners, looks, weather, strike, face))
+            tags.append((set_, cast, twist_next, dogs, car, do,
+                         {k: dict(v) for k, v in crowd.items()},
+                         {k: dict(v) for k, v in crowd_wardrobe.items()}, runners,
+                         dict(looks), weather, strike, face))
             twist_next, strike = False, None
         elif m[1] == "!":
             twist_next = True
@@ -160,7 +165,7 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
             arg = arg.strip()
             if name == "set" and arg:
                 if arg != set_:
-                    crowd, runners = None, 0  # extras belong to a set
+                    crowd, crowd_wardrobe, runners = {}, {}, 0  # extras belong to a set
                 set_, weather = arg, weather_of.get(arg)
             elif name == "weather":
                 weather = parse_weather(arg, line)
@@ -188,7 +193,19 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
             elif name == "do":
                 do = (line, tuple(parse_do(arg, line, cast_ids, props, actions)))
             elif name == "crowd":
-                crowd = parse_crowd(arg, line)
+                group, spec = parse_crowd(arg, line)
+                if spec is None:
+                    crowd.pop(group, None)
+                else:
+                    if spec["mood"] == "fight" and group in crowd:
+                        spec["n"] = crowd[group]["n"]
+                    crowd[group] = spec
+            elif name == "crowd-look":
+                group, costume = parse_crowd_look(arg, line, wardrobe or set())
+                crowd_wardrobe[group] = {**crowd_wardrobe.get(group, {}), **costume}
+            elif name == "crowd-weapon":
+                group, weapon = parse_crowd_weapon(arg, line, props)
+                crowd_wardrobe[group] = {**crowd_wardrobe.get(group, {}), "props": [Prop(kind=weapon, hand="right")]}
             elif name == "runners" and arg.isdigit() and int(arg) <= MAX_RUNNERS:
                 runners = int(arg)
             elif name == "face":
@@ -202,28 +219,66 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
                 raise StageError(f"story.md line {line}: bad directive @{d.strip()} (use @set <name>, @cast a, b, "
                                  f"@dogs 0-{MAX_DOGS}, @car {' | '.join(CAR_MODES)}, @fx {' | '.join(FX_MODES)} | lightning [target], "
                                  f"@weather <type> [intensity], "
-                                 f"@do <cast>: <action>, @look <cast>: <look>, @face <cast>: <expression>, @sfx <id>, @crowd <mood> [N] | off or @runners 0-{MAX_RUNNERS})")
+                                 f"@do <cast>: <action>, @look <cast>: <look>, @face <cast>: <expression>, @sfx <id>, "
+                                 f"@crowd <mood> [N] | <group> <mood> [N] | off, @crowd-look <group>: <wardrobe ids>, "
+                                 f"@crowd-weapon <group>: <prop>, or @runners 0-{MAX_RUNNERS})")
     return words, tags
 
 
 def parse_crowd(arg: str, line: int):
-    """@crowd <cheer|angry|gasp|neutral> [N] | off -> (mood, N) or None"""
+    """Return (group, spec). Legacy syntax uses the implicit default group."""
     words = arg.split()
     if words == ["off"]:
-        return None
-    if not 1 <= len(words) <= 2 or words[0] not in MOODS or (len(words) == 2 and not (
-            words[1].isdigit() and 1 <= int(words[1]) <= CROWD_MAX)):
+        return "default", None
+    group, rest = "default", words
+    if words and words[0] not in MOODS and words[0] not in {"off"}:
+        group, rest = words[0], words[1:]
+    if rest == ["off"]:
+        if not re.fullmatch(r"[a-z0-9_-]+", group):
+            raise StageError(f"story.md line {line}: bad directive @crowd {arg.strip()}")
+        return group, None
+    valid_tail = rest[1].isdigit() and 1 <= int(rest[1]) <= CROWD_MAX if len(rest) == 2 and rest[0] != "fight" else \
+        bool(len(rest) == 2 and re.fullmatch(r"[a-z0-9_-]+", rest[1])) if rest and rest[0] == "fight" else len(rest) == 1
+    if not re.fullmatch(r"[a-z0-9_-]+", group) or not 1 <= len(rest) <= 2 or rest[0] not in (*MOODS, "fight") or not valid_tail:
         raise StageError(f"story.md line {line}: bad directive @crowd {arg.strip()} (use @crowd "
-                         f"{' | '.join(sorted(MOODS))} [1-{CROWD_MAX}, default {CROWD_DEFAULT}] or @crowd off)")
-    return words[0], int(words[1]) if len(words) == 2 else CROWD_DEFAULT
+                         f"{' | '.join(sorted(MOODS | {'fight'}))} [1-{CROWD_MAX}, default {CROWD_DEFAULT}], "
+                         f"@crowd <group> <mood> [N], or @crowd off)")
+    return group, {"mood": rest[0], "n": CROWD_DEFAULT if rest[0] == "fight" or not len(rest) == 2 or not rest[1].isdigit() else int(rest[1]),
+                   "target": rest[1] if rest[0] == "fight" and len(rest) == 2 else None}
 
 
-def crowd_extras(mood: str, n: int, seed: int, set_: str, indoor: bool = False) -> list[Extra]:
+def parse_crowd_look(arg: str, line: int, wardrobe):
+    group, sep, ids = arg.partition(":")
+    ids = [x.strip() for x in ids.split(",") if x.strip()]
+    if not sep or not re.fullmatch(r"[a-z0-9_-]+", group.strip()) or not ids or len(ids) > 3:
+        raise StageError(f"story.md line {line}: bad directive @crowd-look {arg.strip()} (use @crowd-look <group>: top, headwear, legwear)")
+    slots = {**{k: v[0] for k, v in BUILTIN_WARDROBE.items()}, **(wardrobe or {})}
+    costume = {}
+    for wid in ids:
+        slot = slots.get(wid)
+        if not slot or slot not in {"top", "headwear", "legwear"}:
+            raise StageError(f"story.md line {line}: bad directive @crowd-look {arg.strip()} (unknown or unsupported wardrobe item {wid})")
+        value = {"style": wid, "color": "#536b82"} if slot == "top" else {"kind": wid, "color": "#334455"}
+        costume[slot] = value
+    return group.strip(), costume
+
+
+def parse_crowd_weapon(arg: str, line: int, props):
+    group, sep, weapon = arg.partition(":")
+    group, weapon = group.strip(), weapon.strip()
+    if not sep or not re.fullmatch(r"[a-z0-9_-]+", group) or not re.fullmatch(r"[a-z0-9_-]+", weapon) or weapon not in set(props):
+        raise StageError(f"story.md line {line}: bad directive @crowd-weapon {arg.strip()} (use @crowd-weapon <group>: <prop>)")
+    return group, weapon
+
+
+def crowd_extras(group: str, spec: dict, seed: int, set_: str, indoor: bool = False, group_index: int = 0, group_count: int = 1,
+                 costume: dict | None = None) -> list[Extra]:
     """n crowd extras facing the camera: one row (n <= CROWD_ONE_ROW), else a front row of ceil(n/2) and a back row
     offset half a step. Neighbours in a row stay CROWD_GAP+ apart in x. Spots and looks are seeded per part, set and
     crowd size: the same people stand in the same places across cuts. (The engine then moves or drops, per shot,
     any extra whose head would overlap a cast member's head on screen.)"""
-    R = random.Random(f"{seed}:crowd:{set_}:{n}")
+    mood, n, target = spec["mood"], spec["n"], spec.get("target")
+    R = random.Random(f"{seed}:crowd:{set_}:{group}:{n}")
     # two rows: the front row takes one more than the back, so every back extra fits in a gap between two front ones
     n1 = math.ceil((n + 1) / 2) if n > CROWD_ONE_ROW else n
     n2 = n - n1
@@ -233,12 +288,17 @@ def crowd_extras(mood: str, n: int, seed: int, set_: str, indoor: bool = False) 
     back = (CROWD_BACK[0], max(CROWD_BACK[1], INDOOR_BACK) if indoor else CROWD_BACK[1])
     gap0 = (n1 - 1 - n2) // 2  # the back row sits in the middle gaps
     out = []
+    # Named teams face each other: the first two teams occupy opposite halves. The legacy default remains wide.
+    side = -1 if group_count > 1 and group_index == 0 else 1 if group_count > 1 else 0
+    lo, hi = (-CROWD_W, 0.0) if side < 0 else (0.0, CROWD_W) if side > 0 else (-CROWD_W, CROWD_W)
     for row, (count, zr, off) in enumerate(((n1, front, 0.5), (n2, back, 1.0 + gap0))):
         for i in range(count):
-            x = -CROWD_W + step * (i + off) + R.uniform(-jit, jit)
-            out.append(Extra(id=f"crowd{len(out) + 1}", kind="crowd", action=mood,
-                             start_pos=(round(x, 3), round(R.uniform(*zr), 2)), facing="camera",
-                             variant=R.randrange(1000)))
+            x = lo + (hi - lo) * ((i + off) / max(n1, 1)) + R.uniform(-jit, jit)
+            out.append(Extra(id=f"{group}-{len(out) + 1}", kind="crowd", action=mood,
+                             group=group, target_group=target,
+                             start_pos=(round(x, 3), round(R.uniform(*zr), 2)),
+                             facing="right" if side < 0 else "left" if side > 0 else "camera",
+                             variant=R.randrange(1000), **(costume or {})))
     return out
 
 
@@ -601,7 +661,7 @@ def _car_move(mode, park, actors, subject, seconds, seed) -> Vehicle:
 
 
 def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, props=BUILTIN_PROPS,
-         outdoor=OUTDOOR_SETS, bodies=BUILTIN_CREATURES, actions=(), weather_of=None) -> StoryModel:
+         outdoor=OUTDOOR_SETS, bodies=BUILTIN_CREATURES, actions=(), weather_of=None, wardrobe=None) -> StoryModel:
     """bodies: creature id -> (rig, has a stump), io.creature_bodies (built-ins + library/creatures.json).
     actions: the library's custom actions (io.custom_actions), which @do may ask for. weather_of: custom set id ->
     its default_weather (io.set_weather)"""
@@ -609,7 +669,7 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
         raise StageError("series.json has no cast: add some with cast-add")
     ids = [c.id for c in series.cast]
     words, tags = tag_words(md, ids, ids[:DEFAULT_CAST_SIZE], props, {c.id: list(c.looks) for c in series.cast}, actions,
-                            weather_of)
+                            weather_of, wardrobe)
     heard = [w.text for w in phrases.words]
     moods = line_moods(md, words)
     if words != heard:
@@ -661,7 +721,7 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
     pos: dict[str, float] = {}  # where each actor stands now; reset on a set change
     fallen: set = set()  # (@do line, cast id) that already collapsed
     for i, p in enumerate(phrases.phrases):
-        set_, cast, _, dogs, mode, do, crowd, runners, looks, weather, _, face = tags[p.word_start]
+        set_, cast, _, dogs, mode, do, crowd, crowd_wardrobe, runners, looks, weather, _, face = tags[p.word_start]
         if (set_, cast) != scene_key:
             scene_key, back_pos = (set_, cast), {}
         cast, back = rows[i]  # from here on, cast is the front row
@@ -770,7 +830,10 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
             way = (1 if (vehicles[0].facing if vehicles else actors[0].facing) == "right" else -1) if travel else 0
             animals, bark = _dogs(dogs, xs, way, s0, s1, seed, sid, tspeed if travel else None)
             # no crowd in a travel shot: the world scrolls past and a standing crowd would seem to keep pace
-            extras = (crowd_extras(*crowd, seed, set_, set_ not in outdoor) if crowd and not travel else []) + runner_extras(
+            groups = list(crowd.items())
+            extras = ([e for gi, (group, spec) in enumerate(groups)
+                       for e in crowd_extras(group, spec, seed, set_, set_ not in outdoor, gi, len(groups),
+                                             crowd_wardrobe.get(group))] if crowd and not travel else []) + runner_extras(
                 runners, seed, sid, seconds, [a for a in actors if not ride], way, tspeed if travel else 0.0, set_ not in outdoor)
             if bark:
                 cues.append(bark)
@@ -830,7 +893,7 @@ def run(part_dir: Path) -> None:
         raise StageError(f"cast body: {'; '.join(problems)}")
     story = plan(story_md.read_text(encoding="utf-8"), phrases, series, int(part_dir.name.split("-")[1]),
                  prop_kinds(library), outdoor_sets(library), creature_bodies(library), custom_actions(library),
-                 set_weather(library))
+                 set_weather(library), wardrobe_slots(library))
     if unknown := sorted({s.set for s in story.shots} - set(set_kinds(library))):  # the engine would throw mid-render
         raise StageError(f"unknown set: {', '.join(unknown)} (built in: {', '.join(BUILTIN_SETS)}, or add it on the "
                          f"dashboard's Sets page)")
