@@ -146,6 +146,32 @@ export const KINDS: Record<string, Kind> = {
     parse: (a) => upTo(a, 2, ['track', 'vol']), build: (r) => join(r.track, r.track === 'off' ? '' : r.vol) },
 }
 
+/** problems with line i that can be told without the server (the Check button still runs the full story check) */
+export function lintBeat(beats: Beat[], i: number, c: Ctx): string[] {
+  const b = beats[i]
+  const out: string[] = []
+  if (/\d/.test(b.text)) out.push('Spell numbers out as words ("eighteen", not "18").')
+  if (b.twist && i !== beats.length - 1) out.push('The twist goes on the very last line only.')
+  const sound = (x?: Beat) => !!x?.rows.some((r) => r.name === 'sfx')
+  if (sound(b) && sound(beats[i - 1])) out.push('Sounds on two lines in a row: leave a line between them.')
+  for (const r of b.rows) {
+    const k = KINDS[r.name]
+    if (!k) { out.push(`@${r.name} is not a known direction.`); continue }
+    const rec = k.parse(r.arg)
+    if (!rec) continue // written by hand in a shape the fields cannot hold (several people in one @do): the full check reads it
+    for (const f of k.fields(c, rec)) {
+      const v = rec[f.key]?.trim()
+      // empty lists: the library has not loaded yet, so nothing can be told
+      if (f.type === 'select' && v && f.options?.length && !f.options.includes(v)) out.push(`${k.label}: "${v}" is not in the library.`)
+      if (f.type === 'cast' && c.cast.length) {
+        for (const id of v.split(',').map((x) => x.trim()).filter(Boolean))
+          if (!c.cast.some((x) => x.id === id)) out.push(`On stage: "${id}" is not in this series' cast.`)
+      }
+    }
+  }
+  return out
+}
+
 /** a new row of this kind, put in reading order (place, weather, who is on stage, ... the next-line ones last) */
 export function addRow(b: Beat, name: string, c: Ctx): void {
   const rank = KINDS[name].rank

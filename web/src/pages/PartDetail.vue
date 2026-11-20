@@ -530,7 +530,8 @@ watch(() => props.part, () => { chosen.value = null })
       </button>
     </div>
 
-    <div v-show="tab === 'story'" id="panel-story" role="tabpanel" aria-labelledby="tab-story" class="grid items-start gap-6 lg:grid-cols-2">
+    <div v-show="tab === 'story'" id="panel-story" role="tabpanel" aria-labelledby="tab-story" class="space-y-6">
+      <StoryTips />
       <section id="story" class="raised min-w-0 p-6">
         <div class="flex flex-wrap items-center gap-2">
           <h3 class="font-display text-lg font-semibold">Story</h3>
@@ -577,17 +578,21 @@ watch(() => props.part, () => { chosen.value = null })
             <div class="inline-flex rounded-md border border-rule p-0.5" role="group" aria-label="Story view">
               <button v-for="v in (['text', 'painter'] as const)" :key="v" type="button" class="rounded px-3 py-1 text-sm font-semibold"
                 :class="storyView === v ? 'bg-ink text-panel' : 'text-muted hover:text-ink'" :aria-pressed="storyView === v" @click="storyView = v">
-                {{ v === 'text' ? 'Text' : 'Painter' }}</button>
+                {{ v === 'text' ? 'Text' : 'Typewriter' }}</button>
             </div>
-            <StoryPainter v-if="storyView === 'painter'" v-model="storyText" :cast="painterCast" @keydown="onStoryKey" />
-            <template v-else>
+            <StoryPainter v-if="storyView === 'painter'" v-model="storyText" :cast="painterCast" @keydown="onStoryKey" @close="storyView = 'text'">
+              <template #actions>
+                <span v-if="storyDirty" class="size-2.5 rounded-full bg-amber" title="Unsaved changes" aria-label="Unsaved changes" />
+                <button class="btn btn-primary" :disabled="!storyDirty || !!busy" :title="busy ?? undefined" @click="saveStory"><Save :size="16" aria-hidden="true" /> Save</button>
+              </template>
+            </StoryPainter>
+            <template>
               <label class="sr-only" for="story-md">story.md</label>
               <textarea id="story-md" v-model="storyText" class="paper inset block max-h-[32rem] min-h-48 w-full resize-y overflow-auto p-5 font-mono text-sm leading-7 outline-none focus:border-blue"
                 spellcheck="true" @keydown="onStoryKey" />
             </template>
         </div>
       </section>
-      <StoryTips />
     </div>
 
     <div v-show="tab === 'voice'" id="panel-voice" role="tabpanel" aria-labelledby="tab-voice">

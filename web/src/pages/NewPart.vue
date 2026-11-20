@@ -65,18 +65,23 @@ async function create() {
         </label>
       </div>
 
-      <div class="grid items-start gap-6 lg:grid-cols-2">
+      <StoryTips />
+      <div>
         <div class="raised min-w-0 space-y-3 p-6">
           <div class="flex items-center gap-3">
             <label class="text-xs font-semibold text-muted" for="story-md">story.md</label>
             <div class="inline-flex rounded-md border border-rule p-0.5" role="group" aria-label="Story view">
               <button v-for="v in (['text', 'painter'] as const)" :key="v" type="button" class="rounded px-3 py-1 text-sm font-semibold"
                 :class="storyView === v ? 'bg-ink text-panel' : 'text-muted hover:text-ink'" :aria-pressed="storyView === v" @click="storyView = v">
-                {{ v === 'text' ? 'Text' : 'Painter' }}</button>
+                {{ v === 'text' ? 'Text' : 'Typewriter' }}</button>
             </div>
           </div>
-          <StoryPainter v-if="storyView === 'painter'" v-model="story" :cast="painterCast" no-title @update:model-value="storyEdited = true" />
-          <textarea v-else id="story-md" v-model="story" class="paper inset block min-h-96 w-full resize-y p-5 font-mono text-sm leading-7 outline-none focus:border-blue"
+          <StoryPainter v-if="storyView === 'painter'" v-model="story" :cast="painterCast" no-title @update:model-value="storyEdited = true" @close="storyView = 'text'">
+            <template #actions>
+              <button type="button" class="btn btn-primary" :disabled="saving || !data" @click="create">{{ saving ? 'Creating…' : 'Create part' }}</button>
+            </template>
+          </StoryPainter>
+          <textarea id="story-md" v-model="story" class="paper inset block min-h-96 w-full resize-y p-5 font-mono text-sm leading-7 outline-none focus:border-blue"
             spellcheck="true" @input="storyEdited = true" />
           <p class="text-xs text-muted">
             Cast ids: <code>{{ data?.series.cast.map((c) => c.id).join(', ') || 'none yet' }}</code>. Every directive: the Help page.
@@ -85,7 +90,6 @@ async function create() {
             <button class="btn btn-primary" :disabled="saving || !data">{{ saving ? 'Creating…' : 'Create part' }}</button>
           </div>
         </div>
-        <StoryTips />
       </div>
     </form>
   </div>

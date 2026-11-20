@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addRow, KINDS, parseStory, writeStory, type Ctx } from './storyPaint'
+import { addRow, KINDS, lintBeat, parseStory, writeStory, type Ctx } from './storyPaint'
 
 const MD = `# The Lantern Test
 
@@ -46,5 +46,20 @@ describe('storyPaint', () => {
     addRow(b, 'set', ctx)
     addRow(b, 'sfx', ctx)
     expect(b.rows.map((r) => r.name)).toEqual(['set', 'do', 'sfx'])
+  })
+})
+
+describe('lintBeat', () => {
+  const c: Ctx = { sets: ['street'], actions: ['wave'], props: [], sounds: ['pop', 'boom'], cast: [{ id: 'ava', name: 'Ava', looks: [] }] }
+  it('flags digits, a twist that is not last, back-to-back sounds and unknown names', () => {
+    const p = parseStory(`# T\n@set moon\n@cast ava, zed\n!! It cost 18 coins.\n@sfx pop\nOne.\n@sfx boom\n@do ava: dance\nTwo.\n`)
+    expect(lintBeat(p.beats, 0, c)).toEqual([
+      'Spell numbers out as words ("eighteen", not "18").',
+      'The twist goes on the very last line only.',
+      'Place: "moon" is not in the library.',
+      `On stage: "zed" is not in this series' cast.`,
+    ])
+    expect(lintBeat(p.beats, 1, c)).toEqual([])
+    expect(lintBeat(p.beats, 2, c)).toEqual(['Sounds on two lines in a row: leave a line between them.', 'Action: "dance" is not in the library.'])
   })
 })
