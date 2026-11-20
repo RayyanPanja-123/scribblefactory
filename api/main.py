@@ -34,7 +34,7 @@ from PIL import Image
 from pydantic import BaseModel, Field, TypeAdapter, ValidationError
 from sse_starlette import EventSourceResponse
 
-from pipeline.scribble import cli, package, settings, storycheck
+from pipeline.scribble import cli, gallery, package, settings, storycheck
 from pipeline.scribble import sfx as sfx_lib
 from pipeline.scribble.io import (atomic_write_bytes, atomic_write_json, atomic_write_text, delete_prop, delete_set, delete_object, load_part, load_props,
                                   load_series, load_sets, prop_kinds, save_prop, save_series, save_set, unknown_cast_props,
@@ -1305,6 +1305,34 @@ def delete_series(slug: str):
     cli_call("delete-series", slug, "--yes")
     publish("series-changed", {"slug": slug})
     return {"ok": True}
+
+
+@app.post("/api/series/{slug}/gallery", response_model=gallery.GalleryEntry)
+def move_to_gallery(slug: str):
+    """keep the thumbnails, links and text of a series posted everywhere, delete the rest (cli to-gallery)"""
+    series_path(slug)
+    check_free(slug)
+    if any(j["status"] == "queued" and j["slug"] == slug for j in list(JOBS)):
+        raise HTTPException(409, f"a job is queued on {slug}; cancel it first")
+    before = {e.slug for e in gallery.entries(lib())}
+    cli_call("to-gallery", slug, "--yes")
+    publish("series-changed", {"slug": slug})
+    return next(e for e in gallery.entries(lib()) if e.slug not in before)
+
+
+@app.get("/api/gallery", response_model=list[gallery.GalleryEntry])
+def gallery_list():
+    return gallery.entries(lib())
+
+
+@app.get("/api/gallery/{slug}/{path:path}")
+def gallery_file(slug: str, path: str):
+    """a kept thumbnail or text file of a gallery entry"""
+    root = (lib() / gallery.GALLERY).resolve()
+    f = (root / slug / path).resolve()
+    if not f.is_relative_to(root / slug) or slug.startswith(".") or f.suffix.lower() not in MEDIA_TYPES or not f.is_file():
+        raise HTTPException(404, "not found")
+    return FileResponse(f, headers={"Cache-Control": "no-cache"})
 
 
 @app.delete("/api/series/{slug}/parts/{part}", response_model=SeriesModel)

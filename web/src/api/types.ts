@@ -132,6 +132,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/gallery": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Gallery List */
+        get: operations["gallery_list_api_gallery_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/gallery/{slug}/{path}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Gallery File
+         * @description a kept thumbnail or text file of a gallery entry
+         */
+        get: operations["gallery_file_api_gallery__slug___path__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -483,6 +520,26 @@ export interface paths {
          */
         put: operations["edit_cast_api_series__slug__cast__cast_id__put"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/series/{slug}/gallery": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move To Gallery
+         * @description keep the thumbnails, links and text of a series posted everywhere, delete the rest (cli to-gallery)
+         */
+        post: operations["move_to_gallery_api_series__slug__gallery_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1393,6 +1450,46 @@ export interface components {
              * @description when a story should use it (shown to the story AI; never changes the drawing)
              */
             use_for?: string | null;
+        };
+        /** GalleryEntry */
+        GalleryEntry: {
+            /** Created At */
+            created_at: string;
+            /** Freed Bytes */
+            freed_bytes: number;
+            /** Moved At */
+            moved_at: string;
+            /** Parts */
+            parts: components["schemas"]["GalleryPart"][];
+            /**
+             * Schema Version
+             * @default 1
+             * @constant
+             */
+            schema_version: 1;
+            /**
+             * Slug
+             * @description the entry's folder in library/_gallery (the series slug, -2 etc. if reused)
+             */
+            slug: string;
+            /** Title */
+            title: string;
+        };
+        /** GalleryPart */
+        GalleryPart: {
+            /** Id */
+            id: string;
+            instagram: components["schemas"]["Post"];
+            /** Number */
+            number: number;
+            /**
+             * Thumbnail
+             * @description path inside the entry's folder; null: the part had no thumbnail
+             */
+            thumbnail: string | null;
+            /** Title */
+            title: string;
+            youtube: components["schemas"]["Post"];
         };
         /** GeminiKey */
         GeminiKey: {
@@ -2934,6 +3031,58 @@ export interface operations {
             };
         };
     };
+    gallery_list_api_gallery_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GalleryEntry"][];
+                };
+            };
+        };
+    };
+    gallery_file_api_gallery__slug___path__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                path: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     health_api_health_get: {
         parameters: {
             query?: never;
@@ -3658,6 +3807,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SeriesModel"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    move_to_gallery_api_series__slug__gallery_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GalleryEntry"];
                 };
             };
             /** @description Validation Error */

@@ -824,3 +824,34 @@ def test_captions_gemini(client, lib, monkeypatch):
     assert client.post("/api/captions", json={"prompt": "write"}).status_code == 502
     assert not client.put("/api/settings/gemini-key", json={"key": ""}).json()["gemini_key_last4"]
     assert "gemini_key" not in json.loads((lib / "settings.json").read_text(encoding="utf-8"))
+
+
+def test_move_to_gallery(client, lib):
+    from datetime import datetime, timezone
+    from pipeline.scribble.schemas import Post
+    assert "not marked posted to YouTube or Instagram" in client.post("/api/series/demo/gallery").json()["detail"]
+    f = lib / "demo" / "part-01" / "part.json"
+    p = load_part(f)
+    now = datetime.now(timezone.utc)
+    p.posted.youtube, p.posted.instagram = Post(url="https://youtu.be/x", posted_at=now), Post(url="https://instagram.com/p/y", posted_at=now)
+    p.thumbnail_choice = "thumbs/thumb-2.png"
+    save_part(f, p)
+    real = os.replace  # the series folder held open: 409, the series untouched and no half-made gallery entry
+    def held(src, dst):
+        if os.path.isdir(src):
+            raise PermissionError(5, "Access is denied")
+        real(src, dst)
+    mp = pytest.MonkeyPatch()
+    mp.setattr(os, "replace", held)
+    r = client.post("/api/series/demo/gallery")
+    mp.undo()
+    assert r.status_code == 409 and (lib / "demo" / "part-01" / "final.mp4").exists() and client.get("/api/gallery").json() == []
+    e = client.post("/api/series/demo/gallery").json()
+    assert e["slug"] == "demo" and e["title"] == "Demo" and e["freed_bytes"] > 0
+    assert e["parts"][0]["thumbnail"] == "part-01/thumbnail.png" and e["parts"][0]["instagram"]["url"] == "https://instagram.com/p/y"
+    assert not (lib / "demo").exists() and client.get("/api/series").json() == [] and client.get("/api/gallery").json() == [e]
+    assert client.get("/api/gallery/demo/part-01/thumbnail.png").content == b"png2"
+    assert client.get("/api/gallery/demo/part-01/story.md").status_code == 200
+    (lib / "secret.json").write_text("{}", encoding="utf-8")
+    assert client.get("/api/gallery/demo/..%2F..%2Fsecret.json").status_code == 404  # never outside the entry
+    assert client.get("/api/gallery/demo/part-01/final.mp4").status_code == 404

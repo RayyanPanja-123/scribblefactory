@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Series page: loads the series and lays it out. The cast workflow lives in CastPanel, each part in PartCard,
 // and what to do next is lib/seriesNext (pure, tested).
-import { ArrowLeft, ArrowRight, CircleCheck, FileQuestion, Plus, Trash2 } from 'lucide-vue-next'
+import { ArrowLeft, ArrowRight, CircleCheck, FileQuestion, Images, Plus, Trash2 } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../api/client'
@@ -49,6 +49,29 @@ async function deleteSeries() {
     confirm: 'Delete series', danger: true,
   })
   if (ok && (await act(() => api.deleteSeries(props.slug), `${s.title} deleted`))) router.push('/series')
+}
+
+// the gallery: once every part is posted to both, keep the thumbnails, links and text and free the rest
+const galleryReason = computed(() => {
+  const d = data.value
+  if (!d || deleteReason.value) return deleteReason.value
+  if (!d.parts.length) return 'the series has no parts yet'
+  const p = d.parts.find((x) => x.missing || !x.posted?.youtube || !x.posted?.instagram)
+  if (!p) return null
+  const missing = [!p.posted?.youtube && 'YouTube', !p.posted?.instagram && 'Instagram'].filter(Boolean).join(' and ')
+  return `${p.title ?? p.id} is not marked posted to ${missing}`
+})
+async function moveToGallery() {
+  const s = series.value!
+  const ok = await confirm({
+    title: `Move “${s.title}” to the gallery?`,
+    body: 'Keeps each part\'s title, chosen thumbnail, YouTube and Instagram links, story and captions (and the cast list). '
+      + 'Deletes everything else for good: videos, frames, voices and cast sheets. Your exported reels folder is not touched.',
+    confirm: 'Move to gallery', danger: true,
+  })
+  if (!ok) return
+  const e = await act(() => api.moveToGallery(props.slug), `${s.title} moved to the gallery`)
+  if (e) router.push('/gallery')
 }
 
 // the series facts, one compact line under the title
@@ -126,6 +149,16 @@ const facts = computed(() => {
       <EmptyState v-if="!data.parts.length" :icon="FileQuestion" title="No parts yet"
         text="A part is one short: write its story, record the voice, and the factory does the rest." />
       <PartCard v-for="(p, i) in data.parts" :key="p.id" :slug="slug" :part="p" :index="i" />
+    </section>
+
+    <section class="raised flex flex-wrap items-center gap-4 p-5" aria-label="Gallery">
+      <div class="min-w-0 flex-1">
+        <p class="text-sm font-semibold">Move to gallery</p>
+        <p class="text-xs text-muted">{{ galleryReason ? `Not yet: ${galleryReason}.` : 'Posted everywhere: keep the thumbnails and links, free the disk space.' }}</p>
+      </div>
+      <button class="btn btn-secondary" :disabled="!!galleryReason" :title="galleryReason ?? undefined" @click="moveToGallery">
+        <Images :size="16" aria-hidden="true" /> Move to gallery
+      </button>
     </section>
 
     <section class="flex flex-wrap items-center gap-4 rounded-lg border tint-red p-5" aria-label="Danger zone">

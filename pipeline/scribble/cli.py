@@ -16,7 +16,7 @@ from pathlib import Path
 
 from pydantic import TypeAdapter, ValidationError
 
-from . import sheet, storycheck
+from . import gallery, sheet, storycheck
 from .io import (atomic_write_json, cast_body_problems, cast_files, cast_key, cast_render_current, load_part, load_series, prop_kinds, replace_file, save_part,
                  save_series, unknown_cast_props)
 from .schemas import CastMember, Expression, PartId, PartModel, Post, SeriesModel, Slug, Stages, StoryModel, Style, Voice, utcnow
@@ -241,12 +241,40 @@ def cmd_delete_series(args) -> int:
         print(f"would delete {d} ({size / 1e6:.1f} MB: {len(series.parts)} part(s), cast of {len(series.cast)}); "
               f"add --yes to delete")
         return 0
-    trash = d.with_name(f".deleted-{args.slug}-{utcnow():%Y%m%d%H%M%S}")
+    remove_series_folder(d, args.slug)
+    print(f"deleted series {args.slug} ({size / 1e6:.1f} MB freed)")
+    return 0
+
+
+def remove_series_folder(d: Path, slug: str) -> None:
+    trash = d.with_name(f".deleted-{slug}-{utcnow():%Y%m%d%H%M%S}")
     move_aside(d, trash)  # one atomic step: from here the series is gone from the library
     shutil.rmtree(trash, ignore_errors=True)
     if trash.exists():
         print(f"note: could not delete every file of {trash.name} (in use?); delete it later")
-    print(f"deleted series {args.slug} ({size / 1e6:.1f} MB freed)")
+
+
+def cmd_to_gallery(args) -> int:
+    """Move a series posted everywhere to the gallery: keep each part's title, chosen thumbnail, YouTube and Instagram
+    links, story.md and upload.md (and series.json); delete the rest of its folder. Dry run unless --yes."""
+    f, series = load_existing_series(args)
+    d = f.parent
+    if why := gallery.not_posted(d):
+        raise UserError(f"{args.slug} can't move to the gallery yet: {'; '.join(why)}")
+    running = [p for p in part_folders(d) if render_stage.lock_owner(d / p)]
+    if running:
+        raise UserError(f"a render is running on {args.slug} {running[0]}; wait for it or stop it")
+    if not args.yes:
+        print(f"would move {args.slug} to the gallery, freeing about {gallery.size(d) / 1e6:.1f} MB; add --yes to do it")
+        return 0
+    kept = gallery.build(d, library_root(args))
+    try:
+        remove_series_folder(d, args.slug)
+    except UserError:
+        shutil.rmtree(kept, ignore_errors=True)  # the series is still there: no half-moved duplicate on a retry
+        raise
+    entry = gallery.GalleryEntry.model_validate_json((kept / "gallery.json").read_bytes())
+    print(f"moved {args.slug} to the gallery ({entry.freed_bytes / 1e6:.1f} MB freed)")
     return 0
 
 
@@ -604,6 +632,13 @@ def build_parser() -> Parser:
     c.add_argument("slug")
     c.add_argument("--yes", action="store_true", help="really delete")
     c.set_defaults(func=cmd_delete_series)
+
+    c = sub.add_parser("to-gallery", parents=[common],
+                       help="move a series posted to YouTube and Instagram to the gallery: keep thumbnails, links and "
+                            "text, delete the rest (dry run unless --yes)")
+    c.add_argument("slug")
+    c.add_argument("--yes", action="store_true", help="really move it")
+    c.set_defaults(func=cmd_to_gallery)
 
     c = sub.add_parser("delete-part", parents=[common],
                        help="delete a part: its whole folder and its series.json entry (dry run unless --yes)")
