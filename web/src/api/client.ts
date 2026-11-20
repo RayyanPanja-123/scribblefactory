@@ -75,6 +75,7 @@ export const api = {
   markPosted: (slug: string, p: string, body: { platform: Platform; url: string; date?: string; force?: boolean }) =>
     call<PartModel>('POST', `${part(slug, p)}/mark-posted`, body),
   saveUpload: (slug: string, p: string, text: string) => call<PartDetail>('PUT', `${part(slug, p)}/upload.md`, { text }),
+  mobileDownloadUrl: (slug: string, p: string) => call<{ url: string }>('GET', `/api/mobile-download-url/${e(slug)}/${e(p)}`),
   saveStory: (slug: string, p: string, text: string) => call<PartDetail>('PUT', `${part(slug, p)}/story.md`, { text }),
   createSeries: (body: S['NewSeries']) => call<SeriesModel>('POST', '/api/series', body),
   addCast: (slug: string, cast: Record<string, unknown>[]) => call<SeriesModel>('POST', `/api/series/${e(slug)}/cast`, { cast }),

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeft, ArrowRight, Check, CircleAlert, CircleCheck, CircleX, Copy, ExternalLink, HardDrive, Instagram, Minus, Play, Plus, RefreshCw, Save, Sparkles, Trash2, Upload, Youtube } from 'lucide-vue-next'
+import { ArrowLeft, ArrowRight, Check, CircleAlert, CircleCheck, CircleX, Copy, Download, ExternalLink, HardDrive, Instagram, Minus, Play, Plus, QrCode, RefreshCw, Save, Sparkles, Trash2, Upload, Youtube, X } from 'lucide-vue-next'
 import { animate, motion } from 'motion-v'
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -268,6 +268,17 @@ const sources = computed(() => [
   { key: 'preview', label: 'Preview', file: 'preview.mp4' },
   { key: 'final', label: 'Final', file: 'final.mp4' },
 ].filter((s) => has(s.file)).map((s) => ({ ...s, src: src(s.file) })))
+
+// The QR opens a download response, so the phone uses its normal save/share flow.
+// The QR service only renders the code; it never receives the video itself.
+const mobileDownloadUrl = ref('')
+const qrUrl = computed(() => `https://quickchart.io/qr?size=300&margin=2&text=${encodeURIComponent(mobileDownloadUrl.value)}`)
+const showMobileQr = ref(false)
+async function openMobileQr() {
+  const result = await api.mobileDownloadUrl(props.slug, props.part).catch(() => null)
+  mobileDownloadUrl.value = result?.url ?? `${window.location.origin}/api/download/${encodeURIComponent(props.slug)}/${encodeURIComponent(props.part)}/final.mp4`
+  showMobileQr.value = true
+}
 
 const TILT = [-5, 3, -2]
 const picked = computed(() => p.value?.thumbnail_choice)
@@ -721,6 +732,13 @@ watch(() => props.part, () => { chosen.value = null })
               <button v-if="form[pl.key].replacing" type="button" class="btn btn-secondary" @click="form[pl.key].replacing = false">Cancel</button>
             </div>
           </form>
+          <div v-if="pl.key === 'instagram' && has('final.mp4')" class="mt-5 border-t border-rule pt-4">
+            <p class="text-sm font-semibold">Send video to phone</p>
+            <p class="mt-1 text-xs text-muted">Scan this QR code with your phone to download the Instagram-ready video.</p>
+            <button type="button" class="btn btn-secondary mt-3" @click="openMobileQr">
+              <QrCode :size="16" aria-hidden="true" /> Show phone QR
+            </button>
+          </div>
         </div>
       </section>
     </div>
@@ -775,6 +793,17 @@ watch(() => props.part, () => { chosen.value = null })
             </button>
           </div>
         </div>
+      </section>
+    </div>
+
+    <div v-if="showMobileQr" class="fixed inset-0 z-50 grid place-items-center bg-[var(--scrim)] p-4" role="dialog" aria-modal="true" aria-labelledby="mobile-qr-title" @click.self="showMobileQr = false">
+      <section class="raised relative w-full max-w-sm p-6 text-center">
+        <button type="button" class="round-btn absolute top-3 right-3" aria-label="Close QR code" @click="showMobileQr = false"><X :size="18" /></button>
+        <h2 id="mobile-qr-title" class="font-display text-xl font-semibold">Download on your phone</h2>
+        <p class="mt-2 text-sm text-muted">Scan with your phone camera. The video will download as an MP4; choose Files or Save Video when prompted.</p>
+        <img :src="qrUrl" alt="QR code to download the final Instagram video" class="mx-auto mt-5 size-64 rounded-md bg-white p-2" />
+        <a :href="mobileDownloadUrl" class="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-blue-ink hover:underline"><Download :size="16" /> Open download link</a>
+        <p class="mt-3 text-xs text-muted">Your phone must be on the same network as this computer.</p>
       </section>
     </div>
   </div>

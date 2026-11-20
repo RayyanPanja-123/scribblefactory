@@ -14,6 +14,7 @@ import json
 import os
 import re
 import shlex
+import socket
 import subprocess
 import sys
 import threading
@@ -444,6 +445,37 @@ def media(slug: str, path: str):
         raise HTTPException(404, "not found")
     # no-cache: the browser may keep a copy but checks it first, so a re-rendered file never shows stale
     return FileResponse(f, headers={"Cache-Control": "no-cache"})  # Starlette answers Range requests with 206
+
+
+@app.get("/api/download/{slug}/{part}/final.mp4")
+def download_final(slug: str, part: str):
+    """Download endpoint used by the mobile QR handoff for an approved/final render."""
+    pdir = part_path(slug, part)
+    f = pdir / "final.mp4"
+    if not f.is_file():
+        raise HTTPException(404, "final video not found")
+    filename = f"{slug}-{part}-instagram.mp4"
+    return FileResponse(f, filename=filename, media_type="video/mp4", headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/api/mobile-download-url/{slug}/{part}")
+def mobile_download_url(slug: str, part: str, request: Request):
+    """Return a phone-reachable URL even when the desktop app was opened as localhost."""
+    part_path(slug, part)
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.connect(("192.0.2.1", 1))  # no packets are sent; this asks Windows for the LAN interface
+        lan_ip = sock.getsockname()[0]
+    except OSError:
+        lan_ip = request.url.hostname or "127.0.0.1"
+    finally:
+        try:
+            sock.close()
+        except UnboundLocalError:
+            pass
+    port = request.url.port or int(os.environ.get("PORT", "8765"))
+    host = f"{lan_ip}:{port}" if port not in (80, 443) else lan_ip
+    return {"url": f"http://{host}/api/download/{urllib.parse.quote(slug)}/{urllib.parse.quote(part)}/final.mp4"}
 
 
 # ---------------- actions ----------------
@@ -1703,7 +1735,8 @@ def dev() -> None:
     """npm run dev's backend: scripts/dev.sh runs this under watchfiles, which restarts it on code changes. Not
     uvicorn --reload: on Windows that restarts its worker with a console-wide Ctrl+C, which stops Vite and npm too."""
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=int(os.environ.get("PORT", "8765")))
+    # LAN binding is intentional: the Instagram QR handoff is scanned by a phone on the same network.
+    uvicorn.run(app, host=os.environ.get("HOST", "0.0.0.0"), port=int(os.environ.get("PORT", "8765")))
 
 
 if __name__ == "__main__":

@@ -33,4 +33,4 @@ stop_api() {
 trap stop_api EXIT INT TERM
 
 echo "dev: backend $SCRIBBLE_API (reload)  app http://localhost:5173"
-(cd web && npm run dev -- --strictPort)  # 5173 taken: fail loudly instead of drifting to another port
+(cd web && npm run dev -- --host 0.0.0.0 --strictPort)  # LAN access lets a phone scan the mobile download QR

@@ -16,5 +16,5 @@ else
   echo "serve: web/dist is up to date"
 fi
 
-echo "serve: scribblefactory on http://127.0.0.1:$PORT"
-SCRIBBLE_SERVE_WEB=1 exec "$VBIN/uvicorn" api.main:app --host 127.0.0.1 --port "$PORT"
+echo "serve: scribblefactory on http://0.0.0.0:$PORT"
+SCRIBBLE_SERVE_WEB=1 exec "$VBIN/uvicorn" api.main:app --host 0.0.0.0 --port "$PORT"

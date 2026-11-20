@@ -4377,6 +4377,53 @@
         "summary": "Put Creature"
       }
     },
+    "/api/download/{slug}/{part}/final.mp4": {
+      "get": {
+        "description": "Download endpoint used by the mobile QR handoff for an approved/final render.",
+        "operationId": "download_final_api_download__slug___part__final_mp4_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "part",
+            "required": true,
+            "schema": {
+              "title": "Part",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Download Final"
+      }
+    },
     "/api/events": {
       "get": {
         "operationId": "events_api_events_get",
@@ -4595,6 +4642,53 @@
           }
         },
         "summary": "Media"
+      }
+    },
+    "/api/mobile-download-url/{slug}/{part}": {
+      "get": {
+        "description": "Return a phone-reachable URL even when the desktop app was opened as localhost.",
+        "operationId": "mobile_download_url_api_mobile_download_url__slug___part__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "part",
+            "required": true,
+            "schema": {
+              "title": "Part",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mobile Download Url"
       }
     },
     "/api/objects": {
