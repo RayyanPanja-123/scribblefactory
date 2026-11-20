@@ -404,7 +404,7 @@ def notifications():
         unused = storycheck.unused_custom_actions(d, lib())
         if unused:
             out.append(Notification(
-                id=f"unused-actions:{series.slug}",
+                id=f"unused-actions:{series.slug}:{','.join(unused)}",
                 title="Custom actions not used",
                 message=f"{', '.join(unused[:8])}{'…' if len(unused) > 8 else ''} are defined in the shared library but no story in this series uses them.",
                 slug=series.slug,

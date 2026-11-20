@@ -7,9 +7,10 @@ import { toast } from './feedback'
 export type LiveEvent =
   | { type: 'part-changed'; slug: string; part: string }
   | { type: 'series-changed'; slug: string }
+  | { type: 'actions-changed'; id: string }
   | { type: 'resync' } // reconnected after a drop: anything may have changed
 
-const TYPES = ['job-queued', 'job-started', 'job-step', 'job-output', 'job-finished', 'part-changed', 'series-changed', 'jobs-cleaned']
+const TYPES = ['job-queued', 'job-started', 'job-step', 'job-output', 'job-finished', 'part-changed', 'series-changed', 'actions-changed', 'jobs-cleaned']
 const listeners = new Set<(e: LiveEvent) => void>()
 const MAX_LINES = 200
 
@@ -95,6 +96,9 @@ function onEvent(type: string, d: any) {
     case 'series-changed':
       emit({ type: 'series-changed', slug: d.slug })
       break
+    case 'actions-changed':
+      emit({ type: 'actions-changed', id: d.id })
+      break
   }
 }
 
@@ -120,7 +124,7 @@ export function startLive() {
 /** Refetch when this series (and part, if given) changes; also on resync. */
 export function refetchOn(slug: () => string | null, part: () => string | null, refresh: () => void) {
   onLive((e) => {
-    if (e.type === 'resync' || slug() === null) return refresh()
+    if (e.type === 'actions-changed' || e.type === 'resync' || slug() === null) return refresh()
     if (e.slug !== slug()) return
     if (e.type === 'series-changed' || part() === null || e.part === part()) refresh()
   })

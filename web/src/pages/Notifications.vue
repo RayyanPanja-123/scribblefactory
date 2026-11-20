@@ -1,11 +1,19 @@
 <script setup lang="ts">
 import { ArrowUpRight, Bell, Info } from 'lucide-vue-next'
-import { api } from '../api/client'
 import EmptyState from '../components/EmptyState.vue'
 import ErrorCard from '../components/ErrorCard.vue'
-import { useApi } from '../composables/useApi'
+import { markNotificationsRead, notificationError, notificationLoading, notifications, refreshNotifications } from '../composables/notifications'
+import { onMounted, watch } from 'vue'
 
-const { data, error, loading, reload } = useApi(api.notifications)
+const data = notifications
+const error = notificationError
+const loading = notificationLoading
+const reload = refreshNotifications
+onMounted(() => {
+  markNotificationsRead()
+  refreshNotifications()
+})
+watch(data, markNotificationsRead, { deep: true })
 </script>
 
 <template>

@@ -6,7 +6,8 @@ import { useRoute, useRouter } from 'vue-router'
 import BrandMark from './components/BrandMark.vue'
 import JobDrawer from './components/JobDrawer.vue'
 import Overlays from './components/Overlays.vue'
-import { drawerOpen, online, queuedCount, runningJob, startLive } from './composables/live'
+import { drawerOpen, onLive, online, queuedCount, runningJob, startLive } from './composables/live'
+import { refreshNotifications, unreadNotifications } from './composables/notifications'
 import { theme, type Theme } from './composables/theme'
 import { search } from './composables/ui'
 
@@ -20,7 +21,6 @@ const groups: { title: string; tabs: Tab[] }[] = [
     { to: '/', name: 'Overview', icon: LayoutDashboard, match: (n) => n === 'overview' },
     { to: '/series', name: 'Series', icon: Layers, match: (n) => n.startsWith('series') || n === 'part' || n === 'new-series' || n === 'new-part' },
     { to: '/review', name: 'Review', icon: ClipboardCheck, match: (n) => n === 'review' },
-    { to: '/notifications', name: 'Notifications', icon: Bell, match: (n) => n === 'notifications' },
   ] },
   { title: 'Library', tabs: [
     { to: '/props', name: 'Props', icon: Backpack, match: (n) => n.startsWith('prop') },
@@ -44,7 +44,15 @@ const THEMES: { id: Theme; label: string; icon: typeof Sun }[] = [
   { id: 'dark', label: 'Dark', icon: Moon },
   { id: 'system', label: 'System', icon: Monitor },
 ]
-onMounted(startLive)
+onMounted(() => {
+  startLive()
+  refreshNotifications()
+})
+onLive((event) => {
+  if (event.type === 'part-changed' || event.type === 'series-changed' || event.type === 'actions-changed' || event.type === 'resync') {
+    refreshNotifications()
+  }
+})
 const reelLabel = computed(() =>
   `Jobs: ${runningJob.value ? `job ${runningJob.value.id} running` : 'none running'}${queuedCount.value ? `, ${queuedCount.value} queued` : ''}`)
 
@@ -146,6 +154,12 @@ watch(search, (q) => {
               {{ queuedCount }}</span>
             <span v-if="!online" class="absolute right-0.5 bottom-0.5 size-2 rounded-full bg-faint" aria-hidden="true" />
           </button>
+          <RouterLink to="/notifications" class="round-btn relative shrink-0" :class="route.name === 'notifications' ? 'text-blue-ink!' : ''"
+            :aria-label="unreadNotifications ? 'Notifications, new items' : 'Notifications'" :aria-current="route.name === 'notifications' ? 'page' : undefined"
+            :title="unreadNotifications ? 'New notifications' : 'Notifications'">
+            <Bell :size="19" aria-hidden="true" />
+            <span v-if="unreadNotifications" class="absolute -top-0.5 -right-0.5 size-2.5 rounded-full border-2 border-panel bg-red" aria-hidden="true" />
+          </RouterLink>
         </header>
 
         <main id="main" class="min-h-0 flex-1 overflow-y-auto px-4 pt-6 pb-16 lg:px-8">
