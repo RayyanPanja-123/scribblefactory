@@ -4,7 +4,7 @@ type S = components['schemas']
 // as the API accepts them: fields with a server default may be left out
 export type SetPiece = Omit<S['SetPiece'], 'backdrop' | 'outline'> & Partial<Pick<S['SetPiece'], 'backdrop' | 'outline'>>
 export type WorldObjectInstance = { id: string; object: string; at: number[]; visible?: boolean }
-export type CustomSet = Omit<S['CustomSet'], 'pieces'> & { pieces?: SetPiece[]; objects?: WorldObjectInstance[] }
+export type CustomSet = Omit<S['CustomSet'], 'pieces' | 'objects'> & { pieces?: SetPiece[]; objects?: WorldObjectInstance[] }
 export type SetCatalog = Omit<S['SetCatalog'], 'custom'> & { custom: CustomSet[] }
 export type SetKind = CustomSet['kind']
 

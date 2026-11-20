@@ -95,6 +95,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/download/{slug}/{part}/final.mp4": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download Final
+         * @description Download endpoint used by the mobile QR handoff for an approved/final render.
+         */
+        get: operations["download_final_api_download__slug___part__final_mp4_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/events": {
         parameters: {
             query?: never;
@@ -196,6 +216,61 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mobile-download-url/{slug}/{part}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Mobile Download Url
+         * @description Return a phone-reachable URL even when the desktop app was opened as localhost.
+         */
+        get: operations["mobile_download_url_api_mobile_download_url__slug___part__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/objects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Objects */
+        get: operations["get_objects_api_objects_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/objects/{object_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put Object */
+        put: operations["put_object_api_objects__object_id__put"];
+        post?: never;
+        /** Remove Object */
+        delete: operations["remove_object_api_objects__object_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -477,6 +552,26 @@ export interface paths {
         put?: never;
         /** Clean Frames */
         post: operations["clean_frames_api_series__slug__parts__part__clean_frames_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/series/{slug}/parts/{part}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Export Final
+         * @description Copy a completed final video into the user's reels export library.
+         */
+        post: operations["export_final_api_series__slug__parts__part__export_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1257,6 +1352,12 @@ export interface components {
             /** Name */
             name: string;
             /**
+             * Objects
+             * @description placed World Objects, targetable by staged interactions
+             * @default []
+             */
+            objects: components["schemas"]["WorldObjectInstance"][];
+            /**
              * Pieces
              * @description drawn in order
              * @default []
@@ -1896,6 +1997,12 @@ export interface components {
         /** Settings */
         Settings: {
             /**
+             * Audio Directory
+             * @description root folder where each new series gets an audio folder
+             * @default D:\personal\short-animations\audios
+             */
+            audio_directory: string;
+            /**
              * Brand Tags
              * @description hashtags every caption carries, e.g. #scribblefactory
              * @default
@@ -1908,6 +2015,12 @@ export interface components {
              * @enum {string}
              */
             caption_model: "gemini-flash-latest" | "gemini-3.8-flash" | "gemini-3.7-flash" | "gemini-3.6-flash" | "gemini-3.5-flash" | "gemini-3-flash-preview" | "gemini-flash-lite-latest" | "gemini-3.5-flash-lite" | "gemini-3.1-flash-lite";
+            /**
+             * Export Directory
+             * @description folder where the Export button copies approved final videos
+             * @default D:\personal\short-animations\reels
+             */
+            export_directory: string;
             /**
              * Force Software Gl
              * @default false
@@ -2436,6 +2549,62 @@ export interface components {
              */
             kind: "rain" | "snow" | "fog" | "wind" | "storm";
         };
+        /**
+         * WorldObject
+         * @description Reusable geometry and interaction capabilities for a large scene object.
+         *
+         *     Unlike a Prop, a WorldObject is not owned by a cast member and is not attached to a hand. Its state belongs to
+         *     the scene and can persist across shots. The renderer currently accepts the same primitives as set pieces so the
+         *     asset can be introduced without adding a second drawing language.
+         */
+        WorldObject: {
+            /** Capabilities */
+            capabilities?: ("move" | "carry" | "enter" | "ride" | "open" | "close" | "break" | "steal" | "remove")[];
+            /**
+             * Carry Mode
+             * @default none
+             * @enum {string}
+             */
+            carry_mode: "none" | "one-hand" | "two-hand" | "vehicle";
+            /**
+             * Category
+             * @default other
+             * @enum {string}
+             */
+            category: "vehicle" | "container" | "furniture" | "equipment" | "debris" | "other";
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Pieces */
+            pieces?: components["schemas"]["SetPiece"][];
+        };
+        /** WorldObjectCatalog */
+        WorldObjectCatalog: {
+            /** Objects */
+            objects: components["schemas"]["WorldObject"][];
+        };
+        /**
+         * WorldObjectInstance
+         * @description A named placement of a WorldObject in a set; its id is the story target.
+         */
+        WorldObjectInstance: {
+            /** At */
+            at: [
+                number,
+                number,
+                number
+            ];
+            /** Id */
+            id: string;
+            /** Object */
+            object: string;
+            /**
+             * Visible
+             * @default true
+             */
+            visible: boolean;
+        };
     };
     responses: never;
     parameters: never;
@@ -2650,6 +2819,38 @@ export interface operations {
             };
         };
     };
+    download_final_api_download__slug___part__final_mp4_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                part: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     events_api_events_get: {
         parameters: {
             query?: never;
@@ -2826,6 +3027,124 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mobile_download_url_api_mobile_download_url__slug___part__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                part: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_objects_api_objects_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorldObjectCatalog"];
+                };
+            };
+        };
+    };
+    put_object_api_objects__object_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorldObject"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorldObjectCatalog"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_object_api_objects__object_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorldObjectCatalog"];
                 };
             };
             /** @description Validation Error */
@@ -3452,6 +3771,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PartModel"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_final_api_series__slug__parts__part__export_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                part: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

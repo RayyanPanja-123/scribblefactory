@@ -27,6 +27,7 @@ export type PackageResult = S['PackageResult']
 export type CaptionReply = S['Captions']
 export type Approval = 'stills' | 'test_render' | 'final'
 export type Platform = 'youtube' | 'instagram'
+export type ExportResult = { path: string; filename: string }
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -76,6 +77,7 @@ export const api = {
     call<PartModel>('POST', `${part(slug, p)}/mark-posted`, body),
   saveUpload: (slug: string, p: string, text: string) => call<PartDetail>('PUT', `${part(slug, p)}/upload.md`, { text }),
   mobileDownloadUrl: (slug: string, p: string) => call<{ url: string }>('GET', `/api/mobile-download-url/${e(slug)}/${e(p)}`),
+  exportPart: (slug: string, p: string) => call<ExportResult>('POST', `${part(slug, p)}/export`),
   saveStory: (slug: string, p: string, text: string) => call<PartDetail>('PUT', `${part(slug, p)}/story.md`, { text }),
   createSeries: (body: S['NewSeries']) => call<SeriesModel>('POST', '/api/series', body),
   addCast: (slug: string, cast: Record<string, unknown>[]) => call<SeriesModel>('POST', `/api/series/${e(slug)}/cast`, { cast }),

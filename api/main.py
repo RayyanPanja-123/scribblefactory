@@ -15,6 +15,7 @@ import os
 import re
 import shlex
 import socket
+import shutil
 import subprocess
 import sys
 import threading
@@ -111,6 +112,11 @@ def parts_of(d: Path):
 
 def media_url(slug: str, rel: str) -> str:
     return f"/api/media/{slug}/{rel}"
+
+
+def safe_folder_name(value: str, fallback: str) -> str:
+    value = re.sub(r'[<>:"/\\|?*]', "", value).strip(" .")
+    return (value or fallback)[:120]
 
 
 def cover(d: Path) -> str | None:
@@ -478,6 +484,26 @@ def mobile_download_url(slug: str, part: str, request: Request):
     return {"url": f"http://{host}/api/download/{urllib.parse.quote(slug)}/{urllib.parse.quote(part)}/final.mp4"}
 
 
+@app.post("/api/series/{slug}/parts/{part}/export")
+def export_final(slug: str, part: str):
+    """Copy a completed final video into the user's reels export library."""
+    check_free(slug, part)
+    series_dir = series_path(slug)
+    part_dir = part_path(slug, part)
+    source = part_dir / "final.mp4"
+    if not source.is_file():
+        raise HTTPException(409, "final.mp4 is not ready to export")
+    series = load_series(series_dir / "series.json")
+    model = load_part(part_dir / "part.json")
+
+    export_root = Path(settings.load(lib())["export_directory"])
+    destination_dir = export_root / safe_folder_name(series.title, slug)
+    destination_dir.mkdir(parents=True, exist_ok=True)
+    destination = destination_dir / f"Part {model.number:02d} - {safe_folder_name(model.title, part)}.mp4"
+    shutil.copy2(source, destination)
+    return {"path": str(destination), "filename": destination.name}
+
+
 # ---------------- actions ----------------
 
 def busy(slug: str, part: str | None = None) -> str | None:
@@ -605,6 +631,7 @@ def create_series(body: NewSeries):
         raise HTTPException(409, f"cast: {problems[0]}")
     cli_call("new-series", body.slug, f"--title={body.title}")
     d = series_path(body.slug)
+    Path(settings.load(lib())["audio_directory"]).joinpath(safe_folder_name(body.title, body.slug)).mkdir(parents=True, exist_ok=True)
     if cast:
         series = load_series(d / "series.json")
         series.cast = cast
@@ -1411,6 +1438,12 @@ class Settings(BaseModel):
     brand_tags: str = Field("", max_length=300, description="hashtags every caption carries, e.g. #scribblefactory")
     caption_model: Literal[settings.FREE_GEMINI] = Field(settings.FREE_GEMINI[0], description=(
         "free Gemini model captions try first; busy or out of quota, the next free one answers"))
+    export_directory: str = Field(settings.DEFAULTS["export_directory"], min_length=1, max_length=500,
+                                  description="folder where the Export button copies approved final videos")
+    audio_directory: str = Field(settings.DEFAULTS["audio_directory"], min_length=1, max_length=500,
+                                 description="root folder where each new series gets an audio folder")
+    export_directory: str = Field(settings.DEFAULTS["export_directory"], min_length=1, max_length=500,
+                                  description="folder where the Export button copies approved final videos")
 
 
 class Machine(BaseModel):

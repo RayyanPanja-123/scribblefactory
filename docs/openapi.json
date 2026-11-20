@@ -2834,6 +2834,14 @@
       },
       "Settings": {
         "properties": {
+          "audio_directory": {
+            "default": "D:\\personal\\short-animations\\audios",
+            "description": "root folder where each new series gets an audio folder",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Audio Directory",
+            "type": "string"
+          },
           "brand_tags": {
             "default": "",
             "description": "hashtags every caption carries, e.g. #scribblefactory",
@@ -2856,6 +2864,14 @@
               "gemini-3.1-flash-lite"
             ],
             "title": "Caption Model",
+            "type": "string"
+          },
+          "export_directory": {
+            "default": "D:\\personal\\short-animations\\reels",
+            "description": "folder where the Export button copies approved final videos",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Export Directory",
             "type": "string"
           },
           "force_software_gl": {
@@ -5642,6 +5658,53 @@
           }
         },
         "summary": "Clean Frames"
+      }
+    },
+    "/api/series/{slug}/parts/{part}/export": {
+      "post": {
+        "description": "Copy a completed final video into the user's reels export library.",
+        "operationId": "export_final_api_series__slug__parts__part__export_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "part",
+            "required": true,
+            "schema": {
+              "title": "Part",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Final"
       }
     },
     "/api/series/{slug}/parts/{part}/mark-posted": {

@@ -150,6 +150,7 @@ function onStoryKey(e: KeyboardEvent) {
 
 // ---- voice ----
 const uploading = ref(false)
+const exporting = ref(false)
 async function uploadVoice(e: Event) {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
@@ -278,6 +279,16 @@ async function openMobileQr() {
   const result = await api.mobileDownloadUrl(props.slug, props.part).catch(() => null)
   mobileDownloadUrl.value = result?.url ?? `${window.location.origin}/api/download/${encodeURIComponent(props.slug)}/${encodeURIComponent(props.part)}/final.mp4`
   showMobileQr.value = true
+}
+
+async function exportPart() {
+  if (exporting.value) return
+  exporting.value = true
+  try {
+    await act(() => api.exportPart(props.slug, props.part), 'Video exported to D:\\personal\\short-animations\\reels')
+  } finally {
+    exporting.value = false
+  }
 }
 
 const TILT = [-5, 3, -2]
@@ -442,6 +453,9 @@ watch(() => props.part, () => { chosen.value = null })
         <span class="num text-3xl text-muted">{{ String(p.number).padStart(2, '0') }}</span>
         <h2 class="font-display text-3xl font-semibold">{{ p.title }}</h2>
         <span v-if="busy" class="chip chip-blue"><span class="pulse size-1.5 rounded-full bg-current" />{{ busy }}</span>
+        <button v-if="approved('final') && has('final.mp4')" type="button" class="btn btn-primary ml-auto" :disabled="exporting" @click="exportPart">
+          <Download :size="16" aria-hidden="true" /> {{ exporting ? 'Exporting…' : 'Export' }}
+        </button>
       </div>
       <PartStepper class="mt-5" :steps="steps" />
       <details class="mt-3 text-sm">
