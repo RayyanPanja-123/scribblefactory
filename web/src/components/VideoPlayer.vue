@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { Pause, Play } from 'lucide-vue-next'
-import { motion } from 'motion-v'
 import { computed, ref, watch } from 'vue'
-import { SPRING } from '../composables/ui'
 
-// Custom player over /api/media (Range requests make seeking work). Space plays, arrows seek 5 s.
-const p = defineProps<{ sources: { key: string; label: string; src: string }[] }>()
+// Reel-style player over /api/media (Range requests make seeking work): the video fills its box, tap or Space
+// plays/pauses (big button in the centre while paused), arrows seek 5 s, a thin bar at the bottom scrubs.
+// Sources (test render / preview / final) are tabs over the top. Fills its parent: the parent sets the size.
+const p = defineProps<{ sources: { key: string; label: string; src: string }[]; top?: string }>()
 const current = ref(p.sources.at(-1)?.key)
 const src = computed(() => p.sources.find((s) => s.key === current.value)?.src)
 watch(() => p.sources.map((s) => s.key).join(), () => {
@@ -42,36 +42,38 @@ function choose(key: string) {
 </script>
 
 <template>
-  <div class="space-y-4 outline-none focus:border-blue" tabindex="0" aria-label="Video player: space plays, arrow keys seek 5 seconds"
-    @keydown="onKey">
-    <div v-if="p.sources.length > 1" class="inset relative flex p-1" role="tablist" aria-label="Source">
+  <div class="group relative size-full overflow-hidden bg-black text-white outline-none" tabindex="0"
+    aria-label="Video player: space plays, arrow keys seek 5 seconds" @keydown="onKey">
+    <video :id="`video-panel-${current}`" ref="video" :key="src" :src="src" class="size-full object-cover" preload="metadata" playsinline
+      @click="toggle" @play="playing = true" @pause="playing = false" @ended="playing = false"
+      @timeupdate="time = video!.currentTime" @loadedmetadata="duration = video!.duration; time = 0; mediaError = false" @error="mediaError = true" />
+
+    <!-- sources, over the top like a reels header -->
+    <div v-if="p.sources.length > 1" class="absolute inset-x-0 top-0 flex justify-center gap-4 bg-gradient-to-b from-black/55 to-transparent pb-6"
+      :class="top ?? 'pt-3'" role="tablist" aria-label="Source">
       <button v-for="s in p.sources" :key="s.key" type="button" role="tab" :aria-selected="current === s.key"
         :aria-controls="`video-panel-${s.key}`" :tabindex="current === s.key ? 0 : -1"
-        class="relative flex-1 rounded-sm px-3 py-1.5 text-sm font-semibold" @click="choose(s.key)">
-        <motion.span v-if="current === s.key" layout-id="player-src" class="absolute inset-0 rounded-sm bg-panel shadow-[var(--shadow-sheet)]"
-          :transition="SPRING" />
-        <span class="relative">{{ s.label }}</span>
-      </button>
+        class="border-b-2 pb-0.5 text-[13px] font-semibold drop-shadow" :class="current === s.key ? 'border-white text-white' : 'border-transparent text-white/60 hover:text-white'"
+        @click="choose(s.key)">{{ s.label }}</button>
     </div>
 
-    <div class="inset overflow-hidden p-2">
-      <video :id="`video-panel-${current}`" ref="video" :key="src" :src="src" class="aspect-[9/16] w-full rounded-[10px] bg-ink" preload="metadata"
-        playsinline @click="toggle" @play="playing = true" @pause="playing = false" @ended="playing = false"
-        @timeupdate="time = video!.currentTime" @loadedmetadata="duration = video!.duration; time = 0; mediaError = false" @error="mediaError = true" />
-    </div>
+    <!-- play / pause in the centre: always while paused, on hover while playing -->
+    <button type="button" class="absolute top-1/2 left-1/2 grid size-16 -translate-1/2 place-items-center rounded-full bg-black/5 transition-opacity"
+      :class="playing ? 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100' : 'opacity-100'" :aria-label="playing ? 'Pause' : 'Play'" @click="toggle">
+      <Pause v-if="playing" :size="28" fill="currentColor" aria-hidden="true" />
+      <Play v-else :size="28" fill="currentColor" class="translate-x-0.5" aria-hidden="true" />
+    </button>
 
-    <p v-if="mediaError" class="text-sm text-red-ink" role="alert">This video could not be loaded. Try another source or refresh the part.</p>
+    <p v-if="mediaError" class="absolute inset-x-4 top-1/3 rounded-md bg-black/70 p-3 text-center text-sm" role="alert">
+      This video could not be loaded. Try another source or refresh the part.</p>
 
-    <div class="flex items-center gap-3">
-      <button class="round-btn size-12! shrink-0 text-ink" :aria-label="playing ? 'Pause' : 'Play'" @click="toggle">
-        <Pause v-if="playing" :size="20" aria-hidden="true" />
-        <Play v-else :size="20" class="translate-x-px" aria-hidden="true" />
-      </button>
-      <input class="scrub min-w-0 flex-1" type="range" min="0" :max="duration || 0" step="0.1" :value="time"
+    <!-- time + thin scrub bar at the bottom -->
+    <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-4 pt-8 pb-5">
+      <span class="num block text-right text-[11px] text-white/80">{{ fmt(time) }} / {{ fmt(duration) }}</span>
+      <input class="scrub mt-1 block w-full" type="range" min="0" :max="duration || 0" step="0.1" :value="time"
         aria-label="Seek" :aria-valuetext="`${fmt(time)} of ${fmt(duration)}`"
         :style="{ '--pct': `${duration ? (time / duration) * 100 : 0}%` }"
         @input="seek(+($event.target as HTMLInputElement).value)" />
-      <span class="num shrink-0 text-sm text-muted">{{ fmt(time) }} / {{ fmt(duration) }}</span>
     </div>
   </div>
 </template>
@@ -79,26 +81,26 @@ function choose(key: string) {
 <style scoped>
 .scrub {
   appearance: none;
-  height: 12px;
+  height: 3px;
   border-radius: 999px;
-  background: linear-gradient(90deg, #8a857c var(--pct), transparent var(--pct)), var(--color-well);
-  box-shadow: var(--shadow-inset);
+  background: linear-gradient(90deg, #fff var(--pct), rgb(255 255 255 / 0.3) var(--pct));
   cursor: pointer;
 }
+.scrub:hover, .scrub:focus-visible { height: 5px; }
 .scrub::-webkit-slider-thumb {
   appearance: none;
-  width: 22px;
-  height: 22px;
+  width: 12px;
+  height: 12px;
   border-radius: 999px;
-  background: var(--color-panel);
-  box-shadow: var(--shadow-raised);
+  background: #fff;
+  opacity: 0;
 }
+.scrub:hover::-webkit-slider-thumb, .scrub:focus-visible::-webkit-slider-thumb { opacity: 1; }
 .scrub::-moz-range-thumb {
-  width: 22px;
-  height: 22px;
+  width: 12px;
+  height: 12px;
   border: 0;
   border-radius: 999px;
-  background: var(--color-panel);
-  box-shadow: var(--shadow-raised);
+  background: #fff;
 }
 </style>

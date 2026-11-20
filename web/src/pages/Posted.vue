@@ -32,7 +32,7 @@ const PLATFORMS: { key: Platform; name: string; icon: typeof Youtube; color: str
 <template>
   <ErrorCard v-if="error" :message="error" @retry="reload" />
   <div v-else-if="loading" class="skeleton h-96" aria-busy="true" aria-label="Loading posted" />
-  <div v-else class="space-y-5">
+  <div v-else class="space-y-6">
     <div class="flex items-baseline gap-3">
       <h2 class="font-display text-2xl font-semibold">Posted</h2>
       <span class="text-sm text-muted">{{ counts.youtube }} on YouTube · {{ counts.instagram }} on Instagram · {{ rows.length }} parts</span>

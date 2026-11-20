@@ -90,12 +90,12 @@ const diskTotal = computed(() => disk.value.reduce((a, b) => a + b.value, 0))
 <template>
   <ErrorCard v-if="error" :message="error" @retry="reload" />
 
-  <div v-else-if="loading" class="max-w-7xl space-y-6" aria-busy="true" aria-label="Loading overview">
+  <div v-else-if="loading" class="space-y-6" aria-busy="true" aria-label="Loading overview">
     <div class="skeleton h-24" />
     <div class="skeleton h-96" />
   </div>
 
-  <div v-else-if="data" class="flex max-w-7xl flex-col gap-6">
+  <div v-else-if="data" class="flex flex-col gap-6">
     <!-- title block (below the sheet on phones: the sheet is the first thing to see) -->
     <section class="raised grid max-sm:order-2 grid-cols-2 overflow-hidden xl:grid-cols-[repeat(4,minmax(0,1fr))_auto]" aria-label="Studio at a glance">
       <div v-for="f in fields" :key="f.name" class="border-r border-b border-rule px-4 py-2.5 even:border-r-0 sm:px-5 xl:border-b-0 xl:even:border-r">

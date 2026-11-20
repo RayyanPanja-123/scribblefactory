@@ -51,7 +51,7 @@ const field = 'inset mt-1 block h-10 w-full rounded-md px-3 text-sm text-ink out
 <template>
   <ErrorCard v-if="error" :message="error" @retry="reload" />
   <div v-else-if="loading" class="skeleton h-96" aria-busy="true" aria-label="Loading sounds" />
-  <div v-else class="space-y-5">
+  <div v-else class="space-y-6">
     <div class="flex flex-wrap items-baseline gap-3">
       <h2 class="font-display text-2xl font-semibold">Sounds</h2>
       <span class="text-sm text-muted">{{ sounds.length }} sound effects · {{ sounds.filter((s) => s.missing).length }} missing a file</span>
@@ -66,7 +66,7 @@ const field = 'inset mt-1 block h-10 w-full rounded-md px-3 text-sm text-ink out
       starts; <b>after line</b> sounds play once it has been said. At most 5 per part, mixed under the voice. Files live in <code>library/sfx/</code>; an upload's id comes
       from its file name.
     </p>
-    <ul class="grid gap-3 lg:grid-cols-2">
+    <ul class="grid gap-6 lg:grid-cols-2">
       <li v-for="x in sounds" :key="x.id" class="raised space-y-3 p-4">
         <div class="flex flex-wrap items-center gap-2">
           <AudioLines :size="18" class="text-muted" aria-hidden="true" />

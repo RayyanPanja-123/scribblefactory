@@ -17,7 +17,7 @@ watch(data, markNotificationsRead, { deep: true })
 </script>
 
 <template>
-  <div class="max-w-4xl space-y-5">
+  <div class="space-y-6">
     <div class="flex items-baseline gap-3">
       <h2 class="font-display text-2xl font-semibold">Notifications</h2>
       <span v-if="data?.length" class="text-sm text-muted">{{ data.length }} informational notice{{ data.length === 1 ? '' : 's' }}</span>
@@ -28,7 +28,7 @@ watch(data, markNotificationsRead, { deep: true })
     <EmptyState v-else-if="!data?.length" :icon="Bell" title="You're all caught up"
       text="Library notes that don't need to interrupt story checks will appear here." />
 
-    <ul v-else class="space-y-3">
+    <ul v-else class="grid gap-6 lg:grid-cols-2">
       <li v-for="notice in data" :key="notice.id" class="raised flex items-start gap-4 p-4">
         <span class="round-btn mt-0.5 shrink-0 text-blue-ink"><Info :size="18" aria-hidden="true" /></span>
         <div class="min-w-0 flex-1">

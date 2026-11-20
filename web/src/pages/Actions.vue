@@ -35,7 +35,7 @@ async function remove(a: { id: string; name: string }) {
 <template>
   <ErrorCard v-if="error" :message="error" @retry="reload" />
   <div v-else-if="loading" class="skeleton h-96" aria-busy="true" aria-label="Loading actions" />
-  <div v-else-if="data" class="space-y-5">
+  <div v-else-if="data" class="space-y-6">
     <div class="flex flex-wrap items-baseline gap-3">
       <h2 class="font-display text-2xl font-semibold">Actions</h2>
       <span class="text-sm text-muted">{{ data.do.length }} built in · {{ custom.length }} custom</span>

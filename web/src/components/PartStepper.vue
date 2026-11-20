@@ -21,7 +21,7 @@ const live = (s: PartStepView) => ['current', 'review', 'running', 'failed'].inc
 
 <template>
   <nav ref="nav" aria-label="Part progress" class="overflow-x-auto rounded-md border border-rule">
-    <ol class="grid min-w-[640px] grid-cols-8">
+    <ol class="grid min-w-[640px]" :style="{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }">
       <li v-for="(s, i) in steps" :key="s.key" class="border-rule text-center" :class="{ 'border-l': i > 0 }" :aria-current="live(s) ? 'step' : undefined">
         <p class="colhead flex h-14 flex-col items-center justify-center border-b-2 border-rule-strong px-1 py-1.5 leading-tight">
           <span class="num text-muted" aria-hidden="true">{{ i + 1 }}</span><span>{{ s.label }}</span>

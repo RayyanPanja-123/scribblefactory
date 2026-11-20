@@ -9,7 +9,7 @@ import { expressionNote, expressionOptions } from '../lib/expressions'
 </script>
 
 <template>
-  <div class="space-y-5">
+  <div class="space-y-6">
     <div class="flex flex-wrap items-baseline gap-3">
       <h2 class="font-display text-2xl font-semibold">Expressions</h2>
       <span class="text-sm text-muted">{{ expressionOptions.length }} built-in face expressions</span>

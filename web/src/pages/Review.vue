@@ -34,7 +34,7 @@ const rows = computed(() => {
 
 <template>
   <ErrorCard v-if="error" :message="error" @retry="reload" />
-  <div v-else-if="loading" class="space-y-4" aria-busy="true" aria-label="Loading review">
+  <div v-else-if="loading" class="space-y-6" aria-busy="true" aria-label="Loading review">
     <div v-for="i in 3" :key="i" class="skeleton h-20" />
   </div>
   <div v-else class="space-y-5">

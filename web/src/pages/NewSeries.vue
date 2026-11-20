@@ -123,13 +123,14 @@ const field = 'inset mt-1 block h-10 w-full rounded-md px-4 text-sm text-ink out
 </script>
 
 <template>
-  <div class="max-w-3xl space-y-6">
+  <div class="space-y-6">
     <RouterLink to="/series" class="btn btn-secondary"><ArrowLeft :size="16" aria-hidden="true" /> All series</RouterLink>
 
-    <form class="raised space-y-6 p-6" @submit.prevent="create">
+    <form class="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]" @submit.prevent="create">
+      <div class="raised space-y-6 p-6 lg:sticky lg:top-4">
       <h2 class="font-display text-3xl font-semibold">New series</h2>
 
-      <div class="grid gap-4 sm:grid-cols-2">
+      <div class="grid gap-4">
         <label class="block text-xs font-semibold text-muted">Title
           <input v-model="title" required placeholder="Marathon 1904" :class="field" />
         </label>
@@ -139,6 +140,12 @@ const field = 'inset mt-1 block h-10 w-full rounded-md px-4 text-sm text-ink out
         </label>
       </div>
 
+      <div class="flex justify-end">
+        <button class="btn btn-primary" :disabled="!ready || saving">{{ saving ? 'Creating…' : 'Create series' }}</button>
+      </div>
+      </div>
+
+      <div class="raised min-w-0 p-6">
       <fieldset id="cast-customize" class="space-y-3">
         <legend class="font-display text-lg font-semibold">Cast</legend>
         <div class="flex flex-wrap items-start gap-3">
@@ -218,9 +225,6 @@ const field = 'inset mt-1 block h-10 w-full rounded-md px-4 text-sm text-ink out
         </div>
         <button type="button" class="btn btn-secondary" @click="addCast"><Plus :size="16" aria-hidden="true" /> Add character</button>
       </fieldset>
-
-      <div class="flex justify-end">
-        <button class="btn btn-primary" :disabled="!ready || saving">{{ saving ? 'Creating…' : 'Create series' }}</button>
       </div>
     </form>
   </div>

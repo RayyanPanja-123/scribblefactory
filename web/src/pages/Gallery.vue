@@ -28,7 +28,7 @@ const label = (p: Part) => `Part ${p.number}: ${p.title}`
 </script>
 
 <template>
-  <div class="max-w-6xl space-y-6">
+  <div class="space-y-6">
     <header class="flex flex-wrap items-end gap-x-8 gap-y-3">
       <div class="min-w-0 flex-1">
         <h2 class="font-display text-2xl font-semibold">Gallery</h2>

@@ -9,7 +9,7 @@ defineProps<{ id: string; title: string; count: number; note?: string; empty?: s
     <h3 :id="`group-${id}`" class="font-display text-lg font-semibold">{{ title }}
       <span class="text-sm font-normal text-muted">· {{ count || 'nothing yet' }}</span></h3>
     <p v-if="note" class="mt-1 text-xs text-muted">{{ note }}</p>
-    <ul v-if="count" class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><slot /></ul>
+    <ul v-if="count" class="mt-3 grid gap-6 sm:grid-cols-2 lg:grid-cols-4"><slot /></ul>
     <p v-else-if="empty" class="mt-3 text-sm text-muted">{{ empty }}</p>
   </section>
 </template>

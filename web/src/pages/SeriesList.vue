@@ -26,7 +26,7 @@ function clearFilters() { search.value = ''; status.value = 'all' }
 <template>
   <ErrorCard v-if="error" :message="error" @retry="reload" />
 
-  <div v-else-if="loading" class="space-y-4" aria-busy="true" aria-label="Loading series">
+  <div v-else-if="loading" class="space-y-6" aria-busy="true" aria-label="Loading series">
     <div v-for="i in 3" :key="i" class="skeleton h-44" />
   </div>
 

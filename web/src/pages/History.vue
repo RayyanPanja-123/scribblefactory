@@ -62,13 +62,13 @@ const field = 'inset mt-1 block h-10 w-full rounded-md px-4 text-sm text-ink out
 </script>
 
 <template>
-  <div class="space-y-5">
+  <div class="space-y-6">
     <div class="flex flex-wrap items-baseline gap-3">
       <h2 class="font-display text-2xl font-semibold">History</h2>
       <span class="text-sm text-muted">{{ finished.length }} finished job{{ finished.length === 1 ? '' : 's' }} · the last 500 are kept</span>
     </div>
 
-    <div class="grid items-start gap-5 lg:grid-cols-[1fr_300px]">
+    <div class="grid items-start gap-6 lg:grid-cols-[1fr_300px]">
       <!-- filters + list -->
       <div class="min-w-0 space-y-4">
         <form class="raised flex flex-wrap items-end gap-3 p-4" aria-label="Filter history" @submit.prevent>

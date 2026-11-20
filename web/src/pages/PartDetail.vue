@@ -6,11 +6,13 @@ import { useRoute, useRouter } from 'vue-router'
 import { api, media, type Approval, type Platform, type StoryCheck } from '../api/client'
 import PartStepper from '../components/PartStepper.vue'
 import SfxSuggestions from '../components/SfxSuggestions.vue'
+import StoryPainter from '../components/StoryPainter.vue'
+import StoryTips from '../components/StoryTips.vue'
 import ErrorCard from '../components/ErrorCard.vue'
 import IssueFix from '../components/IssueFix.vue'
 import StageChips from '../components/StageChips.vue'
 import Switch from '../components/Switch.vue'
-import VideoPlayer from '../components/VideoPlayer.vue'
+import FloatingPlayer from '../components/FloatingPlayer.vue'
 import VuMeter from '../components/VuMeter.vue'
 import { act, confirm, toast, zoom } from '../composables/feedback'
 import { jobFor, refetchOn } from '../composables/live'
@@ -140,6 +142,9 @@ async function saveStory() {
     story.value = null // an old check result no longer applies
   }
 }
+// Text: story.md as typed. Painter: the same file as cards with dropdowns (components/StoryPainter.vue).
+const storyView = ref<'text' | 'painter'>('text')
+const painterCast = computed(() => (series.value?.cast ?? []).map((c) => ({ id: c.id, name: c.name, looks: Object.keys(c.looks ?? {}) })))
 function onStoryKey(e: KeyboardEvent) {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
     e.preventDefault()
@@ -199,9 +204,11 @@ const tab = computed<Tab>(() => {
 // every in-page link (#voice, #posting, ...) opens its tab, then scrolls to that section
 const TAB_OF: Record<string, Tab> = { story: 'story', voice: 'voice', video: 'review', review: 'review', approvals: 'review', qa: 'review',
   thumbnails: 'review', sfx: 'review', upload: 'publish', posting: 'publish', run: 'tools', disk: 'tools', publish: 'publish', tools: 'tools' }
+const player = ref<InstanceType<typeof FloatingPlayer>>()
 async function goTo(id: string) {
   if (!TAB_OF[id]) return
   chosen.value = TAB_OF[id]
+  if (id === 'video') player.value?.show()
   await nextTick()
   document.getElementById(id)?.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'nearest' })
 }
@@ -523,8 +530,8 @@ watch(() => props.part, () => { chosen.value = null })
       </button>
     </div>
 
-    <div v-show="tab === 'story'" id="panel-story" role="tabpanel" aria-labelledby="tab-story">
-      <section id="story" class="raised p-6">
+    <div v-show="tab === 'story'" id="panel-story" role="tabpanel" aria-labelledby="tab-story" class="grid items-start gap-6 lg:grid-cols-2">
+      <section id="story" class="raised min-w-0 p-6">
         <div class="flex flex-wrap items-center gap-2">
           <h3 class="font-display text-lg font-semibold">Story</h3>
           <span class="text-xs text-muted">story.md</span>
@@ -566,10 +573,21 @@ watch(() => props.part, () => { chosen.value = null })
             </li>
           </ul>
         </div>
-        <label class="sr-only" for="story-md">story.md</label>
-        <textarea id="story-md" v-model="storyText" class="paper inset mt-4 block max-h-[32rem] min-h-48 w-full resize-y overflow-auto p-5 font-mono text-sm leading-7 outline-none focus:border-blue"
-          spellcheck="true" @keydown="onStoryKey" />
+        <div class="mt-4 space-y-3">
+            <div class="inline-flex rounded-md border border-rule p-0.5" role="group" aria-label="Story view">
+              <button v-for="v in (['text', 'painter'] as const)" :key="v" type="button" class="rounded px-3 py-1 text-sm font-semibold"
+                :class="storyView === v ? 'bg-ink text-panel' : 'text-muted hover:text-ink'" :aria-pressed="storyView === v" @click="storyView = v">
+                {{ v === 'text' ? 'Text' : 'Painter' }}</button>
+            </div>
+            <StoryPainter v-if="storyView === 'painter'" v-model="storyText" :cast="painterCast" @keydown="onStoryKey" />
+            <template v-else>
+              <label class="sr-only" for="story-md">story.md</label>
+              <textarea id="story-md" v-model="storyText" class="paper inset block max-h-[32rem] min-h-48 w-full resize-y overflow-auto p-5 font-mono text-sm leading-7 outline-none focus:border-blue"
+                spellcheck="true" @keydown="onStoryKey" />
+            </template>
+        </div>
       </section>
+      <StoryTips />
     </div>
 
     <div v-show="tab === 'voice'" id="panel-voice" role="tabpanel" aria-labelledby="tab-voice">
@@ -597,11 +615,8 @@ watch(() => props.part, () => { chosen.value = null })
     </div>
 
     <div v-show="tab === 'review'" id="panel-review" role="tabpanel" aria-labelledby="tab-review" class="space-y-6">
-      <div class="grid items-start gap-6" :class="show.video && (show.approvals || show.qa) && 'xl:grid-cols-[360px_1fr]'">
-        <!-- player -->
-        <section v-if="show.video" id="video" class="raised p-5" aria-label="Video">
-          <VideoPlayer :sources="sources" />
-        </section>
+      <div>
+        <!-- the player floats bottom right (FloatingPlayer, end of the page) -->
         <div v-if="show.approvals || show.qa" class="space-y-6">
           <!-- approvals -->
           <section v-if="show.approvals" id="approvals" :class="{ 'next-target': focus === 'approvals' }" class="raised p-6">
@@ -820,6 +835,7 @@ watch(() => props.part, () => { chosen.value = null })
         <p class="mt-3 text-xs text-muted">Your phone must be on the same network as this computer.</p>
       </section>
     </div>
+    <FloatingPlayer v-if="show.video" ref="player" :sources="sources" />
   </div>
 </template>
 

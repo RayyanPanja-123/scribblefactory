@@ -103,8 +103,8 @@ const DIRECTIVES: Directive[] = [
 </script>
 
 <template>
-  <div class="max-w-5xl space-y-6">
-    <div class="space-y-2">
+  <div class="grid items-start gap-6 lg:grid-cols-2">
+    <div class="space-y-2 lg:col-span-2">
       <h2 class="font-display text-2xl font-semibold">Help: directing your story</h2>
       <p class="text-sm text-muted">Your <code>story.md</code> has two kinds of lines. Normal lines are <b>spoken</b> by the narrator.
         Lines that start with <code>@</code> are <b>stage directions</b>: they are never spoken, they tell the video what to show.
@@ -122,7 +122,7 @@ Marcus ran into the waves.      <span class="text-muted">← …while this is sp
           resolves to whoever holds that prop on the next line.</p>
       </div>
     </div>
-    <nav aria-label="Directives" class="flex flex-wrap gap-1.5">
+    <nav aria-label="Directives" class="flex flex-wrap gap-1.5 lg:col-span-2">
       <a v-for="d in DIRECTIVES" :key="d.id" :href="`#${d.id}`" class="chip font-mono hover:underline">{{ d.nav ?? d.syntax.split(' ')[0] }}</a>
     </nav>
     <section v-for="d in DIRECTIVES" :id="d.id" :key="d.id" class="raised scroll-mt-4 space-y-3 p-5">

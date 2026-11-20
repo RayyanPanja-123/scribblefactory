@@ -81,13 +81,13 @@ const num = 'inset mt-1 block h-10 w-full rounded-md px-3 text-sm text-ink outli
 </script>
 
 <template>
-  <div class="max-w-6xl space-y-6">
+  <div class="space-y-6">
     <RouterLink to="/sets" class="btn btn-secondary"><ArrowLeft :size="16" aria-hidden="true" /> All sets</RouterLink>
     <ErrorCard v-if="error" :message="error" @retry="reload" />
     <div v-else-if="loading" class="skeleton h-96" aria-busy="true" aria-label="Loading set" />
     <ErrorCard v-else-if="missing" :message="`No custom set “${id}”.`" @retry="reload" />
-    <form v-else class="raised grid gap-6 p-6 lg:grid-cols-[1fr_300px]" @submit.prevent="save">
-      <div class="min-w-0 space-y-5">
+    <form v-else class="grid items-start gap-6 lg:grid-cols-[1fr_300px]" @submit.prevent="save">
+      <div class="raised min-w-0 space-y-5 p-6">
         <div class="flex flex-wrap items-center gap-3">
           <h2 class="font-display text-3xl font-semibold">{{ isNew ? 'New set' : form.name || id }}</h2>
         </div>
@@ -198,7 +198,7 @@ const num = 'inset mt-1 block h-10 w-full rounded-md px-3 text-sm text-ink outli
         </div>
       </div>
 
-      <aside class="space-y-3 lg:sticky lg:top-0 lg:self-start">
+      <aside class="raised p-6 space-y-3 lg:sticky lg:top-0 lg:self-start">
         <SetPreview :id="draft.id" :custom="previewList" :weather="showWeather ? draft.default_weather : null"
           :label="`Preview of ${form.name || 'the set'}`" class="aspect-[9/16] w-full" />
         <label v-if="draft.default_weather" class="flex h-11 items-center justify-center gap-2 text-sm">

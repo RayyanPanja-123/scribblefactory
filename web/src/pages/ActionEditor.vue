@@ -74,13 +74,13 @@ const ARM_SLIDERS = [[0, 0, 'Left arm'], [0, 1, 'Left bend'], [1, 0, 'Right arm'
 </script>
 
 <template>
-  <div class="max-w-6xl space-y-6">
+  <div class="space-y-6">
     <RouterLink to="/actions" class="btn btn-secondary"><ArrowLeft :size="16" aria-hidden="true" /> All actions</RouterLink>
     <ErrorCard v-if="error" :message="error" @retry="reload" />
     <div v-else-if="loading" class="skeleton h-96" aria-busy="true" aria-label="Loading action" />
     <ErrorCard v-else-if="missing" :message="`No custom action “${id}”.`" @retry="reload" />
-    <form v-else class="raised grid gap-6 p-6 lg:grid-cols-[1fr_300px]" @submit.prevent="save">
-      <div class="min-w-0 space-y-5">
+    <form v-else class="grid items-start gap-6 lg:grid-cols-[1fr_300px]" @submit.prevent="save">
+      <div class="raised min-w-0 space-y-5 p-6">
         <div class="flex flex-wrap items-center gap-3">
           <h2 class="font-display text-3xl font-semibold">{{ isNew ? 'New action' : form.name || id }}</h2>
         </div>
@@ -178,7 +178,7 @@ const ARM_SLIDERS = [[0, 0, 'Left arm'], [0, 1, 'Left bend'], [1, 0, 'Right arm'
         </div>
       </div>
 
-      <aside class="space-y-3 lg:sticky lg:top-0 lg:self-start">
+      <aside class="raised p-6 space-y-3 lg:sticky lg:top-0 lg:self-start">
         <div class="flex items-center justify-between gap-2">
           <h3 class="font-display text-lg font-semibold">Preview</h3>
           <label class="flex items-center gap-2 text-xs text-muted">Colour

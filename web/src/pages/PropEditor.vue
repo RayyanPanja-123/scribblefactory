@@ -95,13 +95,13 @@ const field = 'inset mt-1 block h-10 w-full rounded-md px-4 text-sm text-ink out
 </script>
 
 <template>
-  <div class="max-w-5xl space-y-6">
+  <div class="space-y-6">
     <RouterLink to="/props" class="btn btn-secondary"><ArrowLeft :size="16" aria-hidden="true" /> All props</RouterLink>
     <ErrorCard v-if="error" :message="error" @retry="reload" />
     <div v-else-if="loading" class="skeleton h-96" aria-busy="true" aria-label="Loading prop" />
     <ErrorCard v-else-if="missing" :message="`No custom prop “${id}”.`" @retry="reload" />
-    <form v-else class="raised grid gap-6 p-6 lg:grid-cols-[1fr_280px]" @submit.prevent="save">
-      <div class="min-w-0 space-y-5">
+    <form v-else class="grid items-start gap-6 lg:grid-cols-[1fr_280px]" @submit.prevent="save">
+      <div class="raised min-w-0 space-y-5 p-6">
         <div class="flex flex-wrap items-center gap-3">
           <h2 class="font-display text-3xl font-semibold">{{ isNew ? 'New prop' : form.name || id }}</h2>
         </div>
@@ -176,7 +176,7 @@ const field = 'inset mt-1 block h-10 w-full rounded-md px-4 text-sm text-ink out
         </div>
       </div>
 
-      <aside class="space-y-3 lg:sticky lg:top-0 lg:self-start">
+      <aside class="raised p-6 space-y-3 lg:sticky lg:top-0 lg:self-start">
         <PropPreview :kind="draft.id" :custom="previewList" :hand="hand" :label="`Preview: stickman holding ${form.name || 'the prop'}`" class="h-96" />
         <div class="flex justify-center gap-2" role="group" aria-label="Preview hand">
           <button v-for="h in HANDS" :key="h" type="button" class="btn" :class="hand === h ? 'btn-primary' : 'btn-secondary'" :aria-pressed="hand === h" @click="hand = h">{{ h }} hand</button>

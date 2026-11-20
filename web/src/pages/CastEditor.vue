@@ -211,13 +211,13 @@ const swatch = 'mt-1 block h-10 w-14 shrink-0 cursor-pointer rounded-md'
 </script>
 
 <template>
-  <div class="max-w-6xl space-y-6">
+  <div class="space-y-6">
     <RouterLink :to="`/series/${slug}#cast`" class="btn btn-secondary"><ArrowLeft :size="16" aria-hidden="true" /> Back to the series</RouterLink>
     <ErrorCard v-if="error" :message="error" @retry="reload" />
     <div v-else-if="loading" class="skeleton h-96" aria-busy="true" aria-label="Loading cast member" />
     <ErrorCard v-else-if="!member" :message="`No cast member “${id}” in ${slug}.`" @retry="reload" />
-    <form v-else-if="base && draft" class="raised grid gap-6 p-6 lg:grid-cols-[1fr_300px]" @submit.prevent="save(true)">
-      <div class="min-w-0 space-y-5">
+    <form v-else-if="base && draft" class="grid items-start gap-6 lg:grid-cols-[1fr_300px]" @submit.prevent="save(true)">
+      <div class="raised min-w-0 space-y-5 p-6">
         <div>
           <h2 class="font-display text-3xl font-semibold">{{ base.name || id }}</h2>
           <p class="mt-1 text-sm text-muted">Id <code>{{ id }}</code> stays (stories use it). A new look clears the approval and needs a re-render of this character only.</p>
@@ -389,7 +389,7 @@ const swatch = 'mt-1 block h-10 w-14 shrink-0 cursor-pointer rounded-md'
         </div>
       </div>
 
-      <aside class="space-y-4 lg:sticky lg:top-6 lg:self-start">
+      <aside class="raised p-6 space-y-4 lg:sticky lg:top-6 lg:self-start">
         <figure>
           <WardrobePreview v-if="humanoid && entry" class="h-80" :wear="entry" :library="library" :build="creature(base.body)?.build"
             :expression="draft.expression" :seed="`${slug}:${id}`" :label="`${base.name}${active ? `, look ${active}` : ''}, live preview`" />

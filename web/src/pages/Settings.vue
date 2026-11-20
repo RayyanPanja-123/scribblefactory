@@ -75,8 +75,8 @@ const field = 'inset mt-1 block h-10 w-28 rounded-md px-4 text-sm text-ink outli
 </script>
 
 <template>
-  <div class="max-w-3xl space-y-5">
-    <div class="flex flex-wrap items-baseline gap-3">
+  <div class="grid items-start gap-6 lg:grid-cols-2">
+    <div class="flex flex-wrap items-baseline gap-3 lg:col-span-2">
       <h2 class="font-display text-2xl font-semibold">Settings</h2>
       <span class="text-sm text-muted">for this PC · saved in library/settings.json</span>
     </div>
