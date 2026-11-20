@@ -8,6 +8,7 @@ import PartStepper from '../components/PartStepper.vue'
 import SfxSuggestions from '../components/SfxSuggestions.vue'
 import StoryPainter from '../components/StoryPainter.vue'
 import StoryTips from '../components/StoryTips.vue'
+import AiStage from '../components/AiStage.vue'
 import ErrorCard from '../components/ErrorCard.vue'
 import IssueFix from '../components/IssueFix.vue'
 import StageChips from '../components/StageChips.vue'
@@ -145,6 +146,7 @@ async function saveStory() {
 }
 // Text: story.md as typed. Painter: the same file as cards with dropdowns (components/StoryPainter.vue).
 const storyView = ref<'text' | 'painter'>('text')
+const stageOpen = ref(false)
 const painterCast = computed(() => (series.value?.cast ?? []).map((c) => ({ id: c.id, name: c.name, looks: Object.keys(c.looks ?? {}) })))
 function onStoryKey(e: KeyboardEvent) {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
@@ -543,8 +545,11 @@ watch(() => props.part, () => { chosen.value = null })
           <button class="btn btn-secondary" :disabled="checking || storyDirty" :title="storyDirty ? 'Save first: the check reads the saved file' : undefined" @click="checkStory">
             <CircleCheck :size="16" aria-hidden="true" /> Check
           </button>
+          <button class="btn btn-secondary" :disabled="!series" @click="stageOpen = true"><Sparkles :size="16" aria-hidden="true" /> Stage with AI</button>
           <button class="btn btn-primary" :disabled="!storyDirty || !!busy" :title="busy ?? undefined" @click="saveStory"><Save :size="16" aria-hidden="true" /> Save</button>
         </div>
+        <AiStage v-if="series && p" :open="stageOpen" :series="series.title" :title="p.title ?? props.part" :story="storyText" :cast="series.cast"
+          @close="stageOpen = false" @apply="(md) => { storyText = md; toast('Staged script in the story box: Save, then Check', 'ok') }" />
         <p class="mt-1 text-xs text-muted">
           Ctrl+S saves. Later stages pick up the change on their next run.<template v-if="has('voice.mp3')"> The voice is already recorded: if the narration changes, record and upload it again.</template>
         </p>
