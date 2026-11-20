@@ -18,6 +18,7 @@ const emit = defineEmits<{ close: []; done: [] }>()
 const description = ref('')
 const choice = defineModel<string>('choice', { default: '' })
 const prompt = ref('')
+const direct = ref(false)
 const reply = ref('')
 const error = ref('')
 const saving = ref(false)
@@ -26,6 +27,7 @@ const replyBox = ref<HTMLTextAreaElement>()
 function reset() {
   description.value = ''
   prompt.value = ''
+  direct.value = false
   reply.value = ''
   error.value = ''
   saving.value = false
@@ -64,18 +66,18 @@ async function done() {
           <button type="button" class="round-btn ml-auto" aria-label="Close" @click="close"><X :size="18" /></button>
         </div>
         <div class="mt-5 space-y-5">
-          <template v-if="!prompt">
+          <template v-if="!prompt && !direct">
             <label class="block text-sm font-semibold">Description
               <textarea v-model="description" rows="6" :placeholder="descriptionHint" class="mt-1 block w-full rounded-md border border-rule bg-well p-3 text-sm outline-none focus:border-blue" autofocus />
             </label>
             <label v-if="choiceOptions?.length" class="block text-sm font-semibold">{{ choiceLabel }}
               <select v-model="choice" class="mt-1 block w-full rounded-md border border-rule bg-well p-3 text-sm"><option v-for="o in choiceOptions" :key="o.value" :value="o.value">{{ o.label }}</option></select>
             </label>
-            <div class="flex justify-end"><button type="button" class="btn btn-primary" @click="next"><Sparkles :size="16" aria-hidden="true" /> Next</button></div>
+            <div class="flex flex-wrap justify-end gap-2"><button type="button" class="btn btn-secondary" @click="direct = true"><ClipboardPaste :size="16" aria-hidden="true" /> Paste JSON directly</button><button type="button" class="btn btn-primary" @click="next"><Sparkles :size="16" aria-hidden="true" /> Next</button></div>
           </template>
           <template v-else>
-            <div class="flex flex-wrap items-center gap-2"><span class="chip chip-green">1. Prompt ready</span><button type="button" class="btn btn-secondary ml-auto" @click="prompt = ''; error = ''">Edit description</button></div>
-            <div class="flex items-center gap-3 rounded-md border border-rule bg-well p-4 text-sm text-muted">
+            <div v-if="prompt" class="flex flex-wrap items-center gap-2"><span class="chip chip-green">1. Prompt ready</span><button type="button" class="btn btn-secondary ml-auto" @click="prompt = ''; error = ''">Edit description</button></div>
+            <div v-if="prompt" class="flex items-center gap-3 rounded-md border border-rule bg-well p-4 text-sm text-muted">
               <Copy :size="18" class="shrink-0" aria-hidden="true" />
               <span>Prompt available to copy. Paste it into ChatGPT, Claude, Gemini, or another AI.</span>
               <button type="button" class="btn btn-secondary ml-auto shrink-0" @click="copyPrompt"><Copy :size="16" aria-hidden="true" /> Copy prompt</button>

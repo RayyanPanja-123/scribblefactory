@@ -21,41 +21,35 @@ const castIds = (xs: { id: string; name: string; looks?: Record<string, unknown>
  * standalone: shared on its own (Overview's "Copy library list"), so the last line doesn't point into the guide */
 export async function libraryRecords(standalone = false): Promise<string> {
   try {
-    const [sets, props, creatures, actions, wardrobe, series, sfx] = await Promise.all([api.sets(), api.props(), api.creatures(), api.actions(), api.wardrobe(), api.series(), api.sfx()])
+    const [sets, props, objects, creatures, actions, wardrobe, series, sfx] = await Promise.all([api.sets(), api.props(), api.objects(), api.creatures(), api.actions(), api.wardrobe(), api.series(), api.sfx()])
     const casts = await Promise.all(series.map((s) => api.seriesDetail(s.slug).then((d) => d.series, () => null)))
     const indoor = sets.custom.filter((s) => s.kind === 'indoor')
     const outdoor = sets.custom.filter((s) => s.kind === 'outdoor')
     const cast = casts.filter((s) => s?.cast.length).map((s) => `  - ${s!.title}: ${castIds(s!.cast)}`)
     return [
-      '## Available in this library right now',
-      '',
-      `- **Sets** (${sets.builtin.length + sets.custom.length}): built in ${sets.builtin.map((s) => `\`${s.id}\``).join(', ')}` +
-        (indoor.length ? `; custom indoor ${setIds(indoor)}` : '') +
-        (outdoor.length ? `; custom outdoor ${setIds(outdoor)}` : ''),
-      '- **Weather** for `@weather <type> [intensity]`: types `clear`, `rain`, `snow`, `fog`, `wind`, `storm`; intensities ' +
-        '`light`, `medium` (default), `heavy`. Built-in sets start clear' +
-        (sets.custom.some((s) => s.default_weather) ? '; custom sets with a default weather say so above' : '') +
-        '. Mood: gods, sea battles, villains `storm`; sadness `rain`; mystery `fog`; calm `clear`.',
-      '- **Lightning** `@fx lightning [target]`: at most 3 per part; target a cast id on stage or a prop someone on stage holds.',
-      `- **Props** (${props.builtin.length + props.custom.length}): built in ${props.builtin.map((p) => `\`${p}\``).join(', ')}` +
-        (props.custom.length ? `; custom ${ids(props.custom)}` : ''),
-      `- **Creatures** (cast bodies, by rig; default \`human\`): ${[...creatures.builtin, ...creatures.custom]
-        .map((c) => `\`${c.id}\` (${c.rig}${use(c as { use_for?: string | null })})`).join(', ')}`,
-      `- **Actions** for \`@do <cast>: <action>\`: built in ${actions.do.map((a) => `\`${a}\``).join(', ')}` +
-        (actions.custom.length ? `; custom (humanoids only) ${ids(actions.custom)}` : ''),
-      `- **Wardrobe** (cast slots, by slot; worn by id, \`null\` for none): ${SLOTS.map((s) => {
+      '# LIBRARY INVENTORY',
+      `SETS (${sets.builtin.length + sets.custom.length})`,
+      `built-in: ${sets.builtin.map((s) => s.id).join(', ')}${indoor.length ? ` | indoor: ${setIds(indoor)}` : ''}${outdoor.length ? ` | outdoor: ${setIds(outdoor)}` : ''}`,
+      'weather: clear, rain, snow, fog, wind, storm; intensity light, medium, heavy',
+      `PROPS (${props.builtin.length + props.custom.length})`,
+      `built-in: ${props.builtin.join(', ')}${props.custom.length ? ` | custom: ${ids(props.custom)}` : ''}`,
+      `WORLD OBJECTS (${objects.objects.length})`,
+      objects.objects.length ? objects.objects.map((o) => `${o.id} [${o.category}; ${o.capabilities.join(', ') || 'static'}; carry=${o.carry_mode}]`).join(' | ') : 'none yet',
+      `CREATURES (${creatures.builtin.length + creatures.custom.length})`,
+      [...creatures.builtin, ...creatures.custom].map((c) => `${c.id} (${c.rig}${use(c as { use_for?: string | null })})`).join(', '),
+      `ACTIONS (@do; ${actions.do.length + actions.custom.length})`,
+      `built-in: ${actions.do.join(', ')}${actions.custom.length ? ` | custom: ${ids(actions.custom)}` : ''}`,
+      'WARDROBE',
+      SLOTS.map((s) => {
         const xs = [...wardrobe.builtin.filter((w) => w.slot === s), ...wardrobe.custom.filter((w) => w.slot === s)]
         return `${s} ${xs.length ? xs.map((w) => `\`${w.id}\``).join(', ') : '(none yet)'}`
-      }).join('; ')}`,
-      `- **Sound effects** for \`@sfx <id> [volume 0-1]\` (at most 5 per part): ${sfx.sfx.length ? sfx.sfx.map((s) =>
+      }).join(' | '),
+      `SOUNDS (@sfx; ${sfx.sfx.length}): ${sfx.sfx.length ? sfx.sfx.map((s) =>
         `\`${s.id}\` (${s.purpose || s.name}${s.anchor === 'end_on_line' ? '; ends as the line starts' : s.anchor === 'after_line' ? '; plays after the line is said' : ''})`).join(', ') : 'none yet'}`,
-      `- **Cast** in your existing series (a new series designs its own CAST; reuse a look by copying it):${cast.length ? '' : ' none yet'}`,
+      `CAST${cast.length ? '' : ': none yet'}`,
       ...cast,
       '',
-      standalone ? 'Use these by id; anything not listed does not exist yet and would have to be designed new.'
-        : 'Use these by id; anything else is new and goes in the Story Package (section 6).',
-      '',
-      '',
+      standalone ? 'Use ids exactly as listed. Unlisted items must be designed new.' : 'Use ids exactly as listed. Unlisted items go in the Story Package.',
     ].join('\n')
   } catch {
     return ''

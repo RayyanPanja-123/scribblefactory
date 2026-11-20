@@ -107,7 +107,7 @@ const diskTotal = computed(() => disk.value.reduce((a, b) => a + b.value, 0))
       </div>
       <div class="col-span-2 flex flex-wrap items-center gap-2 px-4 py-3 sm:px-5 sm:py-4 xl:col-span-1">
         <button class="btn btn-secondary w-full justify-center xl:w-auto" :aria-label="listCopied ? 'Library list copied' : 'Copy the library list'"
-          title="Every set, prop, creature, action, wardrobe item and cast member you have, as a bullet list for any AI" @click="copyList">
+          title="Compact inventory of sets, props, World Objects, creatures, actions, wardrobe, sounds and cast for any AI" @click="copyList">
           <component :is="listCopied ? Check : List" :size="16" aria-hidden="true" /> {{ listCopied ? 'Copied' : 'Copy library list' }}
         </button>
         <button class="btn btn-primary w-full justify-center xl:w-auto" :aria-label="copied ? 'Story guide copied' : 'Copy the story guide'" @click="copyGuide">
