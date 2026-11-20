@@ -48,7 +48,7 @@ Plain text. Each marker is **alone on its own line**, in exactly this order:
   `wardrobe` list). Anything that already exists in the library is not repeated: the scripts and the cast just use
   its id. WARDROBE came later: a package without it reads as `[]`. A new set may carry a
   `"default_weather": {"kind": "fog", "intensity": "light"}` that every `@set` of it starts with.
-- **CAST**: JSON array in the cast-import shape (story guide section 6b): `{"id", "name", "color"}` plus the
+- **CAST**: JSON array in the cast-import shape (story guide, Cast JSON in `docs/ai/cast.md`): `{"id", "name", "color"}` plus the
   optional wardrobe slots (`hair`, `facial_hair`, `headwear`, `top`, `legwear`, `footwear`, `back`, `accessory`,
   `face`), `props`, `body`, `headless` and `looks`. Every character the series ever shows, also those who first
   appear in a later part. Every wardrobe id must exist (built in, in the library, or in WARDROBE) and belong to

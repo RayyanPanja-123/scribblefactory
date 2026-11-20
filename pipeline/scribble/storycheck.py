@@ -262,7 +262,7 @@ def check_story(part_dir: Path) -> dict:
 
 
 STAGING = ("do", "look", "face", "fx", "crowd", "dogs", "runners", "car", "weather", "sfx")
-MIN_STAGING = 10  # directives besides @set and @cast (STORY_GUIDE.md section 5)
+MIN_STAGING = 10  # directives besides @set and @cast (docs/ai/script.md, Directives)
 
 
 def staging(md: str, series, library: Path, part: str) -> list[dict]:

@@ -1,10 +1,11 @@
 <script setup lang="ts">
 // Series page: loads the series and lays it out. The cast workflow lives in CastPanel, each part in PartCard,
 // and what to do next is lib/seriesNext (pure, tested).
-import { ArrowLeft, ArrowRight, CircleCheck, FileQuestion, Images, Plus, Trash2 } from 'lucide-vue-next'
+import { ArrowLeft, ArrowRight, CircleCheck, FileQuestion, Images, Plus, Sparkles, Trash2 } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../api/client'
+import AiVoiceScripts from '../components/AiVoiceScripts.vue'
 import CastPanel from '../components/CastPanel.vue'
 import EmptyState from '../components/EmptyState.vue'
 import ErrorCard from '../components/ErrorCard.vue'
@@ -19,6 +20,7 @@ const props = defineProps<{ slug: string }>()
 const { data, error, loading, reload, refresh } = useApi(() => api.seriesDetail(props.slug))
 refetchOn(() => props.slug, () => null, refresh)
 
+const voiceOpen = ref(false)
 const castPanel = ref<InstanceType<typeof CastPanel>>()
 const series = computed(() => data.value?.series)
 
@@ -144,8 +146,10 @@ const facts = computed(() => {
       <div class="flex items-center gap-3">
         <h3 id="parts-title" class="font-display text-xl font-semibold">Parts</h3>
         <span v-if="data.parts.length" class="num text-sm text-muted">{{ data.parts.length }}</span>
-        <RouterLink :to="`/series/${slug}/new-part`" class="btn btn-secondary ml-auto"><Plus :size="16" aria-hidden="true" /> New part</RouterLink>
+        <button type="button" class="btn btn-secondary ml-auto" @click="voiceOpen = true"><Sparkles :size="16" aria-hidden="true" /> Voice scripts with AI</button>
+        <RouterLink :to="`/series/${slug}/new-part`" class="btn btn-secondary"><Plus :size="16" aria-hidden="true" /> New part</RouterLink>
       </div>
+      <AiVoiceScripts :open="voiceOpen" :slug="slug" :title="data.series.title" :cast="data.series.cast" @close="voiceOpen = false" @done="refresh" />
       <EmptyState v-if="!data.parts.length" :icon="FileQuestion" title="No parts yet"
         text="A part is one short: write its story, record the voice, and the factory does the rest." />
       <PartCard v-for="(p, i) in data.parts" :key="p.id" :slug="slug" :part="p" :index="i" />

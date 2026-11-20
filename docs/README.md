@@ -2,6 +2,7 @@
 
 - [USAGE.md](USAGE.md): making a video, step by step, with every story directive.
 - [STORY_GUIDE.md](STORY_GUIDE.md): self-contained guide to share with any AI so it writes valid story.md files.
+- [ai/](ai/): the guide's step rules (tts, library, cast, script); the app joins them with STORY_GUIDE.md.
 - [story-package.md](story-package.md): the legacy Story Package format for whole-series imports.
 - [style.md](style.md): the renderer's art style config (`engine/page/style.js`): every tunable in one place.
 - [backlog.md](backlog.md): known gaps and ideas.
