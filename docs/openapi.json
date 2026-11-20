@@ -1725,6 +1725,44 @@
         "title": "NewSeries",
         "type": "object"
       },
+      "Notification": {
+        "properties": {
+          "href": {
+            "title": "Href",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "series_title": {
+            "title": "Series Title",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "message",
+          "slug",
+          "series_title",
+          "href"
+        ],
+        "title": "Notification",
+        "type": "object"
+      },
       "Overview": {
         "properties": {
           "disk_usage": {
@@ -4721,6 +4759,29 @@
           }
         },
         "summary": "Mobile Download Url"
+      }
+    },
+    "/api/notifications": {
+      "get": {
+        "description": "Library information that is useful to review but does not belong in a part's story warnings.",
+        "operationId": "notifications_api_notifications_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Notification"
+                  },
+                  "title": "Response Notifications Api Notifications Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Notifications"
       }
     },
     "/api/objects": {

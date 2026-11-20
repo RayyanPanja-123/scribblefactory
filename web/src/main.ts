@@ -22,6 +22,7 @@ const router = createRouter({
     { path: '/series/:slug/cast/:id', name: 'cast-edit', component: () => import('./pages/CastEditor.vue'), props: true },
     { path: '/series/:slug/:part', name: 'part', component: () => import('./pages/PartDetail.vue'), props: true },
     { path: '/review', name: 'review', component: () => import('./pages/Review.vue') },
+    { path: '/notifications', name: 'notifications', component: () => import('./pages/Notifications.vue') },
     { path: '/creatures', name: 'creatures', component: () => import('./pages/Creatures.vue') },
     { path: '/creatures/:id', name: 'creature-edit', component: () => import('./pages/CreatureEditor.vue'), props: true },
     { path: '/props', name: 'props', component: () => import('./pages/Props.vue') },

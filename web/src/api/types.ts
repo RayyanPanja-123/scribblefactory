@@ -241,6 +241,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Notifications
+         * @description Library information that is useful to review but does not belong in a part's story warnings.
+         */
+        get: operations["notifications_api_notifications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/objects": {
         parameters: {
             query?: never;
@@ -1108,6 +1128,11 @@ export interface components {
              * @default []
              */
             props: components["schemas"]["Prop"][];
+            /**
+             * @default {
+             *       "style": "plain"
+             *     }
+             */
             top: components["schemas"]["Top"];
         };
         /** CastRender */
@@ -1551,6 +1576,21 @@ export interface components {
             cast: {
                 [key: string]: unknown;
             }[];
+            /** Slug */
+            slug: string;
+            /** Title */
+            title: string;
+        };
+        /** Notification */
+        Notification: {
+            /** Href */
+            href: string;
+            /** Id */
+            id: string;
+            /** Message */
+            message: string;
+            /** Series Title */
+            series_title: string;
             /** Slug */
             slug: string;
             /** Title */
@@ -3070,6 +3110,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    notifications_api_notifications_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Notification"][];
                 };
             };
         };

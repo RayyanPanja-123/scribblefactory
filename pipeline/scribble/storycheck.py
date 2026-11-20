@@ -309,7 +309,7 @@ def staging(md: str, series, library: Path, part: str) -> list[dict]:
                          "the moment has a feeling")
     if not used["sfx"]:
         note(None, "no @sfx: 2 to 4 sound effects where the moment needs one (the Review tab suggests some)")
-    # the series' unused looks and the library's unused custom actions, over every part's story.md
+    # the series' unused looks, over every part's story.md
     series_md = "\n".join(f.read_text(encoding="utf-8") for f in sorted((library / series.slug).glob("part-*/story.md")))
     looked = {(w.strip(), look.strip()) for ln in series_md.split("\n") if ln.strip().startswith("@look ")
               for who, _, look in [ln.strip()[6:].partition(":")] for w in who.split(",")}
@@ -317,11 +317,26 @@ def staging(md: str, series, library: Path, part: str) -> list[dict]:
     idle_looks = [f"{c.id}: {k}" for c in series.cast if c.id in on_stage for k in c.looks if (c.id, k) not in looked]
     if idle_looks:
         note(None, f"looks never switched on in this series: {', '.join(idle_looks)} (@look <cast>: <look>)")
-    acted = {w for ln in series_md.split("\n") if ln.strip().startswith("@do ") for w in ln.replace(",", " ").split()}
-    idle_actions = [a for a in custom_actions(library) if a not in acted]
-    if idle_actions:
-        note(None, f"custom actions never used in this series: {', '.join(idle_actions[:8])} (@do <cast>: <action>)")
     return out
+
+
+def unused_custom_actions(series_dir: Path, library: Path) -> list[str]:
+    """Custom action ids not referenced by any @do directive in this series."""
+    actions = custom_actions(library)
+    if not actions:
+        return []
+    used = set()
+    for story in sorted(series_dir.glob("part-*/story.md")):
+        for number, line in enumerate(story.read_text(encoding="utf-8").splitlines(), 1):
+            directive = line.strip()
+            if not directive.startswith("@do "):
+                continue
+            try:
+                clauses = parse_do(directive[4:], number, actions=actions)
+            except StageError:  # check-story reports malformed directives separately
+                continue
+            used.update(clause.action for clause in clauses if clause.action in actions)
+    return [action for action in actions if action not in used]
 
 
 def _check_do(line: int, clauses, cast: tuple, car: str, bad) -> None:

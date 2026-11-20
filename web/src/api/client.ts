@@ -28,6 +28,7 @@ export type CaptionReply = S['Captions']
 export type Approval = 'stills' | 'test_render' | 'final'
 export type Platform = 'youtube' | 'instagram'
 export type ExportResult = { path: string; filename: string }
+export type Notification = { id: string; title: string; message: string; slug: string; series_title: string; href: string }
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -67,6 +68,7 @@ export const media = (slug: string, rel: string) => `/api/media/${e(slug)}/${rel
 export const api = {
   overview: () => call<Overview>('GET', '/api/overview'),
   series: () => call<SeriesCard[]>('GET', '/api/series'),
+  notifications: () => call<Notification[]>('GET', '/api/notifications'),
   seriesDetail: (slug: string) => call<SeriesDetail>('GET', `/api/series/${e(slug)}`),
   part: (slug: string, p: string) => call<PartDetail>('GET', part(slug, p)),
   approve: (slug: string, p: string, what: Approval) => call<PartModel>('POST', `${part(slug, p)}/approve/${what}`),

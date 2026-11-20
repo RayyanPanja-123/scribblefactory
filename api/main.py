@@ -247,6 +247,15 @@ class SeriesCard(BaseModel):
     posted: PostedCounts
 
 
+class Notification(BaseModel):
+    id: str
+    title: str
+    message: str
+    slug: str
+    series_title: str
+    href: str
+
+
 class PartSummary(BaseModel):
     id: str
     missing: bool = False  # listed in series.json but no part.json: only id is set
@@ -384,6 +393,25 @@ def series_list():
               "disk_usage": du(d), "posted": posted_counts(d)}
              for d in all_series() for s in [load_series(d / "series.json")]]
     return sorted(cards, key=lambda card: card["created_at"], reverse=True)
+
+
+@app.get("/api/notifications", response_model=list[Notification])
+def notifications():
+    """Library information that is useful to review but does not belong in a part's story warnings."""
+    out = []
+    for d in all_series():
+        series = load_series(d / "series.json")
+        unused = storycheck.unused_custom_actions(d, lib())
+        if unused:
+            out.append(Notification(
+                id=f"unused-actions:{series.slug}",
+                title="Custom actions not used",
+                message=f"{', '.join(unused[:8])}{'…' if len(unused) > 8 else ''} are defined in the shared library but no story in this series uses them.",
+                slug=series.slug,
+                series_title=series.title,
+                href=f"/series/{series.slug}",
+            ))
+    return out
 
 
 @app.get("/api/series/{slug}", response_model=SeriesDetail)
