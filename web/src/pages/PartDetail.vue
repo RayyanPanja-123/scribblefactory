@@ -9,6 +9,7 @@ import SfxSuggestions from '../components/SfxSuggestions.vue'
 import StoryPainter from '../components/StoryPainter.vue'
 import StoryTips from '../components/StoryTips.vue'
 import AiStage from '../components/AiStage.vue'
+import CastPanel from '../components/CastPanel.vue'
 import ErrorCard from '../components/ErrorCard.vue'
 import IssueFix from '../components/IssueFix.vue'
 import StageChips from '../components/StageChips.vue'
@@ -599,6 +600,8 @@ watch(() => props.part, () => { chosen.value = null })
             </template>
         </div>
       </section>
+      <!-- the series cast, editable from every part: add, edit or remove a character at any point -->
+      <CastPanel v-if="series && data" :series="series" :renders="data[1].cast" @changed="refresh" />
     </div>
 
     <div v-show="tab === 'voice'" id="panel-voice" role="tabpanel" aria-labelledby="tab-voice">

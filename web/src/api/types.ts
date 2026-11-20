@@ -520,7 +520,12 @@ export interface paths {
          */
         put: operations["edit_cast_api_series__slug__cast__cast_id__put"];
         post?: never;
-        delete?: never;
+        /**
+         * Delete Cast
+         * @description remove one cast member. A 409 names the parts whose directives still use the id, unless force (their
+         *     check-story then flags it). Its render files stay on disk.
+         */
+        delete: operations["delete_cast_api_series__slug__cast__cast_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -3811,6 +3816,40 @@ export interface operations {
                 };
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesModel"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_cast_api_series__slug__cast__cast_id__delete: {
+        parameters: {
+            query?: {
+                force?: boolean;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                cast_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

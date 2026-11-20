@@ -5606,6 +5606,63 @@
       }
     },
     "/api/series/{slug}/cast/{cast_id}": {
+      "delete": {
+        "description": "remove one cast member. A 409 names the parts whose directives still use the id, unless force (their\ncheck-story then flags it). Its render files stay on disk.",
+        "operationId": "delete_cast_api_series__slug__cast__cast_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "cast_id",
+            "required": true,
+            "schema": {
+              "title": "Cast Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "force",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Force",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesModel"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Cast"
+      },
       "put": {
         "description": "replace one cast member (same entry shape as NewCast; the id stays); see merge_cast",
         "operationId": "edit_cast_api_series__slug__cast__cast_id__put",

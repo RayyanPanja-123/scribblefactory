@@ -6,7 +6,7 @@
 // member's render stale; "Save and render" queues its re-render (only this member). The server checks every field.
 import { ArrowLeft, Pencil, Plus, RefreshCw, Trash2, X } from 'lucide-vue-next'
 import { computed, nextTick, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { api, type CastMember } from '../api/client'
 import ErrorCard from '../components/ErrorCard.vue'
 import WardrobePreview from '../components/WardrobePreview.vue'
@@ -204,15 +204,18 @@ async function save(andRender: boolean) {
     if (part) await act(() => api.submitJob(props.slug, part, [`cast-sheet ${props.id}`]), `${body.name as string} render queued`)
   }
   saving.value = false
-  if (s) router.push(`/series/${props.slug}#cast`)
+  if (s) router.push(back.value)
 }
+// where Save and Back go: the page that opened the editor (a part or the series), else the series' cast
+const route = useRoute()
+const back = computed(() => { const b = route.query.back; return typeof b === 'string' && b.startsWith('/') && !b.startsWith('//') ? b : `/series/${props.slug}#cast` })
 const field = 'inset mt-1 block h-10 w-full rounded-md px-3 text-sm text-ink outline-none focus:border-blue'
 const swatch = 'mt-1 block h-10 w-14 shrink-0 cursor-pointer rounded-md'
 </script>
 
 <template>
   <div class="space-y-6">
-    <RouterLink :to="`/series/${slug}#cast`" class="btn btn-secondary"><ArrowLeft :size="16" aria-hidden="true" /> Back to the series</RouterLink>
+    <RouterLink :to="back" class="btn btn-secondary"><ArrowLeft :size="16" aria-hidden="true" /> Back</RouterLink>
     <ErrorCard v-if="error" :message="error" @retry="reload" />
     <div v-else-if="loading" class="skeleton h-96" aria-busy="true" aria-label="Loading cast member" />
     <ErrorCard v-else-if="!member" :message="`No cast member “${id}” in ${slug}.`" @retry="reload" />

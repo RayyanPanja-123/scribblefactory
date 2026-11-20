@@ -215,6 +215,16 @@ def test_add_cast(client, lib):
     assert client.post("/api/series/nope/cast", json={"cast": []}).status_code == 404
 
 
+def test_delete_cast(client, lib):
+    client.post("/api/series/demo/cast", json={"cast": [{"id": "ann", "name": "Ann", "color": "#00ff00"}]})
+    (lib / "demo" / "part-01" / "story.md").write_text("# Pilot\n\n@set street\n@cast bob\nAnnie met bob.\n", encoding="utf-8")
+    r = client.delete("/api/series/demo/cast/bob")
+    assert r.status_code == 409 and "part-01" in r.json()["detail"]
+    assert [c["id"] for c in client.delete("/api/series/demo/cast/ann").json()["cast"]] == ["bob"]  # "Annie" is narration
+    assert client.delete("/api/series/demo/cast/bob?force=true").json()["cast"] == []
+    assert client.delete("/api/series/demo/cast/bob").status_code == 404
+
+
 def test_pick_thumbnail(client, lib):
     assert client.post(f"{P}/pick-thumbnail", json={"n": 3}).json()["thumbnail_choice"] == "thumbs/thumb-3.png"
     (lib / "demo" / "part-01" / "thumbs" / "thumb-2.png").unlink()

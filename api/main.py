@@ -736,6 +736,26 @@ def edit_cast(slug: str, cast_id: str, body: dict):
     return merge_cast(slug, [{**body, "id": cast_id}])
 
 
+@app.delete("/api/series/{slug}/cast/{cast_id}", response_model=SeriesModel)
+def delete_cast(slug: str, cast_id: str, force: bool = False):
+    """remove one cast member. A 409 names the parts whose directives still use the id, unless force (their
+    check-story then flags it). Its render files stay on disk."""
+    d = series_path(slug)
+    check_free(slug)
+    series = load_series(d / "series.json")
+    if not any(c.id == cast_id for c in series.cast):
+        raise HTTPException(404, f"cast id {cast_id!r} not in {slug}")
+    word = re.compile(rf"(?<![\w-]){re.escape(cast_id)}(?![\w-])")
+    used = [pid for pid, _ in parts_of(d) if (f := d / pid / "story.md").is_file()
+            and any(l.lstrip().startswith("@") and word.search(l) for l in f.read_text(encoding="utf-8").splitlines())]
+    if used and not force:
+        raise HTTPException(409, f"used in {', '.join(used)}")
+    series.cast = [c for c in series.cast if c.id != cast_id]
+    atomic_write_json(d / "series.json", series.model_dump(mode="json"))
+    publish("series-changed", {"slug": slug})
+    return series_json(d)
+
+
 # ---------------- props (library/props.json, shared by every series) ----------------
 
 class PropCatalog(BaseModel):

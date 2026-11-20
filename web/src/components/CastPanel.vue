@@ -2,9 +2,10 @@
 // The series cast: one card per character with its idle pose. Each one renders, is edited (CastEditor page) and is
 // approved on its own, so changing one character never means re-rendering the rest. Approving needs a render of the
 // character's current look (renders[id].current); live job state comes from live.ts.
-import { CheckCheck, Download, FileJson, ImageOff, Pencil, RefreshCw, TriangleAlert, ZoomIn } from 'lucide-vue-next'
+import { CheckCheck, Download, FileJson, ImageOff, Pencil, Plus, RefreshCw, Trash2, TriangleAlert, ZoomIn } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
-import { api, type CastMember, type SeriesModel } from '../api/client'
+import { useRoute } from 'vue-router'
+import { api, ApiError, type CastMember, type SeriesModel } from '../api/client'
 import type { components } from '../api/types'
 import { act, confirm, toast, zoom } from '../composables/feedback'
 import { castSheetJob, seriesBusy } from '../composables/live'
@@ -104,6 +105,44 @@ async function runImport() {
   importText.value = ''
   emit('changed')
 }
+
+// ---- add / remove one character, from the series page or any part ----
+const route = useRoute() // the cast editor returns here (a part page or the series page)
+const PALETTE = ['#3a7bd5', '#d53a3a', '#2e9e5b', '#e0a020', '#8a4fd5', '#d5703a']
+const slugify = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+const addOpen = ref(false)
+const newName = ref('')
+const newColor = ref(PALETTE[0])
+const newId = computed(() => slugify(newName.value))
+const addReason = computed(() => !newId.value ? 'type a name' : cast.value.some((c) => c.id === newId.value) ? `${newId.value} is already in the cast`
+  : busy.value ? 'a job is running in this series' : null)
+function openAdd() {
+  newName.value = ''
+  newColor.value = PALETTE[cast.value.length % PALETTE.length]
+  addOpen.value = true
+}
+async function addMember() {
+  if (addReason.value) return
+  const name = newName.value.trim()
+  if (await act(() => api.addCast(p.series.slug, [{ id: newId.value, name, color: newColor.value }]), `${name} added: Edit for the outfit`)) {
+    addOpen.value = false
+    emit('changed')
+  }
+}
+async function remove(c: CastMember) {
+  if (!(await confirm({ title: `Remove ${c.name}?`, body: `Takes ${c.name} out of the series cast.`, confirm: 'Remove', danger: true }))) return
+  try {
+    await api.deleteCast(p.series.slug, c.id)
+  } catch (e) {
+    if (!(e instanceof ApiError && e.status === 409 && e.message.startsWith('used in'))) return toast(e instanceof Error ? e.message : String(e), 'error')
+    const ok = await confirm({ title: `${c.name} is still in the story`, confirm: 'Remove anyway', danger: true,
+      body: `${c.id} is ${e.message} (directives). Remove anyway? Check story then flags those lines to fix.` })
+    if (!ok || !(await act(() => api.deleteCast(p.series.slug, c.id, true), `${c.name} removed`))) return
+    return emit('changed')
+  }
+  toast(`${c.name} removed`, 'ok')
+  emit('changed')
+}
 defineExpose({ renderSheet })
 </script>
 
@@ -118,6 +157,9 @@ defineExpose({ renderSheet })
         <button v-if="cast.length" class="btn btn-secondary" @click="exportJson">
           <Download :size="16" aria-hidden="true" /> Export JSON
         </button>
+        <button class="btn btn-secondary" :aria-expanded="addOpen" aria-controls="cast-add" @click="addOpen ? (addOpen = false) : openAdd()">
+          <Plus :size="16" aria-hidden="true" /> Add character
+        </button>
         <button class="btn btn-secondary" :aria-expanded="importOpen" aria-controls="cast-import" @click="importOpen = !importOpen">
           <FileJson :size="16" aria-hidden="true" /> Import JSON
         </button>
@@ -131,6 +173,20 @@ defineExpose({ renderSheet })
         </button>
       </div>
     </div>
+
+    <form v-if="addOpen" id="cast-add" class="inset mt-4 flex flex-wrap items-end gap-3 p-4" @submit.prevent="addMember">
+      <label class="block min-w-48 flex-1 text-xs font-semibold text-muted">Name
+        <input v-model="newName" placeholder="Fred Lorz" autofocus class="inset mt-1 block h-10 w-full rounded-md px-4 text-sm text-ink outline-none focus:border-blue" />
+      </label>
+      <label class="block text-xs font-semibold text-muted">Outfit
+        <input v-model="newColor" type="color" class="mt-1 block h-10 w-14 cursor-pointer rounded-md" />
+      </label>
+      <span class="h-10 self-end text-xs leading-10 text-muted">id <code>{{ newId || '…' }}</code></span>
+      <div class="ml-auto flex gap-2">
+        <button type="button" class="btn btn-secondary" @click="addOpen = false">Cancel</button>
+        <button class="btn btn-primary" :disabled="!!addReason" :title="addReason ?? undefined">Add</button>
+      </div>
+    </form>
 
     <div v-if="importOpen" id="cast-import" class="inset mt-4 space-y-3 p-4">
       <div class="flex flex-wrap items-center gap-2">
@@ -153,7 +209,7 @@ defineExpose({ renderSheet })
     </div>
 
     <p v-if="!cast.length" class="mt-3 text-sm text-muted">
-      No cast yet. Add characters with <code>cast-add</code>, or import cast JSON when creating a series.
+      No cast yet. Add a character any time, from the series page or any part.
     </p>
 
     <ul v-else class="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" aria-label="Cast members">
@@ -186,12 +242,16 @@ defineExpose({ renderSheet })
         </div>
 
         <div class="mt-3 flex flex-wrap items-center gap-2">
-          <RouterLink :to="`/series/${series.slug}/cast/${c.id}`" class="btn btn-secondary" :aria-label="`Edit ${c.name}`">
+          <RouterLink :to="{ path: `/series/${series.slug}/cast/${c.id}`, query: { back: route.fullPath } }" class="btn btn-secondary" :aria-label="`Edit ${c.name}`">
             <Pencil :size="14" aria-hidden="true" /> Edit
           </RouterLink>
           <button class="btn btn-secondary" :disabled="!!renderReason(c)" :title="renderReason(c) ?? undefined"
             :aria-label="`Re-render ${c.name}`" @click="renderCast([c], `${c.name} render`)">
             <RefreshCw :size="14" :class="{ 'animate-spin': rendering(c) }" aria-hidden="true" /> {{ render(c).sheet ? 'Re-render' : 'Render' }}
+          </button>
+          <button class="btn btn-secondary size-9 justify-center p-0" :disabled="busy" :title="busy ? 'a job is running in this series' : undefined"
+            :aria-label="`Remove ${c.name}`" @click="remove(c)">
+            <Trash2 :size="14" aria-hidden="true" />
           </button>
           <Switch v-if="!c.approved_at" :on="false" :label="c.name" :reason="approveReason(c)" @request="approve(c)">
             <span class="sr-only">{{ c.name }}</span>

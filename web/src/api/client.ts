@@ -85,6 +85,8 @@ export const api = {
   createSeries: (body: S['NewSeries']) => call<SeriesModel>('POST', '/api/series', body),
   addCast: (slug: string, cast: Record<string, unknown>[]) => call<SeriesModel>('POST', `/api/series/${e(slug)}/cast`, { cast }),
   importCast: (slug: string, cast: Record<string, unknown>[]) => call<SeriesModel>('PUT', `/api/series/${e(slug)}/cast`, { cast }),
+  deleteCast: (slug: string, castId: string, force = false) =>
+    call<SeriesModel>('DELETE', `/api/series/${e(slug)}/cast/${e(castId)}${force ? '?force=true' : ''}`),
   editCast: (slug: string, castId: string, entry: Record<string, unknown>) =>
     call<SeriesModel>('PUT', `/api/series/${e(slug)}/cast/${e(castId)}`, entry),
   createPart: (slug: string, body: S['NewPart']) => call<PartDetail>('POST', `/api/series/${e(slug)}/parts`, body),
