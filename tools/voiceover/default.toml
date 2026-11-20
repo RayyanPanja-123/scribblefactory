@@ -1,0 +1,39 @@
+# Voiceover enhancer: sound settings. A per-voiceover markers file ("<voiceover name>.toml" next to the audio)
+# may override any key here, and adds [[pause]], [[emphasis]] and [[sfx]] markers (see enhance.py).
+# Tuned on ElevenLabs output: already very compressed (LRA ~3 LU), boxy at 300-500 Hz, a bit dull above 4 kHz.
+
+[eq]
+enabled = true
+highpass_hz = 70                 # rumble / plosive thump below the voice
+bands = [                        # peaking EQ, applied in order
+  { freq = 120,  gain_db = 2.0,  q = 0.8 },   # body / fullness
+  { freq = 400,  gain_db = -2.5, q = 1.2 },   # boxiness
+  { freq = 3500, gain_db = 2.0,  q = 1.0 },   # presence / intelligibility
+]
+air_shelf = { freq = 10000, gain_db = 1.5 }   # keep small: MP3 sources have artefacts up here
+deesser = 0.3                    # 0 = off, 1 = strongest (tames the presence boost on "s")
+
+[compressor]                     # gentle glue; heavy ratios make TTS sound robotic
+enabled = true
+threshold_db = -20
+ratio = 2.0
+attack_ms = 15
+release_ms = 150
+makeup_db = 0
+
+[pauses]
+silence_db = -40                 # quieter than this counts as silence
+min_silence_s = 0.15             # shortest silence listed in the report
+min_sentence_pause = 0           # seconds; >0 lengthens every gap after . ? ! to at least this. 0 = off
+max_pause = 2.0                  # safety cap for any single pause
+
+[sound_effects]
+enabled = true
+dir = "../../library/sfx"        # bare file names are looked up here (relative to this file), after the markers' folder
+default_gain_db = -8             # sfx peak relative to the voice peak: the narration stays on top
+
+[master]
+target_lufs = -14
+true_peak_db = -1.0
+mp3_margin_db = 0.5              # limiter aims this far under true_peak_db: MP3 encoding adds a few tenths
+mp3_bitrate = "320k"
