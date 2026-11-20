@@ -14,6 +14,8 @@
      - Lines 1 to 3: at most 30 words; never reveal the twist.
      - Lines 1 to 3: no cast names. Describe them instead ("a billionaire", "one bartender"); the first name comes on
        line 4 or later.
+     - Lines 1 to 3: full of uncertainty. Every line leaves something open (who, why, how, what happens next):
+       stated as flat fact, never as questions or hedges ("maybe", "some say"). Answer none of it before line 4.
   3. **Rehook loop** (halfway, around word 55 to 75): just as curiosity fades, open a new question: a reversal, a new
      threat, a strange detail, a character doing something unexpected. One line, concrete, never the twist itself.
 - Exactly one `!! <line>` (the twist), last: it pays off the hook's question. Nothing after it: no sign-off
