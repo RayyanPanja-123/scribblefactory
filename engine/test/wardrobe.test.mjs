@@ -28,10 +28,10 @@ const first = (ops, colour) => ops.findIndex((x) => x.op === "fill" && x.style =
 const item = (id, slot, layers, extra = {}) => ({ id, name: id, slot, layers, colorable: true, default_color: "#123456", ...extra });
 
 test("slot values: plain id, {id, color}, legacy {kind} / {style}, null and none", () => {
-  assert.deepEqual(slotValue("wild_hair"), { id: "wild_hair", color: null });
-  assert.deepEqual(slotValue({ id: "wild_hair", color: "#e8e8e8" }), { id: "wild_hair", color: "#e8e8e8" });
-  assert.deepEqual(slotValue({ kind: "bowler", color: "#333333" }), { id: "bowler", color: "#333333" });
-  assert.deepEqual(slotValue({ style: "suit", color: "#111111" }), { id: "suit", color: "#111111" });
+  assert.deepEqual(slotValue("wild_hair"), { id: "wild_hair", color: null, accent: null });
+  assert.deepEqual(slotValue({ id: "wild_hair", color: "#e8e8e8" }), { id: "wild_hair", color: "#e8e8e8", accent: null });
+  assert.deepEqual(slotValue({ kind: "bowler", color: "#333333" }), { id: "bowler", color: "#333333", accent: null });
+  assert.deepEqual(slotValue({ style: "suit", color: "#111111" }), { id: "suit", color: "#111111", accent: null });
   for (const none of [null, undefined, "none", { kind: "none" }, { id: "none" }]) assert.equal(slotValue(none), null);
   // list slots take up to 3, flattened in draw order (back to front)
   const s = slotsOf({ hair: "h", face: ["a", "b", "c", "d"], back: "cape", headwear: { kind: "bowler", color: "#000000" } });
@@ -85,6 +85,18 @@ test("colour override: a colorable item takes the cast colour, else its default;
   assert.equal(wearing({ headwear: { id: "fixed", color: "#ff0000" } })[0].color, "#123456");
   const ops = record({ ...BASE, headwear: { id: "cap", color: "#ff0000" } });
   assert.ok(first(ops, "#ff0000") >= 0 && first(ops, "#ffd54a") >= 0);
+});
+
+test("accent: $accent takes the cast accent (a top's accent_color too), else the item's default_accent", () => {
+  const band = { shape: "rect", anchor: "head_top", pts: [[-40, 0], [40, 10]], fill: "$accent" };
+  const cap = item("cap", "headwear", [band], { default_accent: "#654321" }), tee = item("tee", "top", [{ ...band, anchor: "chest" }]);
+  setLibrary({ wardrobe: [cap, tee, { ...cap, id: "fixed", colorable: false }] });
+  assert.equal(wearing({ headwear: { id: "cap", accent: "#00ff00" } })[0].accent, "#00ff00");
+  assert.equal(wearing({ headwear: "cap" })[0].accent, "#654321");
+  assert.equal(wearing({ headwear: { id: "fixed", accent: "#00ff00" } })[0].accent, "#654321");
+  assert.equal(wearing({ top: { style: "tee", color: "#111111", accent_color: "#00ff00" } })[0].accent, "#00ff00");
+  assert.equal(wearing({ top: { style: "tee", color: "#111111" } })[0].accent, "#3a2a1e"); // an item saved before accents
+  assert.ok(first(record({ ...BASE, headwear: { id: "cap", accent: "#00ff00" } }), "#00ff00") >= 0);
 });
 
 test("unknown ids and items in the wrong slot throw", () => {

@@ -302,7 +302,7 @@ export function drawStickman(canvas, o) {
     for (const w of W) for (const L of w.item.layers) {
       if (!pick(w.slot, L) || (L.when && !L.when.includes(expr))) continue;
       for (const fr of A[L.anchor]) {
-        const pts = jitter(layerPoints(L, fr), wcos, 1.2), fill = layerFill(L, w.color);
+        const pts = jitter(layerPoints(L, fr), wcos, 1.2), fill = layerFill(L, w.color, w.accent);
         if (L.shape === "line") p.stroke(pts, L.width ?? OL, fill || INK); else p.poly(pts, fill, L.width ?? OL);
       }
     }

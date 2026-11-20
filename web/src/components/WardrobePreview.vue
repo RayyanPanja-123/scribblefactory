@@ -10,7 +10,7 @@ import { setLibrary } from '../../../engine/page/library.js'
 import { LIST_SLOTS, PREVIEW_POSES, type Build, type Slot, type WardrobeItem } from '../lib/wardrobe'
 
 const p = defineProps<{
-  id?: string; slot?: Slot; custom?: WardrobeItem[]; color?: string; build?: Build | null; pose?: string;
+  id?: string; slot?: Slot; custom?: WardrobeItem[]; color?: string; accent?: string; build?: Build | null; pose?: string;
   expression?: string; facing?: 'camera' | 'left' | 'right'; label: string
   wear?: Record<string, unknown>; library?: Record<string, unknown[]>; seed?: string
 }>()
@@ -25,8 +25,9 @@ function draw() {
   g.clearRect(0, 0, out.width, out.height)
   const card = Object.assign(document.createElement('canvas'), { width: CW, height: 1024 })
   const color = p.color ?? '#6b4f3a', body = p.slot === 'top' ? color : '#c9c2b4'
-  const worn = !p.id || !p.slot ? {} : p.slot === 'top' ? { top: { style: p.id, color } }
-    : LIST_SLOTS.includes(p.slot) ? { [p.slot]: [{ id: p.id, color }] } : { [p.slot]: { id: p.id, color } }
+  const accent = p.accent ?? null
+  const worn = !p.id || !p.slot ? {} : p.slot === 'top' ? { top: { style: p.id, color, accent_color: accent } }
+    : LIST_SLOTS.includes(p.slot) ? { [p.slot]: [{ id: p.id, color, accent }] } : { [p.slot]: { id: p.id, color, accent } }
   const pose = p.pose ?? 'idle'
   try {
     if (p.custom) setLibrary({ wardrobe: p.custom })
@@ -46,7 +47,7 @@ function draw() {
   g.drawImage(card, 0, FEET - top - PAD, w, h, (out.width - w * s) / 2, (out.height - h * s) / 2, w * s, h * s)
 }
 onMounted(draw)
-watch(() => [p.id, p.slot, p.custom, p.color, p.build, p.pose, p.expression, p.facing, p.wear, p.library], draw, { deep: true })
+watch(() => [p.id, p.slot, p.custom, p.color, p.accent, p.build, p.pose, p.expression, p.facing, p.wear, p.library], draw, { deep: true })
 </script>
 
 <template>

@@ -373,6 +373,20 @@
     "Headwear": {
       "additionalProperties": false,
       "properties": {
+        "accent": {
+          "anyOf": [
+            {
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "the accent ($accent layers) of a recolourable library item",
+          "title": "Accent"
+        },
         "color": {
           "anyOf": [
             {
@@ -400,6 +414,20 @@
     "Legwear": {
       "additionalProperties": false,
       "properties": {
+        "accent": {
+          "anyOf": [
+            {
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "the accent ($accent layers) of a recolourable library item",
+          "title": "Accent"
+        },
         "color": {
           "anyOf": [
             {
@@ -502,7 +530,7 @@
             }
           ],
           "default": null,
-          "description": "suit: the tie colour (no tie when null); dress: the wide hat's ribbon and flower",
+          "description": "suit: the tie colour (no tie when null); dress: the wide hat's ribbon and flower; a library top: its $accent layers",
           "title": "Accent Color"
         },
         "color": {
@@ -572,6 +600,20 @@
       "additionalProperties": false,
       "description": "one worn wardrobe item: an id (built in or library/wardrobe.json) and an optional colour for colorable items.\nA plain id string is accepted. \"none\": nothing (in a look: takes the cast member's item off).",
       "properties": {
+        "accent": {
+          "anyOf": [
+            {
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "the accent ($accent layers) of a recolourable library item",
+          "title": "Accent"
+        },
         "color": {
           "anyOf": [
             {

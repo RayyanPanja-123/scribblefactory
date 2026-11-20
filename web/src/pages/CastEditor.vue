@@ -35,7 +35,7 @@ const KIND_SLOTS: Slot[] = ['headwear', 'legwear'] // stored as {kind, color}; t
 /** what a look can change (pipeline CastLook); name and body stay the member's own */
 const LOOK_FIELDS = ['top', 'headwear', 'legwear', 'hair', 'facial_hair', 'footwear', 'back', 'accessory', 'face', 'props',
   'default_expression', 'eyes', 'headless'] as const
-type Worn = { id: string; color: string | null } // id '': nothing
+type Worn = { id: string; color: string | null; accent?: string | null } // id '': nothing
 type Obj = Record<string, unknown>
 
 // ---- tabs: one body area at a time ----
@@ -66,6 +66,10 @@ const custom = (id: string) => data.value?.wardrobe.custom.find((w) => w.id === 
 const ofSlot = (s: Slot) => items.value.filter((w) => w.slot === s)
 /** null: no colour control (a custom item the cast can't recolour) */
 const defaultColor = (id: string) => { const w = custom(id); return !w ? '#333333' : w.colorable ? w.default_color : null }
+/** null: no accent control (a built-in, a fixed item, or one with no "$accent" layer) */
+const defaultAccent = (id: string) => { const w = custom(id); return w?.colorable && w.layers.some((L) => L.fill === '$accent') ? w.default_accent ?? '#3a2a1e' : null }
+/** a slot as saved: the accent only when one is set (an unset one stays out of series.json) */
+const accentOf = (w: Worn) => (w.id && w.accent ? { accent: w.accent } : {})
 
 // ---- drafts: an outfit as form state; one for the base, one for the look being edited ----
 type Draft = {
@@ -75,7 +79,7 @@ type Draft = {
 }
 const worn = (v: unknown): Worn => {
   const o = (v ?? {}) as Obj, id = (o.id ?? o.kind ?? '') as string
-  return { id: id === 'none' ? '' : id, color: (o.color as string | null | undefined) ?? null }
+  return { id: id === 'none' ? '' : id, color: (o.color as string | null | undefined) ?? null, accent: (o.accent as string | null | undefined) ?? null }
 }
 /** a cast entry (the member, or the member with a look merged in) -> form state */
 function toDraft(c: Obj): Draft {
@@ -96,14 +100,14 @@ function toEntry(d: Draft): Obj {
   const { approved_at: _, ...rest } = c
   const one = Object.fromEntries(ONE.map((s) => {
     const w = d.one[s]
-    return [s, KIND_SLOTS.includes(s) ? { kind: w.id || 'none', color: w.id ? w.color : null } : w.id ? { id: w.id, color: w.color } : null]
+    return [s, KIND_SLOTS.includes(s) ? { kind: w.id || 'none', color: w.id ? w.color : null, ...accentOf(w) } : w.id ? { id: w.id, color: w.color, ...accentOf(w) } : null]
   }))
   return {
     ...rest, ...one, name: d.name.trim(), eyes: d.eyes, default_expression: d.expression, body: d.body,
     headless: d.headless && !!creature(d.body)?.parts.stump,
     top: { ...c.top, style: d.top.style, color: d.top.color, accent_color: d.top.accent, number: d.top.number.trim() || null },
     props: HANDS.filter((h) => d.hands[h]).map((h) => ({ kind: d.hands[h], hand: h })),
-    ...Object.fromEntries(MANY.map((s) => [s, d.many[s].filter((w) => w.id).map((w) => ({ id: w.id, color: w.color }))])),
+    ...Object.fromEntries(MANY.map((s) => [s, d.many[s].filter((w) => w.id).map((w) => ({ id: w.id, color: w.color, ...accentOf(w) }))])),
   }
 }
 const nonNull = (o: Obj) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== null && v !== undefined))
@@ -179,6 +183,7 @@ async function deleteLook(name: string) {
 
 function pick(w: Worn) { // a new item: its own default colour (built-ins need one), none if it can't be recoloured
   w.color = w.id ? defaultColor(w.id) : null
+  w.accent = null // the item's own default_accent until picked
 }
 const handOptions = computed(() => {
   const o = propOptions(data.value?.propCatalog), d = draft.value
@@ -307,6 +312,9 @@ const swatch = 'mt-1 block h-10 w-14 shrink-0 cursor-pointer rounded-md'
               <input v-if="draft.one[s].id && defaultColor(draft.one[s].id)" :value="draft.one[s].color ?? defaultColor(draft.one[s].id)"
                 type="color" :class="swatch" :aria-label="`${SLOT_LABEL[s]} colour`"
                 @input="draft.one[s].color = ($event.target as HTMLInputElement).value" />
+              <input v-if="draft.one[s].id && defaultAccent(draft.one[s].id)" :value="draft.one[s].accent ?? defaultAccent(draft.one[s].id)"
+                type="color" :class="swatch" :aria-label="`${SLOT_LABEL[s]} accent`" :title="`${SLOT_LABEL[s]} accent`"
+                @input="draft.one[s].accent = ($event.target as HTMLInputElement).value" />
             </div>
 
             <div v-for="s in SLOTS_IN[t]!.many" :key="s">
@@ -318,6 +326,9 @@ const swatch = 'mt-1 block h-10 w-14 shrink-0 cursor-pointer rounded-md'
                 </select>
                 <input v-if="defaultColor(w.id)" :value="w.color ?? defaultColor(w.id)" type="color" :class="swatch"
                   :aria-label="`${SLOT_LABEL[s]} ${i + 1} colour`" @input="w.color = ($event.target as HTMLInputElement).value" />
+                <input v-if="defaultAccent(w.id)" :value="w.accent ?? defaultAccent(w.id)" type="color" :class="swatch"
+                  :aria-label="`${SLOT_LABEL[s]} ${i + 1} accent`" :title="`${SLOT_LABEL[s]} ${i + 1} accent`"
+                  @input="w.accent = ($event.target as HTMLInputElement).value" />
                 <button type="button" class="btn btn-secondary size-10 justify-center p-0" :aria-label="`Remove ${SLOT_LABEL[s]} ${i + 1}`"
                   @click="draft.many[s].splice(i, 1)"><X :size="14" aria-hidden="true" /></button>
               </div>

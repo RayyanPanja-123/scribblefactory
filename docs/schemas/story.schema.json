@@ -283,6 +283,7 @@
           "enum": [
             "music_stop",
             "music_start",
+            "background_music",
             "low_hit",
             "whoosh",
             "pop",
@@ -290,6 +291,32 @@
           ],
           "title": "Kind",
           "type": "string"
+        },
+        "track": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Track"
+        },
+        "volume": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Volume"
         }
       },
       "required": [
@@ -517,6 +544,20 @@
     "Headwear": {
       "additionalProperties": false,
       "properties": {
+        "accent": {
+          "anyOf": [
+            {
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "the accent ($accent layers) of a recolourable library item",
+          "title": "Accent"
+        },
         "color": {
           "anyOf": [
             {
@@ -544,6 +585,20 @@
     "Legwear": {
       "additionalProperties": false,
       "properties": {
+        "accent": {
+          "anyOf": [
+            {
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "the accent ($accent layers) of a recolourable library item",
+          "title": "Accent"
+        },
         "color": {
           "anyOf": [
             {
@@ -766,7 +821,7 @@
             }
           ],
           "default": null,
-          "description": "suit: the tie colour (no tie when null); dress: the wide hat's ribbon and flower",
+          "description": "suit: the tie colour (no tie when null); dress: the wide hat's ribbon and flower; a library top: its $accent layers",
           "title": "Accent Color"
         },
         "color": {

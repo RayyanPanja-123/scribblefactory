@@ -9,6 +9,13 @@
           "title": "Colorable",
           "type": "boolean"
         },
+        "default_accent": {
+          "default": "#3a2a1e",
+          "description": "$accent when the cast member sets no accent",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "title": "Default Accent",
+          "type": "string"
+        },
         "default_color": {
           "default": "#6b4f3a",
           "pattern": "^#[0-9a-fA-F]{6}$",
@@ -99,7 +106,10 @@
               "type": "string"
             },
             {
-              "const": "$color",
+              "enum": [
+                "$color",
+                "$accent"
+              ],
               "type": "string"
             },
             {
@@ -107,7 +117,7 @@
             }
           ],
           "default": null,
-          "description": "$color: the worn colour (the cast member's for a colorable item, else the item's default_color); none: outline only. For a line: its colour (default ink)",
+          "description": "$color: the worn colour (the cast member's for a colorable item, else the item's default_color); $accent: the worn accent (else default_accent); none: outline only. For a line: its colour (default ink)",
           "title": "Fill"
         },
         "pts": {

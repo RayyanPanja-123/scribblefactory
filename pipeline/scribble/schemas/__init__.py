@@ -86,11 +86,21 @@ def _id_key(key: str):
     return f
 
 
+def _drop_null_accent(self, nxt):
+    """an unset accent is left out of the saved file, so casts saved before accents existed stay byte-identical"""
+    d = nxt(self)
+    if isinstance(d, dict) and d.get("accent") is None:
+        d.pop("accent", None)
+    return d
+
+
 class WardrobeSlot(Strict):
     """one worn wardrobe item: an id (built in or library/wardrobe.json) and an optional colour for colorable items.
     A plain id string is accepted. "none": nothing (in a look: takes the cast member's item off)."""
     id: WardrobeId
     color: HexColor | None = None
+    accent: HexColor | None = Field(default=None, description="the accent ($accent layers) of a recolourable library item")
+    _ser = model_serializer(mode="wrap")(_drop_null_accent)
 
     @model_validator(mode="before")
     @classmethod
@@ -111,7 +121,8 @@ class Top(Strict):
     color: HexColor | None = Field(default=None, description="none: the cast member's own top colour in a look, "
                                                              "else the default top colour")
     accent_color: HexColor | None = Field(default=None, description="suit: the tie colour (no tie when null); "
-                                                                     "dress: the wide hat's ribbon and flower")
+                                                                     "dress: the wide hat's ribbon and flower; "
+                                                                     "a library top: its $accent layers")
     number: str | None = Field(default=None, pattern=r"^[0-9]{1,3}$", description="chest number on a white bib")
     _plain = model_validator(mode="before")(_id_key("style"))
 
@@ -140,6 +151,8 @@ class Headwear(Strict):
                                                        "in flat_cap, postman_cap, bowler, straw_hat, wide_hat, or a "
                                                        "library headwear; none")
     color: HexColor | None = None
+    accent: HexColor | None = Field(default=None, description="the accent ($accent layers) of a recolourable library item")
+    _ser = model_serializer(mode="wrap")(_drop_null_accent)
     _plain = model_validator(mode="before")(_id_key("kind"))
     @model_validator(mode="before")
     @classmethod
@@ -152,6 +165,8 @@ class Legwear(Strict):
     kind: WardrobeId = Field(default="none", description="wardrobe id: built in shorts, ragged_shorts, trousers, or a "
                                                        "library legwear; none")
     color: HexColor | None = None
+    accent: HexColor | None = Field(default=None, description="the accent ($accent layers) of a recolourable library item")
+    _ser = model_serializer(mode="wrap")(_drop_null_accent)
     _plain = model_validator(mode="before")(_id_key("kind"))
     @model_validator(mode="before")
     @classmethod
@@ -802,9 +817,10 @@ class WardrobeLayer(Strict):
     r: float | None = Field(default=None, gt=0, le=400, description="circle: radius; ellipse: x radius")
     ry: float | None = Field(default=None, gt=0, le=400, description="ellipse: y radius")
     rot: float = Field(default=0, ge=-180, le=180, description="ellipse: turn in degrees, clockwise")
-    fill: HexColor | Literal["$color"] | None = Field(
+    fill: HexColor | Literal["$color", "$accent"] | None = Field(
         default=None, description="$color: the worn colour (the cast member's for a colorable item, else the item's "
-                                  "default_color); none: outline only. For a line: its colour (default ink)")
+                                  "default_color); $accent: the worn accent (else default_accent); none: outline "
+                                  "only. For a line: its colour (default ink)")
     width: float = Field(default=8, ge=0, le=40, description="outline / line width; 0: no outline")
     behind: bool = Field(default=False, description="drawn behind the head and body (long hair, a cape)")
     when: list[Expression] | None = Field(default=None, description="only with these expressions (blush: happy)")
@@ -830,6 +846,7 @@ class WardrobeItem(Strict):
     layers: list[WardrobeLayer] = Field(default=[], max_length=60, description="drawn in order: later ones on top")
     colorable: bool = Field(default=True, description="the cast member's colour replaces default_color in $color")
     default_color: HexColor = "#6b4f3a"
+    default_accent: HexColor = Field(default="#3a2a1e", description="$accent when the cast member sets no accent")
 
     @field_validator("id")
     @classmethod

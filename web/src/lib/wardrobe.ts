@@ -55,8 +55,8 @@ export const SHAPES = ['rect', 'circle', 'ellipse', 'line', 'poly'] as const
 
 const SEED = JSON.parse(seedRaw).wardrobe as WardrobeItem[]
 // one example per slot: the seed's first item of it; the seed has no legwear, so one is written here
-const LEGWEAR: WardrobeItem = { id: 'breeches', name: 'Breeches', slot: 'legwear', colorable: true, default_color: '#5a4632', layers: [
-  { shape: 'rect', anchor: 'hips', pts: [[-55, -12], [55, 30]], fill: '$color', width: 8, r: null, ry: null, rot: 0, behind: false, when: null },
+const LEGWEAR: WardrobeItem = { id: 'breeches', name: 'Breeches', slot: 'legwear', colorable: true, default_color: '#5a4632', default_accent: '#2b1d12', layers: [
+  { shape: 'rect', anchor: 'hips', pts: [[-55, -12], [55, 30]], fill: '$accent', width: 8, r: null, ry: null, rot: 0, behind: false, when: null },
   { shape: 'poly', anchor: 'legs', pts: [[-24, 0], [24, 0], [20, 130], [-20, 130]], fill: '$color', width: 8, r: null, ry: null, rot: 0, behind: false, when: null },
 ] }
 export const EXAMPLES: WardrobeItem[] = SLOTS.map((s) => (s === 'legwear' ? LEGWEAR : SEED.find((w) => w.slot === s)!))
@@ -68,7 +68,7 @@ function lean(L: WardrobeLayer): Partial<WardrobeLayer> {
   return o
 }
 const compact = (w: WardrobeItem) => `{"id": "${w.id}", "name": "${w.name}", "slot": "${w.slot}", "colorable": ${w.colorable}, ` +
-  `"default_color": "${w.default_color}", "layers": [\n${w.layers.map((L) => `  ${JSON.stringify(lean(L))}`).join(',\n')}\n]}`
+  `"default_color": "${w.default_color}", "default_accent": "${w.default_accent ?? '#3a2a1e'}", "layers": [\n${w.layers.map((L) => `  ${JSON.stringify(lean(L))}`).join(',\n')}\n]}`
 
 const toId = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
 
@@ -83,17 +83,19 @@ export function buildWardrobePrompt(name: string, slot: Slot, taken: string[], d
 Reply with ONE JSON object in a \`\`\`json code block and nothing else.
 
 ## Format
-{"id": "${id}", "name": ${title}, "slot": "${slot}", "colorable": true, "default_color": "#rrggbb", "layers": [ <layer>, ... ]}
+{"id": "${id}", "name": ${title}, "slot": "${slot}", "colorable": true, "default_color": "#rrggbb", "default_accent": "#rrggbb", "layers": [ <layer>, ... ]}
 
 - id, name and slot: use exactly the ones above (ids: lowercase a-z, 0-9, single _ or -). Must NOT be one of: ${taken.join(', ') || '(none)'}.
-- colorable: true when a cast member may recolour it ("$color" fills take their colour), false for a fixed look.
+- colorable: true when a cast member may recolour it ("$color" fills take their main colour, "$accent" fills their
+  accent), false for a fixed look. default_color / default_accent: the colours before anyone recolours it.
 - layers: 1 to 12 shapes (max 60), drawn in order, later ones on top. Each is one of:
   - {"shape": "rect",    "anchor": A, "pts": [[x0, y0], [x1, y1]], "fill": F, "width": 8}   two corners
   - {"shape": "circle",  "anchor": A, "pts": [[cx, cy]], "r": 20, "fill": F, "width": 8}
   - {"shape": "ellipse", "anchor": A, "pts": [[cx, cy]], "r": 30, "ry": 15, "rot": 0, "fill": F, "width": 8}
   - {"shape": "poly",    "anchor": A, "pts": [[x, y], [x, y], [x, y], ...], "fill": F, "width": 8}   3 to 40 points, closed
   - {"shape": "line",    "anchor": A, "pts": [[x, y], [x, y], ...], "fill": F, "width": 6}   open stroke; fill is its colour (default ink)
-- fill: "$color" (the worn colour), a "#rrggbb" hex, or null (outline only). width: black outline 0 to 40 (0: none).
+- fill: "$color" (the worn main colour), "$accent" (the worn accent: use it for the second colour of a two-tone item,
+  e.g. a hat band, trim, stripes, buttons, a tie), a "#rrggbb" hex, or null (outline only). width: black outline 0 to 40 (0: none).
 - optional "behind": true draws the layer behind the head and body (long hair falling down the back, a cape).
 - optional "when": ["happy", ...] shows the layer only with those expressions (neutral, happy, cheer, sad, angry, surprised,
   sleepy, cheeky, exhausted, worried, dead).
@@ -122,6 +124,8 @@ ${EXAMPLES.map((e) => `\`\`\`json\n${compact(e)}\n\`\`\``).join('\n\n')}
 Now design **${thing}** and reply with only its JSON object.`
 }
 
+const hex = (v: unknown, fallback: string) => (typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v) ? v : fallback)
+
 /** the AI's reply (raw JSON, a fenced block, JSON inside other text, or a {"wardrobe": [...]} file: the first) ->
  *  an item to load into the editor, or an error message. The server checks the rest on save. */
 export function importWardrobe(text: string, slot?: Slot): { item?: WardrobeItem; error?: string } {
@@ -148,7 +152,7 @@ export function importWardrobe(text: string, slot?: Slot): { item?: WardrobeItem
   }
   const name = typeof w.name === 'string' && w.name.trim() ? w.name.trim().slice(0, 40) : 'New item'
   return { item: { id: toId(typeof w.id === 'string' ? w.id : name) || s, name, slot: s, layers, colorable: w.colorable !== false,
-    default_color: typeof w.default_color === 'string' && /^#[0-9a-f]{6}$/i.test(w.default_color) ? w.default_color : '#6b4f3a' } }
+    default_color: hex(w.default_color, '#6b4f3a'), default_accent: hex(w.default_accent, '#3a2a1e') } }
 }
 
 /** every item a cast slot can use: built-ins first, then the library's */

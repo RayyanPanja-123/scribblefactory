@@ -1409,6 +1409,11 @@ export interface components {
         };
         /** Headwear */
         Headwear: {
+            /**
+             * Accent
+             * @description the accent ($accent layers) of a recolourable library item
+             */
+            accent?: string | null;
             /** Color */
             color?: string | null;
             /**
@@ -1524,6 +1529,11 @@ export interface components {
         };
         /** Legwear */
         Legwear: {
+            /**
+             * Accent
+             * @description the accent ($accent layers) of a recolourable library item
+             */
+            accent?: string | null;
             /** Color */
             color?: string | null;
             /**
@@ -2391,7 +2401,7 @@ export interface components {
         Top: {
             /**
              * Accent Color
-             * @description suit: the tie colour (no tie when null); dress: the wide hat's ribbon and flower
+             * @description suit: the tie colour (no tie when null); dress: the wide hat's ribbon and flower; a library top: its $accent layers
              */
             accent_color?: string | null;
             /**
@@ -2474,6 +2484,12 @@ export interface components {
              */
             colorable: boolean;
             /**
+             * Default Accent
+             * @description $accent when the cast member sets no accent
+             * @default #3a2a1e
+             */
+            default_accent: string;
+            /**
              * Default Color
              * @default #6b4f3a
              */
@@ -2519,9 +2535,9 @@ export interface components {
             behind: boolean;
             /**
              * Fill
-             * @description $color: the worn colour (the cast member's for a colorable item, else the item's default_color); none: outline only. For a line: its colour (default ink)
+             * @description $color: the worn colour (the cast member's for a colorable item, else the item's default_color); $accent: the worn accent (else default_accent); none: outline only. For a line: its colour (default ink)
              */
-            fill?: string | "$color" | null;
+            fill?: string | ("$color" | "$accent") | null;
             /**
              * Pts
              * @description rect: 2 corners; circle / ellipse: the centre; line: 2+ points; poly: 3+ points (closed)
@@ -2569,6 +2585,11 @@ export interface components {
          *     A plain id string is accepted. "none": nothing (in a look: takes the cast member's item off).
          */
         WardrobeSlot: {
+            /**
+             * Accent
+             * @description the accent ($accent layers) of a recolourable library item
+             */
+            accent?: string | null;
             /** Color */
             color?: string | null;
             /** Id */

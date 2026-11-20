@@ -24,22 +24,24 @@ const { data, error, loading, reload } = useApi(async () => {
 })
 
 type Shape = WardrobeLayer['shape']
-type Fill = 'none' | 'color' | 'hex'
+type Fill = 'none' | 'color' | 'accent' | 'hex'
 type Row = { shape: Shape; anchor: Anchor; pts: string; r: number; ry: number; rot: number; fill: Fill; hex: string; width: number; behind: boolean; when: string }
 const HINT: Record<Shape, string> = { rect: 'two corners', circle: 'the centre', ellipse: 'the centre', line: '2 or more points', poly: '3 or more points, closed' }
 const START: Record<Shape, string> = { rect: '-40,-20 40,20', circle: '0,0', ellipse: '0,0', line: '-40,0 40,0', poly: '-40,0 0,-40 40,0' }
 const toRow = (L: WardrobeLayer): Row => ({
   shape: L.shape, anchor: L.anchor, pts: L.pts.map(([x, y]) => `${x},${y}`).join(' '), r: L.r ?? 20, ry: L.ry ?? 12, rot: L.rot ?? 0,
-  fill: L.fill === '$color' ? 'color' : L.fill ? 'hex' : 'none', hex: L.fill && L.fill !== '$color' ? L.fill : '#ffffff',
+  fill: L.fill === '$color' ? 'color' : L.fill === '$accent' ? 'accent' : L.fill ? 'hex' : 'none',
+  hex: L.fill && !L.fill.startsWith('$') ? L.fill : '#ffffff',
   width: L.width ?? 8, behind: !!L.behind, when: (L.when ?? []).join(' '),
 })
 const STARTER: Row[] = [toRow({ shape: 'poly', anchor: 'head', pts: [[-150, -40], [-120, -120], [0, -165], [120, -120], [150, -40], [90, -95], [-90, -95]],
   fill: '$color', width: 8, r: null, ry: null, rot: 0, behind: false, when: null })]
 
-const form = reactive({ id: '', name: '', idEdited: false, slot: 'hair' as Slot, colorable: true, default_color: '#6b4f3a', rows: [] as Row[] })
+const DEFAULT_ACCENT = '#3a2a1e' // schema WardrobeItem.default_accent
+const form = reactive({ id: '', name: '', idEdited: false, slot: 'hair' as Slot, colorable: true, default_color: '#6b4f3a', default_accent: DEFAULT_ACCENT, rows: [] as Row[] })
 const load = (w: WardrobeItem | null) => Object.assign(form, w
-  ? { id: w.id, name: w.name, idEdited: true, slot: w.slot, colorable: w.colorable, default_color: w.default_color, rows: w.layers.map(toRow) }
-  : { id: '', name: '', idEdited: false, slot: 'hair', colorable: true, default_color: '#6b4f3a', rows: STARTER.map((r) => ({ ...r })) })
+  ? { id: w.id, name: w.name, idEdited: true, slot: w.slot, colorable: w.colorable, default_color: w.default_color, default_accent: w.default_accent ?? DEFAULT_ACCENT, rows: w.layers.map(toRow) }
+  : { id: '', name: '', idEdited: false, slot: 'hair', colorable: true, default_color: '#6b4f3a', default_accent: DEFAULT_ACCENT, rows: STARTER.map((r) => ({ ...r })) })
 watch(data, (d) => {
   if (!d) return
   const w = d.catalog.custom.find((x) => x.id === props.id)
@@ -61,12 +63,12 @@ function parse(r: Row): { layer?: WardrobeLayer; err?: string } {
   if (when.some((w) => !(EXPRESSIONS as readonly string[]).includes(w))) return { err: `only with: ${EXPRESSIONS.join(', ')}` }
   const round = r.shape === 'circle' || r.shape === 'ellipse'
   return { layer: { shape: r.shape, anchor: r.anchor, pts: pts as [number, number][], r: round ? r.r : null, ry: r.shape === 'ellipse' ? r.ry : null,
-    rot: r.shape === 'ellipse' ? r.rot : 0, fill: r.fill === 'color' ? '$color' : r.fill === 'hex' ? r.hex : null, width: r.width, behind: r.behind,
+    rot: r.shape === 'ellipse' ? r.rot : 0, fill: r.fill === 'color' ? '$color' : r.fill === 'accent' ? '$accent' : r.fill === 'hex' ? r.hex : null, width: r.width, behind: r.behind,
     when: when.length ? (when as WardrobeLayer['when']) : null } }
 }
 const parsed = computed(() => form.rows.map(parse))
 const draft = computed<WardrobeItem>(() => ({ id: form.id || 'draft', name: form.name, slot: form.slot, colorable: form.colorable,
-  default_color: form.default_color, layers: parsed.value.flatMap((p) => p.layer ?? []) }))
+  default_color: form.default_color, default_accent: form.default_accent, layers: parsed.value.flatMap((p) => p.layer ?? []) }))
 const previewList = computed(() => [...(data.value?.catalog.custom ?? []).filter((w) => w.id !== draft.value.id), draft.value])
 const taken = computed(() => wardrobeOptions(data.value?.catalog).some((o) => o.id === form.id && (o.builtin || isNew.value)))
 const valid = computed(() => form.name.trim() && /^[a-z0-9]+([_-][a-z0-9]+)*$/.test(form.id) && !taken.value && parsed.value.every((p) => p.layer))
@@ -80,8 +82,10 @@ const humanoids = computed(() => allCreatures(data.value?.creatures).filter((c) 
 const creatureId = ref('')
 watch(humanoids, (h) => { if (!creatureId.value && h.length) creatureId.value = h[0].id }, { immediate: true })
 const creatureBuild = computed(() => humanoids.value.find((c) => c.id === creatureId.value)?.build ?? null)
-const view = reactive({ pose: 'idle', expression: 'neutral', facing: 'camera' as 'camera' | 'left' | 'right', color: '' })
+const view = reactive({ pose: 'idle', expression: 'neutral', facing: 'camera' as 'camera' | 'left' | 'right', color: '', accent: '' })
 const wornColor = computed(() => (form.colorable && view.color ? view.color : form.default_color))
+const wornAccent = computed(() => (form.colorable && view.accent ? view.accent : form.default_accent))
+const usesAccent = computed(() => form.rows.some((r) => r.fill === 'accent'))
 
 const saving = ref(false)
 async function save() {
@@ -129,6 +133,9 @@ const field = 'inset mt-1 block h-10 w-full rounded-md px-3 text-sm text-ink out
             <label class="block text-xs font-semibold text-muted">Default colour
               <input v-model="form.default_color" type="color" class="mt-1 block h-10 w-16 cursor-pointer rounded-md" />
             </label>
+            <label class="block text-xs font-semibold text-muted">Default accent
+              <input v-model="form.default_accent" type="color" class="mt-1 block h-10 w-16 cursor-pointer rounded-md" />
+            </label>
             <label class="flex h-10 items-center gap-2 text-sm"><input v-model="form.colorable" type="checkbox" class="size-4" /> Cast can recolour it</label>
           </div>
         </div>
@@ -136,7 +143,7 @@ const field = 'inset mt-1 block h-10 w-full rounded-md px-3 text-sm text-ink out
         <fieldset class="space-y-3">
           <legend class="font-display text-lg font-semibold">Layers</legend>
           <p class="text-xs text-muted">Canvas px around the anchor: x across (outward on paired anchors, drawn on both sides),
-            y down (along the limb on arms and legs). The head has radius 150. “Colour” fills take the worn colour. Later layers draw on top;
+            y down (along the limb on arms and legs). The head has radius 150. “Worn colour” and “worn accent” fills take the cast member's two colours. Later layers draw on top;
             “behind” ones go under the head and body.</p>
           <div v-for="(r, i) in form.rows" :key="i" class="inset space-y-2 rounded-md p-3">
             <div class="grid items-end gap-2 sm:grid-cols-[7rem_9rem_1fr_auto]">
@@ -169,7 +176,7 @@ const field = 'inset mt-1 block h-10 w-full rounded-md px-3 text-sm text-ink out
               </label>
               <label class="block w-36 text-xs font-semibold text-muted">{{ r.shape === 'line' ? 'Colour' : 'Fill' }}
                 <select v-model="r.fill" :class="field">
-                  <option value="color">worn colour</option><option value="hex">fixed colour</option><option value="none">{{ r.shape === 'line' ? 'ink' : 'none' }}</option>
+                  <option value="color">worn colour</option><option value="accent">worn accent</option><option value="hex">fixed colour</option><option value="none">{{ r.shape === 'line' ? 'ink' : 'none' }}</option>
                 </select>
               </label>
               <input v-if="r.fill === 'hex'" v-model="r.hex" type="color" :aria-label="`Fixed colour of layer ${i + 1}`" class="h-11 w-14 cursor-pointer rounded-md" />
@@ -194,12 +201,12 @@ const field = 'inset mt-1 block h-10 w-full rounded-md px-3 text-sm text-ink out
       <aside class="space-y-3 lg:sticky lg:top-0 lg:self-start">
         <div class="grid grid-cols-2 gap-2">
           <figure class="space-y-1">
-            <WardrobePreview :id="draft.id" :slot="form.slot" :custom="previewList" :color="wornColor" :pose="view.pose" :expression="view.expression"
+            <WardrobePreview :id="draft.id" :slot="form.slot" :custom="previewList" :color="wornColor" :accent="wornAccent" :pose="view.pose" :expression="view.expression"
               :facing="view.facing" :label="`Preview: human wearing ${form.name || 'the item'}`" class="h-72" />
             <figcaption class="text-center text-xs text-muted">human</figcaption>
           </figure>
           <figure class="space-y-1">
-            <WardrobePreview :id="draft.id" :slot="form.slot" :custom="previewList" :color="wornColor" :pose="view.pose" :expression="view.expression"
+            <WardrobePreview :id="draft.id" :slot="form.slot" :custom="previewList" :color="wornColor" :accent="wornAccent" :pose="view.pose" :expression="view.expression"
               :facing="view.facing" :build="creatureBuild" :label="`Preview: ${creatureId || 'creature'} wearing ${form.name || 'the item'}`" class="h-72" />
             <figcaption>
               <label class="sr-only" for="wd-creature">Creature</label>
@@ -225,6 +232,13 @@ const field = 'inset mt-1 block h-10 w-full rounded-md px-3 text-sm text-ink out
               <input :value="wornColor" type="color" :disabled="!form.colorable" class="h-10 w-14 cursor-pointer rounded-md"
                 @input="view.color = ($event.target as HTMLInputElement).value" />
               <button v-if="view.color" type="button" class="btn btn-secondary" @click="view.color = ''">default</button>
+            </span>
+          </label>
+          <label v-if="usesAccent" class="block text-xs font-semibold text-muted">Cast accent
+            <span class="mt-1 flex items-center gap-2">
+              <input :value="wornAccent" type="color" :disabled="!form.colorable" class="h-10 w-14 cursor-pointer rounded-md"
+                @input="view.accent = ($event.target as HTMLInputElement).value" />
+              <button v-if="view.accent" type="button" class="btn btn-secondary" @click="view.accent = ''">default</button>
             </span>
           </label>
         </div>

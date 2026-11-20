@@ -22,13 +22,13 @@ export const HEAD_ANCHORS = new Set(["head", "head_top", "face", "eyes", "mouth"
 export const PAIRED = new Set(["shoulders", "arms", "hands", "legs", "feet"]);
 export const ANCHORS = [...HEAD_ANCHORS, "neck", "shoulders", "chest", "waist", "hips", "back", "arms", "hands", "legs", "feet"];
 
-/** one slot value -> { id, color } or null (none). Accepts a plain id, { id, color }, the original { kind } (headwear,
- *  legwear) / { style } (top) objects, null and "none". */
+/** one slot value -> { id, color, accent } or null (none). Accepts a plain id, { id, color, accent }, the original
+ *  { kind } (headwear, legwear) / { style, accent_color } (top) objects, null and "none". */
 export function slotValue(v) {
   if (v == null || v === "none") return null;
-  if (typeof v === "string") return { id: v, color: null };
+  if (typeof v === "string") return { id: v, color: null, accent: null };
   const id = v.id ?? v.kind ?? v.style;
-  return !id || id === "none" ? null : { id, color: v.color ?? null };
+  return !id || id === "none" ? null : { id, color: v.color ?? null, accent: v.accent ?? v.accent_color ?? null };
 }
 
 /** every slot value of a figure's options, in draw order: [{ slot, id, color }] (list slots flattened) */
@@ -44,19 +44,21 @@ export function slotsOf(o) {
   return out;
 }
 
-/** the custom items a figure wears, in draw order: [{ slot, item, color }]; built-ins are left to stickman.js.
- *  color: the cast member's colour for the slot when the item is colorable, else the item's default. Throws for an
+/** the custom items a figure wears, in draw order: [{ slot, item, color, accent }]; built-ins are left to stickman.js.
+ *  color / accent: the cast member's for the slot when the item is colorable, else the item's defaults. Throws for an
  *  unknown id or an item in the wrong slot (a typo never renders as something else). */
 export function wearing(o) {
   const out = [];
-  for (const { slot, id, color } of slotsOf(o)) {
+  for (const { slot, id, color, accent } of slotsOf(o)) {
     if (BUILTIN_WARDROBE[id]) {
       if (BUILTIN_WARDROBE[id] !== slot) throw new Error(`wardrobe item "${id}" is a ${BUILTIN_WARDROBE[id]}, not ${slot}`);
       continue;
     }
     const item = lookup("wardrobe", id);
     if (item.slot !== slot) throw new Error(`wardrobe item "${id}" is a ${item.slot}, not ${slot}`);
-    out.push({ slot, item, color: item.colorable !== false && color ? color : item.default_color });
+    const own = item.colorable !== false;
+    out.push({ slot, item, color: own && color ? color : item.default_color,
+      accent: own && accent ? accent : item.default_accent ?? "#3a2a1e" });
   }
   return out;
 }
@@ -76,5 +78,5 @@ export function layerPoints(L, fr) {
   });
 }
 
-/** a layer's fill / line colour: "$color" is the worn colour; a line without one is ink (null) */
-export const layerFill = (L, color) => (L.fill === "$color" ? color : L.fill ?? null);
+/** a layer's fill / line colour: "$color" / "$accent" are the worn ones; a line without one is ink (null) */
+export const layerFill = (L, color, accent) => (L.fill === "$color" ? color : L.fill === "$accent" ? accent : L.fill ?? null);
