@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { shortName } from '../lib/aiName'
 import { Plus, Sparkles } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
 import { api } from '../api/client'
@@ -20,7 +21,7 @@ refetchOn(() => null, () => null, refresh)
 const custom = computed(() => data.value?.custom ?? [])
 const title = (id: string) => id[0].toUpperCase() + id.slice(1).replaceAll('_', ' ')
 const aiOpen = ref(false)
-const aiPrompt = (description: string) => buildActionPrompt(description.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'new-action', [...(data.value?.do ?? []), ...custom.value.map((x) => x.id)], description)
+const aiPrompt = (description: string) => buildActionPrompt(shortName(description) || 'new-action', [...(data.value?.do ?? []), ...custom.value.map((x) => x.id)], description)
 const aiParse = (text: string) => { const r = importAction(text); return { data: r.action, error: r.error } }
 const aiSave = async (data: unknown) => { await api.saveAction(data as Parameters<typeof api.saveAction>[0]); refresh() }
 

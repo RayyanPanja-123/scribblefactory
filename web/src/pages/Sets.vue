@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { shortName } from '../lib/aiName'
 import { Plus, Sparkles } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
 import { api } from '../api/client'
@@ -28,7 +29,7 @@ const groups = computed(() => [
   { kind: 'outdoor', title: 'Outdoor', note: 'floor and sky; walking lines become travelling shots', items: all.value.filter((s) => s.kind === 'outdoor') },
 ])
 const aiOpen = ref(false)
-const aiPrompt = (description: string) => buildSetPrompt(description.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'new-set', all.value.map((x) => x.id), description)
+const aiPrompt = (description: string) => buildSetPrompt(shortName(description) || 'new-set', all.value.map((x) => x.id), description)
 const aiParse = (text: string) => { const r = importSet(text); return { data: r.set, error: r.error } }
 const aiSave = async (data: unknown) => { await api.saveSet(data as Parameters<typeof api.saveSet>[0]); refresh() }
 

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { shortName } from '../lib/aiName'
 import { Plus, Shirt, Sparkles } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
 import { api } from '../api/client'
@@ -27,7 +28,7 @@ const worn = computed(() => Object.fromEntries(wardrobeOptions(data.value?.catal
 const colorOf = (id: string) => custom.value.find((w) => w.id === id)?.default_color ?? '#6b4f3a'
 const aiOpen = ref(false)
 const aiSlot = ref<Slot>('top')
-const aiPrompt = (description: string, choice?: string) => buildWardrobePrompt(description.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'new-item', (choice || aiSlot.value) as Slot, wardrobeOptions(data.value?.catalog).map((x) => x.id), description)
+const aiPrompt = (description: string, choice?: string) => buildWardrobePrompt(shortName(description) || 'new-item', (choice || aiSlot.value) as Slot, wardrobeOptions(data.value?.catalog).map((x) => x.id), description)
 const aiParse = (text: string, choice?: string) => { const r = importWardrobe(text, (choice || aiSlot.value) as Slot); return { data: r.item, error: r.error } }
 const aiSave = async (data: unknown) => { await api.saveWardrobeItem(data as Parameters<typeof api.saveWardrobeItem>[0]); refresh() }
 

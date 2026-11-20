@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { shortName } from '../lib/aiName'
 import { Plus, Sparkles, Trash2 } from 'lucide-vue-next'
 import { computed, reactive, ref } from 'vue'
 import { api } from '../api/client'
@@ -11,7 +12,7 @@ import { buildObjectPrompt, importObject } from '../lib/objectPrompt'
 
 const { data, error, loading, reload } = useApi(() => api.objects())
 const aiOpen = ref(false)
-const aiPrompt = (description: string) => buildObjectPrompt(description, data.value?.objects.map((x) => x.id) ?? [], description)
+const aiPrompt = (description: string) => buildObjectPrompt(shortName(description), data.value?.objects.map((x) => x.id) ?? [], description)
 const aiParse = (text: string) => { const r = importObject(text); return { data: r.object, error: r.error } }
 const aiSave = async (value: unknown) => { const result = await api.saveObject(value as WorldObject); data.value = result }
 const selected = ref<string | null>(null)

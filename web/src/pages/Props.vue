@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { shortName } from '../lib/aiName'
 import { Backpack, Plus, Sparkles } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
 import { api } from '../api/client'
@@ -29,7 +30,7 @@ const groups = computed(() => [
   { id: 'custom', title: 'Custom', items: options.value.filter((o) => !isBuiltin(o.id)) },
 ])
 const aiOpen = ref(false)
-const aiPrompt = (description: string) => buildPrompt(description.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'new-prop', data.value?.catalog.builtin ?? [], description)
+const aiPrompt = (description: string) => buildPrompt(shortName(description) || 'new-prop', data.value?.catalog.builtin ?? [], description)
 const aiParse = (text: string) => { const r = importProp(text); return { data: r.prop, error: r.error } }
 const aiSave = async (data: unknown) => { await api.saveProp(data as Parameters<typeof api.saveProp>[0]); refresh() }
 const holders = computed(() => {

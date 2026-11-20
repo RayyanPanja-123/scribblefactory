@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { shortName } from '../lib/aiName'
 import { DEFAULT_TOP_COLOR } from '../lib/wardrobe'
 import { PawPrint, Plus, Sparkles } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
@@ -35,7 +36,7 @@ const users = computed(() => {
 const byRig = computed(() => RIG_LIST.map((rig) => ({ rig, items: creatures.value.filter((c) => c.rig === rig) })))
 const aiOpen = ref(false)
 const aiRig = ref<Rig>('quadruped')
-const aiPrompt = (description: string, choice?: string) => buildCreaturePrompt(description.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'new-creature', (choice || aiRig.value) as Rig, creatures.value.map((x) => x.id), description)
+const aiPrompt = (description: string, choice?: string) => buildCreaturePrompt(shortName(description) || 'new-creature', (choice || aiRig.value) as Rig, creatures.value.map((x) => x.id), description)
 const aiParse = (text: string) => { const r = importCreature(text); return { data: r.creature, error: r.error } }
 const aiSave = async (data: unknown) => { await api.saveCreature(data as Parameters<typeof api.saveCreature>[0]); refresh() }
 
