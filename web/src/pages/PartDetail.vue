@@ -145,10 +145,18 @@ async function saveStory() {
     story.value = null // an old check result no longer applies
   }
 }
-// Text: story.md as typed. Painter: the same file as cards with dropdowns (components/StoryPainter.vue).
-const storyView = ref<'text' | 'painter'>('text')
+// Director Script offers the same story in a plain Text editor or the fullscreen Typewriter.
+const directorOpen = ref(false)
+const directorView = ref<'text' | 'painter'>('painter')
 const stageOpen = ref(false)
 const painterCast = computed(() => (series.value?.cast ?? []).map((c) => ({ id: c.id, name: c.name, looks: Object.keys(c.looks ?? {}) })))
+function openDirectorScript() {
+  directorView.value = 'painter'
+  directorOpen.value = true
+}
+function closeDirectorScript() {
+  directorOpen.value = false
+}
 function onStoryKey(e: KeyboardEvent) {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
     e.preventDefault()
@@ -547,6 +555,7 @@ watch(() => props.part, () => { chosen.value = null })
             <CircleCheck :size="16" aria-hidden="true" /> Check
           </button>
           <button class="btn btn-secondary" :disabled="!series" @click="stageOpen = true"><Sparkles :size="16" aria-hidden="true" /> Stage with AI</button>
+          <button class="btn btn-primary" :disabled="!series" @click="openDirectorScript"><ExternalLink :size="16" aria-hidden="true" /> Director Script</button>
           <button class="btn btn-primary" :disabled="!storyDirty || !!busy" :title="busy ?? undefined" @click="saveStory"><Save :size="16" aria-hidden="true" /> Save</button>
         </div>
         <AiStage v-if="series && p" :open="stageOpen" :series="series.title" :title="p.title ?? props.part" :story="storyText" :cast="series.cast"
@@ -581,28 +590,45 @@ watch(() => props.part, () => { chosen.value = null })
             </li>
           </ul>
         </div>
-        <div class="mt-4 space-y-3">
-            <div class="inline-flex rounded-md border border-rule p-0.5" role="group" aria-label="Story view">
-              <button v-for="v in (['text', 'painter'] as const)" :key="v" type="button" class="rounded px-3 py-1 text-sm font-semibold"
-                :class="storyView === v ? 'bg-ink text-panel' : 'text-muted hover:text-ink'" :aria-pressed="storyView === v" @click="storyView = v">
-                {{ v === 'text' ? 'Text' : 'Typewriter' }}</button>
-            </div>
-            <StoryPainter v-if="storyView === 'painter'" v-model="storyText" :cast="painterCast" @keydown="onStoryKey" @close="storyView = 'text'">
-              <template #actions>
-                <span v-if="storyDirty" class="size-2.5 rounded-full bg-amber" title="Unsaved changes" aria-label="Unsaved changes" />
-                <button class="btn btn-primary" :disabled="!storyDirty || !!busy" :title="busy ?? undefined" @click="saveStory"><Save :size="16" aria-hidden="true" /> Save</button>
-              </template>
-            </StoryPainter>
-            <template>
-              <label class="sr-only" for="story-md">story.md</label>
-              <textarea id="story-md" v-model="storyText" class="paper inset block max-h-[32rem] min-h-48 w-full resize-y overflow-auto p-5 font-mono text-sm leading-7 outline-none focus:border-blue"
-                spellcheck="true" @keydown="onStoryKey" />
-            </template>
-        </div>
+        <p class="mt-4 text-sm text-muted">Open Director Script to edit the story in fullscreen.</p>
       </section>
       <!-- the series cast, editable from every part: add, edit or remove a character at any point -->
       <CastPanel v-if="series && data" :series="series" :renders="data[1].cast" @changed="refresh" />
     </div>
+
+    <!-- Director Script: both editing modes occupy the full viewport and share storyText. -->
+    <StoryPainter v-if="directorOpen && directorView === 'painter'" v-model="storyText" :cast="painterCast" @keydown="onStoryKey" @close="closeDirectorScript">
+      <template #actions>
+        <div class="inline-flex rounded-md border border-rule p-0.5" role="group" aria-label="Director Script view">
+          <button v-for="v in (['text', 'painter'] as const)" :key="v" type="button" class="rounded px-3 py-1 text-sm font-semibold"
+            :class="directorView === v ? 'bg-ink text-panel' : 'text-muted hover:text-ink'" :aria-pressed="directorView === v" @click="directorView = v">
+            {{ v === 'text' ? 'Text' : 'Typewriter' }}</button>
+        </div>
+        <span v-if="storyDirty" class="size-2.5 rounded-full bg-amber" title="Unsaved changes" aria-label="Unsaved changes" />
+        <button class="btn btn-primary" :disabled="!storyDirty || !!busy" :title="busy ?? undefined" @click="saveStory"><Save :size="16" aria-hidden="true" /> Save</button>
+      </template>
+    </StoryPainter>
+    <Teleport to="body">
+      <div v-if="directorOpen && directorView === 'text'" class="fixed inset-0 z-50 flex flex-col gap-3 bg-page p-4 sm:p-6" role="dialog" aria-modal="true" aria-label="Director Script"
+        @keydown.esc="closeDirectorScript">
+        <header class="flex flex-wrap items-center gap-3">
+          <h2 class="font-display text-2xl font-semibold">Director Script</h2>
+          <div class="inline-flex rounded-md border border-rule p-0.5" role="group" aria-label="Director Script view">
+            <button v-for="v in (['text', 'painter'] as const)" :key="v" type="button" class="rounded px-3 py-1 text-sm font-semibold"
+              :class="directorView === v ? 'bg-ink text-panel' : 'text-muted hover:text-ink'" :aria-pressed="directorView === v" @click="directorView = v">
+              {{ v === 'text' ? 'Text' : 'Typewriter' }}</button>
+          </div>
+          <div class="ml-auto flex items-center gap-2">
+            <span v-if="storyDirty" class="size-2.5 rounded-full bg-amber" title="Unsaved changes" aria-label="Unsaved changes" />
+            <button class="btn btn-primary" :disabled="!storyDirty || !!busy" :title="busy ?? undefined" @click="saveStory"><Save :size="16" aria-hidden="true" /> Save</button>
+            <button type="button" class="btn btn-secondary" @click="closeDirectorScript"><X :size="16" aria-hidden="true" /> Close</button>
+          </div>
+        </header>
+        <label class="sr-only" for="director-story-md">story.md</label>
+        <textarea id="director-story-md" v-model="storyText" class="paper inset min-h-0 flex-1 w-full resize-none overflow-y-auto p-5 font-mono text-sm leading-7 outline-none focus:border-blue"
+          spellcheck="true" @keydown="onStoryKey" />
+      </div>
+    </Teleport>
 
     <div v-show="tab === 'voice'" id="panel-voice" role="tabpanel" aria-labelledby="tab-voice">
       <section id="voice" :class="{ 'next-target': focus === 'voice' }" class="raised p-6">
