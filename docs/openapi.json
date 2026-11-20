@@ -366,6 +366,7 @@
                 "enum": [
                   "neutral",
                   "happy",
+                  "cheer",
                   "sad",
                   "angry",
                   "surprised",
@@ -551,6 +552,7 @@
             "enum": [
               "neutral",
               "happy",
+              "cheer",
               "sad",
               "angry",
               "surprised",
@@ -660,13 +662,15 @@
             "type": "array"
           },
           "top": {
-            "$ref": "#/components/schemas/Top"
+            "$ref": "#/components/schemas/Top",
+            "default": {
+              "style": "plain"
+            }
           }
         },
         "required": [
           "id",
           "name",
-          "top",
           "eyes"
         ],
         "title": "CastMember",
@@ -3913,6 +3917,7 @@
                   "enum": [
                     "neutral",
                     "happy",
+                    "cheer",
                     "sad",
                     "angry",
                     "surprised",

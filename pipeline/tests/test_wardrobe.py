@@ -24,6 +24,14 @@ def member(**kw):
     return CastMember.model_validate({"id": "nero", "name": "Nero", "eyes": "dots", "top": {"color": "#f3efe2"}, **kw})
 
 
+def test_cast_import_does_not_require_wardrobe():
+    c = CastMember.model_validate({"id": "nero", "name": "Nero", "eyes": "dots"})
+    assert c.top.style == "plain"
+    assert c.headwear.kind == "none"
+    assert c.legwear.kind == "none"
+    assert c.wardrobe() == [("top", "plain")]
+
+
 def test_slot_values_string_object_null_and_lists():
     a = member(hair="wild_hair", facial_hair={"id": "long_beard", "color": "#e8e8e8"}, footwear=None, back="none",
                accessory="belt", face=["glasses", "none", {"id": "blush"}])

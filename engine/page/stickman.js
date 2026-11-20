@@ -78,7 +78,7 @@ export const hipPx = (build) => FEET_Y - sizes(build).leg * Math.cos(deg(IDLE_LE
 
 // brows per expression: [outer dy, inner dy, arch] (negative = up)
 const BROWS = {
-  neutral: [0, 0, 8], happy: [-6, -8, 12], sad: [10, -16, 4],
+  neutral: [0, 0, 8], happy: [-6, -8, 12], cheer: [-8, -10, 14], sad: [10, -16, 4],
   angry: [-8, 16, 0], surprised: [-12, -12, 14], sleepy: [5, 5, 2],
   cheeky: [[4, 4, 3], [-12, -8, 12]], // [left brow, right brow]: one brow up
   exhausted: [16, 0, 2],                // droopy: outer ends sag
@@ -644,7 +644,7 @@ function face(p, boil, o, fx, hy, look) {
     : expr === "surprised" ? "round"                      // wide open, small pupils, for every character
     : expr === "sleepy" ? "half"                          // flat lids
     : expr === "exhausted" ? "heavy"                      // lids drooping low over the pupils
-    : expr === "happy" && o.eyes === "half_closed" ? "arc" // soft upward arcs; dot eyes keep their dots
+    : (expr === "happy" || expr === "cheer") && o.eyes === "half_closed" ? "arc" // soft upward arcs; dot eyes keep their dots
     : o.eyes === "half_closed" ? "half" : "round";
   for (const x of ex) {
     if (kind === "x") {                                                                  // dead: a cross per eye
@@ -683,6 +683,7 @@ function face(p, boil, o, fx, hy, look) {
   const M = {
     neutral: [[mx - 22, my], [mx + 22, my]],
     happy: ellPts(mx, my - 14, 28, 18, 25, 155, 0, 12),
+    cheer: ellPts(mx, my - 18, 32, 22, 20, 160, 0, 12),
     sad: ellPts(mx, my + 14, 26, 12, 205, 335, 0, 12),
     angry: [[mx - 20, my + 5], [mx, my - 1], [mx + 20, my + 5]],
     sleepy: [[mx - 12, my], [mx + 12, my]],

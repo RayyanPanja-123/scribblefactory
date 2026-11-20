@@ -38,6 +38,7 @@
               "enum": [
                 "neutral",
                 "happy",
+                "cheer",
                 "sad",
                 "angry",
                 "surprised",
@@ -237,6 +238,7 @@
           "enum": [
             "neutral",
             "happy",
+            "cheer",
             "sad",
             "angry",
             "surprised",
@@ -351,13 +353,18 @@
           "type": "array"
         },
         "top": {
-          "$ref": "#/$defs/Top"
+          "$ref": "#/$defs/Top",
+          "default": {
+            "accent_color": null,
+            "color": null,
+            "number": null,
+            "style": "plain"
+          }
         }
       },
       "required": [
         "id",
         "name",
-        "top",
         "eyes"
       ],
       "title": "CastMember",

@@ -44,7 +44,7 @@ class Style(Strict):
     captions: bool = True  # burned-in captions in final.mp4
 
 
-Expression = Literal["neutral", "happy", "sad", "angry", "surprised", "sleepy", "cheeky", "exhausted", "worried", "dead"]
+Expression = Literal["neutral", "happy", "cheer", "sad", "angry", "surprised", "sleepy", "cheeky", "exhausted", "worried", "dead"]
 
 
 # --- wardrobe: clothing, hair and cosmetics, one item per slot (engine/page/wardrobe.js) ---
@@ -227,7 +227,7 @@ class CastLook(Strict):
 class CastMember(Strict):
     id: Slug
     name: str
-    top: Top
+    top: Top = Top()
     headwear: Headwear = Headwear()
     legwear: Legwear = Legwear()
     hair: WardrobeSlot | None = Field(default=None, description="wardrobe slots: an id, {\"id\", \"color\"} or null")

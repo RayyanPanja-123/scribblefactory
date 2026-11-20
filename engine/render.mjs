@@ -30,7 +30,7 @@ const SERVED = [path.join(ENGINE, "page"), path.join(ENGINE, "node_modules", "th
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript", ".json": "application/json" };
 const PLAYWRIGHT = JSON.parse(fs.readFileSync(path.join(ENGINE, "node_modules", "playwright", "package.json"), "utf8")).version;
 export const POSES = [["idle", "idle"], ["walk", "walk"], ["talk", "talk"],
-  ...["neutral", "happy", "sad", "angry", "surprised", "sleepy", "cheeky", "exhausted"].map((e) => [e, "idle", e]),
+  ...["neutral", "happy", "cheer", "sad", "angry", "surprised", "sleepy", "cheeky", "exhausted"].map((e) => [e, "idle", e]),
   ...["stagger", "lie", "eat", "give", "carried"].map((a) => [a, a]),
   ["cheer", "cheer", "happy"], ["angry mood", "angry", "angry"]]; // crowd moods (label: "angry" is an expression column)
 export const LOOK_POSES = ["idle", "walk", "talk", "stagger"]; // cast sheet: per named look

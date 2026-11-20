@@ -208,7 +208,7 @@ def test_cast_v2_rules():
     SeriesModel.model_validate(series_data(cast=[member(headwear={"kind": "straw_hat", "color": "#e8c76a"},
                                                          legwear={"kind": "trousers", "color": "#222222"},
                                                          props=[{"kind": "medal", "hand": "left"}, {"kind": "apple", "hand": "right"}],
-                                                         default_expression="cheeky")]))
+                                                         default_expression="cheer")]))
     for bad in [{"props": [{"kind": "Big Sword"}]}, {"props": [{"kind": "apple", "hand": "left"}] * 2},
                 {"props": [{"kind": "none", "hand": "left"}]},
                 {"default_expression": "smug"}, {"top": {"color": "#123456", "number": "1234"}},

@@ -95,7 +95,7 @@ Reply with ONE JSON object in a \`\`\`json code block and nothing else.
   - {"shape": "line",    "anchor": A, "pts": [[x, y], [x, y], ...], "fill": F, "width": 6}   open stroke; fill is its colour (default ink)
 - fill: "$color" (the worn colour), a "#rrggbb" hex, or null (outline only). width: black outline 0 to 40 (0: none).
 - optional "behind": true draws the layer behind the head and body (long hair falling down the back, a cape).
-- optional "when": ["happy", ...] shows the layer only with those expressions (neutral, happy, sad, angry, surprised,
+- optional "when": ["happy", ...] shows the layer only with those expressions (neutral, happy, cheer, sad, angry, surprised,
   sleepy, cheeky, exhausted, worried, dead).
 - Coordinates are numbers within -600..600, in canvas px around the anchor. No other keys.
 
