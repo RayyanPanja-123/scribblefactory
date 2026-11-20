@@ -22,7 +22,7 @@ async function create() {
   const body = { slug: slug.value, title: title.value.trim(), aspect: aspect.value, cast: [] } // the cast is added later, from the series or any part
   const s = await act(() => api.createSeries(body), `Series “${body.title}” created`)
   saving.value = false
-  if (s) router.push(`/series/${s.slug}/new-part`)
+  if (s) router.push(`/series/${s.slug}`) // the series page: voice scripts with AI, cast, parts
 }
 const field = 'inset mt-1 block h-10 w-full rounded-md px-4 text-sm text-ink outline-none focus:border-blue'
 </script>

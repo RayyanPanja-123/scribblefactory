@@ -7,9 +7,9 @@ export type VoicePart = { title: string; lines: string[] }
 
 export function voicePrompt(o: { title: string; parts: number; notes?: string; cast?: string[] }): string {
   return [
-    'You write narration for scribblefactory: vertical stickman history Shorts. A voice reads each part aloud.',
+    'You write narration for scribblefactory: vertical stickman story Shorts. A voice reads each part aloud.',
     `Story: "${o.title}". Write exactly ${o.parts} part${o.parts === 1 ? '' : 's'}.`,
-    'Research the real story on the web first. Use known events, names and context; never present a guess as fact.',
+    'Real history or invented fantasy are both fine: follow the title and the notes.',
     o.cast?.length ? `Characters already in this series (use these names): ${o.cast.join(', ')}.` : '',
     o.notes?.trim() ? `Notes from the creator: ${o.notes.trim()}` : '',
     '',

@@ -49,7 +49,7 @@ async function create() {
         <div class="flex items-start gap-3">
           <div>
             <h2 id="ai-voice-title" class="font-display text-2xl font-semibold">Voice scripts with AI</h2>
-            <p class="mt-1 text-sm text-muted">Step 1: the AI researches “{{ title }}” and writes only the narration. Staging comes later, part by part.</p>
+            <p class="mt-1 text-sm text-muted">Step 1: the AI writes only the narration for “{{ title }}”, real or made up. Staging comes later, part by part.</p>
           </div>
           <button type="button" class="round-btn ml-auto" aria-label="Close" @click="close"><X :size="18" /></button>
         </div>

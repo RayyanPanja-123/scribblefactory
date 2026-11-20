@@ -130,13 +130,14 @@ fit the story's period or design.
 - New place, new `@set`, then a fitting `@weather`: `storm` sea, gods, war, villains; `rain` loss; `fog` mystery;
   `snow` / `wind` journeys.
 - Match the era: built-in sets are modern. Past stories use a period set from the inventory, or add one under SETS.
-- Name a cast member in every line (the planner picks who acts by name).
+- Name a cast member in every line from line 4 on (the planner picks who acts by name). Lines 1 to 3 name nobody, so
+  give each of them a `@do` for whoever acts.
 - Faces:
   - A line's first mood word (angry, laughed, sobbed, gasped, scared...) sets the named character's face; each later
     mood word switches it ("grinned, then screamed" = happy, then angry).
   - No mood word: `@do angry | gasp | react | cheer` or `@face`.
   - Otherwise the default face shows: every emotional beat needs one of these.
-- Direct every line: a `@do` and / or `@face` on nearly every narration line (the Model part: 11 of 12
+- Direct every line: a `@do` and / or `@face` on nearly every narration line (the Model part: 12 of 12
   lines have a `@do`, 8 a `@face`). An undirected line plays as generic idle shots.
 - Groups: `@crowd` with the right mood, changed as the scene turns (cheer, then neutral, then gasp); `@dogs`,
   `@runners` where they fit.
@@ -144,7 +145,7 @@ fit the story's period or design.
   the spear before the attack).
 - Punch: `@fx shake` or `drop` on line 1 (hook), `@fx pop` on line 3, `@fx drop` or a `@sfx` (`camera_flash`,
   `metallic_riser`) on the rehook line, `@fx lightning` on one to three big beats.
-- Thirty or more directives besides `@set` and `@cast` (the model part has 38).
+- Thirty or more directives besides `@set` and `@cast` (the model part has 39).
 
 ### Entrances, attacks, deaths (do these exactly)
 - Sudden entrance: a character is not in `@cast` until the line they appear on; add them with a new `@cast` right
@@ -187,12 +188,12 @@ fit the story's period or design.
 
 
 ## Model part (copy the staging, not the story)
-A finished part that played exactly as written: the standard every part should match.
+A finished part that played exactly as written (its first three lines since reworded to hide names): the standard every part should match.
 - Series library: sets `colosseum`, `roman-street` (period sets); custom actions `attack-with-spears`, `raise-trident`;
   looks `caligula: coins` (prop `stack-of-silver-coins`), `marcus: shell`, `cassius: spear`; Neptune holds a
   `trident`. Use your own inventory's ids.
-- 116 words, 12 lines, a name in every line; 38 directives besides `@set` and `@cast`; 11 lines with a `@do`, 8 with
-  a `@face`.
+- 120 words, 12 lines, no name in lines 1 to 3 and a name in every later line; 39 directives besides `@set` and
+  `@cast`; 12 lines with a `@do`, 8 with a `@face`.
 - Loops: hook = line 1 (a parade for seashells); intensifier = lines 2 to 5 (a hundred coins, Rome cheered instead,
   a seashell crown, one sandal); rehook = lines 7 and 8 at words 55 to 75 (Caligula mocks Cassius, who starts
   counting the days); twist = the `!!` line.
@@ -209,15 +210,16 @@ A finished part that played exactly as written: the standard every part should m
 @crowd cheer 12
 @fx shake
 @face caligula: happy
+@do caligula: wave
 @sfx fahhh
-Caligula threw Rome a giant victory parade for seashells!
+An emperor threw Rome a giant victory parade for seashells!
 @look caligula: coins
 @do caligula: give stack-of-silver-coins marcus
 @face caligula: happy
-Caligula paid Marcus one hundred silver coins for the win.
+He paid his champion one hundred silver coins for the win.
 @do cassius: react
 @fx pop
-Cassius thought Rome would laugh. Rome cheered instead.
+His own guard thought Rome would laugh. Rome cheered instead.
 @look marcus: shell
 @do marcus: cheer
 Marcus waved his seashell like a golden crown.
@@ -263,7 +265,8 @@ Caligula, conqueror of the ocean, lost to one angry soldier.
 ```
 
 Why it works, line by line:
-- Line 1: hook with a name and an absurd claim, `@fx shake`, `fahhh`, a happy face, a cheering crowd.
+- Lines 1 to 3 name nobody ("An emperor", "his champion", "his own guard"); each line's `@do` says who acts.
+- Line 1: hook with an absurd claim, `@fx shake`, `fahhh`, a happy face, a cheering crowd.
 - Line 2: the coins look is switched on the line the give uses them; the target (`marcus`) is on stage.
 - Line 3: the flip ("should laugh ... cheered instead") gets `@fx pop` and a reaction.
 - Lines 6 to 8: the crowd turns (neutral, gasp) as the mood turns; a cheeky face on the insult; Cassius's anger plants

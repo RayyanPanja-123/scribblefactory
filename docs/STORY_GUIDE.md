@@ -3,7 +3,7 @@
 ## Interaction contract
 - This is a staged conversation, not a one-shot package-generation task. Stop at every gate below and wait for the user's explicit next instruction.
 - The user first shares this guide and the current library list, then supplies a story title and the agreed number of parts.
-- For the title phase, check the web for the real story, distinguish sourced facts from uncertainty, and write narration-only TTS scripts for exactly the agreed number of parts.
+- For the title phase, write narration-only TTS scripts for exactly the agreed number of parts. The story may be real history or invented fantasy: follow the title and the user's notes.
 - After the TTS scripts, stop. Do not suggest or create props, expressions, creatures, wardrobe, sets, actions or sounds until the user explicitly asks for library planning.
 - In library planning, give items one at a time in this order: props, expressions, creatures, wardrobe, sets, actions, sounds. Stop after each item and wait for `next` or an equivalent explicit request.
 - After the library items are concluded, stop again. Only when the user explicitly asks for directive scripts may you convert the approved TTS scripts into `story.md` scripts with directives and a Story Package.
@@ -16,7 +16,7 @@
 - Ids not in the inventory list, Library basics, or the package.
 - Digits, symbols or markdown in narration; narration on a directive line.
 - Flat scripts (one `@set`, few directives).
-- Characters by role ("the commander"): use their cast `name`.
+- Characters by role ("the commander") from line 4 on: use their cast `name`. Lines 1 to 3 never name anyone.
 
 ## What this makes
 - Each part = one vertical Short: a voice reads the narration, a planner turns each line into stickman shots in 3D.
@@ -25,7 +25,7 @@
 ## Workflow and stop gates
 1. The user provides this guide and the current library list, then gives a story title and the agreed part count. Never ask the user to repeat the inventory if it was already provided.
    - The library list contains every set, prop, expression, creature, action, wardrobe item, sound and existing cast by id. Never guess ids.
-2. Research the title on the web. Use the real story's known events, names and historical context where available; flag uncertainty instead of presenting guesses as fact.
+2. Shape the story from the title and the user's notes: real history or invented fantasy are both fine.
 3. Write narration-only TTS scripts for exactly the agreed number of parts. These are the words the voice will read: no `@` directives, no staging, no props JSON, no Story Package, and no extra parts.
    - Keep the hook, intensifier, rehook and twist rules in Writing rules.
 4. Stop and wait for explicit approval or requested edits to the TTS scripts. Do not continue automatically.
