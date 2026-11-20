@@ -31,7 +31,7 @@ const live = (s: PartStepView) => ['current', 'review', 'running', 'failed'].inc
           <span class="sr-only">{{ s.label }}: {{ s.note || 'to do' }}</span>
           <PencilTick v-if="s.status === 'done'" class="text-ink" />
           <template v-else-if="needsYou(s)">
-            <span class="font-display text-[13px] text-amber-ink" aria-hidden="true">{{ s.status === 'review' ? 'approve' : 'you' }}</span>
+            <span class="font-display text-[13px] text-amber-ink" aria-hidden="true">{{ s.status === 'review' ? 'approve ?' : 'you ?' }}</span>
             <GreaseCircle />
           </template>
           <template v-else-if="s.status === 'current'"><span class="size-1.5 rounded-full bg-blue" aria-hidden="true" /><span class="font-display text-[13px] text-blue-ink" aria-hidden="true">next</span></template>

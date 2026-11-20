@@ -176,7 +176,7 @@ const diskTotal = computed(() => disk.value.reduce((a, b) => a + b.value, 0))
                   <span class="sr-only">{{ data[0].sheet_steps[i] }}: {{ circled(c, i) ? 'needs you' : NOTE[c] }}</span>
                   <PencilTick v-if="c === 'done'" class="text-ink" />
                   <template v-else-if="circled(c, i)">
-                    <span class="font-display text-[13px] text-amber-ink" aria-hidden="true">{{ c === 'review' ? 'approve' : 'you' }}</span>
+                    <span class="font-display text-[13px] text-amber-ink" aria-hidden="true">{{ c === 'review' ? 'approve ?' : 'you ?' }}</span>
                     <GreaseCircle />
                   </template>
                   <template v-else-if="c === 'current'"><span class="size-1.5 rounded-full bg-blue" aria-hidden="true" /><span class="font-display text-[13px] text-blue-ink" aria-hidden="true">next</span></template>
