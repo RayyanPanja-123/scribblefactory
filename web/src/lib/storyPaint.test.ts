@@ -62,4 +62,10 @@ describe('lintBeat', () => {
     expect(lintBeat(p.beats, 1, c)).toEqual([])
     expect(lintBeat(p.beats, 2, c)).toEqual(['Sounds on two lines in a row: leave a line between them.', 'Action: "dance" is not in the library.'])
   })
+
+  it('takes any volume from 0 to 1, not only the menu presets', () => {
+    const p = parseStory('# T\n@set street\n@background-music sneaky-snitch 0.15\n@sfx pop 0.6\nOne.\nQuiet.\n@background-music off\n@sfx boom 3\nTwo.\n')
+    expect(lintBeat(p.beats, 0, c)).toEqual([])
+    expect(lintBeat(p.beats, 2, c)).toEqual(['Sound: loudness "3" must be 0 to 1.'])
+  })
 })

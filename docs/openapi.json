@@ -1751,6 +1751,48 @@
         "title": "Machine",
         "type": "object"
       },
+      "MissingItem": {
+        "properties": {
+          "ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Ids",
+            "type": "array"
+          },
+          "kind": {
+            "enum": [
+              "cast",
+              "set",
+              "prop",
+              "action",
+              "look",
+              "sound",
+              "wardrobe",
+              "unapproved"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner"
+          }
+        },
+        "required": [
+          "kind",
+          "ids"
+        ],
+        "title": "MissingItem",
+        "type": "object"
+      },
       "MonthPosts": {
         "properties": {
           "instagram": {
@@ -3656,6 +3698,16 @@
           "message": {
             "title": "Message",
             "type": "string"
+          },
+          "missing": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MissingItem"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [

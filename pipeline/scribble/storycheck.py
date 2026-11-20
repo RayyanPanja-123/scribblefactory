@@ -100,6 +100,30 @@ def _changed_words(old: list[str], new: list[str], lines: list[int]) -> list[tup
     return found
 
 
+# problems that name a library item or cast member that does not exist (yet): (kind, pattern). The dashboard groups
+# them and offers to make the item. Keep in step with the messages above and in prep / shots / sfx.
+MISSING = [
+    ("cast", re.compile(r"unknown (?:cast id|target) '?([a-z0-9_, -]+?)'? \(")),
+    ("set", re.compile(r"unknown set '([^']+)'")),
+    ("prop", re.compile(r"unknown prop '([^']+)'")),
+    ("prop", re.compile(r"bad directive @crowd-weapon [a-z0-9_-]+: ([a-z0-9_-]+) \(")),
+    ("action", re.compile(r"unknown action '([^']+)'")),
+    ("look", re.compile(r"^@look: ([a-z0-9_-]+) has no look '([^']+)'")),
+    ("sound", re.compile(r"unknown sound '([^']+)'")),
+    ("wardrobe", re.compile(r"unsupported wardrobe item ([a-z0-9_-]+)\)")),
+    ("unapproved", re.compile(r"^cast ([a-z0-9_-]+) is not approved yet")),
+]
+
+
+def tag_missing(issue: dict) -> dict:
+    """issue + "missing": {"kind", "ids", "owner"} when its message names something that does not exist"""
+    for kind, rx in MISSING:
+        if m := rx.search(issue["message"]):
+            owner, ids = (m[1], [m[2]]) if kind == "look" else (None, [x.strip() for x in m[1].split(",") if x.strip()])
+            return {**issue, "missing": {"kind": kind, "ids": ids, "owner": owner}}
+    return issue
+
+
 def check_story(part_dir: Path) -> dict:
     """{"ok", "problems": [{"line", "message"}], "warnings": [...], "words", "seconds"}"""
     problems, warnings = [], []
@@ -257,8 +281,8 @@ def check_story(part_dir: Path) -> dict:
         warnings.append({"line": None, "message": f"estimated {seconds} s is {seconds - MAX_RUNTIME_S:.1f} s over "
                                                   f"{MAX_RUNTIME_S} s ({len(words)} words at {wps:.2f} words/s): "
                                                   f"cut about {cut} words"})
-    return {"ok": not problems, "problems": problems, "warnings": warnings, "words": len(words), "seconds": seconds,
-            "wps": round(wps, 2)}
+    return {"ok": not problems, "problems": [tag_missing(p) for p in problems], "warnings": warnings,
+            "words": len(words), "seconds": seconds, "wps": round(wps, 2)}
 
 
 STAGING = ("do", "look", "face", "fx", "crowd", "dogs", "runners", "car", "weather", "sfx")

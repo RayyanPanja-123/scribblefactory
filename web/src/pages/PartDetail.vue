@@ -8,6 +8,7 @@ import PartStepper from '../components/PartStepper.vue'
 import SfxSuggestions from '../components/SfxSuggestions.vue'
 import StoryPainter from '../components/StoryPainter.vue'
 import StoryTips from '../components/StoryTips.vue'
+import AddCastModal from '../components/AddCastModal.vue'
 import AiStage from '../components/AiStage.vue'
 import CastPanel from '../components/CastPanel.vue'
 import ErrorCard from '../components/ErrorCard.vue'
@@ -23,6 +24,7 @@ import { bytes, expandFrom, label, reducedMotion, shortDate, SPRING, today } fro
 import { partNext, type PartState } from '../lib/partNext'
 import { partSteps } from '../lib/partSteps'
 import { fixPrompt } from '../lib/storyGuide'
+import { groupIssues, KIND_LABEL, type Group } from '../lib/storyIssues'
 import { buildCaptionPrompt, composeUpload, parseUpload, withBrandTags, type Captions } from '../lib/captionPrompt'
 
 const props = defineProps<{ slug: string; part: string }>()
@@ -118,6 +120,14 @@ async function checkStory() {
   }
 }
 watch(() => props.part, () => { story.value = null })
+// problems grouped by what is missing, each group with its fix (lib/storyIssues)
+const grouped = computed(() => groupIssues(story.value?.problems ?? []))
+const LIB_PAGE: Partial<Record<Group['kind'], string>> = { set: '/sets', prop: '/props', action: '/actions', wardrobe: '/wardrobe', sound: '/sounds' }
+const AI_PAGES = ['set', 'prop', 'action'] // these open their AI generator with the story's id (?ai=<id>)
+const lines = (g: Group) => g.issues.map((i) => i.line).filter(Boolean).join(', ')
+const addCastIds = ref<string[]>([])
+const showCast = () => document.getElementById('cast')?.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth' })
+async function castAdded() { await refresh(); await checkStory() }
 const at = (line: number | null) => (line ? `line ${line}` : 'story')
 async function copyStoryFix() {
   const r = story.value
@@ -558,6 +568,8 @@ watch(() => props.part, () => { chosen.value = null })
           <button class="btn btn-primary" :disabled="!series" @click="openDirectorScript"><ExternalLink :size="16" aria-hidden="true" /> Director Script</button>
           <button class="btn btn-primary" :disabled="!storyDirty || !!busy" :title="busy ?? undefined" @click="saveStory"><Save :size="16" aria-hidden="true" /> Save</button>
         </div>
+        <AddCastModal v-if="series" :open="addCastIds.length > 0" :slug="slug" :ids="addCastIds" :taken="series.cast.length"
+          @close="addCastIds = []" @done="castAdded" />
         <AiStage v-if="series && p" :open="stageOpen" :series="series.title" :title="p.title ?? props.part" :story="storyText" :cast="series.cast"
           @close="stageOpen = false" @apply="(md) => { storyText = md; toast('Staged script in the story box: Save, then Check', 'ok') }" />
         <p class="mt-1 text-xs text-muted">
@@ -573,8 +585,35 @@ watch(() => props.part, () => { chosen.value = null })
               <Copy :size="16" aria-hidden="true" /> Copy fix request</button>
             <button class="btn btn-secondary" :class="!(story.problems.length || story.warnings.length) && 'ml-auto'" @click="story = null">Close</button>
           </div>
-          <ul v-if="story.problems.length || story.warnings.length" class="mt-3 space-y-1.5">
-            <li v-for="(x, i) in story.problems" :key="`p${i}`" class="flex items-start gap-2">
+          <ul v-if="grouped.groups.length" class="mt-3 space-y-2" aria-label="Missing items">
+            <li v-for="g in grouped.groups" :key="g.kind + (g.owner ?? '')" class="rounded-md border border-rule p-3">
+              <div class="flex flex-wrap items-center gap-2">
+                <CircleX :size="16" class="shrink-0 text-red-ink" aria-label="problem" />
+                <p class="font-semibold">{{ KIND_LABEL[g.kind] }}<template v-if="g.owner"> for {{ g.owner }}</template></p>
+                <span class="num text-xs text-muted">{{ lines(g) ? `line ${lines(g)}` : '' }}</span>
+                <button v-if="g.kind === 'cast'" class="btn btn-primary ml-auto" @click="addCastIds = g.ids">
+                  <Plus :size="16" aria-hidden="true" /> Add {{ g.ids.length }} character{{ g.ids.length === 1 ? '' : 's' }}</button>
+                <button v-else-if="g.kind === 'unapproved'" class="btn btn-secondary ml-auto" @click="showCast">Go to the cast</button>
+                <RouterLink v-else-if="g.kind === 'look' && g.owner" class="btn btn-secondary ml-auto"
+                  :to="{ path: `/series/${slug}/cast/${g.owner}`, query: { back: route.fullPath } }">Add looks to {{ g.owner }}</RouterLink>
+                <a v-else-if="LIB_PAGE[g.kind] && !AI_PAGES.includes(g.kind)" :href="LIB_PAGE[g.kind]" target="_blank" rel="noopener" class="btn btn-secondary ml-auto">
+                  Open {{ LIB_PAGE[g.kind]!.slice(1) }} <ExternalLink :size="14" aria-hidden="true" /></a>
+              </div>
+              <div class="mt-2 flex flex-wrap gap-2">
+                <template v-for="id in g.ids" :key="id">
+                  <a v-if="AI_PAGES.includes(g.kind)" :href="`${LIB_PAGE[g.kind]}?ai=${encodeURIComponent(id)}`" target="_blank" rel="noopener"
+                    class="btn btn-secondary" :title="`Opens the ${g.kind} generator in a new tab, id ${id}`">
+                    <Sparkles :size="14" aria-hidden="true" /> Make <code>{{ id }}</code> with AI</a>
+                  <code v-else class="chip">{{ id }}</code>
+                </template>
+              </div>
+            </li>
+            <li v-if="grouped.groups.some((g) => AI_PAGES.includes(g.kind) || g.kind === 'look' || g.kind === 'unapproved')" class="flex justify-end">
+              <button class="btn btn-secondary" :disabled="checking" @click="checkStory"><CircleCheck :size="16" aria-hidden="true" /> Check again</button>
+            </li>
+          </ul>
+          <ul v-if="grouped.rest.length || story.warnings.length" class="mt-3 space-y-1.5">
+            <li v-for="(x, i) in grouped.rest" :key="`p${i}`" class="flex items-start gap-2">
               <CircleX :size="16" class="mt-0.5 shrink-0 text-red-ink" aria-label="problem" />
               <div class="min-w-0 flex-1">
                 <p><span class="num font-semibold">{{ at(x.line) }}</span> {{ x.message }}</p>

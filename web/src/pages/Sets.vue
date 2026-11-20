@@ -2,6 +2,7 @@
 import { shortName } from '../lib/aiName'
 import { Plus, Sparkles } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { api } from '../api/client'
 import ErrorCard from '../components/ErrorCard.vue'
 import LibraryCard from '../components/LibraryCard.vue'
@@ -28,8 +29,11 @@ const groups = computed(() => [
   { kind: 'indoor', title: 'Indoor', note: 'a floor and a back wall', items: all.value.filter((s) => s.kind === 'indoor') },
   { kind: 'outdoor', title: 'Outdoor', note: 'floor and sky; walking lines become travelling shots', items: all.value.filter((s) => s.kind === 'outdoor') },
 ])
-const aiOpen = ref(false)
-const aiPrompt = (description: string) => buildSetPrompt(shortName(description) || 'new-set', all.value.map((x) => x.id), description)
+// ?ai=<id> (the story check's "Make <id> with AI"): open the generator for the id the story already uses
+const aiQuery = useRoute().query.ai
+const aiId = ref(typeof aiQuery === 'string' ? aiQuery : '')
+const aiOpen = ref(!!aiId.value)
+const aiPrompt = (description: string) => buildSetPrompt(shortName(description) || 'new-set', all.value.map((x) => x.id), description, aiId.value)
 const aiParse = (text: string) => { const r = importSet(text); return { data: r.set, error: r.error } }
 const aiSave = async (data: unknown) => { await api.saveSet(data as Parameters<typeof api.saveSet>[0]); refresh() }
 
@@ -63,5 +67,5 @@ async function remove(s: { id: string; name: string }) {
       </LibraryCard>
     </LibrarySection>
   </div>
-  <AiGenerateModal :open="aiOpen" title="Generate a set" description-hint="A rainy bus stop at night with a flickering lamp" :prompt-builder="aiPrompt" :parser="aiParse" :save="aiSave" @close="aiOpen = false" @done="aiOpen = false" />
+  <AiGenerateModal :open="aiOpen" title="Generate a set" description-hint="A rainy bus stop at night with a flickering lamp" :prompt-builder="aiPrompt" :parser="aiParse" :save="aiSave" :initial="aiId.replaceAll('-', ' ')" @close="aiOpen = false; aiId = ''" @done="aiOpen = false; aiId = ''" />
 </template>

@@ -450,9 +450,16 @@ def part_detail(slug: str, part: str, audio_notice: str | None = None):
             "busy": busy(slug, part), "audio_notice": audio_notice}
 
 
+class MissingItem(BaseModel):
+    kind: Literal["cast", "set", "prop", "action", "look", "sound", "wardrobe", "unapproved"]
+    ids: list[str]
+    owner: str | None = None  # a look: the cast member who lacks it
+
+
 class StoryIssue(BaseModel):
     line: int | None  # story.md line, None: the whole story
     message: str
+    missing: MissingItem | None = None  # names something that does not exist yet (storycheck.MISSING)
 
 
 class StoryCheck(BaseModel):

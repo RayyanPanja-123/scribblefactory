@@ -96,7 +96,7 @@ const DIRECTIVES: Directive[] = [
     rules: ['Put it right above the line it belongs to. Multiple @sfx lines can attach to the same line.', 'Most sounds play as the line starts. Risers end just as it starts. fahhh plays after the line.',
       'Use @sfx id 0.6 for a one-use volume override.', 'At most 5 per part, and not on two lines in a row.', 'The Review tab suggests sounds for you.'],
     example: '@sfx riser\n!! The tower was never his to sell.' },
-  { id: 'twist', syntax: '!! <text>', what: 'The big twist: the camera pushes in, the music stops, a deep boom hits.',
+  { id: 'twist', syntax: '!! <text>', what: 'The big twist: the camera pushes in and a deep boom hits.',
     rules: ['Use it once per part, on the last or second-to-last line.', 'The words are spoken like any other line.'],
     example: '!! The tower was never his to sell.' },
 ]

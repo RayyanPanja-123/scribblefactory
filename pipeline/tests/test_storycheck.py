@@ -107,6 +107,18 @@ def test_problems_with_line_numbers(tmp_path, capsys):
     assert "problem: line 8: unknown set 'moon'" in out and out.rstrip().endswith("problems")
 
 
+def test_missing_items_are_tagged(tmp_path):
+    story = ("# T\n\n@set moon\n@cast bob, zed, kim\nBob looked.\n@do bob: give trident amy\nBob gave.\n"
+             "@do bob: dance\nBob danced.\n@look bob: crown\nBob shone.\n@sfx boing\nBob jumped.\n")
+    got = [(p["line"], p.get("missing")) for p in check_story(setup(tmp_path, story))["problems"] if p.get("missing")]
+    assert (3, {"kind": "set", "ids": ["moon"], "owner": None}) in got
+    assert (4, {"kind": "cast", "ids": ["zed", "kim"], "owner": None}) in got
+    assert (6, {"kind": "prop", "ids": ["trident"], "owner": None}) in got
+    assert (8, {"kind": "action", "ids": ["dance"], "owner": None}) in got
+    assert (10, {"kind": "look", "ids": ["crown"], "owner": "bob"}) in got
+    assert (12, {"kind": "sound", "ids": ["boing"], "owner": None}) in got
+
+
 def test_ready_story_and_cast_approvals(tmp_path, capsys):
     pdir = setup(tmp_path, "# T\n\n@cast bob, fred\nBob met Fred.\n", approve=("bob",))
     r = check_story(pdir)

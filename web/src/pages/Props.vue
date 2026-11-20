@@ -2,6 +2,7 @@
 import { shortName } from '../lib/aiName'
 import { Backpack, Plus, Sparkles } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { api } from '../api/client'
 import ErrorCard from '../components/ErrorCard.vue'
 import LibraryCard from '../components/LibraryCard.vue'
@@ -29,8 +30,11 @@ const groups = computed(() => [
   { id: 'builtin', title: 'Built in', items: options.value.filter((o) => isBuiltin(o.id)).map((o) => ({ ...o, name: o.name[0].toUpperCase() + o.name.slice(1) })) },
   { id: 'custom', title: 'Custom', items: options.value.filter((o) => !isBuiltin(o.id)) },
 ])
-const aiOpen = ref(false)
-const aiPrompt = (description: string) => buildPrompt(shortName(description) || 'new-prop', data.value?.catalog.builtin ?? [], description)
+// ?ai=<id> (the story check's "Make <id> with AI"): open the generator for the id the story already uses
+const aiQuery = useRoute().query.ai
+const aiId = ref(typeof aiQuery === 'string' ? aiQuery : '')
+const aiOpen = ref(!!aiId.value)
+const aiPrompt = (description: string) => buildPrompt(shortName(description) || 'new-prop', data.value?.catalog.builtin ?? [], description, aiId.value)
 const aiParse = (text: string) => { const r = importProp(text); return { data: r.prop, error: r.error } }
 const aiSave = async (data: unknown) => { await api.saveProp(data as Parameters<typeof api.saveProp>[0]); refresh() }
 const holders = computed(() => {
@@ -74,5 +78,5 @@ async function remove(o: { id: string; name: string }) {
       </LibraryCard>
     </LibrarySection>
   </div>
-  <AiGenerateModal :open="aiOpen" title="Generate a prop" description-hint="A red umbrella with a curved wooden handle" :prompt-builder="aiPrompt" :parser="aiParse" :save="aiSave" @close="aiOpen = false" @done="aiOpen = false" />
+  <AiGenerateModal :open="aiOpen" title="Generate a prop" description-hint="A red umbrella with a curved wooden handle" :prompt-builder="aiPrompt" :parser="aiParse" :save="aiSave" :initial="aiId.replaceAll('-', ' ')" @close="aiOpen = false; aiId = ''" @done="aiOpen = false; aiId = ''" />
 </template>

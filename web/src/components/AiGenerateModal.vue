@@ -13,9 +13,10 @@ const props = defineProps<{
   save: (data: unknown) => Promise<unknown>
   choiceLabel?: string
   choiceOptions?: { value: string; label: string }[]
+  initial?: string // a starting description (the story check's missing id)
 }>()
 const emit = defineEmits<{ close: []; done: [] }>()
-const description = ref('')
+const description = ref(props.initial ?? '')
 const choice = defineModel<string>('choice', { default: '' })
 const prompt = ref('')
 const direct = ref(false)

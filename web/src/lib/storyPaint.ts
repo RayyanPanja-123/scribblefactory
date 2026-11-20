@@ -162,7 +162,9 @@ export function lintBeat(beats: Beat[], i: number, c: Ctx): string[] {
     for (const f of k.fields(c, rec)) {
       const v = rec[f.key]?.trim()
       // empty lists: the library has not loaded yet, so nothing can be told
-      if (f.type === 'select' && v && f.options?.length && !f.options.includes(v)) out.push(`${k.label}: "${v}" is not in the library.`)
+      // a volume is any number 0-1 (the menu only offers presets), not a library id
+      if (f.key === 'vol' && v && !(Number(v) >= 0 && Number(v) <= 1)) out.push(`${k.label}: loudness "${v}" must be 0 to 1.`)
+      else if (f.type === 'select' && f.key !== 'vol' && v && f.options?.length && !f.options.includes(v)) out.push(`${k.label}: "${v}" is not in the library.`)
       if (f.type === 'cast' && c.cast.length) {
         for (const id of v.split(',').map((x) => x.trim()).filter(Boolean))
           if (!c.cast.some((x) => x.id === id)) out.push(`On stage: "${id}" is not in this series' cast.`)

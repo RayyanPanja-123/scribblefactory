@@ -2,6 +2,7 @@
 import { shortName } from '../lib/aiName'
 import { Plus, Sparkles } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { api } from '../api/client'
 import ActionPreview from '../components/ActionPreview.vue'
 import ErrorCard from '../components/ErrorCard.vue'
@@ -20,8 +21,11 @@ const { data, error, loading, reload, refresh } = useApi(() => api.actions())
 refetchOn(() => null, () => null, refresh)
 const custom = computed(() => data.value?.custom ?? [])
 const title = (id: string) => id[0].toUpperCase() + id.slice(1).replaceAll('_', ' ')
-const aiOpen = ref(false)
-const aiPrompt = (description: string) => buildActionPrompt(shortName(description) || 'new-action', [...(data.value?.do ?? []), ...custom.value.map((x) => x.id)], description)
+// ?ai=<id> (the story check's "Make <id> with AI"): open the generator for the id the story already uses
+const aiQuery = useRoute().query.ai
+const aiId = ref(typeof aiQuery === 'string' ? aiQuery : '')
+const aiOpen = ref(!!aiId.value)
+const aiPrompt = (description: string) => buildActionPrompt(shortName(description) || 'new-action', [...(data.value?.do ?? []), ...custom.value.map((x) => x.id)], description, aiId.value)
 const aiParse = (text: string) => { const r = importAction(text); return { data: r.action, error: r.error } }
 const aiSave = async (data: unknown) => { await api.saveAction(data as Parameters<typeof api.saveAction>[0]); refresh() }
 
@@ -59,5 +63,5 @@ async function remove(a: { id: string; name: string }) {
       </LibraryCard>
     </LibrarySection>
   </div>
-  <AiGenerateModal :open="aiOpen" title="Generate an action" description-hint="A slow, proud bow with one arm across the chest" :prompt-builder="aiPrompt" :parser="aiParse" :save="aiSave" @close="aiOpen = false" @done="aiOpen = false" />
+  <AiGenerateModal :open="aiOpen" title="Generate an action" description-hint="A slow, proud bow with one arm across the chest" :prompt-builder="aiPrompt" :parser="aiParse" :save="aiSave" :initial="aiId.replaceAll('-', ' ')" @close="aiOpen = false; aiId = ''" @done="aiOpen = false; aiId = ''" />
 </template>

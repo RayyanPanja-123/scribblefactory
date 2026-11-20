@@ -1656,6 +1656,18 @@ export interface components {
             /** Recommended Workers */
             recommended_workers: number;
         };
+        /** MissingItem */
+        MissingItem: {
+            /** Ids */
+            ids: string[];
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "cast" | "set" | "prop" | "action" | "look" | "sound" | "wardrobe" | "unapproved";
+            /** Owner */
+            owner?: string | null;
+        };
         /** MonthPosts */
         MonthPosts: {
             /** Instagram */
@@ -2481,6 +2493,7 @@ export interface components {
             line: number | null;
             /** Message */
             message: string;
+            missing?: components["schemas"]["MissingItem"] | null;
         };
         /** Style */
         Style: {

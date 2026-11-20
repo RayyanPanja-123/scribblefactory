@@ -96,6 +96,8 @@ def parse_do(arg: str, line: int, cast_ids=None, props=BUILTIN_PROPS, actions=()
             prop = args[0] if args else "apple"
         elif act == "give":
             named = [w for w in args if w in props]
+            if len(args) == 2 and not named and cast_ids is not None and len(other := [w for w in args if w not in cast_ids]) == 1:
+                bad(f"unknown prop {other[0]!r} (props: {', '.join(props)})")  # "give trident amy": name the missing prop
             if len(args) != 2 or len(named) != 1:
                 bad(f'give needs a prop and a target, e.g. "give medal fred" (props: {", ".join(props)})')
             prop, target = named[0], next(w for w in args if w != named[0])
