@@ -1058,7 +1058,9 @@ class Shot(Strict):
 
 class Cue(Strict):
     frame: int
-    kind: Literal["music_stop", "music_start", "low_hit", "whoosh", "pop", "bark"]
+    kind: Literal["music_stop", "music_start", "background_music", "low_hit", "whoosh", "pop", "bark"]
+    track: str | None = None
+    volume: float | None = Field(default=None, ge=0, le=1)
 
 
 class Strike(Strict):

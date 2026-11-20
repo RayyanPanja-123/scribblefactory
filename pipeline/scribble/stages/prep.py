@@ -14,6 +14,7 @@ story.md directives (one per line) are stripped from the script:
   @crowd cheer 10    crowd extras behind the stage: cheer | angry | gasp | neutral [N, default 8, max 12] | off
   @runners 4         background runner extras (0-6)
   @sfx riser 0.6     a sound effect (library/sfx/sfx.json id, optional volume 0-1) for the next line (see sfx.py)
+  @background-music <track> [volume]  a named music bed from assets/music/stickman-history-shorts; use off to stop
   !! text            this line is the twist (prefix stripped, text kept)
 """
 

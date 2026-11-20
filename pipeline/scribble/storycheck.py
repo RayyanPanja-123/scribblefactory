@@ -16,6 +16,7 @@ import re
 from pathlib import Path
 
 from . import sfx as sfx_lib
+from . import background_music
 from .io import cast_body_problems, custom_actions, load_series, prop_kinds, set_kinds, unknown_cast_props, wardrobe_slots
 from .stages.finish import MAX_RUNTIME_S
 from .stages.prep import (DO_CAR, FX_LIGHTNING, FX_MODES, MAX_LIGHTNING, TWIST_PREFIX, clean_markdown, parse_do,
@@ -25,7 +26,7 @@ from .stages.shots import (ACTION_FACE, CAR_MODES, CAR_SEATS, DEFAULT_CAST_SIZE,
                            MAX_RUNNERS, parse_crowd, parse_crowd_look, parse_crowd_weapon, token)
 from .validate import END_SCREEN_S, TAIL_S
 
-DIRECTIVES = ("set", "cast", "dogs", "car", "fx", "do", "look", "crowd", "crowd-look", "crowd-weapon", "runners", "weather", "sfx", "face")
+DIRECTIVES = ("set", "cast", "dogs", "car", "fx", "do", "look", "crowd", "crowd-look", "crowd-weapon", "runners", "weather", "sfx", "face", "background-music")
 LINE_PREFIX = re.compile(r"^story\.md line [0-9]+: ")
 FALLBACK_WPS = 2.6  # words per second before any part has been finished
 # a first line that opens on a date or backstory instead of the hook
@@ -175,6 +176,10 @@ def check_story(part_dir: Path) -> dict:
                         warnings.append({"line": no, "message": f"@sfx {sid}: {sounds[sid].file} is missing from "
                                                                  "library/sfx/ (left out of the mix)"})
                     pending_sfx.append(no)
+                elif name == "background-music":
+                    track, _volume = background_music.parse(arg, no)
+                    if track and not background_music.path(track).is_file():
+                        bad(no, f"@background-music {track}: file is missing from assets/music/stickman-history-shorts/")
                 elif name == "car":
                     if arg in CAR_MODES:
                         car = arg

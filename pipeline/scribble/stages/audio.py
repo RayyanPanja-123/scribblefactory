@@ -16,11 +16,13 @@ from pathlib import Path
 import numpy as np
 
 from .. import sfx as sfx_lib
+from .. import background_music
 from ..io import atomic_write_bytes, replace_file
 from ..schemas import StoryModel
 from .runner import StageError
 
 MUSIC_UNDER_DB = -6  # music loudness relative to the voice
+BACKGROUND_UNDER_DB = -16.5  # the pack's default 15% bed under narration
 SFX_UNDER_DB = -3    # SFX loudness relative to the voice
 TARGET_LUFS, TARGET_TP, LUFS_TOL = -14.0, -1.0, 0.5
 LOUDNORM_TP = -1.5   # aim under -1 dBTP: loudnorm's true peak lands a few tenths off its target
@@ -159,6 +161,34 @@ def render_music(story: StoryModel, n: int) -> np.ndarray:
             seg[-k:] *= np.linspace(1, 0, FADE)[-k:, None]
         out[a:b] = seg
     return out
+
+
+def render_background_music(story: StoryModel, n: int) -> tuple[np.ndarray, float]:
+    """Render @background-music cue segments and return (stereo audio, loudness volume setting)."""
+    cues = sorted((c for c in story.cues if c.kind == "background_music"), key=lambda c: c.frame)
+    out = np.zeros((n, 2))
+    max_volume = 0.0
+    for cue, nxt in zip(cues, [*cues[1:], None]):
+        if cue.track is None:
+            continue
+        start = max(0, cue.frame * SPF)
+        stop = min(n, (nxt.frame * SPF if nxt else n))
+        if start >= stop:
+            continue
+        track = background_music.path(cue.track)
+        if not track.is_file():
+            raise StageError(f"background music file not found: {track}")
+        sample = decode(track)
+        if not len(sample):
+            continue
+        segment = np.resize(sample, (stop - start, 2)) * float(cue.volume or 0.0)
+        fade = min(FADE, len(segment))
+        segment[:fade] *= np.linspace(0, 1, fade)[:, None]
+        if nxt:
+            segment[-fade:] *= np.linspace(1, 0, fade)[:, None]
+        out[start:stop] = segment
+        max_volume = max(max_volume, float(cue.volume or 0.0))
+    return out, max_volume
 
 
 # --- SFX ---
@@ -347,14 +377,22 @@ def run(part_dir: Path) -> None:
     voice = np.pad(voice, ((0, n - len(voice)), (0, 0)))
     d = part_dir / "audio"
     d.mkdir(exist_ok=True)
-    atomic_write_bytes(d / "music.wav", wav_bytes(_peak_norm(render_music(story, n))))
+    has_background = any(c.kind == "background_music" for c in story.cues)
+    if has_background:
+        rendered_music, music_volume = render_background_music(story, n)
+        # Keep the requested 0-1 setting meaningful after loudness matching.
+        music_target = BACKGROUND_UNDER_DB + (20 * np.log10(music_volume / 0.15) if music_volume else -60)
+    else:
+        rendered_music, music_volume = render_music(story, n), None
+        music_target = MUSIC_UNDER_DB
+    atomic_write_bytes(d / "music.wav", wav_bytes(_peak_norm(rendered_music)))
     atomic_write_bytes(d / "sfx.wav", wav_bytes(_peak_norm(render_sfx(story, n))))
 
     v_lufs, _ = loudness(voice_mp3)
     if v_lufs <= -69:
         raise StageError("the voice is silent")
     music, sfx = decode(d / "music.wav"), decode(d / "sfx.wav")
-    g_m = _gain(v_lufs + MUSIC_UNDER_DB, loudness(d / "music.wav")[0])
+    g_m = _gain(v_lufs + music_target, loudness(d / "music.wav")[0])
     g_s = _gain(v_lufs + SFX_UNDER_DB, loudness(d / "sfx.wav")[0])
     print(f"voice {v_lufs:.1f} LUFS; music gain {20 * np.log10(g_m or 1e-9):+.1f} dB, "
           f"sfx gain {20 * np.log10(g_s or 1e-9):+.1f} dB")

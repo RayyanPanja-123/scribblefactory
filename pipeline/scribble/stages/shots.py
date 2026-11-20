@@ -23,6 +23,7 @@ from ..validate import (CAR_SPEED, CROWD_Z, DOG_RUN_SPEED, MAX_SHOT_FRAMES, MOOD
                         custom_speeds, end_frame, validate)
 from .prep import (BUILTIN_PROPS, DO_CAR, FX_LIGHTNING, FX_MODES, MARKER_RE, clean_markdown, mark_directives, parse_do,
                    parse_face, parse_lightning, parse_look, parse_weather)
+from .. import background_music
 from .runner import StageError
 from .validate import load_model
 
@@ -141,6 +142,7 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
     face: {cast id: expression} for the words of the line after an @face, else None."""
     text, directives = mark_directives(md)
     set_, cast, twist_next, dogs, car, do = DEFAULT_SET, tuple(default_cast), False, 0, "off", None
+    bg_music = None
     crowd, crowd_wardrobe, runners, looks, strike, face = {}, {}, 0, {}, None, None
     weather_of = weather_of or {}
     weather = weather_of.get(set_)
@@ -153,7 +155,7 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
             tags.append((set_, cast, twist_next, dogs, car, do,
                          {k: dict(v) for k, v in crowd.items()},
                          {k: dict(v) for k, v in crowd_wardrobe.items()}, runners,
-                         dict(looks), weather, strike, face))
+                         dict(looks), weather, strike, face, bg_music))
             twist_next, strike = False, None
         elif m[1] == "!":
             twist_next = True
@@ -212,6 +214,8 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
                 face = {**(face or {}), **parse_face(arg, line, cast_ids)}
             elif name == "sfx":
                 pass  # sound effect: the audio stage reads it
+            elif name == "background-music":
+                bg_music = background_music.parse(arg, line)
             elif name == "look":
                 who, look = parse_look(arg, line, looks_of)
                 looks = {**{k: v for k, v in looks.items() if k not in who}, **({w: look for w in who} if look != "default" else {})}
@@ -721,7 +725,7 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
     pos: dict[str, float] = {}  # where each actor stands now; reset on a set change
     fallen: set = set()  # (@do line, cast id) that already collapsed
     for i, p in enumerate(phrases.phrases):
-        set_, cast, _, dogs, mode, do, crowd, crowd_wardrobe, runners, looks, weather, _, face = tags[p.word_start]
+        set_, cast, _, dogs, mode, do, crowd, crowd_wardrobe, runners, looks, weather, _, face, bg_music = tags[p.word_start]
         if (set_, cast) != scene_key:
             scene_key, back_pos = (set_, cast), {}
         cast, back = rows[i]  # from here on, cast is the front row
@@ -856,6 +860,15 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
             prev_angle, prev_set = angle, set_
     lightning = [strike(shots, line, target, min(round(phrases.words[w].start * FPS), total - 1), series)
                  for w, (line, target) in ((w, t[10]) for w, t in enumerate(tags) if t[10])]
+    # Add one cue at each narration line where the selected track changes. The audio stage stretches/loops it.
+    previous = None
+    for i, p in enumerate(phrases.phrases):
+        selected = tags[p.word_start][13]
+        if selected != previous and (selected is not None or previous is not None):
+            cues.append(Cue(frame=starts[i], kind="background_music",
+                            track=selected[0] if selected else None,
+                            volume=selected[1] if selected else None))
+            previous = selected
     return StoryModel(duration_frames=total, seed=seed, shots=shots, cues=cues, end_card=end_card, lightning=lightning)
 
 
