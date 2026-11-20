@@ -612,6 +612,7 @@ def test_delete_series(client, lib):
         real(src, dst)
     m_replace = pytest.MonkeyPatch()
     m_replace.setattr(os, "replace", held)
+    m_replace.setattr(m.cli, "FOLDER_MOVE_TRIES", 1)
     r = client.delete("/api/series/demo")
     m_replace.undo()
     assert r.status_code == 409 and "in use by another program" in r.json()["detail"] and (lib / "demo").exists()
@@ -843,6 +844,7 @@ def test_move_to_gallery(client, lib):
         real(src, dst)
     mp = pytest.MonkeyPatch()
     mp.setattr(os, "replace", held)
+    mp.setattr(m.cli, "FOLDER_MOVE_TRIES", 1)
     r = client.post("/api/series/demo/gallery")
     mp.undo()
     assert r.status_code == 409 and (lib / "demo" / "part-01" / "final.mp4").exists() and client.get("/api/gallery").json() == []
@@ -855,3 +857,21 @@ def test_move_to_gallery(client, lib):
     (lib / "secret.json").write_text("{}", encoding="utf-8")
     assert client.get("/api/gallery/demo/..%2F..%2Fsecret.json").status_code == 404  # never outside the entry
     assert client.get("/api/gallery/demo/part-01/final.mp4").status_code == 404
+
+
+def test_folder_move_waits_out_a_short_lock(tmp_path, monkeypatch):
+    """antivirus / indexer: a folder held for a moment after to-gallery read it still moves"""
+    import pipeline.scribble.cli as c
+    src = tmp_path / "s"
+    src.mkdir()
+    real, held = os.replace, {"n": 0}
+    def flaky(a, b):
+        if held["n"] < 8:  # longer than replace_file's own ~0.5 s of retries
+            held["n"] += 1
+            raise PermissionError(5, "Access is denied")
+        real(a, b)
+    monkeypatch.setattr(os, "replace", flaky)
+    monkeypatch.setattr(c.time, "sleep", lambda s: None)
+    monkeypatch.setattr("pipeline.scribble.io.time.sleep", lambda s: None)
+    c.move_aside(src, tmp_path / "t")
+    assert (tmp_path / "t").is_dir() and not src.exists()

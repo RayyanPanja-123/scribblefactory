@@ -10,6 +10,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from typing import get_args
 from datetime import datetime, timezone
 from pathlib import Path
@@ -190,13 +191,21 @@ def cmd_new_part(args) -> int:
     return 0
 
 
+FOLDER_MOVE_TRIES = 12  # x 0.5 s: antivirus and the search indexer hold files for seconds after they are read
+                        # (to-gallery reads every file first); replace_file's own retries cover only ~0.5 s
+
+
 def move_aside(src: Path, dst: Path) -> None:
     """rename a folder away (retried); on Windows it fails while any program has it or a file in it open"""
-    try:
-        replace_file(src, dst)
-    except PermissionError:
-        raise UserError(f"{src.name} is in use by another program (a File Explorer window open on it, a video "
-                        "playing it, an editor?); close it and try again")
+    for attempt in range(FOLDER_MOVE_TRIES):
+        try:
+            replace_file(src, dst)
+            return
+        except PermissionError:
+            if attempt < FOLDER_MOVE_TRIES - 1:
+                time.sleep(0.5)
+    raise UserError(f"{src.name} is in use by another program (a File Explorer window open on it, a video "
+                    "playing it, an editor?); close it and try again")
 
 
 def cmd_delete_part(args) -> int:
