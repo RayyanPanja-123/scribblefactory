@@ -284,6 +284,7 @@ class PartDetail(BaseModel):
     frames_bytes: int
     part_bytes: int  # the whole part folder, frames included
     busy: str | None
+    audio_notice: str | None = None
 
 
 class Job(BaseModel):
@@ -401,7 +402,7 @@ def cast_render(d: Path, c) -> dict:
 
 
 @app.get("/api/series/{slug}/parts/{part}", response_model=PartDetail)
-def part_detail(slug: str, part: str):
+def part_detail(slug: str, part: str, audio_notice: str | None = None):
     pdir = part_path(slug, part)
     files = {f: (pdir / f).is_file() for f in PART_FILES}
     try:
@@ -418,7 +419,7 @@ def part_detail(slug: str, part: str):
             "story_md": story.read_text(encoding="utf-8") if story.is_file() else None,
             "tts_script": tts.read_text(encoding="utf-8") if tts.is_file() else None,
             "voice_duration": voice, "frames_bytes": du(pdir / "frames"), "part_bytes": du(pdir),
-            "busy": busy(slug, part)}
+            "busy": busy(slug, part), "audio_notice": audio_notice}
 
 
 class StoryIssue(BaseModel):
@@ -1209,6 +1210,32 @@ class NewPart(BaseModel):
     story: str | None = None  # story.md body; default: the CLI's "# <title>" stub
 
 
+def auto_pick_part_audio(slug: str, part: str, title: str, number: int) -> str:
+    """Copy an unambiguous mp3 from the series audio folder into a new part, or explain what is missing."""
+    series_dir = series_path(slug)
+    series = load_series(series_dir / "series.json")
+    audio_dir = Path(settings.load(lib())["audio_directory"]) / safe_folder_name(series.title, slug)
+    if not audio_dir.is_dir():
+        return f"No audio folder found yet: {audio_dir}. Add an mp3 there and upload it in Voice."
+
+    def key(value: str) -> str:
+        return re.sub(r"[^a-z0-9]+", "", value.lower())
+
+    wanted = {key(part), key(f"part-{number:02d}"), key(f"part {number}"), key(f"{number:02d}"), key(title)}
+    matches = sorted(f for f in audio_dir.iterdir() if f.is_file() and f.suffix.lower() == ".mp3" and key(f.stem) in wanted)
+    if not matches:
+        return f"No matching mp3 found in {audio_dir}. Expected a file named {part}.mp3 or {title or f'Part {number}'}.mp3."
+    source = matches[0]
+    data = source.read_bytes()
+    if len(data) > MAX_VOICE_BYTES:
+        return f"Audio found ({source.name}) but it is over {MAX_VOICE_BYTES // 2**20} MB; upload it in Voice."
+    if not (data[:3] == b"ID3" or (len(data) > 1 and data[0] == 0xFF and data[1] & 0xE0 == 0xE0)):
+        return f"Audio found ({source.name}) but it is not a valid mp3; upload it in Voice."
+    destination = series_dir / part / "voice.mp3"
+    destination.write_bytes(data)
+    return f"Audio auto-selected: {source.name}"
+
+
 def write_story(pdir: Path, text: str) -> None:
     """story.md is user-owned, so not via io.atomic_write_text (it refuses PROTECTED names on purpose)"""
     tmp = pdir / ".story.md.upload.tmp"
@@ -1232,10 +1259,12 @@ def create_part(slug: str, body: NewPart):
     check_free(slug)
     cli_call("new-part", slug, *([f"--title={body.title}"] if body.title else []))
     part = load_series(d / "series.json").parts[-1]
+    model = load_part(d / part / "part.json")
+    audio_notice = auto_pick_part_audio(slug, part, model.title, model.number)
     if body.story is not None:
         write_story(d / part, body.story)
     publish("series-changed", {"slug": slug})
-    return part_detail(slug, part)
+    return part_detail(slug, part, audio_notice)
 
 
 @app.delete("/api/series/{slug}", response_model=Health)

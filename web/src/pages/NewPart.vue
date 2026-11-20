@@ -5,7 +5,7 @@ import { useRouter } from 'vue-router'
 import { api } from '../api/client'
 import ErrorCard from '../components/ErrorCard.vue'
 import PartStepper from '../components/PartStepper.vue'
-import { act } from '../composables/feedback'
+import { act, toast } from '../composables/feedback'
 import { useApi } from '../composables/useApi'
 import { partSteps } from '../lib/partSteps'
 
@@ -34,7 +34,10 @@ async function create() {
   saving.value = true
   const d = await act(() => api.createPart(props.slug, { title: title.value.trim() || null, story: story.value }), 'Part created')
   saving.value = false
-  if (d) router.push(`/series/${props.slug}/${d.part.id}`)
+  if (d) {
+    if (d.audio_notice) toast(d.audio_notice, d.audio_notice.startsWith('Audio auto-selected') ? 'ok' : 'info')
+    router.push(`/series/${props.slug}/${d.part.id}`)
+  }
 }
 </script>
 

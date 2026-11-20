@@ -1654,6 +1654,8 @@ export interface components {
         };
         /** PartDetail */
         PartDetail: {
+            /** Audio Notice */
+            audio_notice?: string | null;
             /** Busy */
             busy: string | null;
             /** Files */
@@ -3625,7 +3627,9 @@ export interface operations {
     };
     part_detail_api_series__slug__parts__part__get: {
         parameters: {
-            query?: never;
+            query?: {
+                audio_notice?: string | null;
+            };
             header?: never;
             path: {
                 slug: string;
