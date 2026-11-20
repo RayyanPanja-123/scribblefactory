@@ -17,7 +17,8 @@ import { SETS, VARIANTS, buildSet, loopExcess, scrollSet, setInk, setKind } from
 import { fadePlan, fogAlpha, fogCanvas, layersAt, paint, paintBack, strikeAt } from "./weather.js";
 import { STYLE } from "./style.js";
 
-const FPS = 30, W = 1080, H = 1920;
+const FPS = 30;
+let W = 1080, H = 1920; // the frame: story.width x story.height (setup); cast sheets stay 1080x1920
 const CARD_H = 1.6, CARD_W = CARD_H * (CW / CH); // the whole canvas, held props included
 const BODY_CARD_W = CARD_H * (BODY_W / CH);       // just the figure: what framing and set-prop hiding measure
 const FIG_H = (CARD_H * FIGURE_PX) / CH; // tallest standing figure in world units, from stickman.js
@@ -288,7 +289,21 @@ function useSet(shot) {
 
 const png = () => renderer.domElement.toDataURL("image/png");
 
+/** the frame size (9:16 or 16:9): the renderer, camera and every frame-sized 2D canvas. Set outlines (world.js inkH)
+ *  stay in px of a 1920-tall frame, so lines keep their weight against the cast at either size. */
+function frameSize(w, h) {
+  if (w === W && h === H) return;
+  W = w; H = h;
+  renderer.setSize(W, H, false);
+  camera.aspect = W / H;
+  camera.updateProjectionMatrix();
+  Object.assign(wcv, { width: W, height: H }); Object.assign(comp, { width: W, height: H });
+  Object.assign(bcv, { width: W * BACK_K, height: H * BACK_K });
+  wtex.dispose(); btex.dispose(); // re-allocated at the new size on next upload
+}
+
 window.setup = (d) => {
+  frameSize(d.story.width ?? 1080, d.story.height ?? 1920);
   data = d; hiddenByShot.clear(); variantByShot.clear(); extrasByShot.clear();
   fadeByShot = fadePlan(d.story.shots || []);
   fogTex?.dispose(); fogTex = null;

@@ -528,6 +528,14 @@ def cmd_set_captions(args) -> int:
     return 0
 
 
+def cmd_set_aspect(args) -> int:
+    f, series = load_existing_series(args)
+    series.style.aspect = args.aspect
+    save_series(f, series)
+    print(f"{args.slug} aspect: {args.aspect} (parts re-run from shots to apply)")
+    return 0
+
+
 def cmd_pick_thumbnail(args) -> int:
     pdir = part_dir(args)
     choice = f"thumbs/thumb-{args.n}.png"
@@ -763,6 +771,11 @@ def build_parser() -> Parser:
     c.add_argument("slug")
     c.add_argument("state", choices=["on", "off"])
     c.set_defaults(func=cmd_set_captions)
+
+    c = sub.add_parser("set-aspect", parents=[common], help="frame shape for a series: 9:16 (Shorts) or 16:9")
+    c.add_argument("slug")
+    c.add_argument("aspect", choices=["9:16", "16:9"])
+    c.set_defaults(func=cmd_set_aspect)
 
     c = sub.add_parser("pick-thumbnail", parents=[common], help="choose thumbnail candidate 1, 2 or 3")
     c.add_argument("slug")

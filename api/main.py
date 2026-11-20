@@ -636,6 +636,7 @@ class NewSeries(BaseModel):
     # same shape as series.json "cast" (approved_at is dropped: an imported look still needs approval);
     # shorthand: {"id", "name", "color"} for a plain top. Reference: web/public/cast-reference.json
     cast: list[dict] = []
+    aspect: Literal["9:16", "16:9"] = "9:16"  # the frame shape of every part
 
 
 def cast_member(i: int, c: dict) -> CastMember:
@@ -661,9 +662,9 @@ def create_series(body: NewSeries):
     cli_call("new-series", body.slug, f"--title={body.title}")
     d = series_path(body.slug)
     Path(settings.load(lib())["audio_directory"]).joinpath(safe_folder_name(body.title, body.slug)).mkdir(parents=True, exist_ok=True)
-    if cast:
+    if cast or body.aspect != "9:16":
         series = load_series(d / "series.json")
-        series.cast = cast
+        series.cast, series.style.aspect = cast, body.aspect
         save_series(d / "series.json", series)
     publish("series-changed", {"slug": body.slug})
     return series_json(d)

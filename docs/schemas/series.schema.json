@@ -495,6 +495,15 @@
     "Style": {
       "additionalProperties": false,
       "properties": {
+        "aspect": {
+          "default": "9:16",
+          "enum": [
+            "9:16",
+            "16:9"
+          ],
+          "title": "Aspect",
+          "type": "string"
+        },
         "captions": {
           "default": true,
           "title": "Captions",

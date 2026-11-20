@@ -38,7 +38,6 @@ FONTS = Path(__file__).resolve().parents[3] / "assets" / "fonts"
 CRF, PRESET, AUDIO_BITRATE, AUDIO_RATE = 18, "slow", "192k", 48000
 
 # --- captions ---
-W, H = 1080, 1920
 CAP_FONT = "Fredoka One"
 CAP_SIZE = 72
 CAP_OUTLINE = 6
@@ -47,9 +46,8 @@ CAP_MAX_WORDS = 5
 CAP_LINE_CHARS = 18        # a chunk longer than this breaks onto 2 lines (never more)
 CAP_FIT_CHARS = 24         # ~chars of Fredoka One at CAP_SIZE in the caption width; longer lines shrink to fit
 CAP_HOLD = 0.15            # seconds a chunk stays after its last word, never into the next chunk
-CAP_BASELINE = 0.68        # of frame height
-CAP_MARGIN_L = round(0.10 * W)  # 80% max width, and clear of the right-hand UI (15%)
-CAP_MARGIN_R = round(0.15 * W)
+CAP_BASELINE = {1920: 0.68, 1080: 0.88}  # of frame height, by height: 9:16 high (clear of the Shorts UI), 16:9 low
+CAP_MARGIN_L, CAP_MARGIN_R = 0.10, 0.15   # of frame width: 75% max width, and clear of the right-hand UI (15%)
 WHITE, YELLOW = "&H00FFFFFF", "&H004AD5FF"  # ASS colours are &HAABBGGRR; yellow = #ffd54a
 SHADOW = "&H80000000"
 RED = "&H004F5AFF"         # #ff5a4f
@@ -271,8 +269,9 @@ def _animated_frames(c: dict, fx: dict) -> set[int]:
 def ass(phrases: PhrasesModel, story: StoryModel, overrides: list[str | None] | None = None) -> str:
     """the libass script: per chunk, one event per word (that word yellow until the next word starts), split into
     one event per video frame while an effect animates"""
-    margin_v = round(H * (1 - CAP_BASELINE))
-    base_x, base_y = CAP_MARGIN_L + (W - CAP_MARGIN_L - CAP_MARGIN_R) // 2, H - margin_v  # where \an2 puts it
+    W, H = story.width, story.height
+    margin_v, ml, mr = round(H * (1 - CAP_BASELINE[H])), round(CAP_MARGIN_L * W), round(CAP_MARGIN_R * W)
+    base_x, base_y = ml + (W - ml - mr) // 2, H - margin_v  # where \an2 puts it
     head = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: {W}
@@ -285,7 +284,7 @@ Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour,
 Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, \
 MarginV, Encoding
 Style: Caption,{CAP_FONT},{CAP_SIZE},{WHITE},{WHITE},&H00000000,{SHADOW},0,0,0,0,100,100,0,0,1,{CAP_OUTLINE},\
-{CAP_SHADOW},2,{CAP_MARGIN_L},{CAP_MARGIN_R},{margin_v},1
+{CAP_SHADOW},2,{ml},{mr},{margin_v},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -331,8 +330,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
 # ---------------- end card ----------------
 
-def end_card_png(text: str, socials: dict, out: Path) -> None:
-    """the silent closing screen: black 1080x1920, the headline (text) in big white letters and, under it, one line per
+def end_card_png(text: str, socials: dict, out: Path, size: tuple[int, int] = (1080, 1920)) -> None:
+    """the silent closing screen: black, size (width, height), the headline (text) in big white letters and, under it, one line per
     filled-in handle ("YouTube  @name"), the block centred at CARD_Y"""
     from PIL import Image, ImageDraw, ImageFont
 
@@ -342,6 +341,7 @@ def end_card_png(text: str, socials: dict, out: Path) -> None:
     boxes = [f.getbbox(t) for t, f, _ in lines]
     gaps = [CARD_SIZE] + [HANDLE_SIZE * 3 // 5] * (len(lines) - 2)  # a wider gap under the headline
     height = sum(y1 - y0 for _, y0, _, y1 in boxes) + sum(gaps[:len(lines) - 1])
+    W, H = size
     img = Image.new("RGBA", (W, H), (0, 0, 0, 255))
     d = ImageDraw.Draw(img)
     y = round(H * CARD_Y) - height // 2
@@ -376,7 +376,8 @@ def subtitles_filter(captions: Path) -> str:
     return f"subtitles=filename={_filter_path(captions)}:fontsdir={_filter_path(FONTS)}"
 
 
-def encode(part_dir: Path, frames: int, captions: Path | None, card: Path | None = None) -> None:
+def encode(part_dir: Path, frames: int, captions: Path | None, card: Path | None = None,
+           size: tuple[int, int] = (1080, 1920)) -> None:
     """frames/%06d.png + audio/mix.wav (+ burned-in captions), then the end screen png held for END_SCREEN_FRAMES
     with silence under it -> final.mp4"""
     out, tmp = part_dir / "final.mp4", part_dir / ".final.tmp.mp4"
@@ -393,7 +394,7 @@ def encode(part_dir: Path, frames: int, captions: Path | None, card: Path | None
                 *(["-loop", "1", "-framerate", FPS, "-t", f"{END_SCREEN_FRAMES / FPS:.3f}", "-i", card] if card else []),
                 *graph, "-map", "[a]" if card else "1:a", "-frames:v", total, "-t", f"{total / FPS:.3f}",
                 "-c:v", "libx264", "-profile:v", "high", "-preset", PRESET, "-crf", CRF, "-pix_fmt", "yuv420p",
-                "-r", FPS, "-s", f"{W}x{H}", "-c:a", "aac", "-b:a", AUDIO_BITRATE, "-ar", AUDIO_RATE,
+                "-r", FPS, "-s", f"{size[0]}x{size[1]}", "-c:a", "aac", "-b:a", AUDIO_BITRATE, "-ar", AUDIO_RATE,
                 "-movflags", "+faststart", tmp)
         replace_file(tmp, out)
     finally:
@@ -457,6 +458,7 @@ def qa(part_dir: Path, story: StoryModel, phrases: PhrasesModel, captions_on: bo
 
     def check(ok, value, want):
         return {"ok": bool(ok), "value": value, "want": want}
+    W, H = story.width, story.height
     checks = {
         "resolution": check(p.get("width") == str(W) and p.get("height") == str(H),
                             f"{p.get('width')}x{p.get('height')}", f"{W}x{H}"),
@@ -524,13 +526,14 @@ def run(part_dir: Path) -> None:
     card = part_dir / "end-card.png"
     if story.end_card:
         socials = settings.load(part_dir.parent.parent)["socials"]
-        end_card_png(story.end_card.text, socials, card)
+        end_card_png(story.end_card.text, socials, card, (story.width, story.height))
         handles = ", ".join(v for v in socials.values() if v) or "no handles set (Settings)"
         print(f"end screen: {story.end_card.text} ({handles})")
     else:
         card.unlink(missing_ok=True)
         print("end screen: none")
-    encode(part_dir, story.duration_frames, captions if captions_on else None, card if story.end_card else None)
+    encode(part_dir, story.duration_frames, captions if captions_on else None, card if story.end_card else None,
+           (story.width, story.height))
 
     report = qa(part_dir, story, phrases, captions_on)
     atomic_write_json(part_dir / "qa.json", report)

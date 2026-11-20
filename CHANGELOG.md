@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+- 16:9: a series can be wide (1920x1080) instead of tall. Pick **Frame** on New series, or
+  `set-aspect <slug> 16:9` (then re-run parts from shots). Engine, captions (lower on a wide frame), end screen,
+  QA, contact sheets, thumbnail picker and the player (a phone on its side) follow `story.width`/`height`.
 - Captions: the upload.md textarea is now two cards, YouTube (title, description + tags, pinned comment) and
   Instagram (one caption with everything), each field with a Copy button and a length count. **Write with Gemini**
   (`POST /api/captions`, key in Settings → Gemini API key, write-only) writes them from the story, the next part's opening and the

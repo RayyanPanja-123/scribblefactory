@@ -15,6 +15,7 @@ const PALETTE = ['#3a7bd5', '#d53a3a', '#2e9e5b', '#e0a020', '#8a4fd5', '#d5703a
 const title = ref('')
 const slug = ref('')
 const slugEdited = ref(false)
+const aspect = ref<'9:16' | '16:9'>('9:16')
 watch(title, (t) => { if (!slugEdited.value) slug.value = slugify(t) })
 
 type Obj = Record<string, unknown>
@@ -111,7 +112,7 @@ const ready = computed(() => title.value.trim() && slug.value && filled.value.ev
 async function create() {
   saving.value = true
   const body = {
-    slug: slug.value, title: title.value.trim(),
+    slug: slug.value, title: title.value.trim(), aspect: aspect.value,
     cast: filled.value.map((r) => ({ ...r.look, id: r.id, name: r.name.trim(), eyes: r.eyes, props: propsOf(r), top: { ...(r.look.top as Obj), color: r.color },
       body: r.body, headless: r.headless && hasStump(r.body) })),
   }
@@ -137,6 +138,12 @@ const field = 'inset mt-1 block h-10 w-full rounded-md px-4 text-sm text-ink out
         <label class="block text-xs font-semibold text-muted">Slug (folder name)
           <input v-model="slug" required pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="marathon-1904" :class="field"
             @input="slugEdited = true" />
+        </label>
+        <label class="block text-xs font-semibold text-muted">Frame
+          <select v-model="aspect" :class="field">
+            <option value="9:16">9:16 tall (Shorts, Reels)</option>
+            <option value="16:9">16:9 wide (YouTube)</option>
+          </select>
         </label>
       </div>
 

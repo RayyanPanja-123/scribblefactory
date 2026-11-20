@@ -1046,8 +1046,11 @@
       "type": "integer"
     },
     "height": {
-      "const": 1920,
       "default": 1920,
+      "enum": [
+        1920,
+        1080
+      ],
       "title": "Height",
       "type": "integer"
     },
@@ -1079,8 +1082,11 @@
       "type": "array"
     },
     "width": {
-      "const": 1080,
       "default": 1080,
+      "enum": [
+        1080,
+        1920
+      ],
       "title": "Width",
       "type": "integer"
     }

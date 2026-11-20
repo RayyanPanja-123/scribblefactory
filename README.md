@@ -1,6 +1,6 @@
 # scribblefactory
 
-Local, offline factory for stickman animated shorts (9:16, 1080x1920, 30fps).
+Local, offline factory for stickman animated shorts (9:16 1080x1920 or 16:9 1920x1080 per series, 30fps).
 Personal use. Runs fully offline. AI help works via copy/paste with any chat AI (ChatGPT, Claude, Gemini).
 Voice is recorded manually.
 

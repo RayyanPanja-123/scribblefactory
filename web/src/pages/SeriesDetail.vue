@@ -81,7 +81,7 @@ const facts = computed(() => {
   return [
     { k: 'Slug', v: s.slug },
     { k: 'Parts', v: String(s.parts.length) },
-    { k: 'Style', v: `${s.style.preset}${s.style.locked ? ' (locked)' : ''}`, hint: `captions ${s.style.captions ? 'on' : 'off'}` },
+    { k: 'Style', v: `${s.style.preset}${s.style.locked ? ' (locked)' : ''}`, hint: `${s.style.aspect}, captions ${s.style.captions ? 'on' : 'off'}` },
   ]
 })
 </script>

@@ -21,6 +21,8 @@ const moon = makePart((s) => { s.shots[0].set = "moon"; return s; });
 const stills = makePart();
 // s03 -> street puts a wipe on frames 115..124
 const wiped = makePart((s) => { s.shots[2].set = "street"; return s; });
+// the wiped story at 16:9: rendered between portrait jobs in the one batch page, so the size switches both ways
+const wide = makePart((s) => { s.shots[2].set = "street"; return Object.assign(s, { width: 1920, height: 1080 }); });
 const street = makePart((s) => { for (const sh of s.shots) sh.set = "street"; return s; });
 // set variant: same story, only the shot ids differ -> a different variant of dirt_road -> a different picture
 const IDS = Array.from({ length: 40 }, (_, i) => `s${String(i + 1).padStart(2, "0")}`);
@@ -78,6 +80,7 @@ const JOBS = {
   badFrame: ["--part", base, "--frame", "999", "--out", path.join(base, "x.png")],
   stills: ["--part", stills, "--stills"],
   wipe114: frames(wiped, "114-114", "a"), wipe117: frames(wiped, "117-117", "a"), wipe117b: frames(wiped, "117-117", "b"),
+  wide117: frames(wide, "117-117", "a"),
   office: frames(base, "114-114", "o"), office117: frames(base, "117-117", "o"), street117: frames(street, "117-117", "a"),
   variant0: frames(variants[0], "10-10", "a"), variant1: frames(variants[1], "10-10", "a"),
   travel54: frames(travel, "54-54", "a"), travel57: frames(travel, "57-57", "a"), travel54b: frames(travel, "54-54", "b"),
@@ -103,6 +106,12 @@ test("same frame gives identical PNG bytes, 1080x1920 (a talk frame, mouth open)
   assert.equal(A.subarray(1, 4).toString(), "PNG");
   assert.deepEqual(pngSize(A), [1080, 1920]);
   assert.ok(A.equals(C), "frame 66 differs between the batch and a separate process");
+});
+
+test("16:9 story renders 1920x1080, and the next portrait job is back at 1080x1920", () => {
+  for (const n of ["wide117", "office117"]) ok(n);
+  assert.deepEqual(pngSize(png(path.join(wide, "a"), 117)), [1920, 1080]);
+  assert.deepEqual(pngSize(png(path.join(base, "o"), 117)), [1080, 1920]);
 });
 
 test("stills: one image per shot plus a manifest", () => {

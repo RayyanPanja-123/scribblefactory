@@ -6,7 +6,7 @@ import VideoPlayer from './VideoPlayer.vue'
 // The part's videos on a modern phone (thin titanium frame, island cutout, side buttons) floating bottom right,
 // left of the utilities button, on every tab. Minimized it is one button; the video unmounts, so nothing keeps
 // playing out of sight.
-defineProps<{ sources: { key: string; label: string; src: string }[] }>()
+defineProps<{ sources: { key: string; label: string; src: string }[]; wide?: boolean }>() // wide: a 16:9 series, the phone on its side
 const KEY = 'floating-player-open'
 const read = () => { try { return localStorage.getItem(KEY) !== '0' } catch { return true } }
 const open = ref(read())
@@ -25,13 +25,16 @@ onBeforeUnmount(() => clearInterval(tick))
       <Smartphone :size="16" aria-hidden="true" /> Video
     </button>
 
-    <section v-else id="video" aria-label="Video" class="phone relative w-[min(17rem,calc((100vh-6rem)*9/16))] rounded-[3.1rem] p-[2px]">
+    <section v-else id="video" aria-label="Video" class="phone relative rounded-[3.1rem] p-[2px]"
+      :class="wide ? 'w-[min(30rem,calc(100vw-9rem))]' : 'w-[min(17rem,calc((100vh-6rem)*9/16))]'">
       <!-- side buttons: action + volume on the left, power and camera control on the right -->
-      <span class="key -left-[3px] top-24 h-7" aria-hidden="true" />
-      <span class="key -left-[3px] top-36 h-12" aria-hidden="true" />
-      <span class="key -left-[3px] top-[12.5rem] h-12" aria-hidden="true" />
-      <span class="key -right-[3px] top-32 h-16" aria-hidden="true" />
-      <span class="key -right-[3px] top-[15rem] h-9" aria-hidden="true" />
+      <template v-if="!wide">
+        <span class="key -left-[3px] top-24 h-7" aria-hidden="true" />
+        <span class="key -left-[3px] top-36 h-12" aria-hidden="true" />
+        <span class="key -left-[3px] top-[12.5rem] h-12" aria-hidden="true" />
+        <span class="key -right-[3px] top-32 h-16" aria-hidden="true" />
+        <span class="key -right-[3px] top-[15rem] h-9" aria-hidden="true" />
+      </template>
 
       <!-- off the phone's corner, in amber: never lost against the video or the page -->
       <button type="button" class="absolute top-1 -right-12 z-10 grid size-9 place-items-center rounded-full bg-amber text-black shadow-[var(--shadow-pop)] ring-2 ring-white/70 hover:brightness-110"
@@ -40,14 +43,14 @@ onBeforeUnmount(() => clearInterval(tick))
       </button>
 
       <!-- the screen: the reel edge to edge, status bar and home bar drawn over it -->
-      <div class="relative aspect-[9/16] overflow-hidden rounded-[2.95rem] bg-black">
-        <VideoPlayer :sources="sources" top="pt-11" />
-        <div class="pointer-events-none absolute inset-x-0 top-0 flex h-10 items-center justify-between px-7 pt-1 text-[13px] font-semibold text-white drop-shadow" aria-hidden="true">
+      <div class="relative overflow-hidden rounded-[2.95rem] bg-black" :class="wide ? 'aspect-video' : 'aspect-[9/16]'">
+        <VideoPlayer :sources="sources" :top="wide ? 'pt-3' : 'pt-11'" />
+        <div v-if="!wide" class="pointer-events-none absolute inset-x-0 top-0 flex h-10 items-center justify-between px-7 pt-1 text-[13px] font-semibold text-white drop-shadow" aria-hidden="true">
           <span class="num">{{ now }}</span>
           <span class="absolute top-2 left-1/2 h-[1.4rem] w-[5.5rem] -translate-x-1/2 rounded-full bg-black" />
           <span class="flex items-center gap-1"><Signal :size="13" /><Wifi :size="13" /><BatteryFull :size="16" /></span>
         </div>
-        <span class="pointer-events-none absolute bottom-1.5 left-1/2 h-1 w-24 -translate-x-1/2 rounded-full bg-white/80" aria-hidden="true" />
+        <span v-if="!wide" class="pointer-events-none absolute bottom-1.5 left-1/2 h-1 w-24 -translate-x-1/2 rounded-full bg-white/80" aria-hidden="true" />
       </div>
     </section>
   </div>

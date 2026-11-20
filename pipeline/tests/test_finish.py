@@ -142,6 +142,18 @@ def test_ass_file():
     assert all(e.count("\\N") <= 1 for e in events)
 
 
+def test_wide_story_captions_and_end_card(tmp_path):
+    wide = story().model_copy(update={"width": 1920, "height": 1080})
+    text = finish.ass(phrases(), wide, ["none"] * 12)
+    assert "PlayResX: 1920" in text and "PlayResY: 1080" in text
+    assert f",{round(1080 * (1 - finish.CAP_BASELINE[1080]))},1" in text  # low on the wide frame
+    finish.end_card_png("Follow for more", {}, tmp_path / "card.png", (1920, 1080))
+    from PIL import Image
+    assert Image.open(tmp_path / "card.png").size == (1920, 1080)
+    with pytest.raises(ValueError, match="not a known frame size"):
+        StoryModel.model_validate({**story().model_dump(), "width": 1920})
+
+
 def test_subtitles_filter_escapes_windows_paths(tmp_path):
     f = finish.subtitles_filter(tmp_path / "captions.ass")
     assert f.startswith("subtitles=filename='") and ":fontsdir='" in f

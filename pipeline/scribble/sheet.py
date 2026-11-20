@@ -12,14 +12,14 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-THUMB_W, THUMB_H = 216, 384   # 1080x1920 / 5
+THUMB_W, THUMB_H = 216, 384   # 1080x1920 / 5; a 16:9 sheet swaps them (the first frame decides)
 LABEL_H = 30
 PAD = 8
 
 
-def sheet_size(n: int, cols: int) -> tuple[int, int]:
+def sheet_size(n: int, cols: int, tw: int = THUMB_W, th: int = THUMB_H) -> tuple[int, int]:
     rows = math.ceil(n / cols)
-    return cols * (THUMB_W + PAD) + PAD, rows * (THUMB_H + LABEL_H + PAD) + PAD
+    return cols * (tw + PAD) + PAD, rows * (th + LABEL_H + PAD) + PAD
 
 
 def build_sheet(items: list[tuple[str, Path]], out: Path, cols: int) -> Path:
@@ -27,15 +27,17 @@ def build_sheet(items: list[tuple[str, Path]], out: Path, cols: int) -> Path:
     if not items:
         raise ValueError("no frames to put on a sheet")
     cols = max(1, min(cols, len(items)))
-    sheet = Image.new("RGB", sheet_size(len(items), cols), "white")
+    with Image.open(items[0][1]) as im:
+        tw, th = (THUMB_W, THUMB_H) if im.height >= im.width else (THUMB_H, THUMB_W)
+    sheet = Image.new("RGB", sheet_size(len(items), cols, tw, th), "white")
     draw = ImageDraw.Draw(sheet)
     font = ImageFont.load_default(size=20)
     for i, (label, path) in enumerate(items):
-        x = PAD + (i % cols) * (THUMB_W + PAD)
-        y = PAD + (i // cols) * (THUMB_H + LABEL_H + PAD)
+        x = PAD + (i % cols) * (tw + PAD)
+        y = PAD + (i // cols) * (th + LABEL_H + PAD)
         with Image.open(path) as im:
-            sheet.paste(im.convert("RGB").resize((THUMB_W, THUMB_H), Image.LANCZOS), (x, y))
-        draw.text((x + 2, y + THUMB_H + 4), label, fill="black", font=font)
+            sheet.paste(im.convert("RGB").resize((tw, th), Image.LANCZOS), (x, y))
+        draw.text((x + 2, y + th + 4), label, fill="black", font=font)
     out = Path(out)
     tmp = out.with_name(f".{out.name}.tmp.png")
     sheet.save(tmp)

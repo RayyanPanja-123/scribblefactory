@@ -42,6 +42,10 @@ class Style(Strict):
     preset: str
     locked: bool = False
     captions: bool = True  # burned-in captions in final.mp4
+    aspect: Literal["9:16", "16:9"] = "9:16"  # every part's frame: 9:16 = 1080x1920 (Shorts), 16:9 = 1920x1080
+
+
+FRAME_SIZE = {"9:16": (1080, 1920), "16:9": (1920, 1080)}  # aspect -> (width, height) px
 
 
 Expression = Literal["neutral", "happy", "cheer", "sad", "angry", "surprised", "sleepy", "cheeky", "exhausted", "worried", "dead"]
@@ -1095,8 +1099,8 @@ class EndCard(Strict):
 class StoryModel(Strict):
     schema_version: Literal[1] = 1
     fps: Literal[30] = 30
-    width: Literal[1080] = 1080
-    height: Literal[1920] = 1920
+    width: Literal[1080, 1920] = 1080
+    height: Literal[1920, 1080] = 1920
     duration_frames: int = Field(ge=1)
     seed: int
     shots: list[Shot]
@@ -1104,3 +1108,9 @@ class StoryModel(Strict):
     lightning: list[Strike] = Field(default=[], max_length=3, description="@fx lightning strikes, by frame")
     end_card: EndCard | None = Field(default=None, description="every part's closing screen (older story.json files "
                                                                "may have none)")
+
+    @model_validator(mode="after")
+    def _known_size(self):
+        if (self.width, self.height) not in FRAME_SIZE.values():
+            raise ValueError(f"{self.width}x{self.height} is not a known frame size ({FRAME_SIZE})")
+        return self

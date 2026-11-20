@@ -32,6 +32,7 @@ refetchOn(() => props.slug, () => props.part, refresh)
 
 const d = computed(() => data.value?.[0])
 const series = computed(() => data.value?.[1].series)
+const wide = computed(() => series.value?.style.aspect === '16:9')
 const p = computed(() => d.value?.part)
 const stages = computed<Record<string, string>>(() => Object.fromEntries(Object.entries(p.value?.stages ?? {}).map(([k, v]) => [k, v.status])))
 const errors = computed(() => Object.fromEntries(Object.entries(p.value?.stages ?? {}).map(([k, v]) => [k, v.error ?? null])))
@@ -695,7 +696,7 @@ watch(() => props.part, () => { chosen.value = null })
                 :while-hover="picked === `thumbs/${t}` ? undefined : { y: -4 }" :transition="SPRING"
                 :aria-pressed="picked === `thumbs/${t}`" :aria-label="`Pick thumbnail ${i + 1}`" :disabled="!!busy"
                 @click="pick(Number(t.match(/\d+/)![0]))">
-                <img :src="src(`thumbs/${t}`)" :alt="`Thumbnail candidate ${i + 1}`" loading="lazy" class="aspect-[9/16] w-full object-cover" />
+                <img :src="src(`thumbs/${t}`)" :alt="`Thumbnail candidate ${i + 1}`" loading="lazy" class="w-full object-cover" :class="wide ? 'aspect-video' : 'aspect-[9/16]'" />
                 <span class="absolute bottom-2 left-0 w-full text-center font-display text-sm text-muted">#{{ i + 1 }}</span>
                 <span v-if="picked === `thumbs/${t}`" class="absolute -top-2 left-1/2 grid size-6 -translate-x-1/2 place-items-center rounded-full bg-ink text-[var(--on-ink)] shadow-[var(--shadow-sheet)]">
                   <Check :size="14" :stroke-width="3" aria-hidden="true" />
@@ -840,7 +841,7 @@ watch(() => props.part, () => { chosen.value = null })
         <p class="mt-3 text-xs text-muted">Your phone must be on the same network as this computer.</p>
       </section>
     </div>
-    <FloatingPlayer v-if="show.video" ref="player" :sources="sources" />
+    <FloatingPlayer v-if="show.video" ref="player" :sources="sources" :wide="wide" />
   </div>
 </template>
 

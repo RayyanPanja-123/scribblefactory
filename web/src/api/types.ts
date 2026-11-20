@@ -1677,6 +1677,12 @@ export interface components {
         /** NewSeries */
         NewSeries: {
             /**
+             * Aspect
+             * @default 9:16
+             * @enum {string}
+             */
+            aspect: "9:16" | "16:9";
+            /**
              * Cast
              * @default []
              */
@@ -2473,6 +2479,12 @@ export interface components {
         };
         /** Style */
         Style: {
+            /**
+             * Aspect
+             * @default 9:16
+             * @enum {string}
+             */
+            aspect: "9:16" | "16:9";
             /**
              * Captions
              * @default true

@@ -16,7 +16,7 @@ from ..io import (LIBRARY_FILES, atomic_write_json, cast_body_problems, creature
                   outdoor_sets,
                   prop_kinds, set_kinds, set_weather, wardrobe_slots,
                   unknown_cast_props)
-from ..schemas import (BUILTIN_CREATURES, BUILTIN_SETS, BUILTIN_WARDROBE, HAND_RIGS, Prop, Top, Headwear, Legwear,
+from ..schemas import (FRAME_SIZE, BUILTIN_CREATURES, BUILTIN_SETS, BUILTIN_WARDROBE, HAND_RIGS, Prop, Top, Headwear, Legwear,
                        actions_with, Actor, FaceChange, Animal, Camera, Cue, EndCard, Extra, PhrasesModel, SeriesModel,
                        Shot, StoryModel, Strike, Travel, Vehicle)
 from ..validate import (CAR_SPEED, CROWD_Z, DOG_RUN_SPEED, MAX_SHOT_FRAMES, MOODS, OUTDOOR_SETS, SPEEDS,
@@ -869,7 +869,8 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
                             track=selected[0] if selected else None,
                             volume=selected[1] if selected else None))
             previous = selected
-    return StoryModel(duration_frames=total, seed=seed, shots=shots, cues=cues, end_card=end_card, lightning=lightning)
+    width, height = FRAME_SIZE[series.style.aspect]
+    return StoryModel(width=width, height=height, duration_frames=total, seed=seed, shots=shots, cues=cues, end_card=end_card, lightning=lightning)
 
 
 def strike(shots: list[Shot], line: int, target: str | None, frame: int, series: SeriesModel) -> Strike:
