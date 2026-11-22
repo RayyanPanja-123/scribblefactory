@@ -9,7 +9,8 @@ import { CRW, GX, drawCreature, measure } from '../../../engine/page/creatures.j
 import { CW, drawStickman, figurePx } from '../../../engine/page/stickman.js'
 import type { CustomCreature } from '../lib/creatures'
 
-const p = defineProps<{ creature: CustomCreature; action?: string; headless?: boolean; color?: string; label: string }>()
+// hi: a sharper canvas for drawings shown large (model sheet)
+const p = defineProps<{ creature: CustomCreature; action?: string; headless?: boolean; color?: string; label: string; hi?: boolean }>()
 const cv = ref<HTMLCanvasElement>()
 const error = ref('')
 const FEET = 1000, PAD = 40
@@ -47,7 +48,7 @@ watch(() => [p.creature, p.action, p.headless, p.color], draw, { deep: true })
 
 <template>
   <div class="drawing relative grid place-items-center overflow-hidden rounded-md">
-    <canvas ref="cv" width="320" height="240" role="img" :aria-label="label" class="h-full w-auto max-w-full" />
+    <canvas ref="cv" :width="hi ? 720 : 320" :height="hi ? 540 : 240" role="img" :aria-label="label" class="h-full w-auto max-w-full" />
     <p v-if="error" class="absolute inset-x-2 bottom-2 text-xs text-red-ink" role="alert">{{ error }}</p>
   </div>
 </template>

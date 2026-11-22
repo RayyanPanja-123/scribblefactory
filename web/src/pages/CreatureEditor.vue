@@ -7,7 +7,7 @@ import CreaturePreview from '../components/CreaturePreview.vue'
 import ErrorCard from '../components/ErrorCard.vue'
 import { act, confirm, toast } from '../composables/feedback'
 import { useApi } from '../composables/useApi'
-import { DEFAULT_BUILD, RIG_LIST, RIG_NOTES, allCreatures, builtinCreatures, isBuiltinCreature, rigParts, type CustomCreature, type Rig } from '../lib/creatures'
+import { DEFAULT_BUILD, RIG_LIST, RIG_NOTES, allCreatures, builtinCreatures, isBuiltinCreature, posesFor, rigParts, type CustomCreature, type Rig } from '../lib/creatures'
 
 // Create (/creatures/new, ?from=<id> copies one) or edit one custom creature: rig, colours and the drawing as JSON
 // (joints, face, parts), or for a humanoid (a stickman) its build: proportions and head colour. Previewed live in
@@ -64,9 +64,7 @@ const draft = computed<CustomCreature | null>(() => parsed.value.value
 const taken = computed(() => isBuiltinCreature(form.id) || form.id === 'stickman' || (isNew.value && data.value?.custom.some((c) => c.id === form.id)))
 const valid = computed(() => form.name.trim() && /^[a-z0-9]+(-[a-z0-9]+)*$/.test(form.id) && !taken.value && draft.value)
 
-const POSES = ['idle', 'walk', 'run', 'talk', 'eat', 'cheer', 'stagger', 'lie']
-// a biped or humanoid lies down like a stickman: the renderer tips the whole card over, so there is no lying drawing
-const poses = computed(() => (form.rig === 'biped' || humanoid.value ? POSES.filter((a) => a !== 'lie') : POSES))
+const poses = computed(() => posesFor(form.rig))
 const BUILD_SLIDERS = [['head', 'Head size'], ['body_w', 'Body width'], ['body_h', 'Body height'], ['leg', 'Leg length'],
   ['arm', 'Arm length']] as const
 const color = ref('#c98a4b')

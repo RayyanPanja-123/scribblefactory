@@ -22,6 +22,11 @@ export const RIG_NOTES: Record<Rig, string> = {
   crawler: 'no legs: snake, worm, slug, caterpillar. The body ripples as it moves',
 }
 
+const POSES = ['idle', 'walk', 'run', 'talk', 'eat', 'cheer', 'stagger', 'lie']
+/** the poses a preview shows for a rig. A biped or humanoid lies down like a stickman: the renderer tips the whole
+ *  card over, so there is no lying drawing */
+export const posesFor = (rig: Rig) => (rig === 'biped' || rig === 'humanoid' ? POSES.filter((a) => a !== 'lie') : POSES)
+
 /** every creature by id: built-ins, then the library's (a custom one never shares a built-in id) */
 export const allCreatures = (c: CreatureCatalog | null | undefined): CustomCreature[] => [...builtinCreatures, ...(c?.custom ?? [])]
 export const isBuiltinCreature = (id: string) => builtinCreatures.some((c) => c.id === id)

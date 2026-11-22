@@ -4,8 +4,9 @@
 import { Trash2 } from 'lucide-vue-next'
 import type { Component } from 'vue'
 
+// tall: the drawing sits on top, full width and large (galleries where the drawing is the point)
 defineProps<{
-  name: string; code: string; tag: string; note?: string
+  name: string; code: string; tag: string; note?: string; tall?: boolean
   users?: { slug: string; name: string; detail?: string }[]; usedBy?: string; unused?: string; icon?: Component
   editTo?: string; editLabel?: string; deletable?: boolean; readonly?: string
 }>()
@@ -13,8 +14,8 @@ defineEmits<{ delete: [] }>()
 </script>
 
 <template>
-  <li class="inset flex gap-3 rounded-md p-3">
-    <div class="h-32 w-20 shrink-0"><slot name="preview" /></div>
+  <li class="inset flex gap-3 rounded-md p-3" :class="{ 'flex-col': tall }">
+    <div class="shrink-0" :class="tall ? 'h-52 w-full' : 'h-32 w-20'"><slot name="preview" /></div>
     <div class="min-w-0 flex-1 space-y-1">
       <p class="font-semibold">{{ name }}</p>
       <p class="text-xs text-muted"><code>{{ code }}</code> · {{ tag }}</p>

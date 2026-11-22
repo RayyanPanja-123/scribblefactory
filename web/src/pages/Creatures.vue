@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { shortName } from '../lib/aiName'
 import { DEFAULT_TOP_COLOR } from '../lib/wardrobe'
-import { PawPrint, Plus, Sparkles } from 'lucide-vue-next'
-import { computed, ref } from 'vue'
+import { Maximize2, PawPrint, Plus, Sparkles } from 'lucide-vue-next'
+import { computed, nextTick, ref } from 'vue'
 import { api } from '../api/client'
 import CreaturePreview from '../components/CreaturePreview.vue'
+import CreatureSheet from '../components/CreatureSheet.vue'
 import ErrorCard from '../components/ErrorCard.vue'
 import LibraryCard from '../components/LibraryCard.vue'
 import LibrarySection from '../components/LibrarySection.vue'
@@ -34,6 +35,18 @@ const users = computed(() => {
   return by
 })
 const byRig = computed(() => RIG_LIST.map((rig) => ({ rig, items: creatures.value.filter((c) => c.rig === rig) })))
+const tagOf = (id: string) => (isBuiltinCreature(id) ? 'built in' : 'custom')
+
+// the open model sheet (one at a time, under its rig's group); closing hands focus back to the card's drawing
+const open = ref<string | null>(null)
+const sheet = computed(() => creatures.value.find((c) => c.id === open.value) ?? null)
+const toggle = (id: string) => { open.value = open.value === id ? null : id }
+async function close() {
+  const id = open.value
+  open.value = null
+  await nextTick()
+  document.getElementById(`sheet-btn-${id}`)?.focus()
+}
 const aiOpen = ref(false)
 const aiRig = ref<Rig>('quadruped')
 const aiPrompt = (description: string, choice?: string) => buildCreaturePrompt(shortName(description) || 'new-creature', (choice || aiRig.value) as Rig, creatures.value.map((x) => x.id), description)
@@ -66,12 +79,23 @@ async function remove(o: { id: string; name: string }) {
     </p>
     <LibrarySection v-for="g in byRig" :id="g.rig" :key="g.rig" :title="g.rig[0].toUpperCase() + g.rig.slice(1)" :count="g.items.length" :note="RIG_NOTES[g.rig]"
       :empty="`No ${g.rig} bodies yet.`">
-      <LibraryCard v-for="c in g.items" :key="c.id" :name="c.name" :code="c.id" :tag="isBuiltinCreature(c.id) ? 'built in' : 'custom'"
+      <LibraryCard v-for="c in g.items" :key="c.id" tall :name="c.name" :code="c.id" :tag="tagOf(c.id)"
+        :class="{ 'border-ink!': open === c.id }"
         :users="users[c.id] ?? []" unused="no cast member yet" :icon="PawPrint"
         :edit-to="isBuiltinCreature(c.id) ? `/creatures/new?from=${c.id}` : `/creatures/${c.id}`" :edit-label="isBuiltinCreature(c.id) ? 'Copy' : 'Edit'"
         :deletable="!isBuiltinCreature(c.id) && !users[c.id]?.length" @delete="remove(c)">
-        <template #preview><CreaturePreview :creature="c" :color="users[c.id]?.[0]?.color" :label="`${c.name}, standing`" class="h-full w-full" /></template>
+        <template #preview>
+          <button :id="`sheet-btn-${c.id}`" type="button" class="group relative block h-full w-full cursor-zoom-in rounded-md"
+            :aria-expanded="open === c.id" :aria-controls="`sheet-${c.id}`" :aria-label="`${c.name}: show every pose`" @click="toggle(c.id)">
+            <CreaturePreview :creature="c" :color="users[c.id]?.[0]?.color" :label="`${c.name}, standing`" class="h-full w-full" />
+            <span class="chip absolute right-2 bottom-2 transition-colors group-hover:bg-ink group-hover:text-(--on-ink)">
+              <Maximize2 :size="12" aria-hidden="true" /> {{ open === c.id ? 'Showing poses' : 'All poses' }}</span>
+          </button>
+        </template>
       </LibraryCard>
+      <template #after>
+        <CreatureSheet v-if="sheet?.rig === g.rig" :key="sheet.id" :creature="sheet" :color="users[sheet.id]?.[0]?.color" :tag="tagOf(sheet.id)" @close="close" />
+      </template>
     </LibrarySection>
   </div>
   <AiGenerateModal :open="aiOpen" title="Generate a creature" description-hint="A grumpy goose with a long neck" choice-label="Body rig" :choice-options="RIG_LIST.map((r) => ({ value: r, label: r }))" v-model:choice="aiRig" :prompt-builder="aiPrompt" :parser="aiParse" :save="aiSave" @close="aiOpen = false" @done="aiOpen = false" />
