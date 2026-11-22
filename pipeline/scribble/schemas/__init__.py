@@ -243,6 +243,20 @@ class CastLook(Strict):
         return None if v is None else _slot_list(v)
 
 
+def worn(m) -> list[tuple[str, str]]:
+    """(slot, id) of the wardrobe one CastMember or one CastLook puts on (unset and none left out)"""
+    out = []
+    for slot, key in (("top", "style"), ("headwear", "kind"), ("legwear", "kind")):
+        if (v := getattr(m, slot)) is not None and getattr(v, key) != "none":
+            out.append((slot, getattr(v, key)))
+    for slot in ("hair", "facial_hair", "footwear", "back"):
+        if (v := getattr(m, slot)) is not None and v.id != "none":
+            out.append((slot, v.id))
+    for slot in ("accessory", "face"):
+        out += [(slot, v.id) for v in getattr(m, slot) or [] if v.id != "none"]
+    return out
+
+
 class CastMember(Strict):
     id: Slug
     name: str
@@ -289,17 +303,7 @@ class CastMember(Strict):
 
     def wardrobe(self) -> list[tuple[str, str]]:
         """(slot, id) of everything this cast member wears in any of its looks (nothing for none)"""
-        out = []
-        for m in [self, *self.looks.values()]:
-            for slot, key in (("top", "style"), ("headwear", "kind"), ("legwear", "kind")):
-                if (v := getattr(m, slot)) is not None and getattr(v, key) != "none":
-                    out.append((slot, getattr(v, key)))
-            for slot in ("hair", "facial_hair", "footwear", "back"):
-                if (v := getattr(m, slot)) is not None and v.id != "none":
-                    out.append((slot, v.id))
-            for slot in ("accessory", "face"):
-                out += [(slot, v.id) for v in getattr(m, slot) or [] if v.id != "none"]
-        return out
+        return [x for m in [self, *self.looks.values()] for x in worn(m)]
 
     @field_validator("body", mode="before")
     @classmethod
@@ -1013,6 +1017,9 @@ class Actor(Strict):
                                                          "actor carried / supported")
     prop: PropKind | None = Field(default=None, description="eat / give: the prop eaten / handed over")
     look: Slug | None = Field(default=None, description="the cast member's named look (@look), none: its own")
+    props: list[Prop] | None = Field(default=None, max_length=2, description="@hold: the props held from this shot on "
+                                                                            "(the look's, with held hands replaced); "
+                                                                            "none: the look's own")
     faces: list[FaceChange] = Field(default=[], description="face changes inside the shot, in frame order: expression "
                                                             "until the first, then each from its frame")
 

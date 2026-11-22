@@ -2,14 +2,21 @@
 // and the live inventory list, nothing about other parts, packages or schemas.
 import scriptRules from '../../../docs/ai/script.md?raw'
 
-type Cast = { id: string; name: string; looks?: Record<string, unknown> }
+type Look = { props?: { kind: string }[] | null }
+type Cast = { id: string; name: string; body?: string; looks?: Record<string, Look> }
+
+/** one cast line: its looks for @look (with what each holds), and a non-human body, which wears no wardrobe */
+const castLine = (c: Cast) => {
+  const looks = ['default', ...Object.entries(c.looks ?? {}).map(([k, l]) => (l.props?.length ? `${k} (holds ${l.props.map((p) => p.kind).join(', ')})` : k))]
+  return `- \`${c.id}\` ${c.name}${c.body && c.body !== 'human' ? ` (body ${c.body}: no wardrobe)` : ''}; looks: ${looks.join(', ')}`
+}
 
 /** the spoken lines of a story.md: no title, no directives, no blanks */
 export const narration = (md: string) =>
   md.replace(/\r/g, '').split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('@') && !l.startsWith('# '))
 
 export function stagePrompt(o: { series: string; title: string; story: string; cast: Cast[]; inventory: string }): string {
-  const cast = o.cast.map((c) => { const l = Object.keys(c.looks ?? {}); return `- \`${c.id}\` ${c.name}${l.length ? ` (looks: ${l.join(', ')})` : ''}` })
+  const cast = o.cast.map(castLine)
   return [
     `You stage one part of the scribblefactory series "${o.series}": turn its narration into a story.md with directives.`,
     'Keep every narration line word for word and in order (the voice is read from them); only add `@` lines above them.',

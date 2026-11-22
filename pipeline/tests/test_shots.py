@@ -758,6 +758,29 @@ def test_with_look_overrides_only_what_it_sets():
             {**LOOKS.model_dump(mode="json")["cast"][-1], "looks": {"default": {}}}]})
 
 
+
+# --- @hold: a prop in hand for the rest of the part ---
+
+def test_hold_keeps_a_prop_over_the_look_until_changed():
+    md = ("# H\n\n@cast bob, mike\nBob stood.\n@hold bob: medal\nBob won.\n\n@set street\nBob ran.\n"
+          "@hold bob: apple left\nBob ate.\n@fx lightning apple\n@hold bob: none right\nBob tossed it.\n"
+          "@hold bob: none\nBob was empty handed.\n")
+    story, _ = plan(md, series=LOOKS)
+    held = [next(a.props for a in s.actors if a.cast_id == "bob") for s in story.shots]
+    kinds = [None if h is None else sorted((x.hand, x.kind) for x in h) for h in held]
+    runs = [k for i, k in enumerate(kinds) if i == 0 or k != kinds[i - 1]]
+    assert runs == [None, [("right", "medal")], [("left", "apple"), ("right", "medal")], [("left", "apple")], []]
+    assert story.lightning[0].target == "bob"  # whoever holds the apple on the struck line
+
+
+def test_hold_errors_name_the_line():
+    for line, msg in [("@hold mike: medal", "mike is a bird"), ("@hold zed: medal", "unknown cast id 'zed'"),
+                      ("@hold bob: trident", "unknown prop 'trident'"), ("@hold bob: medal up", "expected"),
+                      ("@hold bob", "expected")]:
+        with pytest.raises(StageError, match=f"line 4: @hold: {msg}"):
+            plan(f"# L\n\n@cast bob, mike\n{line}\nHi.\n", series=LOOKS)
+
+
 # --- faces: @do emotions and moods that cover the whole line ---
 
 def faces(md, who):

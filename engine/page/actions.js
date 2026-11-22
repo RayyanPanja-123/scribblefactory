@@ -105,18 +105,20 @@ export const handOf = (side) => (side > 0 ? "right" : "left");
 
 /** who holds which prop at the START of every shot: cast props, then each give hands its prop on for the following
  *  shots of the same run of one set (a set change resets to the cast props). With lookProps(id, look), an actor whose
- *  @look changes takes that look's props. Map shot id -> { cast id: props } */
+ *  @look changes takes that look's props; an actor's own props (@hold) win over the look's. Map shot id ->
+ *  { cast id: props } */
 export function propsByShot(shots, castProps, lookProps = null) {
   const copy = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, v.map((p) => ({ ...p }))]));
-  const out = new Map(), looks = {};
+  const out = new Map(), looks = {}, NONE = "[null,null]";
   let cur = null, set = null;
   for (const s of shots) {
     if (s.set !== set) { cur = copy(castProps); set = s.set; for (const k of Object.keys(looks)) delete looks[k]; }
-    // a new @look brings its own props (lookProps(id, look)); a give later in the look still moves them
-    for (const a of lookProps ? s.actors : []) {
-      if ((a.look ?? null) === (looks[a.cast_id] ?? null)) continue;
-      looks[a.cast_id] = a.look ?? null;
-      cur[a.cast_id] = lookProps(a.cast_id, a.look).map((p) => ({ ...p }));
+    // a new @look or @hold brings its props; a give later in the look still moves them
+    for (const a of s.actors) {
+      const key = JSON.stringify([lookProps ? a.look ?? null : null, a.props ?? null]);
+      if (key === (looks[a.cast_id] ?? NONE)) continue;
+      looks[a.cast_id] = key;
+      cur[a.cast_id] = (a.props ?? (lookProps ? lookProps(a.cast_id, a.look) : castProps[a.cast_id] ?? [])).map((p) => ({ ...p }));
     }
     out.set(s.id, copy(cur));
     for (const a of s.actors) {

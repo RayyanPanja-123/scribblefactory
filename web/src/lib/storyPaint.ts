@@ -96,6 +96,14 @@ export const KINDS: Record<string, Kind> = {
     fields: (c, r) => [who(c), { key: 'look', label: 'Look', type: 'select',
       options: ['default', ...(c.cast.find((x) => x.id === r.who)?.looks ?? [])] }],
     parse: (a) => pair(a, 'look'), build: (r) => `${r.who}: ${r.look}` },
+  hold: { label: 'Hold', common: false, rank: 3, start: (c) => `${first(c)}: ${c.props[0] ?? 'none'}`,
+    fields: (c) => [who(c), { key: 'prop', label: 'Holds', type: 'select', options: ['none', ...c.props] },
+      { key: 'hand', label: 'Hand', type: 'select', options: ['', 'right', 'left'], names: { '': 'Right (or both for none)' } }],
+    parse: (a) => {
+      const p = pair(a, 'rest'), [prop = '', hand = '', ...more] = words(p?.rest ?? '')
+      return p && prop && !more.length && ['', 'left', 'right'].includes(hand) ? { who: p.who, prop, hand } : null
+    },
+    build: (r) => `${r.who}: ${join(r.prop, r.hand)}` },
   do: { label: 'Action', common: true, rank: 5, start: (c) => `${first(c)}: talk`,
     fields: (c) => [who(c), { key: 'action', label: 'Does', type: 'select', options: c.actions },
       { key: 'extra', label: 'Prop / target', type: 'text' }],

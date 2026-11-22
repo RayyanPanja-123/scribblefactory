@@ -12,7 +12,7 @@ from typing import get_args
 
 from .schemas import (ACTIONS, BUILTIN_CREATURES, BUILTIN_SETS, BUILTIN_WARDROBE, ActionLibrary, BuiltinProp,
                       CreatureLibrary, CustomAction, CustomCreature, CustomProp, CustomSet, PartModel, PropLibrary,
-                      SeriesModel, SetLibrary, WardrobeItem, WardrobeLibrary, WorldObject, WorldObjectLibrary)
+                      SeriesModel, SetLibrary, WardrobeItem, WardrobeLibrary, WorldObject, WorldObjectLibrary, worn)
 
 # User-owned files a save must never write to.
 PROTECTED = {"story.md", "voice.mp3"}
@@ -163,6 +163,23 @@ def cast_body_problems(cast, library, extra_wardrobe=()) -> list[str]:
         elif c.headless and c.body in bodies and not bodies[c.body][1]:
             out.append(f"{c.id}: headless, but creature {c.body!r} has no stump part")
     return out + cast_wardrobe_problems(cast, library, extra_wardrobe)
+
+
+CREATURE_HINT = ("only humanoids wear wardrobe; use @face or @do instead, or design a creature with it drawn in "
+                 "(Creatures page)")
+
+
+def creature_wardrobe(cast, bodies) -> dict[str, tuple[str, dict[str | None, list[str]]]]:
+    """cast id -> (rig, {look name, None for its own: ["<slot> <id>", ...]}) for each cast member whose body is not a
+    humanoid. The engine draws no wardrobe on those (engine/page/wardrobe.js), so whatever is listed is left out.
+    bodies: creature_bodies(). A plain top is every member's default (its colour paints the creature): not listed."""
+    out = {}
+    for c in cast:
+        rig = bodies.get(c.body, ("humanoid",))[0]
+        if rig != "humanoid":
+            out[c.id] = (rig, {k: [f"{s} {w}" for s, w in worn(m) if (s, w) != ("top", "plain")]
+                               for k, m in [(None, c), *c.looks.items()]})
+    return out
 
 
 def cast_wardrobe_problems(cast, library, extra_wardrobe=()) -> list[str]:

@@ -6,9 +6,10 @@ const staged = '# Parade\n\n@set colosseum\n@cast caligula\n@do caligula: cheer\
 
 describe('stagePrompt', () => {
   it('sends the rules, cast, inventory and only the narration', () => {
-    const p = stagePrompt({ series: 'Romans', title: 'Parade', story, cast: [{ id: 'caligula', name: 'Caligula', looks: { coins: {} } }], inventory: '# LIBRARY INVENTORY\nSETS colosseum' })
+    const p = stagePrompt({ series: 'Romans', title: 'Parade', story, cast: [{ id: 'caligula', name: 'Caligula', looks: { coins: { props: [{ kind: 'coin' }] }, toga: {} } }, { id: 'rex', name: 'Rex', body: 'cat' }], inventory: '# LIBRARY INVENTORY\nSETS colosseum' })
     expect(p).toContain('## Directives')
-    expect(p).toContain('`caligula` Caligula (looks: coins)')
+    expect(p).toContain('`caligula` Caligula; looks: default, coins (holds coin), toga')
+    expect(p).toContain('`rex` Rex (body cat: no wardrobe); looks: default')
     expect(p).toContain('SETS colosseum')
     expect(p).toContain('Caligula threw a parade.')
     expect(p).not.toContain('@set street')

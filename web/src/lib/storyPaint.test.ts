@@ -38,6 +38,12 @@ describe('storyPaint', () => {
   it('leaves what the fields cannot hold as text', () => {
     expect(KINDS.do.parse('fred: lie, amy: wave')).toBeNull()
     expect(KINDS.face.parse('a, b: sad')).toBeNull()
+    expect(KINDS.hold.parse('ava: medal up')).toBeNull()
+  })
+
+  it('@hold: prop and optional hand round-trip', () => {
+    for (const arg of ['ava: medal', 'ava: flip-phone left', 'ava: none'])
+      expect(KINDS.hold.build(KINDS.hold.parse(arg)!)).toBe(arg)
   })
 
   it('puts a new row in reading order', () => {

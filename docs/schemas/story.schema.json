@@ -99,6 +99,23 @@
           "description": "eat / give: the prop eaten / handed over",
           "title": "Prop"
         },
+        "props": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/Prop"
+              },
+              "maxItems": 2,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "@hold: the props held from this shot on (the look's, with held hands replaced); none: the look's own",
+          "title": "Props"
+        },
         "start_pos": {
           "maxItems": 2,
           "minItems": 2,

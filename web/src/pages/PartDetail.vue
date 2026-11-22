@@ -570,7 +570,7 @@ watch(() => props.part, () => { chosen.value = null })
         </div>
         <AddCastModal v-if="series" :open="addCastIds.length > 0" :slug="slug" :ids="addCastIds" :taken="series.cast.length"
           @close="addCastIds = []" @done="castAdded" />
-        <AiStage v-if="series && p" :open="stageOpen" :series="series.title" :title="p.title ?? props.part" :story="storyText" :cast="series.cast"
+        <AiStage v-if="series && p" :open="stageOpen" :slug="slug" :title="p.title ?? props.part" :story="storyText"
           @close="stageOpen = false" @apply="(md) => { storyText = md; toast('Staged script in the story box: Save, then Check', 'ok') }" />
         <p class="mt-1 text-xs text-muted">
           Ctrl+S saves. Later stages pick up the change on their next run.<template v-if="has('voice.mp3')"> The voice is already recorded: if the narration changes, record and upload it again.</template>

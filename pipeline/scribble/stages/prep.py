@@ -10,6 +10,7 @@ story.md directives (one per line) are stripped from the script:
                      [light | medium | heavy, default medium]; @set starts the set's default_weather (else clear)
   @do fred: collapse actions for the next line's shots, overriding keyword guessing (see parse_do)
   @look mike: headless  a cast member's named look from the next line on (default: its own; see parse_look)
+  @hold mike: trident  a prop in a cast member's hand from the next line on, over its look's (see parse_hold)
   @face mike: angry  a cast member's face for the next line only (see parse_face)
   @crowd cheer 10    crowd extras behind the stage: cheer | angry | gasp | neutral [N, default 8, max 12] | off
   @runners 4         background runner extras (0-6)
@@ -22,7 +23,7 @@ import re
 from pathlib import Path
 from typing import NamedTuple, get_args
 
-from ..io import LIBRARY_FILES, atomic_write_text, custom_actions, prop_kinds
+from ..io import CREATURE_HINT, LIBRARY_FILES, atomic_write_text, custom_actions, prop_kinds
 from ..schemas import BuiltinProp, Expression, Intensity, Weather, WeatherKind, actions_with
 from .runner import StageError
 
@@ -130,9 +131,10 @@ def parse_do(arg: str, line: int, cast_ids=None, props=BUILTIN_PROPS, actions=()
 
 
 
-def parse_look(arg: str, line: int, looks_of=None) -> tuple[tuple[str, ...], str]:
+def parse_look(arg: str, line: int, looks_of=None, creatures=None) -> tuple[tuple[str, ...], str]:
     """@look <cast>[, <cast>]: <look> -> (cast ids, look name); "default" is the cast member's own look. looks_of:
-    cast id -> its look names (series.json), or None to check the syntax only. Errors name the story.md line."""
+    cast id -> its look names (series.json), or None to check the syntax only. creatures: io.creature_wardrobe (the
+    non-humanoids, which wear no wardrobe). Errors name the story.md line."""
     def bad(msg):
         raise StageError(f"story.md line {line}: @look: {msg}")
     who_txt, sep, name = arg.partition(":")
@@ -142,10 +144,36 @@ def parse_look(arg: str, line: int, looks_of=None) -> tuple[tuple[str, ...], str
     for w in who if looks_of is not None else ():
         if w not in looks_of:
             bad(f"unknown cast id {w!r} (series cast: {', '.join(looks_of)})")
+        rig, worn = (creatures or {}).get(w, (None, {}))
+        if worn.get(name):
+            bad(f"{w} is a {rig}, not a humanoid: look {name!r} puts on {', '.join(worn[name])}, and {CREATURE_HINT}")
         if name != "default" and name not in looks_of[w]:
             bad(f"{w} has no look {name!r} (its looks: {', '.join(['default', *looks_of[w]])}; add one under "
-                f'"looks" in its series.json cast entry)')
+                f'"looks" in its series.json cast entry'
+                + (f"; {w} is a {rig}: a look can change its colours, expression or stump, not dress it)" if rig else ")"))
     return who, name
+
+
+def parse_hold(arg: str, line: int, cast_ids=None, props=None, handless=None) -> tuple[tuple[str, ...], str, str | None]:
+    """@hold <cast>[, <cast>]: <prop> [left | right] -> (cast ids, hand, prop kind or None for an empty hand).
+    "none" empties the hand, "none" without a hand both hands ("both"). Kept for the rest of the part, over the look's
+    props. cast_ids / props: the series cast and prop kinds, or None to check the syntax only. handless: cast id ->
+    "a <rig>" for creatures without hands. Errors name the story.md line."""
+    def bad(msg):
+        raise StageError(f"story.md line {line}: @hold: {msg}")
+    who_txt, sep, rest = arg.partition(":")
+    who, words = tuple(w.strip() for w in who_txt.split(",") if w.strip()), rest.split()
+    if not sep or not who or not 1 <= len(words) <= 2 or (len(words) == 2 and words[1] not in ("left", "right")):
+        bad('expected "@hold <cast>: <prop> [left | right]", e.g. "@hold ethan: flip-phone" (or "@hold ethan: none")')
+    kind, hand = words[0], words[1] if len(words) == 2 else ("both" if words[0] == "none" else "right")
+    for w in who if cast_ids is not None else ():
+        if w not in cast_ids:
+            bad(f"unknown cast id {w!r} (series cast: {', '.join(cast_ids)})")
+        if w in (handless or {}):
+            bad(f"{w} is {handless[w]} (no hands) and cannot hold things")
+    if kind != "none" and props is not None and kind not in props:
+        bad(f"unknown prop {kind!r} (props: {', '.join(props)})")
+    return who, hand, None if kind == "none" else kind
 
 
 def parse_face(arg: str, line: int, cast_ids=None) -> dict[str, str]:

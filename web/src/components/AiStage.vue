@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { CircleAlert, X } from 'lucide-vue-next'
 import { ref, watch } from 'vue'
+import { api } from '../api/client'
 import { parseStageReply, stagePrompt } from '../lib/stagePrompt'
 import { libraryRecords } from '../lib/storyGuide'
 import AiBridge from './AiBridge.vue'
 
 // Story step "stage": this part's narration -> a staged story.md, put into the story box unsaved (the writer checks
 // it, then saves).
-const props = defineProps<{ open: boolean; series: string; title: string; story: string; cast: { id: string; name: string; looks?: Record<string, unknown> }[] }>()
+// The cast is read fresh on every open: the page's copy of the series goes stale when the cast changes elsewhere.
+const props = defineProps<{ open: boolean; slug: string; title: string; story: string }>()
 const emit = defineEmits<{ close: []; apply: [md: string] }>()
 
 const prompt = ref('')
@@ -18,8 +20,8 @@ const result = ref<ReturnType<typeof parseStageReply> | null>(null)
 watch(() => props.open, async (o) => {
   if (!o) return
   prompt.value = ''
-  const inventory = await libraryRecords(true)
-  prompt.value = stagePrompt({ series: props.series, title: props.title, story: props.story, cast: props.cast, inventory })
+  const [inventory, { series }] = await Promise.all([libraryRecords(true), api.seriesDetail(props.slug)])
+  prompt.value = stagePrompt({ series: series.title, title: props.title, story: props.story, cast: series.cast, inventory })
 }, { immediate: true })
 
 function close() {

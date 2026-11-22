@@ -17,16 +17,18 @@ from pathlib import Path
 
 from . import sfx as sfx_lib
 from . import background_music
-from .io import cast_body_problems, custom_actions, load_series, prop_kinds, set_kinds, unknown_cast_props, wardrobe_slots
+from .io import (CREATURE_HINT, cast_body_problems, creature_bodies, creature_wardrobe, custom_actions, load_series,
+                 prop_kinds, set_kinds, unknown_cast_props, wardrobe_slots)
+from .schemas import HAND_RIGS
 from .stages.finish import MAX_RUNTIME_S
 from .stages.prep import (DO_CAR, FX_LIGHTNING, FX_MODES, MAX_LIGHTNING, TWIST_PREFIX, clean_markdown, parse_do,
-                          parse_face, parse_lightning, parse_look, parse_weather, strip_directives)
+                          parse_face, parse_hold, parse_lightning, parse_look, parse_weather, strip_directives)
 from .stages.runner import StageError
 from .stages.shots import (ACTION_FACE, CAR_MODES, CAR_SEATS, DEFAULT_CAST_SIZE, EXPRESSIONS, MAX_CAST, MAX_DOGS, MAX_ON_STAGE,
                            MAX_RUNNERS, parse_crowd, parse_crowd_look, parse_crowd_weapon, token)
 from .validate import END_SCREEN_S, TAIL_S
 
-DIRECTIVES = ("set", "cast", "dogs", "car", "fx", "do", "look", "crowd", "crowd-look", "crowd-weapon", "runners", "weather", "sfx", "face", "background-music")
+DIRECTIVES = ("set", "cast", "dogs", "car", "fx", "do", "look", "hold", "crowd", "crowd-look", "crowd-weapon", "runners", "weather", "sfx", "face", "background-music")
 LINE_PREFIX = re.compile(r"^story\.md line [0-9]+: ")
 FALLBACK_WPS = 2.6  # words per second before any part has been finished
 # a first line that opens on a date or backstory instead of the hook
@@ -143,6 +145,16 @@ def check_story(part_dir: Path) -> dict:
         bad(None, f"cast holds a prop that is neither built in nor in library/props.json: {u}")
     for u in cast_body_problems(series.cast, library):
         bad(None, f"cast body: {u}")
+    bodies = creature_bodies(library)
+    creatures = creature_wardrobe(series.cast, bodies)
+    handless = {c.id: f"a {bodies[c.body][0]}" for c in series.cast
+                if c.body in bodies and bodies[c.body][0] not in HAND_RIGS}
+    for cid, (rig, worn) in creatures.items():
+        for look, items in worn.items():
+            if items:
+                warnings.append({"line": None, "message": f"{cid} is a {rig}, not a humanoid: "
+                                 f"{'look ' + repr(look) if look else 'its own look'} puts on {', '.join(items)}, which "
+                                 f"is not drawn ({CREATURE_HINT})"})
 
     sounds = sfx_lib.by_id(library)
     cast, car, pending_do, pending_strike, strikes = tuple(ids[:DEFAULT_CAST_SIZE]), "off", None, None, 0
@@ -216,7 +228,9 @@ def check_story(part_dir: Path) -> dict:
                 elif name == "crowd-weapon":
                     parse_crowd_weapon(arg, no, props)
                 elif name == "look":
-                    parse_look(arg, no, {c.id: list(c.looks) for c in series.cast})
+                    parse_look(arg, no, {c.id: list(c.looks) for c in series.cast}, creatures)
+                elif name == "hold":
+                    parse_hold(arg, no, ids, props, handless)
                 elif name == "do":
                     clauses = parse_do(arg, no, ids, props, actions)
                     if pending_do:
@@ -285,7 +299,7 @@ def check_story(part_dir: Path) -> dict:
             "words": len(words), "seconds": seconds, "wps": round(wps, 2)}
 
 
-STAGING = ("do", "look", "face", "fx", "crowd", "dogs", "runners", "car", "weather", "sfx")
+STAGING = ("do", "look", "hold", "face", "fx", "crowd", "dogs", "runners", "car", "weather", "sfx")
 MIN_STAGING = 10  # directives besides @set and @cast (docs/ai/script.md, Directives)
 
 

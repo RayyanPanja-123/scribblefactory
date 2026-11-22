@@ -7,7 +7,7 @@
 
 
 ## New items
-- Every object a character uses must be a held prop: cast `"props"`, a `@look` with `"props"`, or `@do eat` / `give`.
+- Every object a character uses must be a held prop: cast `"props"`, a `@look` with `"props"`, `@hold`, or `@do eat` / `give`.
   One per hand (`left` / `right`).
 - During library planning, list every cast-owned object discovered in the TTS scripts before proposing sets or any other category. The three-props-per-part limit applies to the final Story Package format, not to the completeness of the discovery list; if more are needed, explain the conflict and wait for the user's decision.
 - Add sets, creatures, wardrobe only if nothing fits.

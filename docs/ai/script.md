@@ -21,8 +21,29 @@
 - `@cast a, b`: the characters on stage. The character named in the narration, or named by `@do`, is staged in front.
   Maximum 12 cast members; maximum 6 fit in the front row. Remove someone by writing a new `@cast` without them.
   A sudden entrance is a new `@cast` immediately above the entrance line.
-- `@look <cast>: <look>`: switches a cast member to a named look from their cast entry, such as armour, a crown, or a
-  held spear. The look persists for the rest of the part until another look or `default` is used. It resets on a new part.
+- `@look <cast>: <look>`: switches a cast member to a named look. Looks come only from that member's cast entry
+  (its `looks`, listed with the cast); `default` always exists and puts their own outfit back. The look stays on for
+  the rest of the part, across `@set` changes, until another `@look`; each part starts in `default`. A look can
+  also hold props (a look with `"props"`). Only humanoids wear wardrobe: a creature (cat, horse...) cannot be dressed
+  by a look; use `@face` or `@do` for it.
+  ```
+  @look ethan: crown
+  Ethan crowned himself.           <- wears the crown from here on
+  @look ethan: default
+  He took it off.                  <- back to his own outfit
+  ```
+- `@hold <cast>: <prop> [left | right]`: puts a prop in a hand (right by default) from the next line for the rest of
+  the part, on top of the current look (it replaces only that hand, and stays through later `@look` changes).
+  `@hold <cast>: none [left | right]` empties a hand; `none` without a hand empties both. Use it for any object a
+  character keeps holding; `@do give` / `eat` only use a prop for one line. Creatures without hands cannot hold.
+  ```
+  @hold ethan: grocery-receipt
+  Ethan stared at the deed.        <- holds the receipt from here on
+  @hold ethan: flip-phone left
+  His phone rang.                  <- receipt in the right hand, phone in the left
+  @hold ethan: none
+  He dropped everything.
+  ```
 - `@car arrive | ride | leave | off`: persistent vehicle state. `arrive` parks beside the subject, `ride` carries up to
   three cast members through an outdoor travel shot, `leave` drives away, and `off` removes it. During `ride`, only
   `@do car: broken` is allowed; use `@car off` before staging the cast outside it.
@@ -141,7 +162,7 @@ fit the story's period or design.
   lines have a `@do`, 8 a `@face`). An undirected line plays as generic idle shots.
 - Groups: `@crowd` with the right mood, changed as the scene turns (cheer, then neutral, then gasp); `@dogs`,
   `@runners` where they fit.
-- Objects are seen: props held through a `@look` switched on the line they are first used (coins before the give,
+- Objects are seen: props held through a `@hold` (or a `@look`) switched on the line they are first used (coins before the give,
   the spear before the attack).
 - Punch: `@fx shake` or `drop` on line 1 (hook), `@fx pop` on line 3, `@fx drop` or a `@sfx` (`camera_flash`,
   `metallic_riser`) on the rehook line, `@fx lightning` on one to three big beats.

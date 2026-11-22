@@ -13,7 +13,8 @@ import zlib
 from pathlib import Path
 from typing import NamedTuple
 
-from ..io import (LIBRARY_FILES, atomic_write_json, cast_body_problems, creature_bodies, custom_actions, custom_moves,
+from ..io import (LIBRARY_FILES, atomic_write_json, cast_body_problems, creature_bodies, creature_wardrobe, custom_actions,
+                  custom_moves,
                   outdoor_sets,
                   prop_kinds, set_kinds, set_weather, wardrobe_slots,
                   unknown_cast_props)
@@ -23,7 +24,7 @@ from ..schemas import (FRAME_SIZE, BUILTIN_CREATURES, BUILTIN_SETS, BUILTIN_WARD
 from ..validate import (CAR_SPEED, CROWD_Z, DOG_RUN_SPEED, MAX_SHOT_FRAMES, MOODS, OUTDOOR_SETS, SPEEDS,
                         custom_speeds, end_frame, validate)
 from .prep import (BUILTIN_PROPS, DO_CAR, FX_LIGHTNING, FX_MODES, MARKER_RE, clean_markdown, mark_directives, parse_do,
-                   parse_face, parse_lightning, parse_look, parse_weather)
+                   parse_face, parse_hold, parse_lightning, parse_look, parse_weather)
 from .. import background_music
 from .runner import StageError
 from .validate import load_model
@@ -143,6 +144,7 @@ class Tag(NamedTuple):
     crowd_wardrobe: dict
     runners: int
     looks: dict
+    holds: dict  # @hold: {cast id: {hand: prop kind, or None for an empty hand}}
     weather: "Weather | None"
     strike: "tuple | None"
     face: "dict | None"
@@ -150,18 +152,20 @@ class Tag(NamedTuple):
 
 
 def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILTIN_PROPS, looks_of=None, actions=(),
-              weather_of=None, wardrobe=None):
+              weather_of=None, wardrobe=None, creatures=None, handless=None):
     """Return (words, [Tag]) from
     story.md, words as prep's script has them. do: (story.md line, @do clauses) for the words of the line after an
     @do, else None. crowd: (mood, N) or None. A set change resets crowd and runners. looks: {cast id: look name} set
     by @look, kept for the rest of the part (default drops it). looks_of: cast id -> its look names. weather: Weather
     or None (clear), from @weather until the next @weather or @set; @set starts weather_of[set] (custom sets'
     default_weather), else clear. strike: (story.md line, target) on the first word after an @fx lightning, else None.
-    face: {cast id: expression} for the words of the line after an @face, else None."""
+    face: {cast id: expression} for the words of the line after an @face, else None. holds: @hold, kept like looks.
+    handless: cast id -> "a <rig>" for creatures without hands (they cannot @hold)."""
     text, directives = mark_directives(md)
     set_, cast, twist_next, dogs, car, do = DEFAULT_SET, tuple(default_cast), False, 0, "off", None
     bg_music = None
     crowd, crowd_wardrobe, runners, looks, strike, face = {}, {}, 0, {}, None, None
+    holds = {}
     weather_of = weather_of or {}
     weather = weather_of.get(set_)
     looks_of = looks_of if looks_of is not None else {c: [] for c in cast_ids}
@@ -173,7 +177,7 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
             tags.append(Tag(set=set_, cast=cast, twist=twist_next, dogs=dogs, car=car, do=do,
                             crowd={k: dict(v) for k, v in crowd.items()},
                             crowd_wardrobe={k: dict(v) for k, v in crowd_wardrobe.items()}, runners=runners,
-                            looks=dict(looks), weather=weather, strike=strike, face=face, bg_music=bg_music))
+                            looks=dict(looks), holds={k: dict(v) for k, v in holds.items()}, weather=weather, strike=strike, face=face, bg_music=bg_music))
             twist_next, strike = False, None
         elif m[1] == "!":
             twist_next = True
@@ -235,13 +239,17 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
             elif name == "background-music":
                 bg_music = background_music.parse(arg, line)
             elif name == "look":
-                who, look = parse_look(arg, line, looks_of)
+                who, look = parse_look(arg, line, looks_of, creatures)
                 looks = {**{k: v for k, v in looks.items() if k not in who}, **({w: look for w in who} if look != "default" else {})}
+            elif name == "hold":
+                who, hand, kind = parse_hold(arg, line, cast_ids, props, handless)
+                for w in who:
+                    holds[w] = {**holds.get(w, {}), **dict.fromkeys(["left", "right"] if hand == "both" else [hand], kind)}
             else:
                 raise StageError(f"story.md line {line}: bad directive @{d.strip()} (use @set <name>, @cast a, b, "
                                  f"@dogs 0-{MAX_DOGS}, @car {' | '.join(CAR_MODES)}, @fx {' | '.join(FX_MODES)} | lightning [target], "
                                  f"@weather <type> [intensity], "
-                                 f"@do <cast>: <action>, @look <cast>: <look>, @face <cast>: <expression>, @sfx <id>, "
+                                 f"@do <cast>: <action>, @look <cast>: <look>, @hold <cast>: <prop> [hand], @face <cast>: <expression>, @sfx <id>, "
                                  f"@crowd <mood> [N] | <group> <mood> [N] | off, @crowd-look <group>: <wardrobe ids>, "
                                  f"@crowd-weapon <group>: <prop>, or @runners 0-{MAX_RUNNERS})")
     return words, tags
@@ -690,8 +698,11 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
     if not series.cast:
         raise StageError("series.json has no cast: add some with cast-add")
     ids = [c.id for c in series.cast]
+    handless = {c.id: f"a {bodies[c.body][0]}" for c in series.cast
+                if c.body in bodies and bodies[c.body][0] not in HAND_RIGS}
+    by_id = {c.id: c for c in series.cast}
     words, tags = tag_words(md, ids, ids[:DEFAULT_CAST_SIZE], props, {c.id: list(c.looks) for c in series.cast}, actions,
-                            weather_of, wardrobe)
+                            weather_of, wardrobe, creature_wardrobe(series.cast, bodies), handless)
     heard = [w.text for w in phrases.words]
     moods = line_moods(md, words)
     if words != heard:
@@ -702,8 +713,6 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
 
     seed = seed_for(series.slug, part_number)
     rng = random.Random(seed)
-    handless = {c.id: f"a {bodies[c.body][0]}" for c in series.cast
-                if c.body in bodies and bodies[c.body][0] not in HAND_RIGS}
     total = end_frame(phrases, FPS)
     end_card = EndCard(start_frame=total, text=END_TEXT)  # every part: finish appends the silent end screen after it
     starts = []
@@ -744,8 +753,8 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
     fallen: set = set()  # (@do line, cast id) that already collapsed
     for i, p in enumerate(phrases.phrases):
         t = tags[p.word_start]
-        set_, cast, dogs, mode, do, crowd, crowd_wardrobe, runners, looks, weather, face = (
-            t.set, t.cast, t.dogs, t.car, t.do, t.crowd, t.crowd_wardrobe, t.runners, t.looks, t.weather, t.face)
+        set_, cast, dogs, mode, do, crowd, crowd_wardrobe, runners, looks, holds, weather, face = (
+            t.set, t.cast, t.dogs, t.car, t.do, t.crowd, t.crowd_wardrobe, t.runners, t.looks, t.holds, t.weather, t.face)
         if (set_, cast) != scene_key:
             scene_key, back_pos = (set_, cast), {}
         cast, back = rows[i]  # from here on, cast is the front row
@@ -869,6 +878,9 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
             switches = [FaceChange(frame=f, expression=e) for f, e in turns if s0 < f < s1]
             for ac in actors:  # @look: the look each cast member has on this line
                 ac.look = looks.get(ac.cast_id)
+                if held := holds.get(ac.cast_id):  # @hold: the look's props, with each held hand replaced
+                    ac.props = [p for p in by_id[ac.cast_id].with_look(ac.look).props if p.hand not in held] + [
+                        Prop(kind=k, hand=h) for h, k in held.items() if k]
                 if face and ac.cast_id in face:  # @face: this face for the whole line, nothing else
                     ac.expression, ac.faces = face[ac.cast_id], []
                 elif ac.cast_id == subject and ac.expression == expression:
@@ -902,7 +914,8 @@ def strike(shots: list[Shot], line: int, target: str | None, frame: int, series:
     cast = {c.id: c for c in series.cast}
 
     def holds(a: Actor) -> bool:
-        return a.prop == target or any(p.kind == target for p in cast[a.cast_id].with_look(a.look).props)
+        held = a.props if a.props is not None else cast[a.cast_id].with_look(a.look).props
+        return a.prop == target or any(p.kind == target for p in held)
     who = next((a.cast_id for a in shot.actors if a.cast_id == target), None)
     who = who or next((a.cast_id for a in shot.actors if holds(a)), None)
     if who is None:

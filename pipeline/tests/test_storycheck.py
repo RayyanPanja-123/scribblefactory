@@ -241,3 +241,26 @@ def test_spoken_sign_off_warns(tmp_path):
     assert spoken_sign_off("Bob sat.\nTo be continued.") == (2, "To be continued.")
     assert spoken_sign_off("Bob sat.\n@fx pop\n!! Amy took the crown.") is None  # a twist ending is fine
     assert spoken_sign_off("He ran to the part of town that was up north.") is None
+
+
+def test_look_on_a_creature(tmp_path):
+    """a non-humanoid draws no wardrobe: a look that dresses it fails, one that does not (expression) passes"""
+    pdir = setup(tmp_path, "# T\n\n@cast bob, amy\n@look amy: hat\nAmy sat.\n@look amy: nap\nAmy slept.\n@look amy: wig\nAmy sat.\n")
+    f = tmp_path / "demo" / "series.json"
+    s = json.loads(f.read_text(encoding="utf-8"))
+    amy = next(c for c in s["cast"] if c["id"] == "amy")
+    amy.update(body="cat", headwear={"kind": "crown"}, looks={"hat": {"headwear": {"kind": "crown"}}, "nap": {"default_expression": "sleepy"}})
+    f.write_text(json.dumps(s), encoding="utf-8")
+    r = check_story(pdir)
+    looks = {p["line"]: p["message"] for p in r["problems"] if "@look" in p["message"]}
+    assert set(looks) == {4, 8} and "look 'hat' puts on headwear crown" in looks[4] and "not dress it" in looks[8]
+    warn = [w["message"] for w in r["warnings"] if "not a humanoid" in w["message"]]
+    assert len(warn) == 2 and "its own look puts on headwear crown" in warn[0]
+
+
+def test_hold_in_check_story(tmp_path):
+    pdir = setup(tmp_path, "# T\n\n@cast bob, amy\n@hold bob: medal\nBob won.\n@hold amy: trident\nAmy too.\n")
+    r = check_story(pdir)
+    holds = [(p["line"], p["message"], p.get("missing")) for p in r["problems"] if "@hold" in p["message"]]
+    assert holds == [(6, "@hold: unknown prop 'trident' (props: " + holds[0][1].split("(props: ")[1],
+                      {"kind": "prop", "ids": ["trident"], "owner": None})]
