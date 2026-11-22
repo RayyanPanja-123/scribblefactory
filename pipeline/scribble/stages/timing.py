@@ -191,6 +191,14 @@ def gap_cuts(words: list[dict], quiet: list[tuple[float, float]] | None = None) 
     return cuts
 
 
+def extend_last(words: list[dict], quiet: list[tuple[float, float]], duration: float) -> list[dict]:
+    """Whisper often ends the last word before its sound does, and the story is cut TAIL_S after that end: run the
+    last word on to where the voice's trailing silence starts (the end of the file when there is none)."""
+    tail = min((s for s, e in quiet if e >= duration - 0.05), default=duration)
+    last = words[-1]
+    return [*words[:-1], {**last, "end": round(min(max(last["end"], tail), duration), 3)}]
+
+
 def shift(t: float, cuts: list[tuple[float, float]]) -> float:
     """time t on the tightened voice (t is never inside a cut: cuts are in pauses)"""
     return round(t - sum(min(t, b) - a for a, b in cuts if t > a), 3)
@@ -229,8 +237,9 @@ def run(part_dir: Path) -> None:
 
     heard, duration = transcribe(voice)
     words, matched = align(script_words, heard, duration)
-    phrases = split_phrases(words)  # on the real pauses: clamped ones would no longer end a phrase
     quiet = silences(voice, duration, min_len=GAP_KEEP)
+    words = extend_last(words, quiet, duration)
+    phrases = split_phrases(words)  # on the real pauses: clamped ones would no longer end a phrase
     words, phrases, duration, cuts = clamp_gaps(words, phrases, round(duration, 3), quiet)
     model = PhrasesModel(duration=duration, words=words, phrases=phrases)  # validates times
     tighten(voice, part_dir / VOICE, cuts)

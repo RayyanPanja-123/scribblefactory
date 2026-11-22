@@ -269,3 +269,11 @@ def test_tighten_removes_the_cut_audio(tmp_path):
     subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "sine=f=220:d=4", str(src)], check=True)
     timing.tighten(src, tmp_path / "t.wav", [(1.0, 1.5), (2.0, 2.7)])
     assert abs(probe_duration(tmp_path / "t.wav") - (probe_duration(src) - 1.2)) < 0.03
+
+
+def test_extend_last_runs_the_last_word_to_the_trailing_silence():
+    words = [{"text": "to", "start": 24.0, "end": 24.4}, {"text": "sunrise.", "start": 24.5, "end": 25.0}]
+    assert timing.extend_last(words, [(3.0, 3.5), (25.6, 26.5)], 26.5)[-1]["end"] == 25.6  # whisper ended it early
+    assert timing.extend_last(words, [(3.0, 3.5)], 26.5)[-1]["end"] == 26.5               # speech runs to EOF
+    assert timing.extend_last(words, [(24.9, 26.5)], 26.5)[-1]["end"] == 25.0             # never shortened
+    assert timing.extend_last(words, [], 26.5)[0] == words[0]
