@@ -14,7 +14,7 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from .io import (LIBRARY_FILES, atomic_write_json, cast_wardrobe_problems, creature_bodies, load_actions, load_creatures,
+from .io import (atomic_write_json, cast_wardrobe_problems, creature_bodies, load_actions, load_creatures,
                  load_props, load_sets, load_wardrobe, prop_kinds, save_part, save_series, set_kinds, wardrobe_slots)
 from .schemas import (ACTIONS, ActionLibrary, CastMember, CreatureLibrary, CustomAction, CustomCreature, CustomProp,
                       CustomSet, PartModel, PropLibrary, SeriesModel, SetLibrary, Style, Voice, WardrobeItem,
@@ -338,10 +338,11 @@ def import_package(text: str, library) -> dict:
     library.mkdir(parents=True, exist_ok=True)
     tmp = library / f".import-{secrets.token_hex(4)}"
     tmp.mkdir()
-    old = {f: (library / f).read_bytes() if (library / f).is_file() else None for f in LIBRARY_FILES}
+    files = [f"{field}.json" for _m, _load, field, _lib in ASSETS.values()]  # what stage() writes (no objects.json)
+    old = {f: (library / f).read_bytes() if (library / f).is_file() else None for f in files}
     try:
         stage(result, library, tmp)
-        for f in LIBRARY_FILES:
+        for f in files:
             os.replace(tmp / f, library / f)
         os.replace(tmp / result["series"]["slug"], library / result["series"]["slug"])
     except BaseException:

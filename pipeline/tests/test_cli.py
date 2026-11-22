@@ -1,5 +1,6 @@
 import json
 from datetime import datetime, timezone
+from pathlib import Path
 
 import pytest
 
@@ -354,7 +355,7 @@ def test_cli_survives_a_cp1252_console(lib):
     import subprocess, sys
     main(["new-series", "cat", "--title", "Cat ≤ ✓"])
     r = subprocess.run([sys.executable, "-m", "pipeline.scribble.cli", "status", "cat", "--library", str(lib)],
-                       capture_output=True, env={**__import__("os").environ, "PYTHONIOENCODING": "cp1252"})
+                       capture_output=True, cwd=Path(__file__).parents[2], env={**__import__("os").environ, "PYTHONIOENCODING": "cp1252"})
     assert r.returncode == 0 and b"Cat ? ?" in r.stdout
 
 

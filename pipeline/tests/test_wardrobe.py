@@ -148,7 +148,8 @@ def test_package_wardrobe_section(tmp_path):
     r = package.parse(with_wardrobe(pkg(cast=cast), [ITEM]), tmp_path)
     assert r["ok"], r["errors"]
     assert [w.id for w in r["assets"]["WARDROBE"]] == ["plume_helm"]
-    assert package.summary(r)["wardrobe"] == [{"id": "plume_helm", "name": "Plume helm"}]
+    assert [(w["id"], w["name"], w["data"]["slot"]) for w in package.summary(r)["wardrobe"]] == [
+        ("plume_helm", "Plume helm", "headwear")]
     package.import_package(with_wardrobe(pkg(cast=cast), [ITEM]), tmp_path)
     assert "plume_helm" in {w.id for w in load_wardrobe(tmp_path).wardrobe}
     assert "crown" in {w.id for w in load_wardrobe(tmp_path).wardrobe}  # the seed came along into the library file

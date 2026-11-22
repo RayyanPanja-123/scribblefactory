@@ -11,6 +11,7 @@ import random
 import re
 import zlib
 from pathlib import Path
+from typing import NamedTuple
 
 from ..io import (LIBRARY_FILES, atomic_write_json, cast_body_problems, creature_bodies, custom_actions, custom_moves,
                   outdoor_sets,
@@ -130,10 +131,27 @@ def seed_for(slug: str, part_number: int) -> int:
     return zlib.crc32(slug.encode()) + part_number  # stable across runs (unlike hash())
 
 
+class Tag(NamedTuple):
+    """the staging state of one spoken word (read by field name: a new field can't shift the others)"""
+    set: str
+    cast: tuple
+    twist: bool  # a twist starts here
+    dogs: int
+    car: str
+    do: "tuple | None"
+    crowd: dict
+    crowd_wardrobe: dict
+    runners: int
+    looks: dict
+    weather: "Weather | None"
+    strike: "tuple | None"
+    face: "dict | None"
+    bg_music: "tuple | None"
+
+
 def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILTIN_PROPS, looks_of=None, actions=(),
               weather_of=None, wardrobe=None):
-    """Return (words, [(set, cast tuple, twist starts here, dogs, car mode, do, crowd, runners, looks, weather,
-    strike, face)]) from
+    """Return (words, [Tag]) from
     story.md, words as prep's script has them. do: (story.md line, @do clauses) for the words of the line after an
     @do, else None. crowd: (mood, N) or None. A set change resets crowd and runners. looks: {cast id: look name} set
     by @look, kept for the rest of the part (default drops it). looks_of: cast id -> its look names. weather: Weather
@@ -152,10 +170,10 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
         m = MARKER_RE.match(tok)
         if not m:
             words.append(tok)
-            tags.append((set_, cast, twist_next, dogs, car, do,
-                         {k: dict(v) for k, v in crowd.items()},
-                         {k: dict(v) for k, v in crowd_wardrobe.items()}, runners,
-                         dict(looks), weather, strike, face, bg_music))
+            tags.append(Tag(set=set_, cast=cast, twist=twist_next, dogs=dogs, car=car, do=do,
+                            crowd={k: dict(v) for k, v in crowd.items()},
+                            crowd_wardrobe={k: dict(v) for k, v in crowd_wardrobe.items()}, runners=runners,
+                            looks=dict(looks), weather=weather, strike=strike, face=face, bg_music=bg_music))
             twist_next, strike = False, None
         elif m[1] == "!":
             twist_next = True
@@ -704,17 +722,17 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
     rows, scene, featured, key = {}, [], set(), None
     for i, p in enumerate(phrases.phrases + [None]):
         t = tags[p.word_start] if p else None
-        if scene and (p is None or (t[0], t[1]) != key):
+        if scene and (p is None or (t.set, t.cast) != key):
             for j in scene:
                 rows[j] = split_rows(key[1], featured)
             scene, featured = [], set()
         if p is None:
             break
-        key = (t[0], t[1])
+        key = (t.set, t.cast)
         scene.append(i)
         featured |= {names[w] for w in (token(x) for x in heard[p.word_start:p.word_end + 1]) if names.get(w) in key[1]}
-        if t[5]:  # @do: everyone named in it, actors and targets
-            featured |= {w for c in t[5][1] for w in c.who + ((c.target,) if c.target else ()) if w in key[1]}
+        if t.do:  # @do: everyone named in it, actors and targets
+            featured |= {w for c in t.do[1] for w in c.who + ((c.target,) if c.target else ()) if w in key[1]}
 
     shots, cues = [], [Cue(frame=0, kind="music_start")]
     prev_angle = prev_set = subject = None
@@ -725,7 +743,9 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
     pos: dict[str, float] = {}  # where each actor stands now; reset on a set change
     fallen: set = set()  # (@do line, cast id) that already collapsed
     for i, p in enumerate(phrases.phrases):
-        set_, cast, _, dogs, mode, do, crowd, crowd_wardrobe, runners, looks, weather, _, face, bg_music = tags[p.word_start]
+        t = tags[p.word_start]
+        set_, cast, dogs, mode, do, crowd, crowd_wardrobe, runners, looks, weather, face = (
+            t.set, t.cast, t.dogs, t.car, t.do, t.crowd, t.crowd_wardrobe, t.runners, t.looks, t.weather, t.face)
         if (set_, cast) != scene_key:
             scene_key, back_pos = (set_, cast), {}
         cast, back = rows[i]  # from here on, cast is the front row
@@ -750,7 +770,7 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
         if back and not back_pos:
             back_pos = back_spots(back, [pos[c] for c in cast])
         prev_cast = cast
-        twist = any(t[2] for t in tags[p.word_start:p.word_end + 1])
+        twist = any(x.twist for x in tags[p.word_start:p.word_end + 1])
         pw = [token(w) for w in heard[p.word_start:p.word_end + 1]]
         mentioned = next((names[w] for w in pw if names.get(w) in cast), None)
         subject = mentioned or (subject if subject in cast else cast[0])
@@ -859,11 +879,11 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
                               travel=Travel(speed=tspeed) if travel else None, weather=weather))
             prev_angle, prev_set = angle, set_
     lightning = [strike(shots, line, target, min(round(phrases.words[w].start * FPS), total - 1), series)
-                 for w, (line, target) in ((w, t[11]) for w, t in enumerate(tags) if t[11])]  # t[11]: strike
+                 for w, (line, target) in ((w, t.strike) for w, t in enumerate(tags) if t.strike)]
     # Add one cue at each narration line where the selected track changes. The audio stage stretches/loops it.
     previous = None
     for i, p in enumerate(phrases.phrases):
-        selected = tags[p.word_start][13]
+        selected = tags[p.word_start].bg_music
         if selected != previous and (selected is not None or previous is not None):
             cues.append(Cue(frame=starts[i], kind="background_music",
                             track=selected[0] if selected else None,
