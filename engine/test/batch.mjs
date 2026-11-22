@@ -1,5 +1,6 @@
 // Test helper: run many render jobs in one browser (render.mjs --batch), always SwiftShader (identical bytes on any
-// machine). Async, so a test file can overlap its batch with other render.mjs calls. Not a test file itself.
+// machine). render.mjs calls are queued: one browser at a time per process (and `npm test` runs files one at a time),
+// so the suite never has more than one render running. Not a test file itself.
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -9,10 +10,20 @@ import { fileURLToPath } from "node:url";
 export const ENGINE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const FIX = path.join(ENGINE, "..", "pipeline", "tests", "fixtures", "story");
 
-/** render.mjs call in its own browser -> Promise<{ status, stdout, stderr }> */
+let queue = Promise.resolve();
+
+/** render.mjs call in its own browser, after any earlier call finishes -> Promise<{ status, stdout, stderr }> */
 export function render(...args) {
+  const run = queue.then(() => spawnRender(args));
+  queue = run.catch(() => {});
+  return run;
+}
+
+function spawnRender(args) {
   return new Promise((ok, fail) => {
     const p = spawn(process.execPath, [path.join(ENGINE, "render.mjs"), ...args, "--swiftshader"]);
+    // SwiftShader takes every core: below-normal priority (Chromium inherits it) keeps the PC usable meanwhile
+    try { os.setPriority(p.pid, os.constants.priority.PRIORITY_BELOW_NORMAL); } catch {}
     let stdout = "", stderr = "";
     p.stdout.on("data", (d) => { stdout += d; });
     p.stderr.on("data", (d) => { stderr += d; });

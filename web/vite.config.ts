@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
@@ -11,4 +12,5 @@ export default defineConfig({
   // fs.allow: the prop preview imports the engine's own drawing code from ../engine/page
   server: { proxy, fs: { allow: ['..'] } },
   preview: { proxy },
+  test: { maxWorkers: 2 }, // vitest's default (cores - 1) makes the PC unusable while it runs
 })
