@@ -15,7 +15,7 @@ const growRect = (r, k) => { const mx = (r[2] - r[0]) * k, my = (r[3] - r[1]) * 
 import { rng, setVariant } from "./rng.js";
 import { SETS, VARIANTS, buildSet, loopExcess, scrollSet, setInk, setKind } from "./world.js";
 import { fadePlan, fogAlpha, fogCanvas, layersAt, paint, paintBack, strikeAt } from "./weather.js";
-import { STYLE } from "./style.js";
+import { STYLE, usePreset } from "./style.js";
 
 const FPS = 30;
 let W = 1080, H = 1920; // the frame: story.width x story.height (setup); cast sheets stay 1080x1920
@@ -88,6 +88,35 @@ const sets = {}, cards = {}, hiddenByShot = new Map(), variantByShot = new Map()
 let ownedProps = new Map(); // shot id -> { cast id: props held at the shot's start } (give hands props on)
 const comp = Object.assign(document.createElement("canvas"), { width: W, height: H }); // wipe composite
 const cg = comp.getContext("2d");
+// colour grade (STYLE.grade, from the series preset): the finished frame is copied off the canvas and drawn back
+// through this shader. Works on the sRGB bytes as they are (raw shader: no colour space or tone mapping step).
+const gradeMat = new THREE.ShaderMaterial({
+  uniforms: { map: { value: null }, contrast: { value: 1 }, saturation: { value: 1 }, warmth: { value: 0 },
+    lift: { value: 0 }, vignette: { value: 0 }, soft: { value: 0.5 } },
+  vertexShader: "varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }",
+  fragmentShader: `uniform sampler2D map; uniform float contrast, saturation, warmth, lift, vignette, soft; varying vec2 vUv;
+    void main() {
+      vec3 c = (texture2D(map, vUv).rgb - 0.5) * contrast + 0.5;
+      float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+      c = mix(vec3(l), c, saturation) + warmth * (l - 0.5) * vec3(1.0, 0.2, -1.0); // warm highs, cool lows
+      c = lift + c * (1.0 - lift);
+      c *= 1.0 - vignette * smoothstep(soft, 1.0, length(vUv - 0.5) * 1.41421);
+      gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0);
+    }`,
+  depthTest: false, depthWrite: false,
+});
+const gradeScene = new THREE.Scene().add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), gradeMat));
+const GRADE0 = { contrast: 1, saturation: 1, warmth: 0, lift: 0, vignette: 0, soft: 0.5 }; // a key a preset leaves out
+let gradeTex = null;
+function grade() {
+  const g = STYLE.grade;
+  if (!g) return;
+  if (gradeTex?.image.width !== W || gradeTex?.image.height !== H) { gradeTex?.dispose(); gradeTex = new THREE.FramebufferTexture(W, H); }
+  renderer.copyFramebufferToTexture(new THREE.Vector2(0, 0), gradeTex);
+  gradeMat.uniforms.map.value = gradeTex;
+  for (const k in GRADE0) gradeMat.uniforms[k].value = g[k] ?? GRADE0[k];
+  renderer.render(gradeScene, flatCam);
+}
 
 /** soft dark ellipse texture for contact shadows (radial gradient, no randomness) */
 const SHADOW_TEX = (() => {
@@ -303,6 +332,7 @@ function frameSize(w, h) {
 }
 
 window.setup = (d) => {
+  usePreset(d.series?.style?.preset); // first: a bad preset name fails the job before anything is built
   frameSize(d.story.width ?? 1080, d.story.height ?? 1920);
   data = d; hiddenByShot.clear(); variantByShot.clear(); extrasByShot.clear();
   fadeByShot = fadePlan(d.story.shots || []);
@@ -529,6 +559,7 @@ function drawShot(shot, n) {
   drawBackWeather(layers, t);
   renderer.render(scene, camera);
   const weather = drawWeather(shot, layers, n, t, place);
+  grade();
   const travel = shot.travel ? { travel: `${shot.travel.speed} u/s ${dir < 0 ? "left" : "right"}, shift ${shift.toFixed(2)}`
     + `, loop excess ${(({ excess, row }) => `${excess.toFixed(3)} (row z ${row})`)(loopExcess(group, shift))}` } : {};
   return { angle: shot.camera.angle, hidden: hidden.size, gestures, dogs: animals.length, ...extras, ...cars, ...travel, ...weather,

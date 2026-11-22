@@ -323,23 +323,29 @@ def plain_story(**changes):
     return story(shots=[{**s, "twist": False} for s in STORY["shots"]], **changes)
 
 
-def test_fx_pop_default():
+def test_fx_words_stamp_in_as_said():
     text = finish.ass(phrases(), plain_story())
-    first = [e for e in events(text) if e.split(",")[1] < "0:00:00.20"]  # chunk 1's first 6 frames
-    scales = [int(m[1]) for e in first if (m := re.match(r"\{\\fscx(\d+)\\fscy\1\}", body(e)))]
-    assert scales[0] == 80 and set(scales) == {80, 90, 110, 105}  # 80 -> 110 -> 100 (100 needs no tag)
+    first = events(text, "0:00:00.00")[0]  # frame 0: only "Old" shows, stamping in big
+    assert body(first).startswith(rf"{{\fscx150\fscy150\1c{finish.YELLOW}&}}Old")
+    assert body(first).endswith(r"{\alpha&HFF&}John Smith\Nran")  # the rest is there, invisible: no layout jump
+    scales = [int(m) for e in events(text) for m in re.findall(r"\\fscx(\d+)\\fscy\1\\1c", body(e))]
+    assert set(scales) - {100} == {150, 125, 92, 104}  # every word stamps (100 = the reset after it)
+    last = [e for e in events(text) if e.split(",")[1] < "0:00:00.62"][-1]  # chunk 1, last word said
+    assert r"\alpha" not in last
     assert r"\pos" not in text and r"\frz" not in text  # no drop / shake without a twist or emphasis
+    calm = finish.ass(phrases(), plain_story(), ["none"] * 12)  # @fx none: still word by word, no stamp
+    assert r"\fscx" not in calm and r"\alpha&HFF&" in calm
 
 
 def test_fx_twist_drop_and_shake_at_low_hit():
     st = story(cues=[{"frame": 40, "kind": "low_hit"}])
     ph = phrases()
     plan = finish.plan_fx(ph, st, [None] * 12)
-    assert [p["entrance"] for p in plan] == ["pop", "pop", "pop", "drop"]  # twist = phrase 2 = chunk 4
+    assert [p["entrance"] for p in plan] == [None, None, None, "drop"]  # twist = phrase 2 = chunk 4
     assert plan[3]["shakes"] == [{"start": 40, "frames": round(finish.FX_SHAKE_S * 30)}]
     calm = finish.ass(ph, story())  # no low_hit: the drop alone
-    assert body(events(calm, "0:00:01.24")[0]).startswith(r"{\pos(513,1106)}")  # chunk 4 appears 200 px high
-    assert any(r"\pos(513,1276)" in e for e in events(calm))                     # ... and bounces
+    assert body(events(calm, "0:00:01.24")[0]).startswith(r"{\pos(513,1230)}")  # chunk 4 appears 200 px high
+    assert any(r"\pos(513,1400)" in e for e in events(calm))                     # ... and bounces
     text = finish.ass(ph, st)
     shook = [e for e in events(text) if r"\frz" in e]
     assert len(shook) >= 8 and all("0:00:01.33" <= e.split(",")[1] < "0:00:01.70" for e in shook)  # 0.35 s

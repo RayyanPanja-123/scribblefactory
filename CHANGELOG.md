@@ -1,6 +1,18 @@
 # Changelog
 
 ## Unreleased
+- Captions: words now stamp in one by one as they are said (big, then slammed down) instead of the whole chunk at
+  once; the line keeps its final layout, so nothing shifts. Bigger font (72 → 90) and lower on 9:16 (baseline 68% →
+  74.5% of the height). `@fx none` keeps the word-by-word reveal without the stamp. Re-run finish to apply.
+- Sets look painted, not flat (ideas from the reference's paint.ts): every wall / prop texture gets soft tone drift in
+  its own hue; outdoor skies get painted clouds (none at night); indoor sets, built in and custom, get a baseboard, a
+  wall that darkens toward ceiling and floor, and a contact shadow along the wall foot. Tunables `blotch`, `room`,
+  `clouds` in engine/page/style.js. Library data is unchanged; re-render to see it.
+- Style presets: `series.json` `style.preset` now does something. `cinematic` and `storybook` add a colour grade
+  pass (contrast, saturation, warmth, lifted shadows, vignette) over every frame; `default` is unchanged. Tunables in
+  engine/page/style.js (`grade`, `PRESETS`), see docs/style.md. An unknown preset fails the render.
+- Story rules (docs/ai/tts.md): one everyday-analogy explanation, an optional Luckily / Unluckily deadpan pair, and
+  never narrating what the picture already shows.
 - 16:9: a series can be wide (1920x1080) instead of tall. Pick **Frame** on New series, or
   `set-aspect <slug> 16:9` (then re-run parts from shots). Engine, captions (lower on a wide frame), end screen,
   QA, contact sheets, thumbnail picker and the player (a phone on its side) follow `story.width`/`height`.

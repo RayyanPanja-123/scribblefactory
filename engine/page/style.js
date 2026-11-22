@@ -57,4 +57,40 @@ export const STYLE = {
   // or being addressed; turn / gaze: two named characters facing the camera angle their cards this many degrees toward
   // each other and glance that way (pupil shift share)
   idle: { bob: 0.35, shift: 1.3, shiftPeriod: 4.5, headTilt: 6, turn: 22, gaze: 0.8 },
+  // colour grade over the finished frame (weather included, captions are added later by ffmpeg); null = off.
+  // contrast / saturation: 1 = unchanged; warmth: + pushes highlights warm and shadows cool; lift: shadow floor
+  // (0..0.1, keeps blacks soft like ink on paper); vignette: corner darkening share, from `soft` (0 centre .. 1 corner)
+  grade: null,
+  // painted surfaces (every set texture): count soft light / dark blotches per tile break up flat colour (tone drift,
+  // after the reference's paint.ts), each up to `alpha` strong (floors: times `floor`), radius r0..r1 share of the tile
+  blotch: { count: 9, alpha: 0.14, r0: 0.2, r1: 0.45, floor: 0 },
+  // indoor sets (built in and custom): a baseboard along the wall foot (`h` units tall, the wall colour's lightness times `tone`, with a lit lip),
+  // the wall darkening toward ceiling and floor (`top` / `foot` alpha of the shadow colour), and a contact shadow on
+  // the floor along the wall, `depth` units deep, `alpha` strong
+  room: { baseboard: { h: 0.16, tone: 0.62 }, wall: { top: 0.13, foot: 0.14 }, floor: { depth: 1.1, alpha: 0.22 } },
+  // painted clouds in outdoor skies (after the reference's cloudHD): count per sky, skipped when the sky colour's
+  // lightness is under minLight (night); lit / mid / shade are the three painted tones
+  clouds: { count: 5, minLight: 0.45, lit: "#fbf8f1", mid: "#e1e5f3", shade: "#c3cbe9", alpha: 0.92 },
 };
+
+// series.json style.preset -> overrides per STYLE section (a section is replaced key by key, not deep-merged)
+export const PRESETS = {
+  default: {},
+  cinematic: { grade: { contrast: 1.08, saturation: 1.12, warmth: 0.05, lift: 0.03, vignette: 0.28, soft: 0.45 } },
+  storybook: { grade: { contrast: 0.95, saturation: 0.9, warmth: 0.08, lift: 0.06, vignette: 0.18, soft: 0.55 } },
+};
+
+const BASE = structuredClone(STYLE);
+/** reset STYLE to the defaults, then apply preset `name` (an unknown name throws: a typo must not render plain) */
+export function usePreset(name = "default") {
+  const p = PRESETS[name];
+  if (!p) throw new Error(`unknown style preset "${name}" (known: ${Object.keys(PRESETS).join(", ")})`);
+  const obj = (x) => x !== null && typeof x === "object";
+  for (const k of Object.keys(BASE)) {
+    const v = structuredClone(k in p && obj(BASE[k]) ? { ...BASE[k], ...p[k] } : k in p ? p[k] : BASE[k]);
+    // in place when both are objects: modules that keep `const W = STYLE.water` see the preset too
+    // ponytail: in place per section only; a module aliasing a nested object (STYLE.rain.back) keeps the default
+    if (obj(STYLE[k]) && obj(v)) { for (const x of Object.keys(STYLE[k])) delete STYLE[k][x]; Object.assign(STYLE[k], v); }
+    else STYLE[k] = v;
+  }
+}

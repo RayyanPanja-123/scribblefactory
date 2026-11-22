@@ -4,6 +4,7 @@
 // Stage clearance (enforced in Builder.add): a prop that reaches into |x| < STAGE.x must sit behind z STAGE.behind,
 // and no prop may come forward of z STAGE.front, so nothing stands on or in front of the actors.
 import * as THREE from "three";
+import { cloudCanvas } from "./borrowed.js";
 import { lookup } from "./library.js";
 import { rng } from "./rng.js";
 import { STYLE } from "./style.js";
@@ -115,7 +116,7 @@ export function hullGeometry(geo) {
 }
 
 /** marker-painted texture: flat base + seeded strokes (strength scales their contrast); pattern adds planks... */
-function paint(seed, key, base, pattern = null, strength = 1, size = 256) {
+function paint(seed, key, base, pattern = null, strength = 1, size = 256, blotch = 1) {
   const c = document.createElement("canvas");
   c.width = c.height = size;
   const g = c.getContext("2d"), R = rng(seed, "paint", key), col = new THREE.Color(base);
@@ -128,6 +129,21 @@ function paint(seed, key, base, pattern = null, strength = 1, size = 256) {
     g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * 40, y + Math.sin(a) * 40); g.stroke();
   }
   g.globalAlpha = 1;
+  const B = STYLE.blotch, Q = rng(seed, "blotch", key); // own stream: patterns below keep their layouts
+  // blotches go on a scratch layer, blurred once onto the tile (smooths the gradient dither a stretched texture shows
+  // as a grid). A filter set while filling would blur every one of the 81 fills: ~25x slower in software GL.
+  const L = Object.assign(document.createElement("canvas"), { width: size, height: size }), lg = L.getContext("2d");
+  for (let i = 0; blotch > 0 && i < B.count; i++) { // blotch: alpha factor (floors: STYLE.blotch.floor, 0 = none) // soft tone drift, wrapped so the tile stays seamless
+    const x = Q() * size, y = Q() * size, r = size * (B.r0 + Q() * (B.r1 - B.r0));
+    const t = Q() < 0.5 ? col.clone().lerp(new THREE.Color(1, 0.97, 0.9), 0.5) : col.clone().multiplyScalar(0.8); // own hue
+    const rgb = [t.r, t.g, t.b].map((v) => Math.round(v * 255)).join(), a = B.alpha * blotch * (0.5 + 0.5 * Q()) * Math.min(1.5, strength);
+    for (const dx of [-size, 0, size]) for (const dy of [-size, 0, size]) {
+      const gr = lg.createRadialGradient(x + dx, y + dy, 0, x + dx, y + dy, r);
+      gr.addColorStop(0, `rgba(${rgb},${a})`); gr.addColorStop(1, `rgba(${rgb},0)`);
+      lg.fillStyle = gr; lg.fillRect(x + dx - r, y + dy - r, 2 * r, 2 * r);
+    }
+  }
+  g.filter = "blur(2px)"; g.drawImage(L, 0, 0); g.filter = "none";
   if (pattern) pattern(g, size, R);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
@@ -203,7 +219,7 @@ class Builder {
   /** everything added inside fn is one prop piece (hidden or shown together) */
   piece(fn) { this.piece_ = this.pieces.size; fn(); this.piece_ = null; }
   mat(color, pattern = null, repeat = [1, 1], kind = null) {
-    const map = paint(this.seed, this.n++, color, pattern, this.strength);
+    const map = paint(this.seed, this.n++, color, pattern, this.strength, 256, kind === "flat" ? STYLE.blotch.floor : 1);
     map.repeat.set(...repeat);
     return setMaterial(map, kind);
   }
@@ -258,6 +274,43 @@ class Builder {
 // hazes everything past ~16 units, far behind any actor. Repeated props share one material (one texture).
 function sky(b, color, low) {
   b.box(220, 70, 0.1, color, [0, 30, -75], { outline: false, backdrop: true, sky: true, pattern: haze(color, low) });
+  const C = STYLE.clouds;
+  if (new THREE.Color(color).getHSL({}).l < C.minLight) return; // night sky: no daytime clouds
+  const R = rng(b.seed, "clouds");
+  for (let i = 0; i < C.count; i++) { // spread across the sky, a little above the horizon band a wide sees
+    const t = new THREE.CanvasTexture(cloudCanvas(R, C));
+    t.colorSpace = THREE.SRGBColorSpace;
+    const w = 14 + R() * 12, x = -36 + (i + 0.2 + R() * 0.6) * (72 / C.count), y = 9 + R() * 10;
+    b.add(new THREE.PlaneGeometry(w, w / 2), new THREE.MeshBasicMaterial({ map: t, transparent: true, opacity: C.alpha,
+      depthWrite: false, fog: false }), [x, y, -72], { outline: false, backdrop: true });
+  }
+}
+
+/** indoor finish (STYLE.room): baseboard at the wall foot, light falling off toward ceiling and floor on the wall,
+ *  a contact shadow on the floor along the wall. Wall front face at z -2.6, floor at y 0. */
+function roomFinish(b, wall) {
+  const S = STYLE.room, shadow = new THREE.Color(STYLE.light.shadow), hsl = new THREE.Color(wall).getHSL({});
+  const board = new THREE.Color().setHSL(hsl.h, hsl.s, hsl.l * S.baseboard.tone), h = S.baseboard.h;
+  b.box(14, h, 0.05, board.getStyle(), [0, h / 2, -2.575], { backdrop: true, outline: false });
+  b.box(14, 0.025, 0.06, new THREE.Color().setHSL(hsl.h, hsl.s, Math.min(0.95, hsl.l * 1.08)).getStyle(), // lit top lip
+    [0, h + 0.0125, -2.57], { backdrop: true, outline: false });
+  // vertical alpha ramp of the shadow colour, in vertex colours (a canvas gradient dithers into a visible grid once
+  // stretched): stops [[at 0..1 top -> bottom, alpha]...] on a w x len strip, top at +len/2
+  const ramp = (len, stops) => {
+    const pos = [], col = [], idx = [];
+    stops.forEach(([at, a], k) => {
+      for (const x of [-7, 7]) { pos.push(x, len / 2 - at * len, 0); col.push(shadow.r, shadow.g, shadow.b, a); }
+      if (k) idx.push(2 * k - 2, 2 * k, 2 * k - 1, 2 * k - 1, 2 * k, 2 * k + 1);
+    });
+    const g = new THREE.BufferGeometry().setIndex(idx);
+    g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute("color", new THREE.Float32BufferAttribute(col, 4));
+    return g;
+  };
+  const mat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide });
+  b.add(ramp(6, [[0, S.wall.top], [0.45, 0], [0.85, 0], [1, S.wall.foot]]), mat, [0, 3, -2.595], { outline: false, backdrop: true });
+  const d = S.floor.depth;
+  b.add(ramp(d, [[0, S.floor.alpha], [1, 0]]).rotateX(-Math.PI / 2), mat, [0, 0.004, -2.6 + d / 2], { outline: false, floor: true });
 }
 
 /** posts + two rails from a to b along x (at depth `at`) or along z (at x `at`), in ~5-unit prop pieces so a
@@ -404,6 +457,7 @@ function stadium(b, R, v) {
 function room(b) {
   b.box(14, 0.1, 12, "#c8935a", [0, -0.05, 2.5], { outline: false, floor: true, pattern: lines("v", 8, "#8a5a32", 3), repeat: [4, 3] });
   b.box(14, 6, 0.2, "#f2d6a2", [0, 3, -2.7], { outline: false, backdrop: true, pattern: lines("v", 6, "#e6c48a", 8), repeat: [5, 2] });
+  roomFinish(b, "#f2d6a2");
   b.cyl(1.6, 1.6, 0.02, "#d9534f", [0, 0.01, 0.2], { outline: false, floor: true }); // rug
   b.piece(() => { // sofa
     b.box(2.4, 0.45, 0.9, "#5b8bd9", [-1.4, 0.22, -1.9]);
@@ -424,6 +478,7 @@ function office(b) {
   // warm wall, teal carpet, coloured props at street-set saturation; everything across the stage sits behind z -1
   b.box(14, 0.1, 12, "#4fa39b", [0, -0.05, 2.5], { outline: false, floor: true, pattern: lines("h", 8, "#3f8a83", 3), repeat: [5, 4] });
   b.box(14, 6, 0.2, "#f2bd85", [0, 3, -2.7], { outline: false, backdrop: true, pattern: lines("h", 4, "#e3a66a", 10), repeat: [4, 2] });
+  roomFinish(b, "#f2bd85");
   b.box(2.4, 1.0, 0.06, "#9fd3f5", [0, 2.4, -2.58], { backdrop: true, pattern: lines("h", 10, "#6fa8d0", 5) }); // blinds
   b.box(0.7, 0.95, 0.04, "#e76f51", [-2.0, 2.3, -2.58], { backdrop: true, pattern: poster("#e9c46a") });
   b.box(0.7, 0.95, 0.04, "#2a9d8f", [2.0, 2.3, -2.58], { backdrop: true, pattern: poster("#f4a261") });
@@ -535,6 +590,7 @@ function custom(b, spec) {
   if (spec.kind === "indoor") {
     b.box(14, 0.1, 12, spec.floor, [0, -0.05, 2.5], { outline: false, floor: true, repeat: [4, 3] });
     b.box(14, 6, 0.2, spec.back, [0, 3, -2.7], { outline: false, backdrop: true, repeat: [5, 2] });
+    roomFinish(b, spec.back);
   } else {
     b.box(140, 0.1, 100, spec.floor, [0, -0.07, -38], { outline: false, floor: true, repeat: [28, 20], pattern: water ? waves : null });
     sky(b, spec.back, "#f7f1e1");

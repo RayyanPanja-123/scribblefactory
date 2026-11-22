@@ -1,7 +1,7 @@
 """finish: frames + audio/mix.wav (+ burned-in captions from phrases.json) -> final.mp4, then QA -> qa.json.
 
-Captions: phrases split into chunks of <= CAP_MAX_WORDS words (never inside a name), one ASS event per word so
-the word being spoken is yellow. Effects (pop, drop, shake, punch) are written as one event per video frame while
+Captions: phrases split into chunks of <= CAP_MAX_WORDS words (never inside a name), one ASS event per word: words
+stamp in as they are said (later ones drawn transparent, so the layout never moves), the newest yellow. Effects (pop, drop, shake, punch) are written as one event per video frame while
 they animate: \\t restarts with every event, so it can't carry an animation across the per-word events.
 Rendered by ffmpeg's subtitles filter (libass) with the vendored font only.
 End screen (every part): story.json's end_card text ("Follow for more") and the handles from library/settings.json on
@@ -39,14 +39,14 @@ CRF, PRESET, AUDIO_BITRATE, AUDIO_RATE = 18, "slow", "192k", 48000
 
 # --- captions ---
 CAP_FONT = "Fredoka One"
-CAP_SIZE = 72
-CAP_OUTLINE = 6
-CAP_SHADOW = 3
+CAP_SIZE = 90
+CAP_OUTLINE = 7
+CAP_SHADOW = 4
 CAP_MAX_WORDS = 5
-CAP_LINE_CHARS = 18        # a chunk longer than this breaks onto 2 lines (never more)
-CAP_FIT_CHARS = 24         # ~chars of Fredoka One at CAP_SIZE in the caption width; longer lines shrink to fit
+CAP_LINE_CHARS = 15        # a chunk longer than this breaks onto 2 lines (never more)
+CAP_FIT_CHARS = 19         # ~chars of Fredoka One at CAP_SIZE in the caption width; longer lines shrink to fit
 CAP_HOLD = 0.15            # seconds a chunk stays after its last word, never into the next chunk
-CAP_BASELINE = {1920: 0.68, 1080: 0.88}  # of frame height, by height: 9:16 high (clear of the Shorts UI), 16:9 low
+CAP_BASELINE = {1920: 0.745, 1080: 0.88}  # of frame height, by height: 9:16 lower third (above the Shorts UI), 16:9 low
 CAP_MARGIN_L, CAP_MARGIN_R = 0.10, 0.15   # of frame width: 75% max width, and clear of the right-hand UI (15%)
 WHITE, YELLOW = "&H00FFFFFF", "&H004AD5FF"  # ASS colours are &HAABBGGRR; yellow = #ffd54a
 SHADOW = "&H80000000"
@@ -60,6 +60,7 @@ FX_EMPHASIS_SHAKE_S = 0.2                                 # the short shake afte
 FX_SHAKE_GAP_S = 2.0                                      # auto shakes at least this far apart
 FX_PUNCH = (115, 130, 126, 118, 110, 105, 102, 100)      # punch word scale % per frame
 FX_PUNCH_RED_FRAMES = 4                                   # red this long, then back to yellow / white
+FX_STAMP = (150, 125, 92, 104, 100)                       # each word as it is said: slams down from big, settles
 EMPHASIS = {"collapsed", "chased", "furious", "banned", "poison", "rat", "nap", "cramps", "dogs", "lift", "fake",
             "joke", "gold"}
 
@@ -196,18 +197,19 @@ def _shake(start: int, seconds: float) -> dict:
 
 
 def plan_fx(phrases: PhrasesModel, story: StoryModel, overrides: list[str | None]) -> list[dict]:
-    """per chunk: {"entrance": "pop" | "drop" | None, "shakes": [{start, frames}], "punch": [word index]}.
-    Auto: pop for every chunk; the twist shot's first chunk drops and shakes from the low_hit cue; emphasis words
-    punch with a short shake; auto shakes keep FX_SHAKE_GAP_S apart. "@fx" on a line replaces all of that for its
-    chunks: drop, shake (pop + shake), pop, none (no effect at all)."""
+    """per chunk: {"entrance": "pop" | "drop" | None, "stamp": bool, "shakes": [{start, frames}], "punch": [word index]}.
+    Auto: every word stamps in as it is said; the twist shot's first chunk drops and shakes from the low_hit cue;
+    emphasis words punch with a short shake; auto shakes keep FX_SHAKE_GAP_S apart. "@fx" on a line replaces all of
+    that for its chunks: drop, shake (pop + shake), pop, none (words still appear one by one, without any effect)."""
     cs = chunks(phrases)
-    plan = [{"entrance": "pop", "shakes": [], "punch": []} for _ in cs]
+    plan = [{"entrance": None, "stamp": True, "shakes": [], "punch": []} for _ in cs]
     by_first = {c["first"]: k for k, c in enumerate(cs)}
     forced, wanted = [], []  # (frame, chunk index, seconds)
     for k, c in enumerate(cs):
         mode = overrides[c["first"]]
         if mode:
             plan[k]["entrance"] = None if mode == "none" else "drop" if mode == "drop" else "pop"
+            plan[k]["stamp"] = mode != "none"
             if mode == "shake":
                 forced.append((_frame(c["start"]), k, FX_SHAKE_S))
             continue
@@ -232,7 +234,8 @@ def plan_fx(phrases: PhrasesModel, story: StoryModel, overrides: list[str | None
 
 
 def fx_state(c: dict, fx: dict, n: int, seed: int) -> tuple[float, int, int, float, dict]:
-    """at video frame n: chunk scale %, x / y offset px, rotation deg, {word: (scale %, red)} for punch words"""
+    """at video frame n: chunk scale %, x / y offset px, rotation deg, {word: (scale %, red)} for stamping and punch
+    words (a punch replaces the stamp; the chunk's first word doesn't stamp under a pop / drop entrance)"""
     i = max(n - _frame(c["start"]), 0)
     scale, dx, dy, rot = 100, 0, 0, 0.0
     if fx["entrance"] == "pop" and i < len(FX_POP):
@@ -247,6 +250,10 @@ def fx_state(c: dict, fx: dict, n: int, seed: int) -> tuple[float, int, int, flo
             dy += round(R.uniform(-1, 1) * FX_SHAKE_PX * decay)
             rot += round(R.uniform(-1, 1) * FX_SHAKE_DEG * decay, 1)
     punch = {}
+    for w in _stamped(c, fx):
+        j = n - _frame(c["words"][w]["start"])
+        if 0 <= j < len(FX_STAMP) and FX_STAMP[j] != 100:
+            punch[w] = (FX_STAMP[j], False)
     for w in fx["punch"]:
         j = n - _frame(c["words"][w]["start"])
         if 0 <= j < len(FX_PUNCH):
@@ -254,9 +261,17 @@ def fx_state(c: dict, fx: dict, n: int, seed: int) -> tuple[float, int, int, flo
     return scale, dx, dy, rot, punch
 
 
+def _stamped(c: dict, fx: dict) -> list[int]:
+    if not fx["stamp"]:
+        return []
+    return [i for i in range(c["first"] + (1 if fx["entrance"] else 0), c["last"] + 1) if i not in fx["punch"]]
+
+
 def _animated_frames(c: dict, fx: dict) -> set[int]:
     f0 = _frame(c["start"])
     out = set()
+    for w in _stamped(c, fx):
+        out |= set(range(_frame(c["words"][w]["start"]), _frame(c["words"][w]["start"]) + len(FX_STAMP)))
     if fx["entrance"]:
         out |= set(range(f0, f0 + len(FX_POP if fx["entrance"] == "pop" else FX_DROP)))
     for s in fx["shakes"]:
@@ -267,8 +282,8 @@ def _animated_frames(c: dict, fx: dict) -> set[int]:
 
 
 def ass(phrases: PhrasesModel, story: StoryModel, overrides: list[str | None] | None = None) -> str:
-    """the libass script: per chunk, one event per word (that word yellow until the next word starts), split into
-    one event per video frame while an effect animates"""
+    """the libass script: per chunk, one event per word (words appear as they are said, the newest yellow), split
+    into one event per video frame while an effect animates"""
     W, H = story.width, story.height
     margin_v, ml, mr = round(H * (1 - CAP_BASELINE[H])), round(CAP_MARGIN_L * W), round(CAP_MARGIN_R * W)
     base_x, base_y = ml + (W - ml - mr) // 2, H - margin_v  # where \an2 puts it
@@ -312,7 +327,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             parts = []
             for j, (i, t) in enumerate(zip(idx, texts)):
                 colour = YELLOW if j == k else WHITE
-                if i in punch:
+                if j > k:  # not said yet: invisible, but it holds its place so the line never shifts
+                    parts.append(("{\\alpha&HFF&}" if j == k + 1 else "") + t)
+                elif i in punch:
                     s = round(scale * punch[i][0] / 100)
                     parts.append(f"{{\\fscx{s}\\fscy{s}\\1c{RED if punch[i][1] else colour}&}}{t}"
                                  f"{{\\fscx{scale}\\fscy{scale}\\1c{WHITE}&}}")

@@ -2,7 +2,9 @@
 // ported from TypeScript to plain JS and trimmed:
 //   templates/bridge/toon.ts:  Pen (path, poly, stroke, dot), ellPts
 //   templates/bridge/story.ts: glide (smootherstep), dolly
-// Changes: no rotation transform in Pen, ink colour passed in, camera helpers return plain objects.
+//   templates/bridge/paint.ts: cloudHD (as cloudCanvas)
+// Changes: no rotation transform in Pen, ink colour passed in, camera helpers return plain objects; cloudCanvas takes
+// a seeded rng and draws into a fresh canvas (no texture cache).
 //
 // MIT License
 //
@@ -65,3 +67,33 @@ export const glide = (u) => { const x = Math.max(0, Math.min(1, u)); return x * 
 
 /** dolly: camera slides toward the look point by factor k (k < 1 pushes in, k > 1 pulls out) */
 export const dolly = (pos, look, k) => ({ pos: look.map((v, i) => v + (pos[i] - v) * k), look });
+
+/** painted cloud sprite, 1024 x 512: a row of lobes plus a crown in three soft tones (pal: lit, mid, shade), lit
+ *  side up-left, flat soft bottom, no outline. R: seeded rng. */
+export function cloudCanvas(R, pal) {
+  const W = 1024, H = 512, base = 400, TAU = Math.PI * 2, U = (a, b) => a + (b - a) * R();
+  const c = Object.assign(document.createElement("canvas"), { width: W, height: H }), g = c.getContext("2d");
+  const n = 6 + Math.floor(R() * 4), lobes = [];
+  for (let i = 0; i < n; i++) { // main row, biggest in the middle
+    const t = (i + 0.5) / n, rad = (60 + 110 * Math.sin(Math.PI * t) ** 0.8) * U(0.75, 1.15);
+    lobes.push({ x: 150 + t * 724 + U(-30, 30), y: base - rad * U(0.35, 0.65), r: rad });
+  }
+  for (let i = 0; i < Math.floor(n / 2); i++) { // crown
+    const t = U(0.25, 0.75), rad = U(60, 110);
+    lobes.push({ x: 150 + t * 724, y: base - 150 - rad * U(0.3, 0.7), r: rad });
+  }
+  const layer = (dx, dy, k, col, blur) => {
+    g.save(); g.filter = `blur(${blur}px)`; g.fillStyle = col; g.beginPath();
+    for (const l of lobes) { const x = l.x + dx * l.r, y = l.y + dy * l.r; g.moveTo(x + l.r * k, y); g.arc(x, y, l.r * k, 0, TAU); }
+    g.fill(); g.restore();
+  };
+  layer(0, 0, 1.0, pal.shade, 6);        // silhouette in the underside tone
+  layer(-0.04, -0.12, 0.9, pal.mid, 8);  // mid band
+  layer(-0.1, -0.26, 0.72, pal.lit, 10); // sunlit crown, offset up-left
+  g.globalCompositeOperation = "destination-in"; // flat, soft bottom
+  const m = g.createLinearGradient(0, base - 18, 0, base + 6);
+  m.addColorStop(0, "rgba(0,0,0,1)"); m.addColorStop(1, "rgba(0,0,0,0)");
+  g.fillStyle = m; g.fillRect(0, 0, W, H);
+  g.globalCompositeOperation = "source-over";
+  return c;
+}

@@ -18,6 +18,16 @@
        stated as flat fact, never as questions or hedges ("maybe", "some say"). Answer none of it before line 4.
   3. **Rehook loop** (halfway, around word 55 to 75): just as curiosity fades, open a new question: a reversal, a new
      threat, a strange detail, a character doing something unexpected. One line, concrete, never the twist itself.
+- **One explanation, through an everyday thing** (line 4 or later, before the `!!` line): when the story turns on a
+  cause (why it broke, why it worked, why nobody noticed), explain that one idea in one or two lines through something
+  the viewer has done ("You see, ..." or "Ever pushed a kid on a swing?"), then tie it back to the story. One idea per
+  part, no jargon unless the same line explains it. This is the only place a question is allowed.
+- **Deadpan pair** (optional, at most once per part): two back-to-back lines with the same ending, the first good news,
+  the second the same fact as bad news: "Luckily, the river was only two feet deep." / "Unluckily, the river was only
+  two feet deep." Best right after the big beat breaks, never in lines 1 to 3.
+- **Never narrate what the picture already shows.** The directives stage the action; narration adds what the viewer
+  cannot see: why, how much, what it meant, what someone thought. Not "He walked into the room", but "He walked in
+  owing the room forty coins".
 - Exactly one `!! <line>` (the twist), last: it pays off the hook's question. Nothing after it: no sign-off
   ("To be continued.", "Part 2 on my profile", "follow for more"). Every part ends on a silent "Follow for more"
   screen the app adds by itself.

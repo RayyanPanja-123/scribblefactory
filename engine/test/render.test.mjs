@@ -73,7 +73,13 @@ const custom = inLibrary([KITCHEN, BEACH], (s) => {
 const blocked = inLibrary([{ ...KITCHEN, pieces: [{ shape: "box", at: [0, 0.5, 0], size: [1, 1, 1], color: "#ff0000" }] }],
   (s) => { s.shots[0].set = "kitchen"; return s; });
 
+// series style presets: the same office frame graded, and an unknown preset name
+const fixSeries = JSON.parse(fs.readFileSync(path.join(path.dirname(base), "series.json"), "utf8"));
+const withPreset = (preset) => fixturePart(temps, undefined, { ...fixSeries, style: { ...fixSeries.style, preset } });
+const graded = withPreset("cinematic"), typo = withPreset("cinematik");
+
 const JOBS = {
+  graded117: frames(graded, "117-117", "a"), typo: frames(typo, "10-10", "a"), // before office117: the preset resets
   talk: ["--part", base, "--frame", "66", "--out", path.join(base, "a.png")], // s02 bob talks, mouth cycle open
   room: frames(base, "9-10", "range"),                                          // also the 6-digit range check
   moon: frames(moon, "10-10", "a"),
@@ -112,6 +118,15 @@ test("16:9 story renders 1920x1080, and the next portrait job is back at 1080x19
   for (const n of ["wide117", "office117"]) ok(n);
   assert.deepEqual(pngSize(png(path.join(wide, "a"), 117)), [1920, 1080]);
   assert.deepEqual(pngSize(png(path.join(base, "o"), 117)), [1080, 1920]);
+});
+
+test("style preset: cinematic grades the frame, the next default job is plain again, a typo fails", () => {
+  for (const n of ["graded117", "office117"]) ok(n);
+  const [g, o] = [png(path.join(graded, "a"), 117), png(path.join(base, "o"), 117)];
+  assert.deepEqual(pngSize(g), [1080, 1920]);
+  assert.ok(!g.equals(o), "the graded frame matches the plain one");
+  assert.equal(R.typo.ok, false);
+  assert.match(R.typo.error, /unknown style preset "cinematik"/);
 });
 
 test("stills: one image per shot plus a manifest", () => {

@@ -2,7 +2,19 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as THREE from "three";
-import { STYLE } from "../page/style.js";
+import { PRESETS, STYLE, usePreset } from "../page/style.js";
+
+test("usePreset: applies a preset in place, resets to defaults, refuses unknown names", () => {
+  const water = STYLE.water, ink = structuredClone(STYLE.ink);
+  assert.equal(STYLE.grade, null);
+  usePreset("cinematic");
+  assert.deepEqual(STYLE.grade, PRESETS.cinematic.grade);
+  assert.equal(STYLE.water, water, "sections are updated in place, so aliases stay live");
+  assert.deepEqual(STYLE.ink, ink);
+  usePreset();
+  assert.equal(STYLE.grade, null);
+  assert.throws(() => usePreset("nope"), /unknown style preset "nope"/);
+});
 import { hullGeometry } from "../page/world.js";
 
 test("style.js: every section exists with sane defaults", () => {
