@@ -859,7 +859,7 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
                               travel=Travel(speed=tspeed) if travel else None, weather=weather))
             prev_angle, prev_set = angle, set_
     lightning = [strike(shots, line, target, min(round(phrases.words[w].start * FPS), total - 1), series)
-                 for w, (line, target) in ((w, t[10]) for w, t in enumerate(tags) if t[10])]
+                 for w, (line, target) in ((w, t[11]) for w, t in enumerate(tags) if t[11])]  # t[11]: strike
     # Add one cue at each narration line where the selected track changes. The audio stage stretches/loops it.
     previous = None
     for i, p in enumerate(phrases.phrases):

@@ -38,7 +38,7 @@ def test_weather_persists_until_weather_or_set():
     md = ("# T\n\n@set street\n@weather rain heavy\nOne.\nTwo.\n@weather snow\nThree.\n@set kitchen\nFour.\n"
           "@set street\nFive.\n@weather clear\nSix.\n")
     words, tags = shots.tag_words(md, ["bob"], ["bob"], weather_of={"kitchen": W("fog", "light")})
-    assert [t[9] for t in tags] == [W("rain", "heavy"), W("rain", "heavy"), W("snow"), W("fog", "light"), None, None]
+    assert [t[10] for t in tags] == [W("rain", "heavy"), W("rain", "heavy"), W("snow"), W("fog", "light"), None, None]
     assert words == ["One.", "Two.", "Three.", "Four.", "Five.", "Six."]
 
 
