@@ -64,13 +64,20 @@ def align(script_words: list[str], heard: list[tuple[str, float, float]], durati
     """Time each SCRIPT word from matching heard words; interpolate the rest. Returns (words, matched)."""
     a, b = [norm(w) for w in script_words], [norm(h[0]) for h in heard]
     times: list[tuple[float, float] | None] = [None] * len(a)
-    for blk in SequenceMatcher(None, a, b, autojunk=False).get_matching_blocks():
-        for k in range(blk.size):
-            if a[blk.a + k]:  # punctuation-only tokens like "-" don't count as a match
-                times[blk.a + k] = heard[blk.b + k][1:]
+    ops = SequenceMatcher(None, a, b, autojunk=False).get_opcodes()
+    for tag, i1, i2, j1, _ in ops:
+        if tag == "equal":
+            for k in range(i2 - i1):
+                if a[i1 + k]:  # punctuation-only tokens like "-" don't count as a match
+                    times[i1 + k] = heard[j1 + k][1:]
     matched = sum(t is not None for t in times)
     if not matched:
         raise StageError("no script words were heard in voice.mp3")
+    for tag, i1, i2, j1, j2 in ops:  # misheard words ("Four" heard as "For"): spread over when they were heard,
+        if tag == "replace":         # not over the whole gap, which may be silence
+            lo, step = heard[j1][1], (heard[j2 - 1][2] - heard[j1][1]) / (i2 - i1)
+            for k in range(i2 - i1):
+                times[i1 + k] = (lo + k * step, lo + (k + 1) * step)
 
     i, n = 0, len(times)
     while i < n:  # spread each run of unmatched words evenly over the gap between its neighbours

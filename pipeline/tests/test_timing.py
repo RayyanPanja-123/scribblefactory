@@ -52,6 +52,14 @@ def test_align_extra_heard_word_is_ignored():
     assert times(words) == [(0.0, 0.3), (0.6, 0.9)]
 
 
+def test_align_misheard_word_keeps_heard_time():
+    # "Four" heard as "For" after a silence: it takes For's time, not the silent gap after "milk."
+    h = [("milk", 2.5, 2.8), ("For", 4.1, 4.18), ("dollars", 4.18, 4.44)]
+    words, matched = align(["milk.", "Four", "dollars,"], h, 6)
+    assert matched == 2
+    assert times(words)[1] == (4.1, 4.18)
+
+
 def test_align_interpolates_run_and_edges():
     h = [("b", 1.0, 1.2), ("e", 2.0, 2.2)]
     words, matched = align(["a", "b", "c", "d", "e", "f"], h, 10)
