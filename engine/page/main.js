@@ -479,6 +479,7 @@ function drawShot(shot, n) {
   const dir = shot.travel ? ((vehicles[0] || shot.actors[0])?.facing === "left" ? -1 : 1) : 0;
   const shift = shot.travel ? -dir * shot.travel.speed * ((kf - shot.start_frame) / FPS) : 0;
   const travelHidden = scrollSet(group, shift, !!shot.travel);
+  for (const f of group.userData.anims) f(t); // ambient life (world.js Builder.anim): smoke, pennants, birds, clouds
   const hidden = shot.travel ? travelHidden : hiddenFor(shot, subject, span, group);
   for (const [id, pc] of group.userData.pieces) for (const m of pc.meshes) m.visible = !hidden.has(id);
   // a give / receive is framed on the pair's midpoint, so neither the giver nor the receiver is cut off

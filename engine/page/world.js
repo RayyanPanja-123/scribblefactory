@@ -169,13 +169,6 @@ const poster = (ink) => (g, s, R) => {
   g.fill(); g.stroke();
   g.fillRect(s * 0.2, s * 0.8, s * 0.6, s * 0.06);
 };
-const windows = (g, s, R) => {
-  for (let y = 0; y < 4; y++) for (let x = 0; x < 3; x++) {
-    g.fillStyle = R() < 0.3 ? "#ffe9a8" : "#7fb4d8";
-    g.fillRect(24 + x * 76, 20 + y * 60, 50, 38);
-    g.strokeStyle = "#1c1a1a"; g.lineWidth = 4; g.strokeRect(24 + x * 76, 20 + y * 60, 50, 38);
-  }
-};
 
 /** dry-grass / leaf ticks scattered over the base */
 const grass = (col, n = 160, len = 14) => (g, s, R) => {
@@ -215,7 +208,11 @@ class Builder {
     this.group = group; this.seed = seed; this.n = 0; this.strength = strength;
     this.pieces = new Map(); this.piece_ = null; // piece id -> { meshes, box }: what the engine may hide per shot
     group.userData.pieces = this.pieces;
+    // ambient life: fn(t seconds) run every frame after scrollSet (main.js), so it may add to position.x; everything
+    // else it sets absolutely. Pure functions of t: frames stay deterministic.
+    this.anims = group.userData.anims = [];
   }
+  anim(fn) { this.anims.push(fn); }
   /** everything added inside fn is one prop piece (hidden or shown together) */
   piece(fn) { this.piece_ = this.pieces.size; fn(); this.piece_ = null; }
   mat(color, pattern = null, repeat = [1, 1], kind = null) {
@@ -281,9 +278,18 @@ function sky(b, color, low) {
     const t = new THREE.CanvasTexture(cloudCanvas(R, C));
     t.colorSpace = THREE.SRGBColorSpace;
     const w = 14 + R() * 12, x = -36 + (i + 0.2 + R() * 0.6) * (72 / C.count), y = 9 + R() * 10;
-    b.add(new THREE.PlaneGeometry(w, w / 2), new THREE.MeshBasicMaterial({ map: t, transparent: true, opacity: C.alpha,
+    const m = b.add(new THREE.PlaneGeometry(w, w / 2), new THREE.MeshBasicMaterial({ map: t, transparent: true, opacity: C.alpha,
       depthWrite: false, fog: false }), [x, y, -72], { outline: false, backdrop: true });
+    if (C.drift) b.anim((s) => drift(m, x, C.drift * s, [-44, 44], 10, C.alpha));
   }
+}
+
+/** slide mesh m (built at x0) `d` units right along a looping row lo..hi, fading out over `fade` units at both ends
+ *  (opacity `alpha` inside); added on top of the travel scroll scrollSet already placed it at */
+function drift(m, x0, d, [lo, hi], fade, alpha) {
+  const x = lo + (((x0 - lo + d) % (hi - lo)) + (hi - lo)) % (hi - lo);
+  m.position.x += x - x0;
+  m.material.opacity = alpha * Math.min(1, (x - lo) / fade, (hi - x) / fade);
 }
 
 /** indoor finish (STYLE.room): baseboard at the wall foot, light falling off toward ceiling and floor on the wall,
@@ -506,29 +512,150 @@ function office(b) {
   b.piece(() => { b.cyl(0.2, 0.16, 0.35, "#e9c46a", [0.0, 0.18, -2.3]); b.ball(0.3, "#2a9d8f", [0.0, 0.6, -2.3]); });
 }
 
+/** one painted window per tile (a tile is ~1.1 x 1.6 units, so the canvas is drawn squashed in y): glass with a
+ *  diagonal sheen, a thin mullion cross, a lit sill under it, a darker lintel over it, shutters when given */
+const facadeTile = (wall, shutter) => (g, s) => {
+  const x0 = s * 0.27, x1 = s * 0.73, y0 = s * 0.2, y1 = s * 0.78, k = new THREE.Color(wall);
+  g.fillStyle = k.clone().multiplyScalar(0.82).getStyle(); g.fillRect(x0 - 8, y0 - 16, x1 - x0 + 16, 12); // lintel
+  if (shutter) {
+    g.fillStyle = shutter; g.strokeStyle = "#1c1a1a"; g.lineWidth = 3;
+    for (const sx of [x0 - 30, x1 + 4]) { g.fillRect(sx, y0, 26, y1 - y0); g.strokeRect(sx, y0, 26, y1 - y0); }
+  }
+  g.fillStyle = "#7fbbe6"; g.fillRect(x0, y0, x1 - x0, y1 - y0);
+  g.fillStyle = "rgba(255,255,255,0.35)"; // sheen: a pale diagonal band across the upper glass
+  g.beginPath(); g.moveTo(x0, y0 + 30); g.lineTo(x0 + 40, y0); g.lineTo(x0 + 70, y0); g.lineTo(x0, y0 + 70); g.fill();
+  g.strokeStyle = "#1c1a1a"; g.lineWidth = 3;
+  g.beginPath(); g.moveTo((x0 + x1) / 2, y0); g.lineTo((x0 + x1) / 2, y1); g.moveTo(x0, y0 + (y1 - y0) * 0.45);
+  g.lineTo(x1, y0 + (y1 - y0) * 0.45); g.stroke();
+  g.lineWidth = 4; g.strokeRect(x0, y0, x1 - x0, y1 - y0);
+  g.fillStyle = "#f6ead2"; g.fillRect(x0 - 10, y1, x1 - x0 + 20, 12); // sill
+  g.lineWidth = 2.5; g.strokeRect(x0 - 10, y1, x1 - x0 + 20, 12);
+};
+
+/** canvas texture for an unlit sprite plane (flags, birds, smoke): drawn by fn on a w x h canvas */
+function sprite(w, h, fn) {
+  const c = Object.assign(document.createElement("canvas"), { width: w, height: h });
+  fn(c.getContext("2d"), w, h);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+const spriteMat = (map, opts = {}) => new THREE.MeshBasicMaterial({ map, transparent: true, depthWrite: false, fog: false, ...opts });
+
+/** a string of pennants from x0 to x1 sagging from `top` by `sag`, at depth z; each pennant swings and flutters in
+ *  the wind (rotation about its top edge), the string segments stay put */
+function bunting(b, x0, x1, top, sag, z, R) {
+  const cols = ["#e63946", "#f4c430", "#2a9d8f", "#ffffff", "#457b9d"];
+  const mats = cols.map((c) => spriteMat(sprite(64, 80, (g, w, h) => {
+    g.fillStyle = c; g.strokeStyle = "#1c1a1a"; g.lineWidth = 5; g.lineJoin = "round";
+    g.beginPath(); g.moveTo(4, 4); g.lineTo(w - 4, 4); g.lineTo(w / 2, h - 5); g.closePath(); g.fill(); g.stroke();
+  }), { alphaTest: 0.5, depthWrite: true, transparent: false, side: THREE.DoubleSide }));
+  const n = Math.round((x1 - x0) / 0.5), y = (x) => top - sag * (1 - ((2 * (x - x0)) / (x1 - x0) - 1) ** 2);
+  const geo = new THREE.PlaneGeometry(0.34, 0.42).translate(0, -0.21, 0); // origin on the top edge: swings from the string
+  const wire = b.mat("#2b2b2b");
+  for (let i = 0; i < n; i++) {
+    const xa = x0 + i * 0.5, xb = xa + 0.5, len = Math.hypot(0.5, y(xb) - y(xa));
+    b.box(len, 0.025, 0.025, null, [xa + 0.25, (y(xa) + y(xb)) / 2, z], { mat: wire, outline: false, backdrop: true,
+      rot: [0, 0, Math.atan2(y(xb) - y(xa), 0.5)] });
+    const xm = xa + 0.25, m = b.add(geo, mats[Math.floor(R() * cols.length)], [xm, y(xm), z], { outline: false, backdrop: true });
+    const ph = R() * Math.PI * 2, sp = 2.2 + R() * 1.2;
+    b.anim((t) => { m.rotation.x = 0.45 * Math.sin(sp * t + ph) - 0.25; m.rotation.z = 0.12 * Math.sin(0.7 * sp * t + ph * 1.3); });
+  }
+}
+
+/** chimney smoke: soft puffs (children of the chimney mesh: they scroll with it) rising, drifting right, growing, fading */
+function smoke(b, chimney, R) {
+  const map = sprite(128, 128, (g, s) => {
+    const gr = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+    gr.addColorStop(0, "rgba(246,244,240,0.95)"); gr.addColorStop(0.6, "rgba(232,230,236,0.8)"); gr.addColorStop(1, "rgba(232,230,236,0)");
+    g.fillStyle = gr; g.fillRect(0, 0, s, s);
+  });
+  const N = 5, period = 4 + R() * 1.5, ph = R();
+  for (let j = 0; j < N; j++) {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.6), spriteMat(map));
+    chimney.add(m);
+    b.anim((t) => {
+      const p = (((t / period + ph + j / N) % 1) + 1) % 1;
+      m.position.set(0.7 * p + 0.06 * Math.sin(6 * p + j), 0.5 + 2.4 * p, 0);
+      m.scale.setScalar(0.5 + 1.6 * p);
+      m.material.opacity = 0.8 * Math.min(1, p * 6) * (1 - p);
+    });
+  }
+}
+
+/** a few ink "v" birds crossing over the street at height y, flapping (the drawing flips through edge-on) */
+function birds(b, R, y, z) {
+  const map = sprite(128, 64, (g) => {
+    g.strokeStyle = "#1c1a1a"; g.lineWidth = 7; g.lineCap = "round";
+    g.beginPath(); g.moveTo(8, 18); g.quadraticCurveTo(36, 10, 64, 40); g.quadraticCurveTo(92, 10, 120, 18); g.stroke();
+  });
+  for (let i = 0; i < 3; i++) {
+    const x0 = -16 + i * 10.7 + R() * 3, yy = y + R() * 0.8, sp = 1.1 + R() * 0.4, ph = R() * 6;
+    const m = b.add(new THREE.PlaneGeometry(0.42, 0.21), spriteMat(map, { side: THREE.DoubleSide }), [x0, yy, z - i * 0.3],
+      { outline: false, backdrop: true });
+    b.anim((t) => {
+      drift(m, x0, sp * t, [-16, 16], 2, 1);
+      m.position.y = yy + 0.12 * Math.sin(0.9 * t + ph);
+      m.scale.y = Math.cos(9 * t + ph); // wings beat up and down
+    });
+  }
+}
+
 function street(b, R) {
   // floors span 140 so travel shots can scroll them; buildings fill the 28-unit band exactly (last one sized to fit)
-  b.box(140, 0.1, 5.5, "#c9c3b8", [0, -0.05, -1.0], { outline: false, floor: true, pattern: lines("v", 6, "#a9a397", 3), repeat: [60, 2] });
-  b.box(140, 0.08, 9.4, "#5a5a60", [0, -0.08, 6.4], { outline: false, floor: true, pattern: lines("h", 1, "#f2f2f2", 6), repeat: [30, 2] });
-  const palette = ["#e07a5f", "#f2cc8f", "#81b29a", "#c97b84", "#7aa6c2", "#e9c46a"];
-  let x = BAND.lo;
+  b.box(140, 0.1, 5.5, "#dcd3c2", [0, -0.05, -1.0], { outline: false, floor: true, pattern: lines("v", 6, "#b4a994", 2), repeat: [60, 2] });
+  const road = "#727684";
+  b.box(140, 0.08, 9.4, road, [0, -0.08, 6.4], { outline: false, floor: true, repeat: [30, 2] });
+  b.box(140, 0.12, 0.24, "#c9c0ae", [0, -0.02, 1.8], { floor: true });                     // curb, inked
+  b.box(140, 0.02, 0.16, road, [0, -0.035, 3.6], { outline: false, floor: true, repeat: [40, 1], // centre dashes
+    pattern: (g, s) => { g.fillStyle = "#f4f1e8"; g.fillRect(0, 0, s * 0.55, s); } });
+  sky(b, "#5f9fe4", "#d4eaf8");
+  // storybook facades: saturated wall colours, a darker plinth, a cream cornice, shutters, doors with a step,
+  // striped awnings, chimneys with smoke
+  const palette = ["#e8735a", "#f3c45e", "#7cc49a", "#ef9fb0", "#69aee0", "#f5a25d", "#f2e3c4"];
+  const shutters = ["#2f6f8f", "#3d8b5a", "#b5442f", null];
+  const stripes = [["#e63946", "#ffffff"], ["#2a9d8f", "#f6ead2"], ["#f4a261", "#ffffff"]];
+  const Z = -4.2, FRONT = Z + 1; // building centre depth, front face
+  let x = BAND.lo, i = 0;
   while (x < BAND.hi - 0.05) {
     let w = 2.2 + R() * 1.2;
-    const h = 5 + R() * 3;
+    const h = 3.7 + R() * 1.7, wall = palette[Math.floor(R() * palette.length)], sh = shutters[Math.floor(R() * shutters.length)];
     if (BAND.hi - x - w - 0.05 < 2.2) w = BAND.hi - x - 0.05;
-    b.box(w, h, 2, palette[Math.floor(R() * palette.length)], [x + w / 2, h / 2, -4.2],
-      { backdrop: true, pattern: windows, repeat: [Math.round(w), Math.round(h / 2)] });
-    x += w + 0.05;
+    const cx = x + w / 2, dark = new THREE.Color(wall).multiplyScalar(0.7).getStyle();
+    b.box(w, h, 2, wall, [cx, h / 2, Z], { backdrop: true, pattern: facadeTile(wall, sh), repeat: [Math.max(1, Math.round(w / 1.1)), Math.round(h / 1.6)] });
+    b.box(w, 0.55, 2.12, dark, [cx, 0.275, Z], { backdrop: true });                 // plinth
+    b.box(w, 0.22, 2.24, "#f6ead2", [cx, h - 0.11, Z], { backdrop: true });          // cornice
+    if (i % 2 === 0) { // door with a step
+      const dx = cx + (R() - 0.5) * (w - 1.2);
+      b.box(0.72, 1.4, 0.06, ["#7a4b2a", "#2f6f8f", "#b5442f"][i % 3], [dx, 0.7 + 0.12, FRONT + 0.04], { backdrop: true });
+      b.box(0.95, 0.12, 0.32, "#cfc6b4", [dx, 0.06, FRONT + 0.16], { backdrop: true });
+    }
+    if (i % 3 === 1) { // striped awning over the ground floor, tilted down toward the street
+      const [a, c] = stripes[i % stripes.length];
+      b.box(w * 0.82, 0.06, 0.9, a, [cx, 2.35, FRONT + 0.38], { backdrop: true, rot: [0.32, 0, 0], pattern: lines("v", 4, c, 32), repeat: [Math.round(w), 1] });
+    }
+    if (R() < 0.6) { // chimney on the roof, smoking
+      const ch = b.box(0.4, 0.8, 0.4, "#b5523b", [cx + (R() - 0.5) * (w - 0.8), h + 0.4, Z - 0.3], { backdrop: true });
+      b.box(0.5, 0.1, 0.5, "#8a3e2c", [ch.position.x, h + 0.85, Z - 0.3], { backdrop: true });
+      smoke(b, ch, R);
+    }
+    x += w + 0.05; i++;
   }
+  for (let k = 0; k < 4; k++) bunting(b, BAND.lo + 7 * k, BAND.lo + 7 * (k + 1), 3.25, 0.3, -2.9, R); // 4 strings fill the band
+  birds(b, R, 5.6, -3.0);
   b.piece(() => { b.cyl(0.05, 0.06, 3.2, "#2f3a40", [2.3, 1.6, -1.6]); b.ball(0.2, "#fff3b0", [2.3, 3.25, -1.6]); });
-  b.piece(() => { b.cyl(0.1, 0.13, 1.4, "#7b5132", [-2.6, 0.7, -2.0]); b.ball(0.8, "#4caf50", [-2.6, 1.9, -2.0]); });
+  b.piece(() => { // tree: the crown sways a little in the wind
+    b.cyl(0.1, 0.13, 1.4, "#7b5132", [-2.6, 0.7, -2.0]);
+    const crown = b.ball(0.8, null, [-2.6, 1.9, -2.0], { mat: b.mat("#4caf50", grass("#3d8f40", 50)) });
+    b.anim((t) => { const dx = 0.05 * Math.sin(1.3 * t) + 0.02 * Math.sin(3.1 * t); crown.position.x += dx; crown.userData.hull.position.x += dx; });
+  });
   b.piece(() => { // off to the side: behind an actor it reads as a backpack
     b.cyl(0.12, 0.14, 0.45, "#d62828", [3.3, 0.22, -1.2]);
     b.ball(0.12, "#d62828", [3.3, 0.48, -1.2]);
   });
 }
 
-const BACKGROUND = { room: "#f2d6a2", office: "#f2bd85", street: "#9fd3f5",
+const BACKGROUND = { room: "#f2d6a2", office: "#f2bd85", street: "#d4eaf8",
   dirt_road: "#f3e2b8", countryside: "#cfe8ee", orchard: "#cfe8ee", stadium: "#cfe8ee" };
 const STRENGTH = { office: 2.2, dirt_road: 1.6, countryside: 1.6, orchard: 1.6, stadium: 1.4 }; // paint visibility
 const FOG = { dirt_road: [16, 80], countryside: [20, 90], orchard: [18, 80], stadium: [25, 100] }; // near, far

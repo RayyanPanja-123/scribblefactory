@@ -14,7 +14,7 @@
 import { Pen } from "./borrowed.js";
 import { lookup } from "./library.js";
 import { rng } from "./rng.js";
-import { CH, FEET_Y, drawProp, jitter, wobble } from "./stickman.js";
+import { CH, FEET_Y, drawProp, jitter, paintVolume, wobble } from "./stickman.js";
 import { STYLE } from "./style.js";
 
 export const CRW = 1024, GX = CRW / 2;
@@ -228,25 +228,7 @@ function drawShapes(p, shapes, T, col, boil, seed, light = 1) {
   });
 }
 
-/** painted volume inside a filled shape (STYLE.creature): a soft lit spot toward the key light (`light` = its side
- *  in card x, -1 or 1) and the light's shadow colour pooling at the bottom. Clipped to the shape, under the outline. */
-function paintShape(g, pts, light) {
-  const S = STYLE.creature;
-  if (!S) return;
-  const xs = pts.map((q) => q[0]), ys = pts.map((q) => q[1]);
-  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys), w = x1 - x0, h = y1 - y0;
-  if (w < S.minSize && h < S.minSize) return; // eyes, nostrils, spots: flat
-  g.save(); g.clip();
-  const sh = g.createLinearGradient(0, y0 + h * S.shade.from, 0, y1);
-  sh.addColorStop(0, rgba(STYLE.light.shadow, 0)); sh.addColorStop(1, rgba(STYLE.light.shadow, S.shade.alpha));
-  g.fillStyle = sh; g.fillRect(x0, y0, w, h);
-  const cx = x0 + w * (0.5 + light * S.lit.x), cy = y0 + h * S.lit.y, r = Math.max(w, h) * S.lit.r;
-  const lt = g.createRadialGradient(cx, cy, 0, cx, cy, r);
-  lt.addColorStop(0, rgba(S.lit.color, S.lit.alpha)); lt.addColorStop(1, rgba(S.lit.color, 0));
-  g.fillStyle = lt; g.fillRect(x0, y0, w, h);
-  g.restore();
-}
-const rgba = (hex, a) => `rgba(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join()},${a})`;
+const paintShape = (g, pts, light) => paintVolume(g, pts, light, STYLE.creature);
 
 /** o: drawStickman options (top.color = $main, top.accent_color = $accent, else the creature's accent), plus
  *  headless. Uses action, phase, t, boil, breath, mouth, lid, facing, seated, buckle, stagger, mood, wave, pointK,

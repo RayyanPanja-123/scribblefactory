@@ -4,6 +4,7 @@
 import { Pen, ellPts } from "./borrowed.js";
 import { lookup } from "./library.js";
 import { rng } from "./rng.js";
+import { STYLE } from "./style.js";
 import { BUILTIN_WARDROBE, HEAD_ANCHORS, layerFill, layerPoints, slotValue, wearing } from "./wardrobe.js";
 
 export const CW = 1024, CH = 1024, FEET_Y = 1000;
@@ -333,17 +334,19 @@ export function drawStickman(canvas, o) {
     if (W.length) wear((slot, L) => !L.behind && !head(L) && lower(slot));
   });
 
-  // body: flat outfit-colour blob (covers the top of the legwear)
+  // body: outfit-colour blob (covers the top of the legwear), painted volume (STYLE.figure) over its details
   const body = wobble(CW / 2, k.cy, S.rx, k.ry, rng(o.seed, "body"), boil), bw = 12 + boil();
   const top = o.top ? { ...o.top, style: o.top.style ?? o.top.id ?? "plain" } : { style: "plain" };
-  p.poly(body, top.color || o.color, bw);
+  const light = (o.facing === "left") !== !!o.mirrored ? -1 : 1; // key light stays on screen right
+  p.poly(body, top.color || o.color, 0);
   if ((BUILTIN_WARDROBE[top.style] === "top" && top.style !== "plain") || top.number) {
     g.save(); p.path(body, true); g.clip();
     topDetails(p, cos, top, k);
     if (top.number) chestNumber(p, cos, top.number, k, (o.facing === "left") !== !!o.mirrored);
     g.restore();
-    p.poly(body, null, bw); // outline back over the details' edges
   }
+  p.path(body, true); paintVolume(g, body, light, STYLE.figure);
+  p.poly(body, null, bw);
   if (top.style === "dress") skirt(p, cos, top.color || o.color, k, o);
   if (W.length) wear((slot, L) => !L.behind && !head(L) && !lower(slot));
 
@@ -365,7 +368,10 @@ export function drawStickman(canvas, o) {
   g.save();
   headSpace(g, hx, hy, S.head, o.tilt);
   const headPts = wobble(hx, hy, HEAD_R, HEAD_R * HEAD_SQUASH, rng(o.seed, "head"), boil);
-  p.poly(headPts, S.b.head_color, 14 + boil() * 1.5);
+  const headW = 14 + boil() * 1.5;
+  p.poly(headPts, S.b.head_color, 0);
+  p.path(headPts, true); paintVolume(g, headPts, light, STYLE.figure);
+  p.poly(headPts, null, headW);
   face(p, boil, o, hx + 26 * look, hy, look);
   if (W.length) wear((slot, L) => !L.behind && head(L) && slot !== "headwear"); // face, facial hair, hair
   const hw = builtin("headwear", o.headwear);
@@ -379,6 +385,28 @@ export function drawStickman(canvas, o) {
   for (const i of k.late) drawArm(k.arms[i], i); // eating / gasping: the hands come up in front of the face
   if (o.zzz != null) zzz(p, g, boil, o, hx, hy);
 }
+
+/** painted volume inside the closed shape `pts` whose path is current (S: STYLE.figure / STYLE.creature, null = flat):
+ *  the light's shadow colour pooling from `shade.from` down the box toward the bottom, tilted toward the side away
+ *  from the light by `shade.side` (0 = straight down), and a soft lit spot toward the key light (`light` = its side in
+ *  card x, -1 or 1). Clipped to the shape; the caller draws the outline after. */
+export function paintVolume(g, pts, light, S) {
+  if (!S) return;
+  const xs = pts.map((q) => q[0]), ys = pts.map((q) => q[1]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys), w = x1 - x0, h = y1 - y0;
+  if (w < S.minSize && h < S.minSize) return; // eyes, nostrils, spots: flat
+  g.save(); g.clip();
+  const tip = light * (S.shade.side || 0) * w / 2, mx = x0 + w / 2;
+  const sh = g.createLinearGradient(mx + tip, y0 + h * S.shade.from, mx - tip, y1);
+  sh.addColorStop(0, rgba(STYLE.light.shadow, 0)); sh.addColorStop(1, rgba(STYLE.light.shadow, S.shade.alpha));
+  g.fillStyle = sh; g.fillRect(x0, y0, w, h);
+  const cx = x0 + w * (0.5 + light * S.lit.x), cy = y0 + h * S.lit.y, r = Math.max(w, h) * S.lit.r;
+  const lt = g.createRadialGradient(cx, cy, 0, cx, cy, r);
+  lt.addColorStop(0, rgba(S.lit.color, S.lit.alpha)); lt.addColorStop(1, rgba(S.lit.color, 0));
+  g.fillStyle = lt; g.fillRect(x0, y0, w, h);
+  g.restore();
+}
+const rgba = (hex, a) => `rgba(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join()},${a})`;
 
 /** the head's own space: scaled by the build and tilted (o.tilt radians, + = top toward canvas +x) about its centre;
  *  nothing at all when neither applies (a lone translate pair shifts a leaning figure by float rounding) */

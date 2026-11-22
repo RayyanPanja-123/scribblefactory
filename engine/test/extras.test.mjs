@@ -17,6 +17,7 @@ function record(o) {
   let pts = [];
   const g = {
     setTransform() {}, clearRect() {}, translate() {}, rotate() {}, scale() {}, save() {}, restore() {}, clip() {}, closePath() {},
+    fillRect() {}, createLinearGradient: () => ({ addColorStop() {} }), createRadialGradient: () => ({ addColorStop() {} }),
     beginPath() { pts = []; }, moveTo(x, y) { pts.push([x, y]); }, lineTo(x, y) { pts.push([x, y]); }, arc(x, y) { pts.push([x, y]); },
     fill() { ops.push({ op: "fill", style: this.fillStyle, pts, lw: this.lineWidth }); },
     stroke() { ops.push({ op: "stroke", style: this.strokeStyle, pts, lw: this.lineWidth }); },

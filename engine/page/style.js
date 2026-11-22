@@ -62,6 +62,9 @@ export const STYLE = {
   // top, r radius share of the larger side) and light.shadow pooling from `shade.from` (share down the box) to the
   // bottom; eye: catchlight radius share of the eye dot (0 = none). null = flat fills.
   creature: { minSize: 30, lit: { color: "#fff4dc", alpha: 0.32, x: 0.18, y: 0.28, r: 0.55 }, shade: { from: 0.4, alpha: 0.3 }, eye: 0.35 },
+  // the stickman's head and body blob get the same painted volume (stickman.js paintVolume); shade.side tilts the
+  // shadow toward the side away from the key light, so the head reads as a ball. null = flat fills.
+  figure: { minSize: 30, lit: { color: "#fff4dc", alpha: 0.35, x: 0.2, y: 0.25, r: 0.6 }, shade: { from: 0.3, alpha: 0.26, side: 0.7 } },
   // colour grade over the finished frame (weather included, captions are added later by ffmpeg); null = off.
   // contrast / saturation: 1 = unchanged; warmth: + pushes highlights warm and shadows cool; lift: shadow floor
   // (0..0.1, keeps blacks soft like ink on paper); vignette: corner darkening share, from `soft` (0 centre .. 1 corner)
@@ -74,8 +77,9 @@ export const STYLE = {
   // the floor along the wall, `depth` units deep, `alpha` strong
   room: { baseboard: { h: 0.16, tone: 0.62 }, wall: { top: 0.13, foot: 0.14 }, floor: { depth: 1.1, alpha: 0.22 } },
   // painted clouds in outdoor skies (after the reference's cloudHD): count per sky, skipped when the sky colour's
-  // lightness is under minLight (night); lit / mid / shade are the three painted tones
-  clouds: { count: 5, minLight: 0.45, lit: "#fbf8f1", mid: "#e1e5f3", shade: "#c3cbe9", alpha: 0.92 },
+  // lightness is under minLight (night); lit / mid / shade are the three painted tones; drift: world units per
+  // second they slide right (fading out at one end of their row and back in at the other)
+  clouds: { count: 5, minLight: 0.45, lit: "#fbf8f1", mid: "#e1e5f3", shade: "#c3cbe9", alpha: 0.92, drift: 0.6 },
 };
 
 // series.json style.preset -> overrides per STYLE section (a section is replaced key by key, not deep-merged)
