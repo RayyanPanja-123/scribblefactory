@@ -75,7 +75,7 @@ Plain text. Each marker is **alone on its own line**, in exactly this order:
   than 5 `@sfx`). Each names its section and
   its line in the pasted text.
 - **Warnings** (imported anyway): an `@sfx` whose sound file is missing from `library/sfx/`, VOICE differs from the script's narration (with the changed words), a word count
-  outside 110 to 175, more than one `!!`, a part whose last line is a sign-off ("To be continued.", "on my profile":
+  outside 70 to 83, more than one `!!`, a part whose last line is a sign-off ("To be continued.", "on my profile":
   every part ends on a silent "Follow for more" screen instead).
 - **Never overwrites.** A new item whose id the library already has is imported with a suffix (`lantern-2`), and
   the cast and scripts are rewritten to use it; a taken series slug gets a suffix too.
@@ -153,4 +153,4 @@ It only ever burned for her, because she had stolen it.
 <<<END>>>
 ```
 
-The example is short to keep it readable: real parts have 110 to 175 words (the importer warns below that).
+The example is short to keep it readable: real parts have 70 to 83 words, 30 to 35 s (the importer warns outside that).

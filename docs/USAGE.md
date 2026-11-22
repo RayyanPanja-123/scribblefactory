@@ -28,7 +28,7 @@ bash scripts/serve.sh      # http://127.0.0.1:8765
 
 **Series → New part** (`cli new-part <slug> --title "..."`), then write `library/<slug>/part-NN/story.md`.
 Plain text is the narration. Lines starting with `@` are directives: never read aloud, they steer the shots.
-`# Title` lines and markdown syntax are dropped from the narration too. Aim for 50-70 s (about 150 words a minute).
+`# Title` lines and markdown syntax are dropped from the narration too. Aim for 30-35 s, never over 35 (70 to 83 words).
 
 ### Directives
 

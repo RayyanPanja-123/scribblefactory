@@ -404,9 +404,11 @@ def test_finish_reruns_only_for_what_it_uses(lib, capsys):
     assert (pdir(lib) / "captions.ass").read_bytes() == first  # same captions.ass bytes
 
 
-def test_runtime_warning_only_over_the_limit():
+def test_runtime_warning_only_outside_30_to_35_s():
     from pipeline.scribble.stages.finish import runtime
-    assert runtime(57.9, 140, 56.9)["warnings"] == []
-    r = runtime(61.0, 150, 60.0)
-    assert r["runtime"] == {"seconds": 61.0, "words": 150, "speech_seconds": 60.0}
-    assert r["warnings"] == ["runtime 61.0 s is 3.0 s over 58 s (150 words): cut about 8 words"]
+    assert runtime(34.9, 80, 32.0)["warnings"] == []
+    assert runtime(30.0, 70, 27.0)["warnings"] == []
+    r = runtime(38.0, 90, 35.0)
+    assert r["runtime"] == {"seconds": 38.0, "words": 90, "speech_seconds": 35.0}
+    assert r["warnings"] == ["runtime 38.0 s is 3.0 s over 35 s (90 words): cut about 8 words"]
+    assert runtime(26.0, 60, 23.0)["warnings"] == ["runtime 26.0 s is 4.0 s under 30 s (60 words): add about 11 words"]

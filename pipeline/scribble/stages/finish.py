@@ -70,7 +70,7 @@ QA_FREEZE_NOISE = "-60dB"
 QA_BLACK_S = 0.2
 QA_DURATION_TOL = 0.1
 QA_LUFS, QA_LUFS_TOL, QA_TRUE_PEAK = -14.0, 1.0, -1.0
-MAX_RUNTIME_S = 58         # Shorts / Reels: warn above this
+MIN_RUNTIME_S, MAX_RUNTIME_S = 30, 35  # every part runs 30 to 35 s: warn outside that
 
 # --- end screen (every part: silent, after the last word) ---
 CARD_SIZE = 76             # headline ("Follow for more") px
@@ -494,10 +494,14 @@ def qa(part_dir: Path, story: StoryModel, phrases: PhrasesModel, captions_on: bo
 
 
 def runtime(seconds: float, words: int, speech: float) -> dict:
-    """qa.json's runtime record (check-story measures words per second from it) and the over-length warning"""
-    over = round(seconds - MAX_RUNTIME_S, 1)
+    """qa.json's runtime record (check-story measures words per second from it) and the length warning (outside
+    MIN_RUNTIME_S..MAX_RUNTIME_S)"""
+    over, under = round(seconds - MAX_RUNTIME_S, 1), round(MIN_RUNTIME_S - seconds, 1)
+    per = words / speech if speech else 0
     warn = [f"runtime {seconds:.1f} s is {over} s over {MAX_RUNTIME_S} s ({words} words): cut about "
-            f"{math.ceil(over * words / speech)} words"] if over > 0 else []
+            f"{math.ceil(over * per)} words"] if over > 0 else [
+           f"runtime {seconds:.1f} s is {under} s under {MIN_RUNTIME_S} s ({words} words): add about "
+           f"{math.ceil(under * per)} words"] if under > 0 else []
     return {"runtime": {"seconds": round(seconds, 3), "words": words, "speech_seconds": speech}, "warnings": warn}
 
 

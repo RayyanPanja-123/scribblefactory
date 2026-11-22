@@ -34,7 +34,7 @@ ASSETS = {  # section -> (model, library loader, list field, library model)
 }
 OPTIONAL = {"WARDROBE"}  # packages written before the wardrobe have no WARDROBE section: read as []
 HEAD = ["META", *ASSETS, "CAST"]
-WORDS = (110, 175)
+WORDS = (70, 83)  # 30 to 35 s at 2.6 words/s, with the tail and end screen (docs/ai/tts.md)
 
 
 class PackageError(Exception):

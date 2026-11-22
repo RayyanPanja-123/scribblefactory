@@ -5,7 +5,7 @@ props, @do conflicts (actor not on stage, target with its own action, @do during
 an @do with no line to apply to or replaced before it was used), cast not approved yet, and words changed against an
 existing script-for-tts.txt (an existing voice.mp3 would no longer match). Plus the word count and estimated duration:
 words / the words per second measured over the library's finished parts (qa.json runtime; FALLBACK_WPS without any),
-plus the tail and the silent end screen, with a warning over MAX_RUNTIME_S. And warnings when narration opens on a
+plus the tail and the silent end screen, with a warning outside MIN_RUNTIME_S..MAX_RUNTIME_S. And warnings when narration opens on a
 date or backstory, or ends on a spoken sign-off (the end screen says "Follow for more"; the voice never does).
 Problems mean the pipeline would fail or produce a wrong video; warnings do not stop anything.
 """
@@ -20,7 +20,7 @@ from . import background_music
 from .io import (CREATURE_HINT, cast_body_problems, creature_bodies, creature_wardrobe, custom_actions, load_series,
                  prop_kinds, set_kinds, unknown_cast_props, wardrobe_slots)
 from .schemas import HAND_RIGS
-from .stages.finish import MAX_RUNTIME_S
+from .stages.finish import MAX_RUNTIME_S, MIN_RUNTIME_S
 from .stages.prep import (DO_CAR, FX_LIGHTNING, FX_MODES, MAX_LIGHTNING, TWIST_PREFIX, clean_markdown, parse_do,
                           parse_face, parse_hold, parse_lightning, parse_look, parse_weather, strip_directives)
 from .stages.runner import StageError
@@ -295,6 +295,11 @@ def check_story(part_dir: Path) -> dict:
         warnings.append({"line": None, "message": f"estimated {seconds} s is {seconds - MAX_RUNTIME_S:.1f} s over "
                                                   f"{MAX_RUNTIME_S} s ({len(words)} words at {wps:.2f} words/s): "
                                                   f"cut about {cut} words"})
+    elif seconds < MIN_RUNTIME_S:
+        add = round((MIN_RUNTIME_S - seconds) * wps)
+        warnings.append({"line": None, "message": f"estimated {seconds} s is {MIN_RUNTIME_S - seconds:.1f} s under "
+                                                  f"{MIN_RUNTIME_S} s ({len(words)} words at {wps:.2f} words/s): "
+                                                  f"add about {add} words"})
     return {"ok": not problems, "problems": [tag_missing(p) for p in problems], "warnings": warnings,
             "words": len(words), "seconds": seconds, "wps": round(wps, 2)}
 

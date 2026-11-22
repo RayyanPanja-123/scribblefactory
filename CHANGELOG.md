@@ -1,6 +1,21 @@
 # Changelog
 
 ## Unreleased
+- Shorts are now 30 to 35 s, never over 35: 70 to 83 words (was 110 to 175, up to 58 s). The story rules
+  (docs/ai/tts.md) and every story prompt say so, with the hook, intensifier and rehook positions scaled down;
+  check-story and finish QA warn above 35 s and below 30 s, the story importer outside 70 to 83 words.
+- Story rules: pick a story with a visual cause and effect, build the escalation to one snap line, add one
+  consequence line before the twist in true stories, and in real history every fact and joke must be real (no
+  plausible guesses).
+- Creatures page: every creature is drawn large on its card. Click the drawing (or **All poses**) to open its model
+  sheet under the group: the standing drawing big, every pose it can render (walk, run, talk, eat, cheer, stagger,
+  lie) and the headless stump, with a colour picker. Esc or the close button folds it away.
+- Street set rebuilt and brought to life: a saturated sky, storybook facades (plinth, cream cornice, window sills and
+  lintels, shutters, doors with a step, striped awnings, chimneys), an inked curb and a lighter road with a centre
+  line. Ambient motion on every frame: pennant strings sway and flutter, chimneys smoke, ink birds flap across, the
+  tree crown sways. Clouds in every outdoor sky now drift slowly (`clouds.drift`, 0 = still). Re-render to see it.
+- Stickman volume: the head and body get a soft lit spot toward the key light and a cool shadow pooling on the far
+  side, so the figure reads round instead of flat (style.js `figure`; `null` = flat fills as before).
 - Captions: words now stamp in one by one as they are said (big, then slammed down) instead of the whole chunk at
   once; the line keeps its final layout, so nothing shifts. Bigger font (72 → 90) and lower on 9:16 (baseline 68% →
   74.5% of the height). `@fx none` keeps the word-by-word reveal without the stamp. Re-run finish to apply.
