@@ -6,7 +6,7 @@ import { onMounted, ref, watch } from 'vue'
 import { previewSet } from '../../../engine/page/setPreview.js'
 import type { CustomSet } from '../lib/sets'
 
-const p = defineProps<{ id: string; custom: CustomSet[]; label: string; weather?: CustomSet['default_weather'] }>()
+const p = withDefaults(defineProps<{ id: string; custom: CustomSet[]; label: string; weather?: CustomSet['default_weather']; w?: number; h?: number }>(), { w: 270, h: 480 })
 const cv = ref<HTMLCanvasElement>()
 const error = ref('')
 
@@ -25,7 +25,7 @@ watch(() => [p.id, p.custom, p.weather], draw, { deep: true })
 
 <template>
   <div class="relative overflow-hidden rounded-md bg-well">
-    <canvas ref="cv" width="270" height="480" role="img" :aria-label="label" class="block h-full w-full object-contain" />
+    <canvas ref="cv" :width="w" :height="h" role="img" :aria-label="label" class="block h-full w-full object-contain" />
     <p v-if="error" class="absolute inset-x-0 bottom-0 bg-panel/95 p-2 text-xs text-red-ink" role="alert">{{ error }}</p>
   </div>
 </template>

@@ -57,6 +57,11 @@ export const STYLE = {
   // or being addressed; turn / gaze: two named characters facing the camera angle their cards this many degrees toward
   // each other and glance that way (pupil shift share)
   idle: { bob: 0.35, shift: 1.3, shiftPeriod: 4.5, headTilt: 6, turn: 22, gaze: 0.8 },
+  // painted creatures (creatures.js, not humanoids): inside every filled shape at least minSize card px wide or tall,
+  // a soft lit spot toward the key light (screen right; x / y its centre as a share of the shape's box from the middle /
+  // top, r radius share of the larger side) and light.shadow pooling from `shade.from` (share down the box) to the
+  // bottom; eye: catchlight radius share of the eye dot (0 = none). null = flat fills.
+  creature: { minSize: 30, lit: { color: "#fff4dc", alpha: 0.32, x: 0.18, y: 0.28, r: 0.55 }, shade: { from: 0.4, alpha: 0.3 }, eye: 0.35 },
   // colour grade over the finished frame (weather included, captions are added later by ffmpeg); null = off.
   // contrast / saturation: 1 = unchanged; warmth: + pushes highlights warm and shadows cool; lift: shadow floor
   // (0..0.1, keeps blacks soft like ink on paper); vignette: corner darkening share, from `soft` (0 centre .. 1 corner)

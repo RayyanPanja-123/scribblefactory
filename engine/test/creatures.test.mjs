@@ -7,11 +7,12 @@ import { FEET_Y, FIGURE_PX, drawStickman, figurePx, fitOf, hipPx } from "../page
 
 const BUILTIN = ALL_BUILTIN.filter((c) => c.rig !== "humanoid"); // humanoids are stickmen, not shape drawings
 
+const grad = () => ({ addColorStop() {} });
 function record(def, o, draw = (cv, opts) => drawCreature(cv, def, opts)) {
   const ops = [];
   let pts = [];
   const g = {
-    setTransform() {}, clearRect() {}, translate() {}, rotate() {}, scale() {}, save() {}, restore() {}, clip() {}, closePath() {},
+    setTransform() {}, clearRect() {}, fillRect() {}, createLinearGradient: grad, createRadialGradient: grad, translate() {}, rotate() {}, scale() {}, save() {}, restore() {}, clip() {}, closePath() {},
     beginPath() { pts = []; }, moveTo(x, y) { pts.push([x, y]); }, lineTo(x, y) { pts.push([x, y]); },
     arc(x, y) { pts.push([x, y]); }, bezierCurveTo(a, b, c, d, x, y) { pts.push([x, y]); }, quadraticCurveTo(a, b, x, y) { pts.push([x, y]); },
     fill() { ops.push({ op: "fill", style: this.fillStyle, pts }); },

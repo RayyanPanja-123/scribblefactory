@@ -15,6 +15,7 @@ import { Pen } from "./borrowed.js";
 import { lookup } from "./library.js";
 import { rng } from "./rng.js";
 import { CH, FEET_Y, drawProp, jitter, wobble } from "./stickman.js";
+import { STYLE } from "./style.js";
 
 export const CRW = 1024, GX = CRW / 2;
 const INK = "#1c1a1a", TAU = Math.PI * 2, deg = (d) => (d * Math.PI) / 180;
@@ -207,7 +208,7 @@ const rot = ([x, y], [cx, cy], a) => {
 const colour = (fill, col) => (fill == null ? null : fill === "$main" ? col.main : fill === "$accent" ? col.accent : fill);
 
 /** draw shapes through T (local point -> canvas point). Circles and ellipses are wobbly marker loops. */
-function drawShapes(p, shapes, T, col, boil, seed) {
+function drawShapes(p, shapes, T, col, boil, seed, light = 1) {
   shapes.forEach((s, i) => {
     const fill = colour(s.fill, col), w = s.width ?? 8;
     if (s.shape === "line") { p.stroke(jitter(s.pts.map(T), boil, 1.5), w, fill || INK); return; }
@@ -221,9 +222,31 @@ function drawShapes(p, shapes, T, col, boil, seed) {
       pts = wobble(0, 0, s.r, ry, rng(seed, i), boil, 0.03, 0.01, 36)
         .map(([x, y]) => T([cx + x * Math.cos(a) - y * Math.sin(a), cy + x * Math.sin(a) + y * Math.cos(a)]));
     }
-    p.poly(pts, fill, w);
+    p.poly(pts, fill, 0);
+    if (fill) paintShape(p.g, pts, light);
+    p.poly(pts, null, w);
   });
 }
+
+/** painted volume inside a filled shape (STYLE.creature): a soft lit spot toward the key light (`light` = its side
+ *  in card x, -1 or 1) and the light's shadow colour pooling at the bottom. Clipped to the shape, under the outline. */
+function paintShape(g, pts, light) {
+  const S = STYLE.creature;
+  if (!S) return;
+  const xs = pts.map((q) => q[0]), ys = pts.map((q) => q[1]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys), w = x1 - x0, h = y1 - y0;
+  if (w < S.minSize && h < S.minSize) return; // eyes, nostrils, spots: flat
+  g.save(); g.clip();
+  const sh = g.createLinearGradient(0, y0 + h * S.shade.from, 0, y1);
+  sh.addColorStop(0, rgba(STYLE.light.shadow, 0)); sh.addColorStop(1, rgba(STYLE.light.shadow, S.shade.alpha));
+  g.fillStyle = sh; g.fillRect(x0, y0, w, h);
+  const cx = x0 + w * (0.5 + light * S.lit.x), cy = y0 + h * S.lit.y, r = Math.max(w, h) * S.lit.r;
+  const lt = g.createRadialGradient(cx, cy, 0, cx, cy, r);
+  lt.addColorStop(0, rgba(S.lit.color, S.lit.alpha)); lt.addColorStop(1, rgba(S.lit.color, 0));
+  g.fillStyle = lt; g.fillRect(x0, y0, w, h);
+  g.restore();
+}
+const rgba = (hex, a) => `rgba(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join()},${a})`;
 
 /** o: drawStickman options (top.color = $main, top.accent_color = $accent, else the creature's accent), plus
  *  headless. Uses action, phase, t, boil, breath, mouth, lid, facing, seated, buckle, stagger, mood, wave, pointK,
@@ -251,24 +274,24 @@ export function drawCreature(canvas, def, o) {
     return ([x, y]) => [jx + dx + x * Math.cos(r) - y * Math.sin(r), jy + x * Math.sin(r) + y * Math.cos(r)];
   };
   const far = (draw) => { g.save(); g.filter = FAR.shade; draw(); g.restore(); };
-  const legsShown = k.sit < 0.6;
+  const legsShown = k.sit < 0.6, lt = o.facing === "left" ? -1 : 1; // key light stays on screen right (card mirrored)
   const legs = def.rig === "quadruped" ? [["leg_front", 0], ["leg_back", 2]] : parts.leg ? [["leg", 0]] : [];
 
-  if (legsShown) for (const [part, i] of legs) far(() => drawShapes(p, parts[part], legAt(part, k.legs[i + 1], FAR.dx), col, boil, `${o.seed}:${part}`));
+  if (legsShown) for (const [part, i] of legs) far(() => drawShapes(p, parts[part], legAt(part, k.legs[i + 1], FAR.dx), col, boil, `${o.seed}:${part}`, lt));
   if (parts.arm) far(() => drawArm(1, FAR.dx));
-  if (parts.tail) drawShapes(p, parts.tail, at("tail", k.tail), col, boil, `${o.seed}:tail`);
-  if (legsShown) for (const [part, i] of legs) drawShapes(p, parts[part], legAt(part, k.legs[i]), col, boil, `${o.seed}:${part}`);
+  if (parts.tail) drawShapes(p, parts.tail, at("tail", k.tail), col, boil, `${o.seed}:tail`, lt);
+  if (legsShown) for (const [part, i] of legs) drawShapes(p, parts[part], legAt(part, k.legs[i]), col, boil, `${o.seed}:${part}`, lt);
   // head (or stump) before the body, so the body covers the base of the neck
   const head = o.headless ? parts.stump : parts.head;
-  if (head) drawShapes(p, head, at("head", k.head), col, boil, `${o.seed}:${o.headless ? "stump" : "head"}`);
-  drawShapes(p, parts.body, body, col, boil, `${o.seed}:body`);
-  if (parts.wing) drawShapes(p, parts.wing, at("wing", k.wing), col, boil, `${o.seed}:wing`);
+  if (head) drawShapes(p, head, at("head", k.head), col, boil, `${o.seed}:${o.headless ? "stump" : "head"}`, lt);
+  drawShapes(p, parts.body, body, col, boil, `${o.seed}:body`, lt);
+  if (parts.wing) drawShapes(p, parts.wing, at("wing", k.wing), col, boil, `${o.seed}:wing`, lt);
   if (parts.arm) drawArm(0, 0);
   if (!o.headless && def.face) face(parts.head ? at("head", k.head) : body);
 
   function drawArm(i, dx) {
     const T = at("arm", k.arms[i], dx);
-    drawShapes(p, parts.arm, T, col, boil, `${o.seed}:arm`);
+    drawShapes(p, parts.arm, T, col, boil, `${o.seed}:arm`, lt);
     const hand = T([0, m.arm]), fore = -deg(k.arms[i]); // fore: radians from straight down, + toward +x
     for (const pr of o.props || []) if ((pr.hand === "left" ? 1 : 0) === i) drawProp(p, cos, pr, hand, fore, 1);
   }
@@ -277,7 +300,10 @@ export function drawCreature(canvas, def, o) {
     if (eye) {
       const [x, y] = T(eye);
       if ((o.lid || 0) >= 0.5) p.stroke(jitter([[x - FACE.eye, y], [x + FACE.eye, y]], boil, 1), 6);
-      else p.dot(x, y, FACE.eye);
+      else {
+        p.dot(x, y, FACE.eye);
+        if (STYLE.creature?.eye) p.dot(x + FACE.eye * 0.3, y - FACE.eye * 0.35, FACE.eye * STYLE.creature.eye, "#ffffff"); // catchlight
+      }
     }
     if (mouth && open > 0.05) { const [x, y] = T(mouth); p.poly(wobble(x, y, FACE.mouth / 2, 3 + 12 * open, rng(o.seed, "mouth"), boil, 0.04, 0.02, 16), INK, 0); }
   }

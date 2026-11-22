@@ -17,6 +17,7 @@ needs touching, and no story, set or series file changes: every style feature de
 | `blotch` | Soft light / dark tone drift painted into every set texture (in the surface's own hue, wrapped so tiles stay seamless): `count` per tile, `alpha`, radius `r0`..`r1` of the tile; floors take `floor` times it (0 = none: a repeating floor shows a blotch as a stain). |
 | `room` | Indoor sets, built in and custom: a `baseboard` (`h` tall, the wall's lightness times `tone`, with a lit lip), the wall darkening toward the ceiling (`wall.top`) and floor (`wall.foot`) in the light's shadow colour, and a contact shadow on the floor along the wall (`floor.depth`, `floor.alpha`). |
 | `clouds` | Painted clouds in every outdoor sky (`count`, three tones `lit` / `mid` / `shade`, `alpha`); none when the sky colour's lightness is under `minLight` (night skies). Drawn by `cloudCanvas` in borrowed.js (the reference's cloudHD). |
+| `creature` | Painted creatures (not humanoids): every filled shape at least `minSize` card px gets a soft `lit` spot toward the key light (screen right, follows facing) and `light.shadow` pooling at its bottom (`shade.from`, `shade.alpha`), under the ink outline; `eye` adds a catchlight. `null` = flat fills. |
 | `grade` | Colour grade over the finished frame (weather included; captions come later, from ffmpeg). `null` = off. `contrast`, `saturation` (1 = unchanged), `warmth` (warm highlights, cool shadows), `lift` (shadow floor), `vignette` (corner darkening) starting at `soft` (0 centre .. 1 corner). |
 
 ## Presets (per series)
