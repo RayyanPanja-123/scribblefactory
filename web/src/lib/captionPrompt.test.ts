@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildCaptionPrompt, composeUpload, parseUpload, withBrandTags } from './captionPrompt'
+import { buildCaptionPrompt, composeUpload, parseUpload } from './captionPrompt'
 
 describe('upload.md captions', () => {
   it('round-trips the four fields', () => {
@@ -11,19 +11,9 @@ describe('upload.md captions', () => {
     expect(parseUpload(old)).toEqual({ title: 'Big hook', description: 'Line one.\n\n#shorts #x', pinned: '', instagram: 'IG text\n\n#reels' })
     expect(parseUpload('')).toEqual({ title: '', description: '', pinned: '', instagram: '' })
   })
-  it('puts the brand tags and handle in the prompt', () => {
-    const p = buildCaptionPrompt({ series: 'S', number: 1, parts: 2, title: 't', story: '# t\n@cast x\nHello.', brandTags: '#sf', handles: { instagram: '@sf' } })
-    expect(p).toContain('exactly as written: #sf')
-    expect(p).toContain('Follow @sf for part 2')
+  it('puts the handle in the prompt', () => {
+    const p = buildCaptionPrompt({ series: 'S', number: 1, parts: 2, title: 't', story: '# t\n@cast x\nHello.', handles: { instagram: '@sf' } })
+    expect(p).toContain('Follow @sf for Part 2.')
     expect(p).not.toContain('@cast')
-  })
-})
-
-describe('withBrandTags', () => {
-  it('appends missing brand tags only to text that has tags', () => {
-    expect(withBrandTags('Hook.\n\n#shorts #rome', '#ScribbleSaga #Rome #shorts #x')).toBe('Hook.\n\n#shorts #rome #ScribbleSaga #x')
-    expect(withBrandTags('Big hook 🌊', '#ScribbleSaga')).toBe('Big hook 🌊')
-    expect(withBrandTags('#a #b', '#A #b')).toBe('#a #b')
-    expect(withBrandTags('#a', '')).toBe('#a')
   })
 })

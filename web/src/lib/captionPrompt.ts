@@ -1,5 +1,5 @@
 // Captions with Gemini (POST /api/captions, the one task an outside AI does here): a prompt from the part's narration,
-// the next part's opening and the brand tags; four fields back. upload.md keeps them as markdown sections.
+// the next part's opening and the handles; four fields back. upload.md keeps them as markdown sections.
 
 /** narration lines of a story.md: no title, @ directives or the !! marker */
 const narration = (md: string) => md.split('\n').map((l) => l.trim())
@@ -9,13 +9,11 @@ export type CaptionInput = {
   series: string; number: number; parts: number
   title: string; story: string // this part's story.md
   next?: { title: string; story: string } // the next part, for a teaser
-  brandTags?: string // e.g. "#scribblefactory #stickmanhistory": on every caption
   handles?: { youtube?: string; instagram?: string }
 }
 
 export function buildCaptionPrompt(c: CaptionInput): string {
   const last = c.number === c.parts
-  const brand = c.brandTags?.trim()
   const ig = c.handles?.instagram?.trim()
   return `Write YouTube Shorts and Instagram Reels captions for one part of a stickman animated series.
 
@@ -25,13 +23,32 @@ This is part ${c.number} of ${c.parts}${last ? ' (the finale)' : ''}: "${c.title
 Its narration (what the video says):
 ${narration(c.story)}
 ${c.next ? `\nThe next part, "${c.next.title}", opens with: ${narration(c.next.story).split('\n')[0]}\n` : ''}
-Hashtags: story tags first (the people, places, era and topic of THIS story, specific beats generic), then the brand tags${brand ? `, exactly as written: ${brand}` : ' (#stickman #animation)'}.
-
 Fields:
 - youtube_title: at most 70 characters, a curiosity hook from the most surprising claim, not the series name. One emoji at most.
-- youtube_description: two short lines (the hook, then "Part ${c.number} of ${c.parts}."${last ? '' : ' and a nudge to follow for the next part'}), a blank line, then 5 to 7 hashtags starting with #shorts.
+- youtube_description: three blocks separated by blank lines, no emoji:
+  1. One plain sentence stating the story's premise as a fact, its most surprising claim in concrete detail.
+  2. "Part ${c.number} of ${c.parts}."${last ? '' : ' then "Follow for the next part."'}
+  3. 4 hashtags: #shorts #AnimatedStory #Reels and one genre tag (#fiction, or #history for true history).
+  Example of the shape (copy its structure, never its words):
+  A tech billionaire sold a night on a private island sitting twenty-four hours in the future.
+
+  Part 1 of 3. Follow for the next part.
+
+  #shorts #AnimatedStory #Reels #fiction
 - youtube_pinned_comment: the creator's pinned comment that starts a conversation: one short, specific question or a "would you have..." choice about this story's twist, plus at most one emoji. No hashtags, no links, no "like and subscribe".
-- instagram_caption: the whole post as one text. First line is the hook (under 100 characters: all that shows before "more"). Then two or three short lines of story, "Part ${c.number} of ${c.parts}"${ig && !last ? ` and "Follow ${ig} for part ${c.number + 1}"` : ''}, and a question that invites comments, ending with 👇. A blank line, then 8 to 12 hashtags ending with #reels.
+- instagram_caption: the whole post as one text, four blocks separated by blank lines:
+  1. The hook: one line under 100 characters (all that shows before "more"), the story's most surprising situation as a "When..." or a bold claim, ending with two fitting emoji.
+  2. One paragraph of two or three sentences: it opens "In Part ${c.number} of this original <genre> short story told in stickman animation," (pick the genre from the story, e.g. sci-fi, comedy, mystery; for true history say "true story" instead of "original <genre> short story"), then what happens and what it sets off, in concrete detail.
+  3. One line: a question that invites comments (a "Would you..." choice about this story), then "Part ${c.number} of ${c.parts}."${ig && !last ? ` then "Follow ${ig} for Part ${c.number + 1}."` : ''}, ending with 👇.
+  4. 4 to 6 hashtags: the format (#stickmananimation), the genre (e.g. #scifistory), broad story tags (#shortstory #animatedstories).
+  Example of the shape (copy its structure and tone, never its words or story):
+  When fourteen million strangers all win the exact same lottery jackpot. 🎟️💸
+
+  In Part 2 of this original sci-fi short story told in stickman animation, a leaked photo from the future broke the rules and bankrupted the national lottery in minutes. Every winner walked away with just twelve cents, and furious billionaires immediately retaliated.
+
+  Would you risk your safety for a twelve-cent prize? Part 2 of 3. Follow @scribblesagashorts for Part 3. 👇
+
+  #stickmananimation #shortstory #scifistory #animatedstories
 - Tease the last line's twist; never quote it. If the story is true history, say so ("True story").
 - Plain, punchy, no clickbait lies, no markdown.`
 }
@@ -62,13 +79,4 @@ export function parseUpload(md: string): Captions {
 export function composeUpload(head: string, c: Captions): string {
   const yt = (Object.keys(YT) as (keyof typeof YT)[]).map((k) => `### ${YT[k]}\n\n${c[k].trim()}`).join('\n\n')
   return `# ${head}\n\n## YouTube\n\n${yt}\n\n## Instagram\n\n${c.instagram.trim()}\n`
-}
-
-/** text with hashtags gets the brand tags it lacks appended (case-insensitive match); text without any is left alone */
-export function withBrandTags(text: string, brand: string): string {
-  const t = text.trim()
-  const has = new Set((t.match(/#[\p{L}\p{N}_]+/gu) ?? []).map((h) => h.toLowerCase()))
-  if (!has.size) return t
-  const missing = (brand.match(/#[\p{L}\p{N}_]+/gu) ?? []).filter((h) => !has.has(h.toLowerCase()) && has.add(h.toLowerCase()))
-  return missing.length ? `${t} ${missing.join(' ')}` : t
 }

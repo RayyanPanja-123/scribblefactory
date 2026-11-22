@@ -25,7 +25,7 @@ import { partNext, type PartState } from '../lib/partNext'
 import { partSteps } from '../lib/partSteps'
 import { fixPrompt } from '../lib/storyGuide'
 import { groupIssues, KIND_LABEL, type Group } from '../lib/storyIssues'
-import { buildCaptionPrompt, composeUpload, parseUpload, withBrandTags, type Captions } from '../lib/captionPrompt'
+import { buildCaptionPrompt, composeUpload, parseUpload, type Captions } from '../lib/captionPrompt'
 
 const props = defineProps<{ slug: string; part: string }>()
 const route = useRoute()
@@ -369,7 +369,7 @@ async function writeCaptions() {
     const prompt = buildCaptionPrompt({
       series: s.title, number: i + 1, parts: s.parts.length, title: me.part.title, story: me.story_md ?? '',
       next: next?.story_md ? { title: next.part.title, story: next.story_md } : undefined,
-      brandTags: cfg?.settings.brand_tags, handles: cfg?.settings.socials,
+      handles: cfg?.settings.socials,
     })
     const r = await act(() => api.writeCaptions(prompt), 'Captions written: check them, then Save')
     if (r) Object.assign(cap, { title: r.youtube_title, description: r.youtube_description, pinned: r.youtube_pinned_comment, instagram: r.instagram_caption })
@@ -384,11 +384,6 @@ async function copy(t: string, what: string) {
   } catch {
     toast('Could not copy: clipboard not available', 'error')
   }
-}
-// a caption with hashtags is copied with the brand tags (Settings) it lacks appended; the card text stays as it is
-async function copyCaption(t: string, what: string) {
-  const brand = (await api.settings().catch(() => null))?.settings.brand_tags ?? ''
-  await copy(withBrandTags(t, brand), what)
 }
 const CARDS = [
   { name: 'YouTube', icon: Youtube, color: 'text-youtube', fields: [
@@ -793,7 +788,7 @@ watch(() => props.part, () => { chosen.value = null })
             <Sparkles :size="16" aria-hidden="true" /> {{ writing ? 'Writing…' : 'Write with Gemini' }}</button>
           <button class="btn btn-primary" :disabled="!dirty" @click="save"><Save :size="16" aria-hidden="true" /> Save</button>
         </div>
-        <p class="mt-1 text-xs text-muted">Saved to upload.md (Ctrl+S). Gemini (key and brand tags in Settings) uses the story; nothing is saved until you Save.</p>
+        <p class="mt-1 text-xs text-muted">Saved to upload.md (Ctrl+S). Gemini (key in Settings) uses the story; nothing is saved until you Save.</p>
         <div class="mt-4 space-y-4" :aria-busy="writing">
           <div v-for="c in CARDS" :key="c.name" class="inset space-y-3 p-4">
             <p class="flex items-center gap-2 font-semibold"><component :is="c.icon" :size="18" :class="c.color" aria-hidden="true" />{{ c.name }}</p>
@@ -802,7 +797,7 @@ watch(() => props.part, () => { chosen.value = null })
                 <label :for="`cap-${f.k}`" class="text-xs font-semibold text-muted">{{ f.label }}</label>
                 <span class="num ml-auto text-xs" :class="cap[f.k].length > f.max ? 'text-red-ink' : 'text-muted'">{{ cap[f.k].length }}/{{ f.max }}</span>
                 <button type="button" class="btn btn-secondary h-7 px-2 text-xs" :disabled="!cap[f.k].trim()" :aria-label="`Copy ${c.name} ${f.label}`"
-                  @click="copyCaption(cap[f.k], `${c.name} ${f.label.toLowerCase()}`)"><Copy :size="14" aria-hidden="true" /> Copy</button>
+                  @click="copy(cap[f.k], `${c.name} ${f.label.toLowerCase()}`)"><Copy :size="14" aria-hidden="true" /> Copy</button>
               </div>
               <input v-if="f.rows === 1" :id="`cap-${f.k}`" v-model="cap[f.k]" type="text" spellcheck="true" @keydown="onKey"
                 class="paper mt-1 block h-10 w-full rounded-md px-3 text-sm outline-none focus:border-blue" />
