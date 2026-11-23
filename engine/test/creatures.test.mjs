@@ -1,7 +1,7 @@
 // Creatures: rig poses (pure) and every built-in drawn in every action through a recording 2D context.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { BUILTIN as ALL_BUILTIN, FIRE, JOINT_OF, RIGS, creature, creaturePose, drawCreature, flamePalette, measure } from "../page/creatures.js";
+import { BUILTIN as ALL_BUILTIN, FIRE, JOINT_OF, RIGS, creature, creatureAnchors, creaturePose, drawCreature, flamePalette, measure } from "../page/creatures.js";
 import { find, lookup, setLibrary } from "../page/library.js";
 import { FEET_Y, FIGURE_PX, drawStickman, figurePx, fitOf, hipPx } from "../page/stickman.js";
 
@@ -126,4 +126,13 @@ test("flame on a humanoid: drawStickman ignores it (humanoids unchanged)", () =>
   const draw = (cv, o) => drawStickman(cv, o);
   const o = { action: "walk", phase: 0.3, eyes: "dots", expression: "neutral", color: "#123456" };
   assert.deepEqual(record(null, { ...o, flame: "high" }, draw), record(null, o, draw));
+});
+
+test("creature anchors: worked out from the shapes; skull top for hats, body top for the back, scaled to head / body", () => {
+  const cat = creatureAnchors(creature("cat")), horse = creatureAnchors(creature("horse"));
+  assert.deepEqual(cat.head_top[0].slice(0, 2), ["head", [30, -92]]);   // the round skull, not the ear tips
+  assert.deepEqual(horse.back[0].slice(0, 2), ["body", [0, -630]]);    // the body ellipse's real top
+  assert.equal(horse.back[0][2], 1);                                     // body 300 tall = the human torso
+  assert.ok(Math.abs(cat.head[0][2] - 52 / 150) < 1e-9);                // skull radius / the human's 150
+  assert.equal(creatureAnchors(creature("snake")).feet, undefined);      // no legs, no feet anchor
 });

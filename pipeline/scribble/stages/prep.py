@@ -23,7 +23,7 @@ import re
 from pathlib import Path
 from typing import NamedTuple, get_args
 
-from ..io import CREATURE_HINT, LIBRARY_FILES, atomic_write_text, custom_actions, prop_kinds
+from ..io import CREATURE_HINT, CREATURE_SLOTS, LIBRARY_FILES, atomic_write_text, custom_actions, prop_kinds
 from ..schemas import BuiltinProp, Expression, Intensity, Weather, WeatherKind, actions_with
 from .runner import StageError
 
@@ -134,7 +134,7 @@ def parse_do(arg: str, line: int, cast_ids=None, props=BUILTIN_PROPS, actions=()
 def parse_look(arg: str, line: int, looks_of=None, creatures=None) -> tuple[tuple[str, ...], str]:
     """@look <cast>[, <cast>]: <look> -> (cast ids, look name); "default" is the cast member's own look. looks_of:
     cast id -> its look names (series.json), or None to check the syntax only. creatures: io.creature_wardrobe (the
-    non-humanoids, which wear no wardrobe). Errors name the story.md line."""
+    non-humanoids and what of their wardrobe is not drawn). Errors name the story.md line."""
     def bad(msg):
         raise StageError(f"story.md line {line}: @look: {msg}")
     who_txt, sep, name = arg.partition(":")
@@ -150,7 +150,7 @@ def parse_look(arg: str, line: int, looks_of=None, creatures=None) -> tuple[tupl
         if name != "default" and name not in looks_of[w]:
             bad(f"{w} has no look {name!r} (its looks: {', '.join(['default', *looks_of[w]])}; add one under "
                 f'"looks" in its series.json cast entry'
-                + (f"; {w} is a {rig}: a look can change its colours, expression or stump, not dress it)" if rig else ")"))
+                + (f"; {w} is a {rig}: a look can change its colours, flame, stump or its {', '.join(CREATURE_SLOTS)} items)" if rig else ")"))
     return who, name
 
 

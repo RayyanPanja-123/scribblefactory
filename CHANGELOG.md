@@ -1,6 +1,12 @@
 # Changelog
 
 ## Unreleased
+- Creatures can wear wardrobe: custom headwear, face, accessory and back items, hung on points worked out from the
+  creature's own shapes (top of the skull, eyes, neck, back) and scaled to its head or body. Fit is approximate.
+  Tops, legwear, footwear, hair, facial hair and built-in hats are still refused (check-story warns, @look fails).
+  New wardrobe item `saddle` (back, brown leather, blanket, small stirrup, colorable). A creature that wears
+  nothing draws exactly as before. Note: a creature that already listed an item (the Almond Milk cat's crown) now
+  shows it when re-rendered.
 - Creatures can burn: a cast entry or look sets `flame` (off, low, high) and optionally `flame_color`. Flat tongues
   in three layers (outer, middle, core) stand on the mane, tail and every hoof, sway and flicker with the line boil,
   and the eyes glow in the core colour. `@look charro-horse: blazing` switches it on. Off or unset draws exactly as

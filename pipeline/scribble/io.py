@@ -197,19 +197,24 @@ def cast_body_problems(cast, library, extra_wardrobe=()) -> list[str]:
     return out + cast_wardrobe_problems(cast, library, extra_wardrobe)
 
 
-CREATURE_HINT = ("only humanoids wear wardrobe; use @face or @do instead, or design a creature with it drawn in "
+# the slots a creature can wear (custom items only: built-in hats are drawn for the stickman's head); keep equal to
+# engine/page/creatures.js CREATURE_SLOTS
+CREATURE_SLOTS = ("headwear", "face", "accessory", "back")
+CREATURE_HINT = (f"a creature wears only custom {', '.join(CREATURE_SLOTS)} items (no top, legwear, footwear, hair, "
+                 "facial hair or built-in hat); use @face or @do instead, or design a creature with it drawn in "
                  "(Creatures page)")
 
 
 def creature_wardrobe(cast, bodies) -> dict[str, tuple[str, dict[str | None, list[str]]]]:
     """cast id -> (rig, {look name, None for its own: ["<slot> <id>", ...]}) for each cast member whose body is not a
-    humanoid. The engine draws no wardrobe on those (engine/page/wardrobe.js), so whatever is listed is left out.
-    bodies: creature_bodies(). A plain top is every member's default (its colour paints the creature): not listed."""
+    humanoid, listing only what the engine leaves out: every slot but CREATURE_SLOTS, and built-in items. bodies:
+    creature_bodies(). A plain top is every member's default (its colour paints the creature): not listed."""
     out = {}
     for c in cast:
         rig = bodies.get(c.body, ("humanoid",))[0]
         if rig != "humanoid":
-            out[c.id] = (rig, {k: [f"{s} {w}" for s, w in worn(m) if (s, w) != ("top", "plain")]
+            out[c.id] = (rig, {k: [f"{s} {w}" for s, w in worn(m) if (s, w) != ("top", "plain")
+                                   and (s not in CREATURE_SLOTS or w in BUILTIN_WARDROBE)]
                                for k, m in [(None, c), *c.looks.items()]})
     return out
 

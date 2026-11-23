@@ -249,18 +249,19 @@ def test_spoken_sign_off_warns(tmp_path):
 
 
 def test_look_on_a_creature(tmp_path):
-    """a non-humanoid draws no wardrobe: a look that dresses it fails, one that does not (expression) passes"""
-    pdir = setup(tmp_path, "# T\n\n@cast bob, amy\n@look amy: hat\nAmy sat.\n@look amy: nap\nAmy slept.\n@look amy: wig\nAmy sat.\n")
+    """a creature wears custom headwear / face / accessory / back items only: a crown look passes, trousers fail"""
+    pdir = setup(tmp_path, "# T\n\n@cast bob, amy\n@look amy: pants\nAmy sat.\n@look amy: hat\nAmy sat.\n@look amy: wig\nAmy sat.\n")
     f = tmp_path / "demo" / "series.json"
     s = json.loads(f.read_text(encoding="utf-8"))
     amy = next(c for c in s["cast"] if c["id"] == "amy")
-    amy.update(body="cat", headwear={"kind": "crown"}, looks={"hat": {"headwear": {"kind": "crown"}}, "nap": {"default_expression": "sleepy"}})
+    amy.update(body="cat", headwear={"kind": "crown"}, legwear={"kind": "trousers"},
+               looks={"hat": {"headwear": {"kind": "crown"}}, "pants": {"legwear": {"kind": "trousers"}}})
     f.write_text(json.dumps(s), encoding="utf-8")
     r = check_story(pdir)
     looks = {p["line"]: p["message"] for p in r["problems"] if "@look" in p["message"]}
-    assert set(looks) == {4, 8} and "look 'hat' puts on headwear crown" in looks[4] and "not dress it" in looks[8]
+    assert set(looks) == {4, 8} and "look 'pants' puts on legwear trousers" in looks[4] and "back items)" in looks[8]
     warn = [w["message"] for w in r["warnings"] if "not a humanoid" in w["message"]]
-    assert len(warn) == 2 and "its own look puts on headwear crown" in warn[0]
+    assert len(warn) == 2 and "its own look puts on legwear trousers, " in warn[0] and "crown" not in " ".join(warn)
 
 
 def test_flame_look_on_a_creature(tmp_path):

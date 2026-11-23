@@ -7,12 +7,15 @@ import { onMounted, ref, watch } from 'vue'
 import { CRW, FLAME, GX, drawCreature, measure } from '../../../engine/page/creatures.js'
 // @ts-expect-error plain JS module from the engine, no types
 import { CW, drawStickman, figurePx } from '../../../engine/page/stickman.js'
+// @ts-expect-error plain JS module from the engine, no types
+import { setLibrary } from '../../../engine/page/library.js'
 import type { CustomCreature } from '../lib/creatures'
 
 // hi: a sharper canvas for drawings shown large (model sheet)
-// flame / flameColor: the cast's flame (creatures only)
+// flame / flameColor: the cast's flame (creatures only). wear: a cast entry whose headwear / face / accessory / back
+// a creature wears (custom items, from library.wardrobe)
 const p = defineProps<{ creature: CustomCreature; action?: string; headless?: boolean; color?: string; label: string; hi?: boolean
-  flame?: string; flameColor?: string | null }>()
+  flame?: string; flameColor?: string | null; wear?: Record<string, unknown>; library?: Record<string, unknown[]> }>()
 const cv = ref<HTMLCanvasElement>()
 const error = ref('')
 const FEET = 1000, PAD = 40
@@ -25,12 +28,14 @@ function draw() {
   const humanoid = p.creature.rig === 'humanoid'
   const card = Object.assign(document.createElement('canvas'), { width: humanoid ? CW : CRW, height: 1024 })
   try {
+    if (p.library) setLibrary(p.library)
     const def = structuredClone(p.creature) // a fresh object: measure() caches per definition
     const a = p.action ?? 'idle'
     const o = {
       seed: `preview:${def.id}`, boil: 0, t: 0.15, action: a, phase: a === 'walk' || a === 'run' ? 0.25 : 0, lid: 0,
       mouth: a === 'talk' ? 0.8 : 0, breath: 0, facing: humanoid ? 'camera' : 'right', headless: p.headless,
       top: { color: p.color ?? '#c98a4b' }, flame: p.flame, flame_color: p.flameColor, mood: { k: 1, bounce: 0, shake: 0.5 }, eat: { k: 1, chew: 0.5 }, props: [],
+      ...(humanoid ? {} : { headwear: p.wear?.headwear, face: p.wear?.face, accessory: p.wear?.accessory, back: p.wear?.back }),
     }
     if (humanoid) drawStickman(card, { ...o, color: o.top.color, eyes: 'dots', expression: 'neutral', build: def.build })
     else drawCreature(card, def, o)
@@ -46,7 +51,7 @@ function draw() {
   }
 }
 onMounted(draw)
-watch(() => [p.creature, p.action, p.headless, p.color, p.flame, p.flameColor], draw, { deep: true })
+watch(() => [p.creature, p.action, p.headless, p.color, p.flame, p.flameColor, p.wear, p.library], draw, { deep: true })
 </script>
 
 <template>

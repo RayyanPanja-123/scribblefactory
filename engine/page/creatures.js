@@ -16,6 +16,7 @@ import { lookup } from "./library.js";
 import { rng } from "./rng.js";
 import { CH, FEET_Y, drawProp, jitter, paintVolume, wobble } from "./stickman.js";
 import { INK, STYLE } from "./style.js";
+import { layerFill, layerPoints, wearing } from "./wardrobe.js";
 
 export const CRW = 1024, GX = CRW / 2;
 const TAU = Math.PI * 2, deg = (d) => (d * Math.PI) / 180;
@@ -231,6 +232,51 @@ function drawShapes(p, shapes, T, col, boil, seed, light = 1) {
 
 const paintShape = (g, pts, light) => paintVolume(g, pts, light, STYLE.creature);
 
+// ---- wardrobe on creatures: custom items of these slots only, hung on anchors worked out from the shapes ----
+export const CREATURE_SLOTS = new Set(["headwear", "face", "accessory", "back"]); // keep equal to pipeline io.CREATURE_SLOTS
+const half = (s) => { // [x, y] half-extent of a circle / ellipse, its rotation included
+  const ry = s.ry ?? s.r, a = deg(s.rot || 0);
+  return [Math.hypot(s.r * Math.cos(a), ry * Math.sin(a)), Math.hypot(s.r * Math.sin(a), ry * Math.cos(a))];
+};
+const box = (shapes) => { // [x0, y0, x1, y1] of shapes in their own space (shapeX / shapeY are rougher on ellipses)
+  const pts = shapes.flatMap((s) => {
+    if (s.shape !== "circle" && s.shape !== "ellipse") return s.pts;
+    const [[x, y]] = s.pts, [hx, hy] = half(s);
+    return [[x - hx, y - hy], [x + hx, y + hy]];
+  });
+  return [Math.min(...pts.map((q) => q[0])), Math.min(...pts.map((q) => q[1])), Math.max(...pts.map((q) => q[0])), Math.max(...pts.map((q) => q[1]))];
+};
+/** the head's skull: its biggest circle / ellipse (else the head's box): { c: centre, top, R: radius } */
+function skull(shapes) {
+  const round = shapes.filter((s) => s.shape === "circle" || s.shape === "ellipse");
+  if (round.length) {
+    const s = round.reduce((a, b) => (b.r * (b.ry ?? b.r) > a.r * (a.ry ?? a.r) ? b : a)), [cx, cy] = s.pts[0];
+    return { c: [cx, cy], top: [cx, cy - half(s)[1]], R: Math.sqrt(s.r * (s.ry ?? s.r)) };
+  }
+  const [x0, y0, x1, y1] = box(shapes);
+  return { c: [(x0 + x1) / 2, (y0 + y1) / 2], top: [(x0 + x1) / 2, y0], R: (x1 - x0) / 2 };
+}
+/** where wardrobe layers hang on a creature at rest: anchor -> [[part ("body" or a part), local point, scale]].
+ *  Head anchors scale with the skull (the default human's head radius is 150), body anchors with the body's height
+ *  (the human torso is 300 tall). Anchors a creature has no part for are left out; their layers are not drawn. */
+export function creatureAnchors(def) {
+  const P = def.parts, J = def.joints, [x0, y0, x1, y1] = box(P.body), bs = (y1 - y0) / 300;
+  const mid = [(x0 + x1) / 2, (y0 + y1) / 2], out = {
+    neck: [["body", J.neck || [x1, y0], bs]], back: [["body", [mid[0], y0], bs]],
+    chest: [["body", mid, bs]], waist: [["body", mid, bs]], hips: [["body", mid, bs]],
+  };
+  if (P.tail) out.tail = [["tail", farthest(P.tail), bs]];
+  const legs = Object.keys(P).filter((k) => k === "leg" || k === "leg_front" || k === "leg_back");
+  if (legs.length) out.feet = legs.map((k) => [k, [0, lowest(P[k])], bs]);
+  const sk = P.head && skull(P.head), hs = sk ? sk.R / 150 : bs, hp = P.head ? "head" : "body";
+  if (sk) Object.assign(out, { head: [["head", sk.c, hs]], head_top: [["head", sk.top, hs]] });
+  const { eye, mouth } = def.face || {};
+  if (eye) out.eyes = [[hp, eye, hs]];
+  if (mouth) out.mouth = [[hp, mouth, hs]];
+  if (eye || mouth) out.face = [[hp, eye && mouth ? [(eye[0] + mouth[0]) / 2, (eye[1] + mouth[1]) / 2] : eye || mouth, hs]];
+  return out;
+}
+
 // ---- flame (cast flame: low | high, flame_color): tongues on the mane, tail and hooves, eyes glowing ----
 // per level: tongue height (fraction of the creature's height) and tongues on the mane / tail / each hoof
 export const FLAME = { low: { h: 0.09, mane: 3, tail: 3, hoof: 2 }, high: { h: 0.16, mane: 5, tail: 5, hoof: 3 },
@@ -265,7 +311,8 @@ const along = (q, n, u0 = 0.15, u1 = 1) => Array.from({ length: n }, (_, i) => {
 
 /** o: drawStickman options (top.color = $main, top.accent_color = $accent, else the creature's accent), plus
  *  headless. Uses action, phase, t, boil, breath, mouth, lid, facing, seated, buckle, stagger, mood, wave, pointK,
- *  eat, reach, props (biped hands), flame (low | high, else none) and flame_color; ignores expression and costume. */
+ *  eat, reach, props (biped hands), flame (low | high, else none), flame_color and the CREATURE_SLOTS wardrobe
+ *  (headwear, face, accessory, back: custom items on creatureAnchors); ignores the rest of the costume. */
 export function drawCreature(canvas, def, o) {
   const g = canvas.getContext("2d");
   g.setTransform(1, 0, 0, 1, 0, 0);
@@ -297,9 +344,26 @@ export function drawCreature(canvas, def, o) {
     const R = rng(o.seed, "flame", key);
     for (const q of pts) tongue(p, T(q), lvl.h * m.top * scale, pal, o.t || 0, R, fb);
   };
+  // wardrobe (CREATURE_SLOTS only): its own rng, so a creature that wears nothing draws exactly as before
+  const W = wearing(o).filter((w) => CREATURE_SLOTS.has(w.slot)), wcos = W.length && rng(o.seed, "wardrobe", o.boil);
+  const A = W.length && creatureAnchors(def), turn = { head: k.head, tail: k.tail };
+  const wear = (behind) => {
+    for (const w of W) for (const L of w.item.layers) {
+      if (!!L.behind !== behind || (L.when && !L.when.includes(o.expression || "neutral"))) continue;
+      for (const [part, q, s] of A[L.anchor] || []) {
+        if (part === "head" && o.headless) continue;
+        const leg = legs.find(([l]) => l === part), a = leg ? k.legs[leg[1]] : turn[part] || 0;
+        const T = part === "body" ? body : leg ? legAt(part, a) : at(part, a);
+        const fr = { at: T(q), sx: s, sy: s, ang: -(deg(a) + (leg ? 0 : pa)), m: 1 };
+        const pts = jitter(layerPoints(L, fr), wcos, 1.2), fill = layerFill(L, w.color, w.accent);
+        if (L.shape === "line") p.stroke(pts, L.width ?? 8, fill || INK); else p.poly(pts, fill, L.width ?? 8);
+      }
+    }
+  };
   const hooves = (part, T, key) => lvl && fire(T, along([0, lowest(parts[part]) - 12], lvl.hoof, 1, 1)
     .map(([x, y], i) => [x + (i - (lvl.hoof - 1) / 2) * 20, y]), 0.7, key);
 
+  if (W.length) wear(true); // behind layers (a cape's back) under everything
   if (legsShown) for (const [part, i] of legs) far(() => drawShapes(p, parts[part], legAt(part, k.legs[i + 1], FAR.dx), col, boil, `${o.seed}:${part}`, lt));
   if (legsShown) for (const [part, i] of legs) hooves(part, legAt(part, k.legs[i + 1], FAR.dx), `${part}:far`);
   if (parts.arm) far(() => drawArm(1, FAR.dx));
@@ -316,6 +380,7 @@ export function drawCreature(canvas, def, o) {
   if (parts.wing) drawShapes(p, parts.wing, at("wing", k.wing), col, boil, `${o.seed}:wing`, lt);
   if (parts.arm) drawArm(0, 0);
   if (!o.headless && def.face) face(parts.head ? at("head", k.head) : body);
+  if (W.length) wear(false);
 
   function drawArm(i, dx) {
     const T = at("arm", k.arms[i], dx);

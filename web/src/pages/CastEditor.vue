@@ -65,7 +65,10 @@ const creatures = computed(() => allCreatures(data.value?.creatures))
 const creature = (body: string) => creatures.value.find((c) => c.id === body)
 const items = computed(() => wardrobeOptions(data.value?.wardrobe))
 const custom = (id: string) => data.value?.wardrobe.custom.find((w) => w.id === id)
-const ofSlot = (s: Slot) => items.value.filter((w) => w.slot === s)
+const ofSlot = (s: Slot) => items.value.filter((w) => w.slot === s && (humanoid.value || s === 'top' || custom(w.id)))
+/** a creature wears custom items of these slots only (engine/page/creatures.js CREATURE_SLOTS) */
+const CREATURE_SLOTS: Slot[] = ['headwear', 'face', 'accessory', 'back']
+const shown = (slots: Slot[]) => slots.filter((s) => humanoid.value || CREATURE_SLOTS.includes(s))
 /** null: no colour control (a custom item the cast can't recolour) */
 const defaultColor = (id: string) => { const w = custom(id); return !w ? '#333333' : w.colorable ? w.default_color : null }
 /** null: no accent control (a built-in, a fixed item, or one with no "$accent" layer) */
@@ -303,7 +306,7 @@ const swatch = 'mt-1 block h-10 w-14 shrink-0 cursor-pointer rounded-md'
         <!-- head, body, legs: wardrobe slots -->
         <template v-for="t in (['head', 'body', 'legs'] as const)" :key="t">
           <div v-show="tab === t" :id="`cast-panel-${t}`" role="tabpanel" :aria-labelledby="`cast-tab-${t}`" class="space-y-4">
-            <p v-if="!humanoid" class="text-xs text-muted">This body is not a humanoid: it ignores the wardrobe and draws in the top colour (main) and accent.</p>
+            <p v-if="!humanoid" class="text-xs text-muted">This body is a creature: it draws in the top colour (main) and accent, and wears only custom headwear, face, accessory and back items (fitted to its head and body, roughly).</p>
 
             <div v-if="t === 'body'" class="grid gap-4 sm:grid-cols-[1fr_auto_auto_6rem]">
               <label class="block text-xs font-semibold text-muted">Top
@@ -328,7 +331,7 @@ const swatch = 'mt-1 block h-10 w-14 shrink-0 cursor-pointer rounded-md'
               </label>
             </div>
 
-            <div v-for="s in SLOTS_IN[t]!.one" :key="s" class="flex items-end gap-3">
+            <div v-for="s in shown(SLOTS_IN[t]!.one)" :key="s" class="flex items-end gap-3">
               <label class="block min-w-0 flex-1 text-xs font-semibold text-muted">{{ SLOT_LABEL[s] }}
                 <select v-model="draft.one[s].id" :class="field" @change="pick(draft.one[s])">
                   <option value="">none</option>
@@ -344,7 +347,7 @@ const swatch = 'mt-1 block h-10 w-14 shrink-0 cursor-pointer rounded-md'
                 @input="draft.one[s].accent = ($event.target as HTMLInputElement).value" />
             </div>
 
-            <div v-for="s in SLOTS_IN[t]!.many" :key="s">
+            <div v-for="s in shown(SLOTS_IN[t]!.many)" :key="s">
               <span class="block text-xs font-semibold text-muted">{{ SLOT_LABEL[s] }} (up to 3)</span>
               <div v-for="(w, i) in draft.many[s]" :key="i" class="mt-1 flex items-end gap-3">
                 <select v-model="w.id" :class="field" class="flex-1" :aria-label="`${SLOT_LABEL[s]} ${i + 1}`" @change="pick(w)">
@@ -421,7 +424,7 @@ const swatch = 'mt-1 block h-10 w-14 shrink-0 cursor-pointer rounded-md'
           <WardrobePreview v-if="humanoid && entry" class="h-80" :wear="entry" :library="library" :build="creature(base.body)?.build"
             :expression="draft.expression" :seed="`${slug}:${id}`" :label="`${base.name}${active ? `, look ${active}` : ''}, live preview`" />
           <CreaturePreview v-else-if="creature(base.body)" class="h-80" :creature="creature(base.body)!" :color="draft.top.color" :headless="draft.headless"
-            :flame="draft.flame" :flame-color="draft.flameColor" :label="`${base.name}${active ? `, look ${active}` : ''}, live preview`" />
+            :flame="draft.flame" :flame-color="draft.flameColor" :wear="entry" :library="library" :label="`${base.name}${active ? `, look ${active}` : ''}, live preview`" />
           <div v-else class="drawing grid h-80 place-items-center rounded-md p-4 text-center text-sm text-muted">No live preview for this body: save and render to see it.</div>
           <figcaption class="mt-2 text-center text-xs text-muted">Live preview (idle){{ active ? `: look ${active}` : '' }}</figcaption>
         </figure>
