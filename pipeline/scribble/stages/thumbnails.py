@@ -11,11 +11,12 @@ from pathlib import Path
 
 from ..io import atomic_write_bytes, atomic_write_text
 from ..schemas import SeriesModel, Shot, StoryModel
+from .prep import clean_markdown, strip_directives
 from .render import frame_path
 from .runner import StageError
 from .validate import load_model
 
-INPUTS = ["story.json", "frames/chunks", "script-for-tts.txt"]
+INPUTS = ["story.json", "frames/chunks", "story.md"]
 OUTPUTS = ["thumbs/thumb-1.png", "thumbs/thumb-2.png", "thumbs/thumb-3.png", "upload.md"]
 HASHTAGS = "#shorts #stickman #history"
 EXPRESSIVE = {"surprised", "angry", "react"}  # expressions, plus the react action
@@ -70,10 +71,10 @@ def run(part_dir: Path) -> None:
     if upload.exists():
         print("upload.md exists, kept")
         return
-    script = part_dir / "script-for-tts.txt"
+    script = part_dir / "story.md"  # the narration as written, not script-for-tts.txt (respelled for the voice)
     if not script.exists():
-        raise StageError("script-for-tts.txt not found (run prep)")
+        raise StageError("story.md not found")
     series = load_model(part_dir.parent / "series.json", SeriesModel)
     number = int(part_dir.name.removeprefix("part-"))
-    atomic_write_text(upload, upload_text(series, number, script.read_text(encoding="utf-8")))
+    atomic_write_text(upload, upload_text(series, number, clean_markdown(strip_directives(script.read_text(encoding="utf-8")))))
     print("upload.md written")

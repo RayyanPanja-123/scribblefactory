@@ -25,7 +25,8 @@ import re
 from pathlib import Path
 from typing import NamedTuple, get_args
 
-from ..io import CREATURE_HINT, CREATURE_SLOTS, LIBRARY_FILES, atomic_write_text, custom_actions, prop_kinds
+from ..io import (CREATURE_HINT, CREATURE_SLOTS, LIBRARY_FILES, atomic_write_text, custom_actions, load_series,
+                  prop_kinds)
 from ..schemas import BuiltinProp, Expression, Intensity, Weather, WeatherKind, actions_with
 from .runner import StageError
 
@@ -309,6 +310,25 @@ def clean_markdown(md: str) -> str:
     return "\n\n".join(p for p in paragraphs if p)
 
 
+def respell(text: str, pronunciations: dict[str, str]) -> str:
+    """the voice's text: each whole word in pronunciations (case-sensitive) swapped for its respelling, punctuation
+    kept ("Negro." -> "Neh-groh.")"""
+    for word, say in pronunciations.items():
+        text = re.sub(rf"(?<![\w-]){re.escape(word)}(?![\w-])", lambda _: say, text)
+    return text
+
+
+def pronunciations(part_dir: Path) -> dict[str, str]:
+    """the series' voice.pronunciations ({} without a series.json)"""
+    f = part_dir.parent / "series.json"
+    return load_series(f).voice.pronunciations if f.is_file() else {}
+
+
+def extra_inputs(part_dir: Path) -> dict:
+    """the only series.json field prep uses (hashed instead of the whole file: approvals, new parts don't count)"""
+    return {"pronunciations": pronunciations(part_dir)}
+
+
 def estimate_seconds(text: str) -> float:
     return len(text.split()) / WPM * 60
 
@@ -322,7 +342,7 @@ def run(part_dir: Path) -> None:
     text = clean_markdown(strip_directives(md))
     if not text:
         raise StageError("story.md has no body text (only a title?)")
-    atomic_write_text(part_dir / "script-for-tts.txt", text + "\n")
+    atomic_write_text(part_dir / "script-for-tts.txt", respell(text, pronunciations(part_dir)) + "\n")
     secs = estimate_seconds(text)
     print(f"words: {len(text.split())}, estimated duration: {secs:.1f} s at {WPM} wpm")
     if secs > MAX_SECONDS:

@@ -23,7 +23,7 @@ from .schemas import HAND_RIGS
 from .stages.finish import MAX_RUNTIME_S, MIN_RUNTIME_S
 from .stages.prep import (DO_CAR, FX_LIGHTNING, FX_MODES, MAX_LIGHTNING, TWIST_PREFIX, clean_markdown, parse_do,
                           parse_face, parse_hold, parse_lightning, parse_look, parse_ride, parse_weather, ride,
-                          strip_directives, RIDE_ACTIONS)
+                          respell, strip_directives, RIDE_ACTIONS)
 from .stages.runner import StageError
 from .stages.shots import (ACTION_FACE, CAR_MODES, CAR_SEATS, DEFAULT_CAST_SIZE, EXPRESSIONS, MAX_CAST, MAX_DOGS, MAX_ON_STAGE,
                            MAX_RUNNERS, parse_crowd, parse_crowd_look, parse_crowd_weapon, token)
@@ -299,9 +299,10 @@ def check_story(part_dir: Path) -> dict:
     if not words:
         bad(None, "story.md has no body text (only a title?)")
     old_script = part_dir / "script-for-tts.txt"
-    if old_script.is_file() and (old := old_script.read_text(encoding="utf-8").split()) != words:
+    said = respell(script, series.voice.pronunciations).split()  # what prep writes for the voice
+    if old_script.is_file() and (old := old_script.read_text(encoding="utf-8").split()) != said:
         voice = (part_dir / "voice.mp3").is_file()
-        for line, msg in _changed_words(old, words, _words_by_line(md)):
+        for line, msg in _changed_words(old, said, _words_by_line(md)):
             if voice:
                 bad(line, f"changed since voice.mp3 was recorded: {msg} (re-record the voice, or undo the edit)")
             else:

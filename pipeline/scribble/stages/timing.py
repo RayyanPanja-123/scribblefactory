@@ -12,7 +12,7 @@ from .. import ff
 from ..io import atomic_write_json
 from ..schemas import PhrasesModel
 from .import_check import silences
-from .prep import WPM
+from .prep import WPM, clean_markdown, strip_directives
 from .runner import StageError
 from ..validate import SENTENCE_END
 
@@ -101,6 +101,14 @@ def align(script_words: list[str], heard: list[tuple[str, float, float]], durati
         words.append({"text": text, "start": s, "end": e})
         prev = e
     return words, matched
+
+
+def caption_words(words: list[dict], story_words: list[str]) -> list[dict]:
+    """words timed on the voice's script, with story.md's text at the same position (a respelled word is captioned
+    as written). Different word counts: kept as they are."""
+    if len(story_words) != len(words):
+        return words
+    return [{**w, "text": t} for w, t in zip(words, story_words)]
 
 
 def _capitalised(word: str) -> bool:
@@ -233,6 +241,9 @@ def run(part_dir: Path) -> None:
 
     heard, duration = transcribe(voice)
     words, matched = align(script_words, heard, duration)
+    story = part_dir / "story.md"
+    if story.exists():  # voice.pronunciations: the voice says the respelling, captions show story.md's word
+        words = caption_words(words, clean_markdown(strip_directives(story.read_text(encoding="utf-8"))).split())
     quiet = silences(voice, duration, min_len=GAP_KEEP)
     words = extend_last(words, quiet, duration)
     phrases = split_phrases(words)  # on the real pauses: clamped ones would no longer end a phrase

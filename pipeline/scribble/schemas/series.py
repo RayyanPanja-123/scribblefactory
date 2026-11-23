@@ -13,6 +13,18 @@ class Voice(Strict):
     provider: str = "freetts.ai"
     voice_name: str
     notes: str = ""
+    # word -> respelling for the voice only (script-for-tts.txt); captions keep the word. One token each, so the
+    # voice keeps story.md's word count: e.g. {"Negro": "Neh-groh"}
+    pronunciations: dict[str, str] = {}
+
+    @field_validator("pronunciations")
+    @classmethod
+    def _one_token(cls, v):
+        for word, say in v.items():
+            if len(word.split()) != 1 or len(say.split()) != 1:
+                raise ValueError(f"pronunciations {word!r}: {say!r}: word and respelling must be one token each "
+                                 "(hyphens ok, no spaces)")
+        return v
 
 
 class Style(Strict):
