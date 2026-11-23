@@ -25,6 +25,27 @@ LIBRARY_MODELS = {"props": PropLibrary, "sets": SetLibrary, "objects": WorldObje
 REPLACE_RETRIES = 5
 
 
+def storage_root(library) -> Path:
+    """where every series folder lives: library/database/storage/<slug>/<part>"""
+    return Path(library) / "database" / "storage"
+
+
+def library_of(path) -> Path:
+    """the library a part folder (or a file in one) belongs to: the folder above database/storage. A part folder
+    outside database/storage (a bare one in tests) has the library two levels up, the layout before storage."""
+    p = Path(path)
+    for q in (p, *p.parents):
+        if q.name == "storage" and q.parent.name == "database":
+            return q.parent.parent
+    return p.parents[1] if p.name.startswith("part-") else p.parents[2]
+
+
+def series_dirs(library) -> list[Path]:
+    """every series folder of the library (a folder holding series.json), by slug"""
+    root = storage_root(library)
+    return sorted(d for d in root.iterdir() if (d / "series.json").is_file()) if root.is_dir() else []
+
+
 def atomic_write_json(path, data) -> None:
     atomic_write_text(path, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
 
@@ -138,7 +159,7 @@ def _remove(library, file: str, lib, field: str, item_id: str, *blockers) -> Non
 
 def _cast_with(library, wants) -> list[tuple[Path, str]]:
     """(series.json, cast id) for every cast member, in every series of the library, that wants(member)"""
-    return [(f, c.id) for f in sorted(Path(library).glob("*/series.json")) for c in load_series(f).cast if wants(c)]
+    return [(f, c.id) for f in sorted(storage_root(library).glob("*/series.json")) for c in load_series(f).cast if wants(c)]
 
 
 def _cast_names(pairs) -> list[str]:
@@ -148,7 +169,7 @@ def _cast_names(pairs) -> list[str]:
 
 def _stories_with(library, wants) -> list[str]:
     """"<slug>/<part id>" for every story.md in the library with a line (stripped) that wants(line)"""
-    return [f"{f.parent.parent.name}/{f.parent.name}" for f in sorted(Path(library).glob("*/part-*/story.md"))
+    return [f"{f.parent.parent.name}/{f.parent.name}" for f in sorted(storage_root(library).glob("*/part-*/story.md"))
             if any(wants(line.strip()) for line in f.read_text(encoding="utf-8").splitlines())]
 
 

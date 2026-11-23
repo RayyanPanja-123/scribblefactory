@@ -58,7 +58,7 @@ def tone(path, amp):
 @pytest.fixture(scope="module")
 def template(tmp_path_factory):
     lib = tmp_path_factory.mktemp("tpl")
-    sd = lib / "demo"
+    sd = lib / "database" / "storage" / "demo"
     pd = sd / "part-01"
     (pd / "frames" / "chunks").mkdir(parents=True)
     (pd / "audio").mkdir()
@@ -89,7 +89,7 @@ def lib(template, tmp_path, monkeypatch):
 
 
 def pdir(lib):
-    return lib / "demo" / "part-01"
+    return lib / "database" / "storage" / "demo" / "part-01"
 
 
 def cli(lib, *args):
@@ -224,7 +224,7 @@ def test_captions_off(lib, monkeypatch):
     monkeypatch.setattr(finish, "_ffmpeg", lambda *a: calls.append(a) or real(*a))
     (pdir(lib) / "captions.ass").write_text("stale", encoding="utf-8")
     assert cli(lib, "set-captions", "demo", "off") == 0
-    assert load_series(lib / "demo" / "series.json").style.captions is False
+    assert load_series(lib / "database" / "storage" / "demo" / "series.json").style.captions is False
     assert stage(lib, "finish") == 0
     encode = next(a for a in calls if "libx264" in a)
     assert not any("subtitles=" in str(x) for x in encode)
@@ -377,7 +377,7 @@ def test_fx_deterministic():
 def test_finish_reruns_only_for_what_it_uses(lib, capsys):
     assert stage(lib, "finish") == 0
     first = (pdir(lib) / "captions.ass").read_bytes()
-    sf = lib / "demo" / "series.json"
+    sf = lib / "database" / "storage" / "demo" / "series.json"
     series = load_series(sf)
     series.parts.append("part-03")  # a new part ...
     save_series(sf, series)

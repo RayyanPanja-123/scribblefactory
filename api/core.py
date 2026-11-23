@@ -8,7 +8,7 @@ from pathlib import Path
 from fastapi import HTTPException
 
 from pipeline.scribble import cli
-from pipeline.scribble.io import load_part, load_series
+from pipeline.scribble.io import load_part, load_series, series_dirs, storage_root
 from pipeline.scribble.schemas import Stages
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -45,8 +45,7 @@ def part_path(slug: str, part: str) -> Path:
 
 
 def all_series() -> list[Path]:
-    root = lib()
-    return sorted(d for d in root.iterdir() if (d / "series.json").is_file()) if root.is_dir() else []
+    return series_dirs(lib())
 
 
 def du(path: Path) -> int:

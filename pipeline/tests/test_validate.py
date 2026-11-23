@@ -180,7 +180,7 @@ def test_schema_rejects(mutate):
 @pytest.fixture
 def part(tmp_path):
     """tmp_path is the library: <tmp>/office-nap/{series.json, part-01/}."""
-    sd = tmp_path / "office-nap"
+    sd = tmp_path / "database" / "storage" / "office-nap"
     d = sd / "part-01"
     d.mkdir(parents=True)
     shutil.copy(FIX / "series.json", sd / "series.json")
@@ -191,7 +191,7 @@ def part(tmp_path):
 
 
 def run_validate(part):
-    return main(["run", "office-nap", "part-01", "--stage", "validate", "--library", str(part.parent.parent)])
+    return main(["run", "office-nap", "part-01", "--stage", "validate", "--library", str(part.parents[3])])
 
 
 def test_stage_passes(part, capsys):

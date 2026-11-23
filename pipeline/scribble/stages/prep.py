@@ -25,7 +25,7 @@ import re
 from pathlib import Path
 from typing import NamedTuple, get_args
 
-from ..io import (CREATURE_HINT, CREATURE_SLOTS, LIBRARY_FILES, atomic_write_text, custom_actions, load_series,
+from ..io import (CREATURE_HINT, CREATURE_SLOTS, LIBRARY_FILES, atomic_write_text, custom_actions, library_of, load_series,
                   prop_kinds)
 from ..schemas import BuiltinProp, Expression, Intensity, Weather, WeatherKind, actions_with
 from .runner import StageError
@@ -338,7 +338,7 @@ def run(part_dir: Path) -> None:
     if not story.exists():
         raise StageError("story.md not found")
     md = story.read_text(encoding="utf-8")
-    check_do(md, prop_kinds(part_dir.parent.parent), custom_actions(part_dir.parent.parent))
+    check_do(md, prop_kinds(library_of(part_dir)), custom_actions(library_of(part_dir)))
     text = clean_markdown(strip_directives(md))
     if not text:
         raise StageError("story.md has no body text (only a title?)")

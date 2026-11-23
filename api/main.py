@@ -30,7 +30,7 @@ from api.jobs import JOBS, busy, check_free, check_no_jobs, load_jobs
 from api.models import Health, Notification, Overview, PartDetail, SeriesCard, SeriesDetail
 from api.settings_routes import drop_ai_settings
 from pipeline.scribble import cli, gallery, package, settings, storycheck
-from pipeline.scribble.io import (atomic_write_json, atomic_write_text, load_part, load_series, prop_kinds,
+from pipeline.scribble.io import (atomic_write_json, storage_root, atomic_write_text, load_part, load_series, prop_kinds,
                                   save_series, unknown_cast_props, cast_body_problems, cast_files,
                                   cast_render_current)
 from pipeline.scribble.schemas import CastMember, PartModel, SeriesModel, Slug, Stages, utcnow
@@ -216,7 +216,7 @@ def media(slug: str, path: str):
         TypeAdapter(Slug).validate_python(slug)
     except ValidationError:
         raise HTTPException(404, "not found")
-    root = (lib() / slug).resolve()
+    root = (storage_root(lib()) / slug).resolve()
     f = (root / path).resolve()
     if not f.is_relative_to(root) or f.suffix.lower() not in MEDIA_TYPES or not f.is_file():
         raise HTTPException(404, "not found")

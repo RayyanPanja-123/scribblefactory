@@ -34,7 +34,7 @@ def lib(tmp_path, monkeypatch):
     assert cli(["new-series", "demo", "--title", "Demo"]) == 0
     assert cli(["cast-add", "demo", "bob", "--name", "Bob", "--color", "#ff0000"]) == 0
     assert cli(["new-part", "demo", "--title", "Pilot"]) == 0
-    d = tmp_path / "demo" / "part-01"
+    d = tmp_path / "database" / "storage" / "demo" / "part-01"
     (d / "stills-sheet.png").write_bytes(b"sheet")
     (d / "final.mp4").write_bytes(bytes(range(256)) * 4)
     (d / "qa.json").write_text('{"ok": true, "checks": {}}', encoding="utf-8")
@@ -50,7 +50,7 @@ def client(lib):
 
 
 def finish_done(lib):
-    f = lib / "demo" / "part-01" / "part.json"
+    f = lib / "database" / "storage" / "demo" / "part-01" / "part.json"
     p = load_part(f)
     p.stages.finish.status = "done"
     save_part(f, p)
@@ -118,7 +118,7 @@ def test_part_detail(client):
 def test_media_versions_change_on_rerender(client, lib):
     """a re-rendered file gets a new ?v, and media is served no-cache: the browser never shows a stale picture"""
     import os
-    sheet = lib / "demo" / "part-01" / "stills-sheet.png"
+    sheet = lib / "database" / "storage" / "demo" / "part-01" / "stills-sheet.png"
     v1 = client.get(P).json()["versions"]
     assert {"stills-sheet.png", "final.mp4"} <= v1.keys() and "voice.mp3" not in v1
     os.utime(sheet, ns=(v1["stills-sheet.png"] + 10**9,) * 2)  # rendered again a second later
@@ -129,7 +129,7 @@ def test_media_versions_change_on_rerender(client, lib):
 # ---------------- media ----------------
 
 def test_media_allowlist_and_traversal(client, lib):
-    (lib / "demo" / "secret.txt").write_text("no")
+    (lib / "database" / "storage" / "demo" / "secret.txt").write_text("no")
     (lib / "outside.json").write_text("{}")
     assert client.get("/api/media/demo/part-01/stills-sheet.png").content == b"sheet"
     assert client.get("/api/media/demo/secret.txt").status_code == 404
@@ -159,7 +159,7 @@ def test_approve_gates(client, lib):
 def test_approve_cast(client, lib):
     r = client.post("/api/series/demo/approve-cast", json={"cast_id": "bob"})
     assert r.status_code == 409 and "no render" in r.json()["detail"]
-    rendered(lib / "demo")
+    rendered(lib / "database" / "storage" / "demo")
     r = client.post("/api/series/demo/approve-cast", json={"cast_id": "zed"})
     assert r.status_code == 409 and "not in demo" in r.json()["detail"]
     r = client.post("/api/series/demo/approve-cast", json={"cast_id": "bob"})
@@ -167,7 +167,7 @@ def test_approve_cast(client, lib):
 
 
 def test_edit_cast_needs_that_members_rerender(client, lib):
-    rendered(lib / "demo")
+    rendered(lib / "database" / "storage" / "demo")
     client.post("/api/series/demo/approve-cast", json={"cast_id": "bob"})
     detail = client.get("/api/series/demo").json()
     bob, render = detail["series"]["cast"][0], detail["cast"]["bob"]
@@ -179,14 +179,14 @@ def test_edit_cast_needs_that_members_rerender(client, lib):
     assert not client.get("/api/series/demo").json()["cast"]["bob"]["current"]
     r = client.post("/api/series/demo/approve-cast", json={"cast_id": "bob"})
     assert r.status_code == 409 and "cast-sheet demo bob" in r.json()["detail"]  # stale render: no approving
-    rendered(lib / "demo")  # re-rendered
+    rendered(lib / "database" / "storage" / "demo")  # re-rendered
     assert client.post("/api/series/demo/approve-cast", json={"cast_id": "bob"}).status_code == 200
     assert client.put("/api/series/demo/cast/bob", json={**bob, "hair": "crown"}).status_code == 409  # wrong slot
     assert client.put("/api/series/demo/cast/zed", json=bob).status_code == 404
 
 
 def test_import_cast_updates_by_id_and_appends(client, lib):
-    rendered(lib / "demo")
+    rendered(lib / "database" / "storage" / "demo")
     client.post("/api/series/demo/approve-cast", json={"cast_id": "bob"})
     bob = client.get("/api/series/demo").json()["series"]["cast"][0]
     r = client.put("/api/series/demo/cast", json={"cast": [{**bob, "name": "Robert"}, {"id": "ann", "name": "Ann", "color": "#00ff00"}]})
@@ -214,7 +214,7 @@ def test_add_cast(client, lib):
 
 def test_delete_cast(client, lib):
     client.post("/api/series/demo/cast", json={"cast": [{"id": "ann", "name": "Ann", "color": "#00ff00"}]})
-    (lib / "demo" / "part-01" / "story.md").write_text("# Pilot\n\n@set street\n@cast bob\nAnnie met bob.\n", encoding="utf-8")
+    (lib / "database" / "storage" / "demo" / "part-01" / "story.md").write_text("# Pilot\n\n@set street\n@cast bob\nAnnie met bob.\n", encoding="utf-8")
     r = client.delete("/api/series/demo/cast/bob")
     assert r.status_code == 409 and "part-01" in r.json()["detail"]
     assert [c["id"] for c in client.delete("/api/series/demo/cast/ann").json()["cast"]] == ["bob"]  # "Annie" is narration
@@ -237,14 +237,14 @@ def test_mark_posted(client):
 def test_upload_md(client, lib):
     r = client.put(f"{P}/upload.md", json={"text": "New title\n#shorts\n"})
     assert r.status_code == 200 and r.json()["upload_md"] == "New title\n#shorts\n"
-    assert (lib / "demo" / "part-01" / "upload.md").read_bytes() == b"New title\n#shorts\n"
+    assert (lib / "database" / "storage" / "demo" / "part-01" / "upload.md").read_bytes() == b"New title\n#shorts\n"
 
 
 def test_story_md(client, lib):
     story = "# T\n\n@set room\nHello.\n"
     r = client.put(f"{P}/story.md", json={"text": story})
     assert r.status_code == 200 and r.json()["story_md"] == story
-    assert (lib / "demo" / "part-01" / "story.md").read_bytes() == story.encode()
+    assert (lib / "database" / "storage" / "demo" / "part-01" / "story.md").read_bytes() == story.encode()
     assert client.put("/api/series/demo/parts/part-99/story.md", json={"text": "x"}).status_code == 404
 
 
@@ -254,7 +254,7 @@ def test_create_series_and_part(client, lib):
     assert r.status_code == 200 and [c["id"] for c in r.json()["cast"]] == ["ann", "cy"]
     assert client.post("/api/series", json={"slug": "fresh", "title": "Again"}).status_code == 409
     bad = {"slug": "other", "title": "Other", "cast": [{"id": "x", "name": "X", "color": "green"}]}
-    assert client.post("/api/series", json=bad).status_code == 409 and not (lib / "other").exists()
+    assert client.post("/api/series", json=bad).status_code == 409 and not (lib / "database" / "storage" / "other").exists()
     full = {"id": "sul", "name": "Sul", "top": {"style": "suit", "color": "#1f3a68", "accent_color": "#b71c1c"},
             "headwear": {"kind": "bowler", "color": "#111111"}, "props": [{"kind": "clipboard"}],
             "approved_at": "2026-01-01T00:00:00Z"}
@@ -263,12 +263,12 @@ def test_create_series_and_part(client, lib):
     assert sul["top"]["style"] == "suit" and sul["headwear"]["kind"] == "bowler" and sul["approved_at"] is None
     bad = {"slug": "other2", "title": "O", "cast": [full, {**full, "id": "x", "headwear": {"kind": "bowler", "color": "red"}}]}
     r = client.post("/api/series", json=bad)
-    assert r.status_code == 409 and "cast #2 (x): headwear" in r.json()["detail"] and not (lib / "other2").exists()
+    assert r.status_code == 409 and "cast #2 (x): headwear" in r.json()["detail"] and not (lib / "database" / "storage" / "other2").exists()
     dup = {"slug": "other3", "title": "O", "cast": [full, full]}
     assert "unique: sul" in client.post("/api/series", json=dup).json()["detail"]
     r = client.post("/api/series/fresh/parts", json={"title": "One", "story": "# One\n\n@cast ann\nAnn ran.\n"})
     assert r.status_code == 200 and r.json()["part"]["id"] == "part-01"
-    assert (lib / "fresh" / "part-01" / "story.md").read_text(encoding="utf-8") == "# One\n\n@cast ann\nAnn ran.\n"
+    assert (lib / "database" / "storage" / "fresh" / "part-01" / "story.md").read_text(encoding="utf-8") == "# One\n\n@cast ann\nAnn ran.\n"
     assert client.post("/api/series/fresh/parts", json={}).json()["part"]["title"] == "Part 2"
     assert client.post("/api/series/nope/parts", json={}).status_code == 404
 
@@ -291,9 +291,9 @@ def test_custom_props(client, lib):
     assert client.put("/api/props/flag", json=FLAG).json()["custom"][0]["id"] == "flag"
     assert client.post("/api/series", json=hold).status_code == 200
     # a new drawing clears the holder's approval; a rename alone does not
-    s = json.loads((lib / "flags" / "series.json").read_text(encoding="utf-8"))
+    s = json.loads((lib / "database" / "storage" / "flags" / "series.json").read_text(encoding="utf-8"))
     s["cast"][0]["approved_at"] = "2026-01-01T00:00:00Z"
-    (lib / "flags" / "series.json").write_text(json.dumps(s), encoding="utf-8")
+    (lib / "database" / "storage" / "flags" / "series.json").write_text(json.dumps(s), encoding="utf-8")
     assert client.put("/api/props/flag", json={**FLAG, "name": "Banner"}).json()["cleared"] == []
     moved = {**FLAG, "shapes": [*FLAG["shapes"], {"shape": "circle", "pts": [[0, -124]], "r": 8, "fill": "#e8b923"}]}
     assert client.put("/api/props/flag", json=moved).json()["cleared"] == ["flags/ann"]
@@ -302,8 +302,8 @@ def test_custom_props(client, lib):
     r = client.delete("/api/props/flag")
     assert r.status_code == 409 and "flags/ann" in r.json()["detail"]
     s["cast"][0]["props"] = []
-    (lib / "flags" / "series.json").write_text(json.dumps(s), encoding="utf-8")
-    story = lib / "demo" / "part-01" / "story.md"
+    (lib / "database" / "storage" / "flags" / "series.json").write_text(json.dumps(s), encoding="utf-8")
+    story = lib / "database" / "storage" / "demo" / "part-01" / "story.md"
     story.write_text("# T\n\n@do bob: eat flag\nHi.\n", encoding="utf-8")
     r = client.delete("/api/props/flag")
     assert r.status_code == 409 and "demo/part-01" in r.json()["detail"]
@@ -321,7 +321,7 @@ def test_custom_sets(client, lib):
     assert client.put("/api/sets/kitchen", json={**kitchen, "id": "other"}).status_code == 409
     assert client.put("/api/sets/room", json={**kitchen, "id": "room"}).status_code == 422  # built-in name
     assert client.put("/api/sets/kitchen", json=kitchen).json()["custom"][0]["id"] == "kitchen"
-    story = lib / "demo" / "part-01" / "story.md"
+    story = lib / "database" / "storage" / "demo" / "part-01" / "story.md"
     story.write_text("# T\n\n@set kitchen\nHi.\n", encoding="utf-8")
     r = client.delete("/api/sets/kitchen")
     assert r.status_code == 409 and "demo/part-01" in r.json()["detail"]
@@ -330,7 +330,7 @@ def test_custom_sets(client, lib):
     assert client.delete("/api/sets/kitchen").status_code == 404
 
 def test_voice_upload(client, lib):
-    f = lib / "demo" / "part-01" / "voice.mp3"
+    f = lib / "database" / "storage" / "demo" / "part-01" / "voice.mp3"
     assert client.put(f"{P}/voice.mp3", content=b"not audio").status_code == 415 and not f.exists()
     r = client.put(f"{P}/voice.mp3", content=b"ID3first")
     assert r.status_code == 200 and r.json()["files"]["voice.mp3"] and f.read_bytes() == b"ID3first"
@@ -340,11 +340,11 @@ def test_voice_upload(client, lib):
 
 
 def test_clean_frames_gate(client, lib):
-    frames = lib / "demo" / "part-01" / "frames"
+    frames = lib / "database" / "storage" / "demo" / "part-01" / "frames"
     assert client.post(f"{P}/clean-frames").status_code == 409 and frames.exists()
     finish_done(lib)
     assert client.post(f"{P}/clean-frames").status_code == 200 and not frames.exists()
-    assert (lib / "demo" / "part-01" / "final.mp4").exists()
+    assert (lib / "database" / "storage" / "demo" / "part-01" / "final.mp4").exists()
 
 
 def test_busy_part_409(client, lib, monkeypatch):
@@ -403,7 +403,7 @@ def test_job_cancel_kills_tree(client, lib, monkeypatch):
         time.sleep(0.05)
     child, step_pid = map(int, out[0].split())
     # as a real render would: its stage running under the step's pid, and its lock
-    d = lib / "demo" / "part-01"
+    d = lib / "database" / "storage" / "demo" / "part-01"
     p = load_part(d / "part.json")
     p.stages.render.status, p.stages.render.pid = "running", step_pid
     save_part(d / "part.json", p)
@@ -518,7 +518,7 @@ def test_jobs_persist_and_resume_after_restart(client, lib):
 
 
 def test_startup_fails_stuck_stages_and_keeps_live_ones(client, lib, capsys):
-    f = lib / "demo" / "part-01" / "part.json"
+    f = lib / "database" / "storage" / "demo" / "part-01" / "part.json"
     p = load_part(f)
     p.stages.timing.status, p.stages.timing.pid = "running", dead_pid()
     p.stages.prep.status, p.stages.prep.pid = "running", os.getpid()  # this python process: still running
@@ -532,7 +532,7 @@ def test_startup_fails_stuck_stages_and_keeps_live_ones(client, lib, capsys):
 
 
 def test_status_command_fails_stuck_stages(lib, capsys):
-    f = lib / "demo" / "part-01" / "part.json"
+    f = lib / "database" / "storage" / "demo" / "part-01" / "part.json"
     p = load_part(f)
     p.stages.shots.status, p.stages.shots.pid = "running", dead_pid()
     save_part(f, p)
@@ -542,7 +542,7 @@ def test_status_command_fails_stuck_stages(lib, capsys):
 
 
 def test_startup_stops_orphan_render_workers(client, lib):
-    pdir = lib / "demo" / "part-01"
+    pdir = lib / "database" / "storage" / "demo" / "part-01"
     worker = subprocess.Popen(["node", "-e", "setTimeout(() => {}, 60000)"], **render_stage.GROUP)
     try:
         (pdir / "frames" / ".render.lock").write_text(f"{dead_pid()}\n{worker.pid}", encoding="utf-8")
@@ -554,7 +554,7 @@ def test_startup_stops_orphan_render_workers(client, lib):
 
 
 def test_check_story(client, lib):
-    (lib / "demo" / "part-01" / "story.md").write_text("# Pilot\n\n@set moon\nBob waved.\n", encoding="utf-8")
+    (lib / "database" / "storage" / "demo" / "part-01" / "story.md").write_text("# Pilot\n\n@set moon\nBob waved.\n", encoding="utf-8")
     r = client.get(f"{P}/check-story").json()
     assert r["ok"] is False and r["words"] == 2
     assert [(p["line"], p["message"].split(" (")[0]) for p in r["problems"]] == [
@@ -564,7 +564,7 @@ def test_check_story(client, lib):
 
 def test_approving_final_cleans_up(client, lib):
     finish_done(lib)
-    d = lib / "demo" / "part-01"
+    d = lib / "database" / "storage" / "demo" / "part-01"
     (d / "preview.mp4").write_bytes(b"p")
     r = client.post(f"{P}/approve/final")
     assert r.status_code == 200 and r.json()["approvals"]["final"]["approved_at"]
@@ -577,19 +577,19 @@ def test_delete_part(client, lib):
     assert cli(["new-part", "demo", "--title", "Two"]) == 0
     r = client.delete("/api/series/demo/parts/part-02")
     assert r.status_code == 200 and r.json()["parts"] == ["part-01"]
-    assert not (lib / "demo" / "part-02").exists()
+    assert not (lib / "database" / "storage" / "demo" / "part-02").exists()
     assert client.delete("/api/series/demo/parts/part-02").status_code == 404
-    (lib / "demo" / "part-01" / "frames" / ".render.lock").write_text(str(os.getpid()), encoding="utf-8")
+    (lib / "database" / "storage" / "demo" / "part-01" / "frames" / ".render.lock").write_text(str(os.getpid()), encoding="utf-8")
     r = client.delete(P)
     assert r.status_code == 409 and "render is running" in r.json()["detail"]
-    assert (lib / "demo" / "part-01").exists()
+    assert (lib / "database" / "storage" / "demo" / "part-01").exists()
 
 
 def test_delete_series(client, lib):
-    (lib / "demo" / "part-01" / "frames" / ".render.lock").write_text(str(os.getpid()), encoding="utf-8")
+    (lib / "database" / "storage" / "demo" / "part-01" / "frames" / ".render.lock").write_text(str(os.getpid()), encoding="utf-8")
     r = client.delete("/api/series/demo")
     assert r.status_code == 409 and "render is running" in r.json()["detail"]
-    (lib / "demo" / "part-01" / "frames" / ".render.lock").unlink()
+    (lib / "database" / "storage" / "demo" / "part-01" / "frames" / ".render.lock").unlink()
     # Windows: a folder held open by another program (an Explorer window) can't be renamed aside: 409, nothing lost
     real = os.replace
     def held(src, dst):
@@ -601,9 +601,9 @@ def test_delete_series(client, lib):
     m_replace.setattr(m.cli, "FOLDER_MOVE_TRIES", 1)
     r = client.delete("/api/series/demo")
     m_replace.undo()
-    assert r.status_code == 409 and "in use by another program" in r.json()["detail"] and (lib / "demo").exists()
+    assert r.status_code == 409 and "in use by another program" in r.json()["detail"] and (lib / "database" / "storage" / "demo").exists()
     assert client.delete("/api/series/demo").json() == {"ok": True}
-    assert not (lib / "demo").exists() and client.get("/api/series").json() == []
+    assert not (lib / "database" / "storage" / "demo").exists() and client.get("/api/series").json() == []
     assert client.delete("/api/series/demo").status_code == 404
 
 
@@ -640,7 +640,7 @@ def test_actions(client, lib):
     assert client.put("/api/actions/wave", json={**salute, "id": "wave"}).status_code == 422  # built-in id
     assert client.put("/api/actions/bow", json=salute).status_code == 409  # id mismatch
     assert [a["id"] for a in client.put("/api/actions/salute", json=salute).json()["custom"]] == ["salute"]
-    story = lib / "demo" / "part-01" / "story.md"
+    story = lib / "database" / "storage" / "demo" / "part-01" / "story.md"
     story.write_text("@set room\n@do bob: salute\nBob stood up.\n", encoding="utf-8")
     r = client.delete("/api/actions/salute")
     assert r.status_code == 409 and "demo/part-01" in r.json()["detail"]  # still used by a story
@@ -699,7 +699,7 @@ def test_story_package_validate_then_import(client, lib):
     from pipeline.tests.test_package import pkg
     r = client.post("/api/packages/validate", json={"text": pkg()})
     assert r.status_code == 200 and r.json()["ok"], r.json()["errors"]
-    assert not (lib / "the-liar-lantern").exists()  # dry run
+    assert not (lib / "database" / "storage" / "the-liar-lantern").exists()  # dry run
     assert [p["title"] for p in r.json()["parts"]] == ["Part 1", "Part 2"]
     assert r.json()["parts"][0]["voice"].startswith("Ava") and r.json()["parts"][0]["story"]  # the review page shows both
     assert all(x["data"]["id"] == x["id"] for k in ("props", "sets", "cast") for x in r.json()[k])  # and previews each item
@@ -740,7 +740,7 @@ def test_sfx_library_crud(client, lib):
     assert client.put("/api/sfx/boing/audio?name=Boing.mp3", content=b"not audio").status_code == 415
     assert client.put("/api/sfx/boing/audio?name=boing.exe", content=b"x").status_code == 415
     # used in a story: delete refused
-    (lib / "demo" / "part-01" / "story.md").write_text("# T\n\n@sfx pop\nBob waved.\n", encoding="utf-8")
+    (lib / "database" / "storage" / "demo" / "part-01" / "story.md").write_text("# T\n\n@sfx pop\nBob waved.\n", encoding="utf-8")
     r = client.delete("/api/sfx/pop")
     assert r.status_code == 409 and "demo/part-01" in r.json()["detail"]
     assert client.delete("/api/sfx/click").status_code == 200
@@ -750,13 +750,13 @@ def test_sfx_library_crud(client, lib):
 
 def test_sfx_suggestions_accept_reject(client, lib):
     md = "# T\n\n@set office\nBob found the gold.\nBob waved at everyone in the office and smiled for a very long time.\n!! Bob was the traitor.\n"
-    (lib / "demo" / "part-01" / "story.md").write_text(md, encoding="utf-8")
+    (lib / "database" / "storage" / "demo" / "part-01" / "story.md").write_text(md, encoding="utf-8")
     r = client.get(f"{P}/sfx-suggestions").json()
     ids = [(s["line"], s["id"]) for s in r["suggestions"]]
     assert (4, "fahhh") in ids and (6, "riser") in ids and (6, "among_us") in ids and not r["timed"]
     hook = next(s for s in r["suggestions"] if s["id"] == "fahhh")
     r = client.post(f"{P}/sfx-suggestions", json={**hook, "accept": True}).json()
-    assert (lib / "demo" / "part-01" / "story.md").read_text(encoding="utf-8").split("\n")[3:5] == ["@sfx fahhh", "Bob found the gold."]
+    assert (lib / "database" / "storage" / "demo" / "part-01" / "story.md").read_text(encoding="utf-8").split("\n")[3:5] == ["@sfx fahhh", "Bob found the gold."]
     assert r["written"] == 1 and "fahhh" not in [s["id"] for s in r["suggestions"]]
     riser = next(s for s in r["suggestions"] if s["id"] == "riser")
     r = client.post(f"{P}/sfx-suggestions", json={**riser, "accept": False}).json()
@@ -813,7 +813,7 @@ def test_move_to_gallery(client, lib):
     from datetime import datetime, timezone
     from pipeline.scribble.schemas import Post
     assert "not marked posted to YouTube or Instagram" in client.post("/api/series/demo/gallery").json()["detail"]
-    f = lib / "demo" / "part-01" / "part.json"
+    f = lib / "database" / "storage" / "demo" / "part-01" / "part.json"
     p = load_part(f)
     now = datetime.now(timezone.utc)
     p.posted.youtube, p.posted.instagram = Post(url="https://youtu.be/x", posted_at=now), Post(url="https://instagram.com/p/y", posted_at=now)
@@ -828,11 +828,11 @@ def test_move_to_gallery(client, lib):
     mp.setattr(m.cli, "FOLDER_MOVE_TRIES", 1)
     r = client.post("/api/series/demo/gallery")
     mp.undo()
-    assert r.status_code == 409 and (lib / "demo" / "part-01" / "final.mp4").exists() and client.get("/api/gallery").json() == []
+    assert r.status_code == 409 and (lib / "database" / "storage" / "demo" / "part-01" / "final.mp4").exists() and client.get("/api/gallery").json() == []
     e = client.post("/api/series/demo/gallery").json()
     assert e["slug"] == "demo" and e["title"] == "Demo" and e["freed_bytes"] > 0
     assert e["parts"][0]["title"] and e["parts"][0]["instagram"]["url"] == "https://instagram.com/p/y" and "thumbnail" not in e["parts"][0]
-    assert not (lib / "demo").exists() and client.get("/api/series").json() == [] and client.get("/api/gallery").json() == [e]
+    assert not (lib / "database" / "storage" / "demo").exists() and client.get("/api/series").json() == [] and client.get("/api/gallery").json() == [e]
     assert [f.name for f in (lib / "_gallery" / "demo").iterdir()] == ["gallery.json"]  # titles and links only
     o = client.get("/api/overview").json()  # its posts stay in the posting log
     assert o["posts_per_month"][-1] == {"month": f"{now:%Y-%m}", "youtube": 1, "instagram": 1} and o["kpi"]["posted_this_month"] == 2

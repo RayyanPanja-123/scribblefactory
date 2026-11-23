@@ -6,7 +6,7 @@ import os
 import traceback
 from pathlib import Path
 
-from ..io import LIBRARY_FILES, catalog_bytes, load_part, save_part
+from ..io import LIBRARY_FILES, catalog_bytes, library_of, load_part, save_part
 from ..schemas import utcnow
 
 
@@ -21,12 +21,15 @@ def inputs_hash(part_dir: Path, inputs, extra=None) -> str:
     if extra:
         h.update(json.dumps(extra(part_dir), sort_keys=True).encode() + b"\0")
     for name in sorted(inputs):
-        f = part_dir / name
+        # ../../x: a library-level input (catalog, sfx), from the library above database/storage; the hash only ever
+        # sees the name, so it is the same as when series folders sat in the library itself
+        library_level = name.startswith("../../")
+        f = library_of(part_dir) / name.removeprefix("../../") if library_level else part_dir / name
         h.update(name.encode() + b"\0")
         if f.is_dir():  # a directory input: the names and bytes of the files directly inside it
             for x in sorted(x for x in f.iterdir() if x.is_file()):
                 h.update(x.name.encode() + b"\0" + x.read_bytes() + b"\0")
-        elif name.startswith("../../") and f.name in LIBRARY_FILES:  # a catalog: its old file's bytes, from the database
+        elif library_level and f.name in LIBRARY_FILES:  # a catalog: its old file's bytes, from the database
             h.update(catalog_bytes(f.parent, f.name) or b"<missing>")
         else:
             h.update(f.read_bytes() if f.exists() else b"<missing>")

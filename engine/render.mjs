@@ -59,6 +59,13 @@ const readJson = (f) => {
   if (!fs.existsSync(f)) throw new Error(`${f} not found`);
   return JSON.parse(fs.readFileSync(f, "utf8"));
 };
+/** the library a series folder belongs to: library/database/storage/<slug> -> library; a series folder sitting
+ * directly in a library (engine tests) -> its parent */
+const libraryOf = (seriesDir) => {
+  const up = path.resolve(seriesDir, "..");
+  const inStorage = path.basename(up) === "storage" && path.basename(path.dirname(up)) === "database";
+  return inStorage ? path.resolve(up, "..", "..") : up;
+};
 /** every custom item of the library (the database's catalog_item rows, pipeline/scribble/db.py; none yet: []), handed
  * to the page once (library.js). A library without a database (engine tests) still reads library/<kind>.json. */
 const loadLibrary = (library) => {
@@ -142,7 +149,7 @@ async function openPage(port, swiftshader) {
 function frameJobs(a) {
   const part = path.resolve(a.part);
   const data = { story: readJson(path.join(part, "story.json")), phrases: readJson(path.join(part, "phrases.json")),
-    series: readJson(path.join(part, "..", "series.json")), ...loadLibrary(path.join(part, "..", "..")) };
+    series: readJson(path.join(part, "..", "series.json")), ...loadLibrary(libraryOf(path.join(part, ".."))) };
   if (a.stills) {
     const dir = path.join(part, "frames", "stills");
     return { data, manifestDir: dir, jobs: data.story.shots.map((s) => ({ label: s.id, file: path.join(dir, `${s.id}.png`),
@@ -165,7 +172,7 @@ function frameJobs(a) {
 
 function castJobs(a) {
   const dir = path.resolve(a.series);
-  const data = { series: readJson(path.join(dir, "series.json")), story: { seed: 0 }, ...loadLibrary(path.join(dir, "..")) };
+  const data = { series: readJson(path.join(dir, "series.json")), story: { seed: 0 }, ...loadLibrary(libraryOf(dir)) };
   if (!data.series.cast.length) throw new Error("series.json has no cast");
   const cast = a.cast ? data.series.cast.filter((c) => c.id === a.cast) : data.series.cast;
   if (!cast.length) throw new Error(`cast id ${a.cast} not in series.json`);

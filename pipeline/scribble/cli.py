@@ -18,7 +18,7 @@ from pathlib import Path
 from pydantic import TypeAdapter, ValidationError
 
 from . import gallery, sheet, storycheck
-from .io import (atomic_write_json, cast_body_problems, cast_files, cast_key, cast_render_current, load_part, load_series, prop_kinds, replace_file, save_part,
+from .io import (atomic_write_json, series_dirs, storage_root, cast_body_problems, cast_files, cast_key, cast_render_current, load_part, load_series, prop_kinds, replace_file, save_part,
                  save_series, unknown_cast_props)
 from .schemas import CastMember, Expression, PartId, PartModel, Post, SeriesModel, Slug, Stages, StoryModel, Style, Voice, utcnow
 from .stages import STAGES
@@ -50,7 +50,7 @@ def series_dir(args) -> Path:
         TypeAdapter(Slug).validate_python(args.slug)  # also blocks path tricks like ../x
     except ValidationError:
         raise UserError(f"invalid slug {args.slug!r}: use lowercase a-z, 0-9 and single dashes")
-    return library_root(args) / args.slug
+    return storage_root(library_root(args)) / args.slug
 
 
 def cmd_new_series(args) -> int:
@@ -261,6 +261,43 @@ def remove_series_folder(d: Path, slug: str) -> None:
     shutil.rmtree(trash, ignore_errors=True)
     if trash.exists():
         print(f"note: could not delete every file of {trash.name} (in use?); delete it later")
+
+
+# files of removed features (thumbnails, the test render, preview.mp4; 2026-11-23): migrate-storage deletes them
+LEFTOVERS = ["preview.mp4", "test-render.mp4", "thumbs"]
+
+
+def cmd_migrate_storage(args) -> int:
+    """One-time move of every series folder still directly in the library into library/database/storage/<slug>,
+    deleting each part's LEFTOVERS. Dry run unless --yes. Refused while any part renders or has a stage running."""
+    library = library_root(args)
+    old = sorted(d for d in library.iterdir() if (d / "series.json").is_file()) if library.is_dir() else []
+    if not old:
+        print("nothing to move: every series is in database/storage already")
+        return 0
+    busy = [f"{d.name} {p}" for d in old for p in part_folders(d)
+            if render_stage.lock_owner(d / p) or ((d / p / "part.json").is_file() and any(
+                s.status == "running" for s in load_part(d / p / "part.json").stages.__dict__.values()))]
+    if busy:
+        raise UserError(f"{busy[0]} is rendering or has a stage running; wait for it or stop it")
+    root = storage_root(library)
+    taken = [d.name for d in old if (root / d.name).exists()]
+    if taken:
+        raise UserError(f"{root / taken[0]} exists already; move or delete one of the two by hand")
+    for d in old:
+        gone = [f"{p}/{name}" for p in part_folders(d) for name in LEFTOVERS if (d / p / name).exists()]
+        print(f"{'move' if args.yes else 'would move'} {d.name} -> {root / d.name}"
+              + (f"; {'delete' if args.yes else 'would delete'} {', '.join(gone)}" if gone else ""))
+        if not args.yes:
+            continue
+        root.mkdir(parents=True, exist_ok=True)
+        move_aside(d, root / d.name)
+        for rel in gone:
+            f = root / d.name / rel
+            shutil.rmtree(f) if f.is_dir() else f.unlink()
+    if not args.yes:
+        print("add --yes to move")
+    return 0
 
 
 def cmd_to_gallery(args) -> int:
@@ -581,7 +618,7 @@ def clean_posted(args) -> int:
     if args.slug:
         dirs = [load_existing_series(args)[0].parent]
     else:
-        dirs = sorted(d for d in root.iterdir() if (d / "series.json").is_file()) if root.is_dir() else []
+        dirs = series_dirs(root)
     total = count = 0
     for d in dirs:
         for pid in load_series(d / "series.json").parts:
@@ -628,6 +665,12 @@ def build_parser() -> Parser:
     c.add_argument("slug")
     c.add_argument("--yes", action="store_true", help="really delete")
     c.set_defaults(func=cmd_delete_series)
+
+    c = sub.add_parser("migrate-storage", parents=[common],
+                       help="one-time: move series folders into library/database/storage and delete files of removed "
+                            "features (dry run unless --yes)")
+    c.add_argument("--yes", action="store_true", help="really move")
+    c.set_defaults(func=cmd_migrate_storage)
 
     c = sub.add_parser("to-gallery", parents=[common],
                        help="move a series posted to YouTube and Instagram to the gallery: keep titles and "

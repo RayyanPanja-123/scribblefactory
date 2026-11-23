@@ -313,7 +313,7 @@ def test_do_plays_a_custom_action_from_the_library(tmp_path):
     assert who(first, "fred").action == "salute" and who(first, "fred").end_pos is None
     (tmp_path / "actions.json").write_text(json.dumps({"actions": [SALUTE]}), encoding="utf-8")
     assert unknown_actions(story, tmp_path) == []
-    assert unknown_actions(story, tmp_path / "empty") == ["salute"]  # the validate stage refuses it
+    assert unknown_actions(story, tmp_path / "database" / "storage" / "empty") == ["salute"]  # the validate stage refuses it
 
 
 MOONWALK = {"id": "moonwalk", "name": "Moonwalk", "duration": 1, "facing": "side", "move": -0.8,

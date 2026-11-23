@@ -81,7 +81,7 @@ def part(tmp_path, monkeypatch):
     """library/office-nap/part-01 with the fixture story (180 frames = 2 chunks of 150 / 30 with CHUNK=150),
     approvals in place, fake workers, fake ffmpeg."""
     lib = tmp_path / "lib"
-    sd = lib / "office-nap"
+    sd = lib / "database" / "storage" / "office-nap"
     pd = sd / "part-01"
     pd.mkdir(parents=True)
     series = json.loads((FIX / "series.json").read_text())
@@ -120,10 +120,10 @@ def test_full_render_writes_chunks_frames_and_preview(part, capsys):
     assert c1["inputs_hash"] == render.frames_hash(part)
     before = render.frames_hash(part)
     for kind in ("sets", "actions"):  # every library catalog changes pixels: editing one re-renders
-        db.put_catalogs(part.parent.parent, {kind: [{"id": "x"}]})
+        db.put_catalogs(part.parents[3], {kind: [{"id": "x"}]})
         assert render.frames_hash(part) != before
         before = render.frames_hash(part)
-        db.put_catalogs(part.parent.parent, {kind: []})
+        db.put_catalogs(part.parents[3], {kind: []})
     out = capsys.readouterr().out
     assert "chunk 1/2 done" in out and "chunk 2/2 done" in out and "fps overall" in out
     assert load_part(part / "part.json").stages.render.status == "done"
@@ -380,7 +380,7 @@ def test_nothing_left_still_checks_renderer_with_one_worker(part, capsys):
 
 
 def test_workers_default_from_settings_and_flag_wins(part, capsys):
-    (part.parents[1] / "settings.json").write_text(json.dumps({"render_workers": 1}))
+    (part.parents[3] / "settings.json").write_text(json.dumps({"render_workers": 1}))
     assert cli_render() == 0
     assert part.state["starts"] == 1 and "render: 1 worker" in capsys.readouterr().out
     part.state["starts"] = 0

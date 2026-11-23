@@ -19,7 +19,7 @@ from pathlib import Path
 
 from .. import ff
 from .. import settings
-from ..io import atomic_write_json, atomic_write_text, load_part, replace_file
+from ..io import atomic_write_json, atomic_write_text, library_of, load_part, replace_file
 from ..schemas import PhrasesModel, SeriesModel, StoryModel
 from .audio import loudness
 from .prep import FX_MODES, TWIST_PREFIX, _is_directive, clean_markdown, strip_directives
@@ -546,7 +546,7 @@ def extra_inputs(part_dir: Path) -> dict:
     the end screen's handles (library/settings.json: a changed handle re-runs finish, nothing else)"""
     f = part_dir.parent / "series.json"
     return {"captions": json.loads(f.read_bytes()).get("style", {}).get("captions", True) if f.exists() else None,
-            "socials": settings.load(part_dir.parent.parent)["socials"]}
+            "socials": settings.load(library_of(part_dir))["socials"]}
 
 
 def run(part_dir: Path) -> None:
@@ -570,7 +570,7 @@ def run(part_dir: Path) -> None:
     print(f"captions: {'on' if captions_on else 'off'}")
     card = part_dir / "end-card.png"
     if story.end_card:
-        socials = settings.load(part_dir.parent.parent)["socials"]
+        socials = settings.load(library_of(part_dir))["socials"]
         end_card_png(story.end_card.text, socials, card, (story.width, story.height))
         handles = ", ".join(v for v in socials.values() if v) or "no handles set (Settings)"
         print(f"end screen: {story.end_card.text} ({handles})")

@@ -18,7 +18,7 @@ from typing import Annotated, Literal
 from pydantic import Field, field_validator
 
 from . import ff
-from .io import atomic_write_json
+from .io import atomic_write_json, library_of, storage_root
 from .schemas import Strict
 from .stages.prep import TWIST_PREFIX, clean_markdown
 from .stages.runner import StageError
@@ -107,7 +107,7 @@ def missing_files(library) -> list[str]:
 
 def sfx_users(library, sfx_id: str) -> list[str]:
     """"<slug>/<part>" of every story.md with an @sfx of this id"""
-    return [f"{f.parent.parent.name}/{f.parent.name}" for f in sorted(Path(library).glob("*/part-*/story.md"))
+    return [f"{f.parent.parent.name}/{f.parent.name}" for f in sorted(storage_root(library).glob("*/part-*/story.md"))
             if any(d[1] == sfx_id for d in directives(f.read_text(encoding="utf-8")))]
 
 
@@ -312,7 +312,7 @@ def clips(part_dir: Path, voice_peak: float) -> list[dict]:
     if times is None:
         print("warning: story.md and phrases.json disagree on the words: @sfx left out (re-run prep/timing)")
         return []
-    library = part_dir.parent.parent
+    library = library_of(part_dir)
     entries, out = by_id(library), []
     for _a, i, vol, no in found:
         e = entries.get(i)

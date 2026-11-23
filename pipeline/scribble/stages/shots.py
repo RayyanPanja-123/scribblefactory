@@ -13,7 +13,7 @@ import zlib
 from pathlib import Path
 from typing import NamedTuple
 
-from ..io import (LIBRARY_FILES, atomic_write_json, cast_body_problems, creature_bodies, creature_halves, creature_wardrobe, custom_actions,
+from ..io import (LIBRARY_FILES, atomic_write_json, library_of, cast_body_problems, creature_bodies, creature_halves, creature_wardrobe, custom_actions,
                   custom_moves,
                   outdoor_sets,
                   prop_kinds, set_kinds, set_weather, wardrobe_slots,
@@ -988,7 +988,7 @@ def run(part_dir: Path) -> None:
         raise StageError("story.md not found")
     phrases = load_model(part_dir / "phrases.json", PhrasesModel)
     series = load_model(part_dir.parent / "series.json", SeriesModel)
-    library = part_dir.parent.parent
+    library = library_of(part_dir)
     if unknown := unknown_cast_props(series.cast, library):
         raise StageError(f"cast holds a prop that is not in library/props.json: {', '.join(unknown)}")
     if problems := cast_body_problems(series.cast, library):

@@ -55,9 +55,9 @@ def _series(tmp_path, body, approved=True):
                                     "voice": {"voice_name": ""}, "style": {"preset": "default"},
                                     "cast": [{"id": "rex", "name": "Rex", "top": {"color": "#aa5500"}, "eyes": "dots",
                                               "body": body, "approved_at": "2026-11-18T10:00:00Z" if approved else None}]})
-    (tmp_path / "pets").mkdir()
-    save_series(tmp_path / "pets" / "series.json", s)
-    return tmp_path / "pets" / "series.json"
+    (tmp_path / "database" / "storage" / "pets").mkdir(parents=True)
+    save_series(tmp_path / "database" / "storage" / "pets" / "series.json", s)
+    return tmp_path / "database" / "storage" / "pets" / "series.json"
 
 
 def test_library_save_clears_approvals_and_delete_is_refused_while_used(tmp_path):

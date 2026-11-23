@@ -33,7 +33,7 @@ STORY = {
 
 
 def make_part(lib):
-    d = lib / "demo" / "part-01"
+    d = lib / "database" / "storage" / "demo" / "part-01"
     d.mkdir(parents=True)
     save_part(d / "part.json", PartModel(id="part-01", number=1, title="T"))
     (d / "story.json").write_text(StoryModel.model_validate(STORY).model_dump_json(), encoding="utf-8")
@@ -115,7 +115,7 @@ def test_mix_loudness(part):
 
 
 def test_skips_when_up_to_date(part, capsys):
-    assert run(part.parents[1]) == 0
+    assert run(part.parents[3]) == 0
     assert "audio: skipped" in capsys.readouterr().out
 
 

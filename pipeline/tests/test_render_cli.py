@@ -21,8 +21,8 @@ def lib(tmp_path, monkeypatch):
     main(["cast-add", "nap", "bob", "--name", "Bob", "--color", "#3a7bd5"])
     main(["cast-add", "nap", "amy", "--name", "Amy", "--color", "#e2453c", "--eyes", "half_closed"])
     main(["new-part", "nap"])
-    shutil.copy(FIX / "story.json", tmp_path / "nap" / "part-01" / "story.json")
-    rendered(tmp_path / "nap")
+    shutil.copy(FIX / "story.json", tmp_path / "database" / "storage" / "nap" / "part-01" / "story.json")
+    rendered(tmp_path / "database" / "storage" / "nap")
     return tmp_path
 
 
@@ -50,7 +50,7 @@ def engine_calls(monkeypatch):
 # --- approvals ---
 
 def test_approve_part_sets_once_and_never_clears(lib, capsys):
-    f = lib / "nap" / "part-01" / "part.json"
+    f = lib / "database" / "storage" / "nap" / "part-01" / "part.json"
     assert main(["approve", "nap", "part-01", "stills"]) == 0
     first = load_part(f).approvals.stills.approved_at
     assert first is not None and load_part(f).approvals.final.approved_at is None
@@ -70,7 +70,7 @@ def test_approve_bad_input(lib):
 
 
 def test_approve_cast(lib, capsys):
-    f = lib / "nap" / "series.json"
+    f = lib / "database" / "storage" / "nap" / "series.json"
     assert main(["approve-cast", "nap", "bob"]) == 0
     first = load_series(f).cast[0].approved_at
     assert first is not None and load_series(f).cast[1].approved_at is None
@@ -88,26 +88,26 @@ def test_render_stills_refuses_unapproved_cast(lib, engine_calls, capsys):
     assert main(["render-stills", "nap", "part-01"]) == 1
     assert "cast not approved: amy" in capsys.readouterr().err
     assert engine_calls == []
-    assert not (lib / "nap" / "part-01" / "stills-sheet.png").exists()
+    assert not (lib / "database" / "storage" / "nap" / "part-01" / "stills-sheet.png").exists()
 
 
 def test_render_stills_runs_engine_then_sheet_when_approved(lib, engine_calls):
     main(["approve-cast", "nap", "bob"])
     main(["approve-cast", "nap", "amy"])
     assert main(["render-stills", "nap", "part-01"]) == 0
-    pdir = lib / "nap" / "part-01"
+    pdir = lib / "database" / "storage" / "nap" / "part-01"
     assert engine_calls == [["--part", str(pdir), "--stills"]]
     assert (pdir / "stills-sheet.png").exists()
 
 
 def test_render_stills_needs_story(lib, engine_calls, capsys):
-    (lib / "nap" / "part-01" / "story.json").unlink()
+    (lib / "database" / "storage" / "nap" / "part-01" / "story.json").unlink()
     assert main(["render-stills", "nap", "part-01"]) == 1
     assert "run --stage shots first" in capsys.readouterr().err
 
 
 def test_cast_sheet(lib, engine_calls):
-    d = lib / "nap"
+    d = lib / "database" / "storage" / "nap"
     shutil.rmtree(d / "cast")
     assert main(["approve-cast", "nap", "bob"]) == 1  # no render yet
     assert main(["cast-sheet", "nap"]) == 0

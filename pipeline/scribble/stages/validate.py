@@ -5,7 +5,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from ..schemas import PhrasesModel, SeriesModel, StoryModel
-from ..io import LIBRARY_FILES, custom_moves, outdoor_sets, unknown_actions
+from ..io import LIBRARY_FILES, custom_moves, library_of, outdoor_sets, unknown_actions
 from ..validate import validate
 from .runner import StageError
 
@@ -26,10 +26,10 @@ def run(part_dir: Path) -> None:
     story = load_model(part_dir / "story.json", StoryModel)
     phrases = load_model(part_dir / "phrases.json", PhrasesModel)
     series = load_model(part_dir.parent / "series.json", SeriesModel)
-    if unknown := unknown_actions(story, part_dir.parent.parent):  # the engine would throw mid-render
+    if unknown := unknown_actions(story, library_of(part_dir)):  # the engine would throw mid-render
         raise StageError(f"unknown action: {', '.join(unknown)} (not built in, not in library/actions.json)")
-    errors = validate(story, phrases, {c.id for c in series.cast}, outdoor_sets(part_dir.parent.parent),
-                      custom_moves(part_dir.parent.parent))
+    errors = validate(story, phrases, {c.id for c in series.cast}, outdoor_sets(library_of(part_dir)),
+                      custom_moves(library_of(part_dir)))
     for e in errors:
         print(f"  {e.shot_id or '-'}  {e.rule}: {e.message}")
     if errors:

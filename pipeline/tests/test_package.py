@@ -113,14 +113,14 @@ def test_id_clash_suffixes_and_rewrites(lib, monkeypatch):
     assert "@set room-2" in r["parts"][0]["story"]
     res = package.import_package(text, lib)
     assert res["series"]["slug"] == "the-liar-lantern-2"
-    assert load_series(lib / "the-liar-lantern" / "series.json").title == "Old"  # never overwritten
+    assert load_series(lib / "database" / "storage" / "the-liar-lantern" / "series.json").title == "Old"  # never overwritten
     assert [p.id for p in load_props(lib).props] == ["lantern", "lantern-2"]
     assert load_props(lib).props[0] == CustomProp.model_validate(PROP)
 
 
 def test_import_writes_everything(lib):
     r = package.import_package(pkg(), lib)
-    d = lib / r["series"]["slug"]
+    d = lib / "database" / "storage" / r["series"]["slug"]
     s = load_series(d / "series.json")
     assert s.parts == ["part-01", "part-02"] and [c.id for c in s.cast] == ["ava", "ben"]
     assert all(c.approved_at is None for c in s.cast)  # an imported look still needs approval

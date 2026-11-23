@@ -20,7 +20,7 @@ from api.models import Job
 from sqlalchemy.exc import SQLAlchemyError
 
 from pipeline.scribble import cli, db
-from pipeline.scribble.io import load_part, load_series
+from pipeline.scribble.io import load_part, load_series, storage_root
 from pipeline.scribble.schemas import utcnow
 from pipeline.scribble.stages import render as render_stage
 from pipeline.scribble.stages.runner import recover_stuck
@@ -34,7 +34,7 @@ def busy(slug: str, part: str | None = None) -> str | None:
         if j["status"] == "running" and j["slug"] == slug and part in (None, j["part"]):
             return f"job {j.get('tag', j['id'])} is running on {slug} {j['part']}"
     if part:
-        pid = render_stage.lock_owner(lib() / slug / part)
+        pid = render_stage.lock_owner(storage_root(lib()) / slug / part)
         if pid:
             return f"a render is running on {slug} {part} (pid {pid})"
     return None
@@ -271,7 +271,7 @@ def _run(job: dict) -> None:
             _procs.pop(job["id"], None)
         job["returncode"] = proc.returncode
         if job["status"] == "cancelled" and job["part"]:  # killed: its stage never got to say so, nor drop its lock
-            d = lib() / job["slug"] / job["part"]
+            d = storage_root(lib()) / job["slug"] / job["part"]
             notes = render_stage.clear_stale_lock(d) + [f"{n}: cancelled, marked failed" for n in recover_stuck(d)]
             job["output"] += notes
         publish("part-changed", {"slug": job["slug"], "part": job["part"]})

@@ -204,7 +204,7 @@ def test_cli_run_exit_codes(tmp_path, monkeypatch):
     main(["new-series", "cat", "--title", "Cat"])
     main(["new-part", "cat"])
     assert main(["run", "cat", "part-01", "--stage", "prep"]) == 1  # template story: empty body
-    (tmp_path / "cat" / "part-01" / "story.md").write_text("Once upon a time.", encoding="utf-8")
+    (tmp_path / "database" / "storage" / "cat" / "part-01" / "story.md").write_text("Once upon a time.", encoding="utf-8")
     assert main(["run", "cat", "part-01", "--stage", "prep"]) == 0
     assert main(["run", "cat", "part-01", "--stage", "prep"]) == 0  # skipped
     assert main(["run", "cat", "part-01", "--stage", "prep", "--force"]) == 0

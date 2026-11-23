@@ -225,5 +225,5 @@ def test_dress_and_wide_hat_in_schema_and_cast_edit(tmp_path, monkeypatch):
     assert main(["cast-add", "s", "dee", "--name", "Dee", "--color", "#f7f2e8"]) == 0
     assert main(["cast-edit", "s", "dee", "--top", "dress", "--accent", "#c2185b", "--headwear", "wide_hat",
                  "--headwear-color", "#f7f2e8"]) == 0
-    c = load_series(tmp_path / "s" / "series.json").cast[0]
+    c = load_series(tmp_path / "database" / "storage" / "s" / "series.json").cast[0]
     assert (c.top.style, c.top.accent_color, c.headwear.kind, c.approved_at) == ("dress", "#c2185b", "wide_hat", None)

@@ -61,7 +61,7 @@ def ram_gb() -> float | None:
 
 def last_gpu(library: Path) -> str | None:
     """the GPU the newest rendered chunk used (render info written per chunk), or None before any render"""
-    chunks = Path(library).glob("*/*/frames/chunks/c???.json")  # chunk records, not cNNN.info.json
+    chunks = (Path(library) / "database" / "storage").glob("*/*/frames/chunks/c???.json")  # not cNNN.info.json
     for f in sorted(chunks, key=lambda f: f.stat().st_mtime, reverse=True):
         try:
             r = json.loads(f.read_text(encoding="utf-8")).get("renderer")

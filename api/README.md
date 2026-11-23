@@ -7,7 +7,7 @@ FastAPI backend for the web view. Localhost only, no auth. Run from the repo roo
 .venv/Scripts/uvicorn api.main:app --host 127.0.0.1 --port 8765   # Windows (Git Bash)
 ```
 
-Library: `$SCRIBBLE_LIBRARY`, else `./library` (same as the CLI). CORS allows only the Vite dev server
+Library: `$SCRIBBLE_LIBRARY`, else `./library` (same as the CLI); series folders live in `library/database/storage/<slug>`. CORS allows only the Vite dev server
 (`http://localhost:5173`). Schema: `docs/openapi.json`, regenerate with `python -m api.main` (a test fails when it drifts).
 
 Files: `main.py` (the app, startup, series/part reads and actions, story packages), `core.py` (library paths, part

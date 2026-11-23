@@ -25,7 +25,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from .. import settings
-from ..io import LIBRARY_FILES, WARDROBE_SEED, atomic_write_json, catalog_bytes, load_part
+from ..io import LIBRARY_FILES, WARDROBE_SEED, atomic_write_json, catalog_bytes, library_of, load_part
 from ..schemas import SeriesModel, StoryModel
 from .runner import StageError
 from .validate import load_model
@@ -80,7 +80,7 @@ def frames_hash(part_dir: Path) -> str:
     """sha256 over story.json, phrases.json, series.json, every library catalog (as its old file's bytes,
     io.catalog_bytes) and the engine page code: anything that changes pixels."""
     h = hashlib.sha256()
-    lib = part_dir.parent.parent
+    lib = library_of(part_dir)
     for f in [part_dir / "story.json", part_dir / "phrases.json", part_dir.parent / "series.json",
               *(lib / f for f in LIBRARY_FILES), *PAGE_FILES]:
         data = catalog_bytes(lib, f.name) if f.parent == lib else f.read_bytes() if f.exists() else None
@@ -446,7 +446,7 @@ def check_frames(frames: Path, first: int, count: int) -> None:
 def run(part_dir: Path, workers: int | None = None, swiftshader: bool = False, force: bool = False) -> None:
     """workers None: library/settings.json (auto: recommended for this PC); swiftshader also when settings force it"""
     story = check_gate(part_dir, ("stills",))  # the test render is optional
-    library = part_dir.parents[1]
+    library = library_of(part_dir)
     workers = workers or settings.render_workers(library)
     swiftshader = swiftshader or settings.software_gl(library)
     print(f"render: {workers} worker{'s' * (workers > 1)}{' (software GL)' * swiftshader}")

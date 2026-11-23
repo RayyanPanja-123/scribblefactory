@@ -15,7 +15,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from . import db
-from .io import (atomic_write_json, cast_wardrobe_problems, creature_bodies, load_actions, load_creatures,
+from .io import (atomic_write_json, series_dirs, storage_root, cast_wardrobe_problems, creature_bodies, load_actions, load_creatures,
                  load_props, load_sets, load_wardrobe, prop_kinds, save_part, save_series, set_kinds, wardrobe_slots)
 from .schemas import (ACTIONS, ActionLibrary, CastMember, CreatureLibrary, CustomAction, CustomCreature, CustomProp,
                       CustomSet, PartModel, PropLibrary, SeriesModel, SetLibrary, Style, Voice, WardrobeItem,
@@ -253,7 +253,7 @@ def parse(text: str, library) -> dict:
 
     title = meta["series_title"].strip()[:120]
     want_slug = slugify(title)
-    series = [d.name for d in library.iterdir() if (d / "series.json").is_file()] if library.is_dir() else []
+    series = [d.name for d in series_dirs(library)]
     slug = unique(want_slug, set(series))
     result["series"] = {"title": title, "slug": slug, "was": want_slug if slug != want_slug else None}
     if slug != want_slug:
@@ -287,7 +287,7 @@ def parse(text: str, library) -> dict:
         with tempfile.TemporaryDirectory(prefix="scribble-package-") as tmp:
             stage(result, library, Path(tmp), approved=True)
             for p in result["parts"]:
-                r = check_story(Path(tmp) / slug / f"part-{p['number']:02d}")
+                r = check_story(storage_root(tmp) / slug / f"part-{p['number']:02d}")
                 for x in r["problems"]:
                     err(f"PART {p['number']} SCRIPT", p["script_line"] + x["line"] if x["line"] else None, x["message"])
                 for x in r["warnings"]:
@@ -302,7 +302,8 @@ def parse(text: str, library) -> dict:
 
 
 def stage(result: dict, library: Path, root: Path, approved: bool = False) -> None:
-    """write the package into root: the library's 4 item files with the new assets added, and the series folder.
+    """write the package into root: the library's 4 item files with the new assets added, and the series folder
+    (in root's database/storage).
     approved: cast marked approved (a check-only copy: check_story would report every new cast member)"""
     for sec, (_m, load, field, lib_model) in ASSETS.items():
         lib = load(library)
@@ -312,7 +313,7 @@ def stage(result: dict, library: Path, root: Path, approved: bool = False) -> No
         # ponytail: copies the sound files on every check; sound effects are small
         shutil.copytree(library / "sfx", root / "sfx")
     s = result["series"]
-    d = root / s["slug"]
+    d = storage_root(root) / s["slug"]
     d.mkdir(parents=True)
     now = utcnow()
     cast = [c.model_copy(update={"approved_at": now if approved else None}) for c in result["cast"]]
@@ -344,7 +345,8 @@ def import_package(text: str, library) -> dict:
     try:
         stage(result, library, tmp)
         db.put_catalogs(library, {field: json.loads((tmp / f"{field}.json").read_bytes())[field] for field in fields})
-        os.replace(tmp / result["series"]["slug"], library / result["series"]["slug"])
+        storage_root(library).mkdir(parents=True, exist_ok=True)
+        os.replace(storage_root(tmp) / result["series"]["slug"], storage_root(library) / result["series"]["slug"])
     except BaseException:
         db.put_catalogs(library, old)
         raise

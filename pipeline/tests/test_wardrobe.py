@@ -110,8 +110,8 @@ def test_look_swaps_a_whole_outfit():
 
 
 def series_with(tmp_path, cast):
-    d = tmp_path / "rome"
-    d.mkdir()
+    d = tmp_path / "database" / "storage" / "rome"
+    d.mkdir(parents=True)
     save_series(d / "series.json", SeriesModel.model_validate({"slug": "rome", "title": "Rome", "created_at": T,
                                                                "voice": {"voice_name": "x"}, "style": {"preset": "p"},
                                                                "cast": cast}))
