@@ -8,6 +8,7 @@ Write docs/openapi.json: python -m api.main
 import argparse
 import asyncio
 import contextlib
+import inspect
 import io
 import itertools
 import json
@@ -781,35 +782,44 @@ def check_no_jobs() -> None:
         raise HTTPException(409, f"job {run.get('tag', run['id'])} is running on {run['slug']} {run['part']}; wait for it or cancel it")
 
 
-@app.get("/api/props", response_model=PropCatalog)
-def get_props():
-    return prop_catalog()
+def library_routes(kind: str, one: str, noun: str, catalog, save, delete, model, id_type=Slug) -> None:
+    """GET /api/<kind>, PUT and DELETE /api/<kind>/{item_id}: one shared catalog, library/<kind>.json. Every render
+    reads it, so nothing changes while a job runs. A save can clear cast approvals (its drawing changed): those
+    series hear about it too. one: the route names (put_<one>, remove_<one>); noun: for the 404."""
+    response_model = inspect.signature(catalog).return_annotation
+
+    def put(item_id: id_type, body: model):
+        if body.id != item_id:
+            raise HTTPException(409, f"body id {body.id!r} does not match {item_id!r}")
+        check_no_jobs()
+        lib().mkdir(parents=True, exist_ok=True)
+        try:
+            cleared = save(lib(), body) or []
+        except ValueError as e:
+            raise HTTPException(409, str(e))
+        publish(f"{kind}-changed", {"id": item_id})
+        for slug in {c.split("/")[0] for c in cleared}:
+            publish("series-changed", {"slug": slug})
+        return catalog(cleared) if cleared else catalog()
+
+    def remove(item_id: id_type):
+        check_no_jobs()
+        try:
+            delete(lib(), item_id)
+        except KeyError:
+            raise HTTPException(404, f"no {noun} {item_id!r}")
+        except ValueError as e:
+            raise HTTPException(409, str(e))
+        publish(f"{kind}-changed", {"id": item_id})
+        return catalog()
+
+    app.get(f"/api/{kind}", response_model=response_model, name=f"get_{kind}")(lambda: catalog())
+    app.put(f"/api/{kind}/{{item_id}}", response_model=response_model, name=f"put_{one}")(put)
+    app.delete(f"/api/{kind}/{{item_id}}", response_model=response_model, name=f"remove_{one}")(remove)
 
 
-@app.put("/api/props/{prop_id}", response_model=PropCatalog)
-def put_prop(prop_id: Slug, body: CustomProp):
-    if body.id != prop_id:
-        raise HTTPException(409, f"body id {body.id!r} does not match {prop_id!r}")
-    check_no_jobs()
-    lib().mkdir(parents=True, exist_ok=True)
-    cleared = save_prop(lib(), body)
-    publish("props-changed", {"id": prop_id})
-    for slug in {c.split("/")[0] for c in cleared}:
-        publish("series-changed", {"slug": slug})
-    return prop_catalog(cleared)
 
-
-@app.delete("/api/props/{prop_id}", response_model=PropCatalog)
-def remove_prop(prop_id: Slug):
-    check_no_jobs()
-    try:
-        delete_prop(lib(), prop_id)
-    except KeyError:
-        raise HTTPException(404, f"no custom prop {prop_id!r}")
-    except ValueError as e:
-        raise HTTPException(409, str(e))
-    publish("props-changed", {"id": prop_id})
-    return prop_catalog()
+library_routes("props", "prop", "custom prop", prop_catalog, save_prop, delete_prop, CustomProp)
 
 
 
@@ -831,35 +841,8 @@ def creature_catalog(cleared=()) -> CreatureCatalog:
                            custom=load_creatures(lib()).creatures, cleared=list(cleared))
 
 
-@app.get("/api/creatures", response_model=CreatureCatalog)
-def get_creatures():
-    return creature_catalog()
-
-
-@app.put("/api/creatures/{creature_id}", response_model=CreatureCatalog)
-def put_creature(creature_id: Slug, body: CustomCreature):
-    if body.id != creature_id:
-        raise HTTPException(409, f"body id {body.id!r} does not match {creature_id!r}")
-    check_no_jobs()  # creatures.json feeds every render, like props.json
-    lib().mkdir(parents=True, exist_ok=True)
-    cleared = save_creature(lib(), body)
-    publish("creatures-changed", {"id": creature_id})
-    for slug in {c.split("/")[0] for c in cleared}:
-        publish("series-changed", {"slug": slug})
-    return creature_catalog(cleared)
-
-
-@app.delete("/api/creatures/{creature_id}", response_model=CreatureCatalog)
-def remove_creature(creature_id: Slug):
-    check_no_jobs()
-    try:
-        delete_creature(lib(), creature_id)
-    except KeyError:
-        raise HTTPException(404, f"no custom creature {creature_id!r}")
-    except ValueError as e:
-        raise HTTPException(409, str(e))
-    publish("creatures-changed", {"id": creature_id})
-    return creature_catalog()
+library_routes("creatures", "creature", "custom creature", creature_catalog, save_creature, delete_creature,
+               CustomCreature)
 
 
 # ---------------- wardrobe (library/wardrobe.json: clothing, hair, cosmetics, shared by every series) ----------------
@@ -881,38 +864,8 @@ def wardrobe_catalog(cleared=()) -> WardrobeCatalog:
                            custom=load_wardrobe(lib()).wardrobe, cleared=list(cleared))
 
 
-@app.get("/api/wardrobe", response_model=WardrobeCatalog)
-def get_wardrobe():
-    return wardrobe_catalog()
-
-
-@app.put("/api/wardrobe/{item_id}", response_model=WardrobeCatalog)
-def put_wardrobe_item(item_id: WardrobeId, body: WardrobeItem):
-    if body.id != item_id:
-        raise HTTPException(409, f"body id {body.id!r} does not match {item_id!r}")
-    check_no_jobs()  # wardrobe.json feeds every render, like props.json
-    lib().mkdir(parents=True, exist_ok=True)
-    try:
-        cleared = save_wardrobe_item(lib(), body)
-    except ValueError as e:
-        raise HTTPException(409, str(e))
-    publish("wardrobe-changed", {"id": item_id})
-    for slug in {c.split("/")[0] for c in cleared}:
-        publish("series-changed", {"slug": slug})
-    return wardrobe_catalog(cleared)
-
-
-@app.delete("/api/wardrobe/{item_id}", response_model=WardrobeCatalog)
-def remove_wardrobe_item(item_id: WardrobeId):
-    check_no_jobs()
-    try:
-        delete_wardrobe_item(lib(), item_id)
-    except KeyError:
-        raise HTTPException(404, f"no custom wardrobe item {item_id!r}")
-    except ValueError as e:
-        raise HTTPException(409, str(e))
-    publish("wardrobe-changed", {"id": item_id})
-    return wardrobe_catalog()
+library_routes("wardrobe", "wardrobe_item", "custom wardrobe item", wardrobe_catalog, save_wardrobe_item,
+               delete_wardrobe_item, WardrobeItem, WardrobeId)
 
 
 # ---------------- actions (library/actions.json: custom moves, shared by every series) ----------------
@@ -927,33 +880,7 @@ def action_catalog() -> ActionCatalog:
     return ActionCatalog(builtin=list(ACTIONS), do=sorted(actions_with("do")), custom=load_actions(lib()).actions)
 
 
-@app.get("/api/actions", response_model=ActionCatalog)
-def get_actions():
-    return action_catalog()
-
-
-@app.put("/api/actions/{action_id}", response_model=ActionCatalog)
-def put_action(action_id: Slug, body: CustomAction):
-    if body.id != action_id:
-        raise HTTPException(409, f"body id {body.id!r} does not match {action_id!r}")
-    check_no_jobs()  # actions.json feeds every render, like props.json
-    lib().mkdir(parents=True, exist_ok=True)
-    save_action(lib(), body)
-    publish("actions-changed", {"id": action_id})
-    return action_catalog()
-
-
-@app.delete("/api/actions/{action_id}", response_model=ActionCatalog)
-def remove_action(action_id: Slug):
-    check_no_jobs()
-    try:
-        delete_action(lib(), action_id)
-    except KeyError:
-        raise HTTPException(404, f"no custom action {action_id!r}")
-    except ValueError as e:
-        raise HTTPException(409, str(e))
-    publish("actions-changed", {"id": action_id})
-    return action_catalog()
+library_routes("actions", "action", "custom action", action_catalog, save_action, delete_action, CustomAction)
 
 
 # ---------------- sets (library/sets.json, shared by every series) ----------------
@@ -972,33 +899,7 @@ def set_catalog() -> SetCatalog:
     return SetCatalog(builtin=[BuiltinSet(id=k, kind=v) for k, v in BUILTIN_SETS.items()], custom=load_sets(lib()).sets)
 
 
-@app.get("/api/sets", response_model=SetCatalog)
-def get_sets():
-    return set_catalog()
-
-
-@app.put("/api/sets/{set_id}", response_model=SetCatalog)
-def put_set(set_id: Slug, body: CustomSet):
-    if body.id != set_id:
-        raise HTTPException(409, f"body id {body.id!r} does not match {set_id!r}")
-    check_no_jobs()  # sets.json feeds every render, like props.json
-    lib().mkdir(parents=True, exist_ok=True)
-    save_set(lib(), body)
-    publish("sets-changed", {"id": set_id})
-    return set_catalog()
-
-
-@app.delete("/api/sets/{set_id}", response_model=SetCatalog)
-def remove_set(set_id: Slug):
-    check_no_jobs()
-    try:
-        delete_set(lib(), set_id)
-    except KeyError:
-        raise HTTPException(404, f"no custom set {set_id!r}")
-    except ValueError as e:
-        raise HTTPException(409, str(e))
-    publish("sets-changed", {"id": set_id})
-    return set_catalog()
+library_routes("sets", "set", "custom set", set_catalog, save_set, delete_set, CustomSet)
 
 
 # ---------------- world objects (library/objects.json, shared by every series) ----------------
@@ -1011,31 +912,7 @@ def object_catalog() -> WorldObjectCatalog:
     return WorldObjectCatalog(objects=load_objects(lib()).objects)
 
 
-@app.get("/api/objects", response_model=WorldObjectCatalog)
-def get_objects():
-    return object_catalog()
-
-
-@app.put("/api/objects/{object_id}", response_model=WorldObjectCatalog)
-def put_object(object_id: Slug, body: WorldObject):
-    if body.id != object_id:
-        raise HTTPException(409, f"body id {body.id!r} does not match {object_id!r}")
-    check_no_jobs()
-    lib().mkdir(parents=True, exist_ok=True)
-    save_object(lib(), body)
-    publish("objects-changed", {"id": object_id})
-    return object_catalog()
-
-
-@app.delete("/api/objects/{object_id}", response_model=WorldObjectCatalog)
-def remove_object(object_id: Slug):
-    check_no_jobs()
-    try:
-        delete_object(lib(), object_id)
-    except KeyError:
-        raise HTTPException(404, f"no world object {object_id!r}")
-    publish("objects-changed", {"id": object_id})
-    return object_catalog()
+library_routes("objects", "object", "world object", object_catalog, save_object, delete_object, WorldObject)
 
 # ---------------- sounds (library/sfx/: audio files + sfx.json, the @sfx directive) ----------------
 

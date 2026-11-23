@@ -4421,17 +4421,17 @@
         "summary": "Get Actions"
       }
     },
-    "/api/actions/{action_id}": {
+    "/api/actions/{item_id}": {
       "delete": {
-        "operationId": "remove_action_api_actions__action_id__delete",
+        "operationId": "remove_action_api_actions__item_id__delete",
         "parameters": [
           {
             "in": "path",
-            "name": "action_id",
+            "name": "item_id",
             "required": true,
             "schema": {
               "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
-              "title": "Action Id",
+              "title": "Item Id",
               "type": "string"
             }
           }
@@ -4461,15 +4461,15 @@
         "summary": "Remove Action"
       },
       "put": {
-        "operationId": "put_action_api_actions__action_id__put",
+        "operationId": "put_action_api_actions__item_id__put",
         "parameters": [
           {
             "in": "path",
-            "name": "action_id",
+            "name": "item_id",
             "required": true,
             "schema": {
               "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
-              "title": "Action Id",
+              "title": "Item Id",
               "type": "string"
             }
           }
@@ -4566,17 +4566,17 @@
         "summary": "Get Creatures"
       }
     },
-    "/api/creatures/{creature_id}": {
+    "/api/creatures/{item_id}": {
       "delete": {
-        "operationId": "remove_creature_api_creatures__creature_id__delete",
+        "operationId": "remove_creature_api_creatures__item_id__delete",
         "parameters": [
           {
             "in": "path",
-            "name": "creature_id",
+            "name": "item_id",
             "required": true,
             "schema": {
               "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
-              "title": "Creature Id",
+              "title": "Item Id",
               "type": "string"
             }
           }
@@ -4606,15 +4606,15 @@
         "summary": "Remove Creature"
       },
       "put": {
-        "operationId": "put_creature_api_creatures__creature_id__put",
+        "operationId": "put_creature_api_creatures__item_id__put",
         "parameters": [
           {
             "in": "path",
-            "name": "creature_id",
+            "name": "item_id",
             "required": true,
             "schema": {
               "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
-              "title": "Creature Id",
+              "title": "Item Id",
               "type": "string"
             }
           }
@@ -5078,17 +5078,17 @@
         "summary": "Get Objects"
       }
     },
-    "/api/objects/{object_id}": {
+    "/api/objects/{item_id}": {
       "delete": {
-        "operationId": "remove_object_api_objects__object_id__delete",
+        "operationId": "remove_object_api_objects__item_id__delete",
         "parameters": [
           {
             "in": "path",
-            "name": "object_id",
+            "name": "item_id",
             "required": true,
             "schema": {
               "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
-              "title": "Object Id",
+              "title": "Item Id",
               "type": "string"
             }
           }
@@ -5118,15 +5118,15 @@
         "summary": "Remove Object"
       },
       "put": {
-        "operationId": "put_object_api_objects__object_id__put",
+        "operationId": "put_object_api_objects__item_id__put",
         "parameters": [
           {
             "in": "path",
-            "name": "object_id",
+            "name": "item_id",
             "required": true,
             "schema": {
               "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
-              "title": "Object Id",
+              "title": "Item Id",
               "type": "string"
             }
           }
@@ -5280,17 +5280,17 @@
         "summary": "Get Props"
       }
     },
-    "/api/props/{prop_id}": {
+    "/api/props/{item_id}": {
       "delete": {
-        "operationId": "remove_prop_api_props__prop_id__delete",
+        "operationId": "remove_prop_api_props__item_id__delete",
         "parameters": [
           {
             "in": "path",
-            "name": "prop_id",
+            "name": "item_id",
             "required": true,
             "schema": {
               "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
-              "title": "Prop Id",
+              "title": "Item Id",
               "type": "string"
             }
           }
@@ -5320,15 +5320,15 @@
         "summary": "Remove Prop"
       },
       "put": {
-        "operationId": "put_prop_api_props__prop_id__put",
+        "operationId": "put_prop_api_props__item_id__put",
         "parameters": [
           {
             "in": "path",
-            "name": "prop_id",
+            "name": "item_id",
             "required": true,
             "schema": {
               "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
-              "title": "Prop Id",
+              "title": "Item Id",
               "type": "string"
             }
           }
@@ -6588,17 +6588,17 @@
         "summary": "Get Sets"
       }
     },
-    "/api/sets/{set_id}": {
+    "/api/sets/{item_id}": {
       "delete": {
-        "operationId": "remove_set_api_sets__set_id__delete",
+        "operationId": "remove_set_api_sets__item_id__delete",
         "parameters": [
           {
             "in": "path",
-            "name": "set_id",
+            "name": "item_id",
             "required": true,
             "schema": {
               "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
-              "title": "Set Id",
+              "title": "Item Id",
               "type": "string"
             }
           }
@@ -6628,15 +6628,15 @@
         "summary": "Remove Set"
       },
       "put": {
-        "operationId": "put_set_api_sets__set_id__put",
+        "operationId": "put_set_api_sets__item_id__put",
         "parameters": [
           {
             "in": "path",
-            "name": "set_id",
+            "name": "item_id",
             "required": true,
             "schema": {
               "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
-              "title": "Set Id",
+              "title": "Item Id",
               "type": "string"
             }
           }

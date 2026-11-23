@@ -21,7 +21,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/actions/{action_id}": {
+    "/api/actions/{item_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -30,10 +30,10 @@ export interface paths {
         };
         get?: never;
         /** Put Action */
-        put: operations["put_action_api_actions__action_id__put"];
+        put: operations["put_action_api_actions__item_id__put"];
         post?: never;
         /** Remove Action */
-        delete: operations["remove_action_api_actions__action_id__delete"];
+        delete: operations["remove_action_api_actions__item_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -77,7 +77,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/creatures/{creature_id}": {
+    "/api/creatures/{item_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -86,10 +86,10 @@ export interface paths {
         };
         get?: never;
         /** Put Creature */
-        put: operations["put_creature_api_creatures__creature_id__put"];
+        put: operations["put_creature_api_creatures__item_id__put"];
         post?: never;
         /** Remove Creature */
-        delete: operations["remove_creature_api_creatures__creature_id__delete"];
+        delete: operations["remove_creature_api_creatures__item_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -315,7 +315,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/objects/{object_id}": {
+    "/api/objects/{item_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -324,10 +324,10 @@ export interface paths {
         };
         get?: never;
         /** Put Object */
-        put: operations["put_object_api_objects__object_id__put"];
+        put: operations["put_object_api_objects__item_id__put"];
         post?: never;
         /** Remove Object */
-        delete: operations["remove_object_api_objects__object_id__delete"];
+        delete: operations["remove_object_api_objects__item_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -408,7 +408,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/props/{prop_id}": {
+    "/api/props/{item_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -417,10 +417,10 @@ export interface paths {
         };
         get?: never;
         /** Put Prop */
-        put: operations["put_prop_api_props__prop_id__put"];
+        put: operations["put_prop_api_props__item_id__put"];
         post?: never;
         /** Remove Prop */
-        delete: operations["remove_prop_api_props__prop_id__delete"];
+        delete: operations["remove_prop_api_props__item_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -789,7 +789,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/sets/{set_id}": {
+    "/api/sets/{item_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -798,10 +798,10 @@ export interface paths {
         };
         get?: never;
         /** Put Set */
-        put: operations["put_set_api_sets__set_id__put"];
+        put: operations["put_set_api_sets__item_id__put"];
         post?: never;
         /** Remove Set */
-        delete: operations["remove_set_api_sets__set_id__delete"];
+        delete: operations["remove_set_api_sets__item_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2818,12 +2818,12 @@ export interface operations {
             };
         };
     };
-    put_action_api_actions__action_id__put: {
+    put_action_api_actions__item_id__put: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                action_id: string;
+                item_id: string;
             };
             cookie?: never;
         };
@@ -2853,12 +2853,12 @@ export interface operations {
             };
         };
     };
-    remove_action_api_actions__action_id__delete: {
+    remove_action_api_actions__item_id__delete: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                action_id: string;
+                item_id: string;
             };
             cookie?: never;
         };
@@ -2937,12 +2937,12 @@ export interface operations {
             };
         };
     };
-    put_creature_api_creatures__creature_id__put: {
+    put_creature_api_creatures__item_id__put: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                creature_id: string;
+                item_id: string;
             };
             cookie?: never;
         };
@@ -2972,12 +2972,12 @@ export interface operations {
             };
         };
     };
-    remove_creature_api_creatures__creature_id__delete: {
+    remove_creature_api_creatures__item_id__delete: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                creature_id: string;
+                item_id: string;
             };
             cookie?: never;
         };
@@ -3348,12 +3348,12 @@ export interface operations {
             };
         };
     };
-    put_object_api_objects__object_id__put: {
+    put_object_api_objects__item_id__put: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                object_id: string;
+                item_id: string;
             };
             cookie?: never;
         };
@@ -3383,12 +3383,12 @@ export interface operations {
             };
         };
     };
-    remove_object_api_objects__object_id__delete: {
+    remove_object_api_objects__item_id__delete: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                object_id: string;
+                item_id: string;
             };
             cookie?: never;
         };
@@ -3520,12 +3520,12 @@ export interface operations {
             };
         };
     };
-    put_prop_api_props__prop_id__put: {
+    put_prop_api_props__item_id__put: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                prop_id: string;
+                item_id: string;
             };
             cookie?: never;
         };
@@ -3555,12 +3555,12 @@ export interface operations {
             };
         };
     };
-    remove_prop_api_props__prop_id__delete: {
+    remove_prop_api_props__item_id__delete: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                prop_id: string;
+                item_id: string;
             };
             cookie?: never;
         };
@@ -4405,12 +4405,12 @@ export interface operations {
             };
         };
     };
-    put_set_api_sets__set_id__put: {
+    put_set_api_sets__item_id__put: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                set_id: string;
+                item_id: string;
             };
             cookie?: never;
         };
@@ -4440,12 +4440,12 @@ export interface operations {
             };
         };
     };
-    remove_set_api_sets__set_id__delete: {
+    remove_set_api_sets__item_id__delete: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                set_id: string;
+                item_id: string;
             };
             cookie?: never;
         };
