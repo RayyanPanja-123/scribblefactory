@@ -53,7 +53,7 @@ async function deleteSeries() {
   if (ok && (await act(() => api.deleteSeries(props.slug), `${s.title} deleted`))) router.push('/series')
 }
 
-// the gallery: once every part is posted to both, keep the thumbnails, links and text and free the rest
+// the gallery: once every part is posted to both, keep the titles and links and free the rest
 const galleryReason = computed(() => {
   const d = data.value
   if (!d || deleteReason.value) return deleteReason.value
@@ -67,8 +67,8 @@ async function moveToGallery() {
   const s = series.value!
   const ok = await confirm({
     title: `Move “${s.title}” to the gallery?`,
-    body: 'Keeps each part\'s title, chosen thumbnail, YouTube and Instagram links, story and captions (and the cast list). '
-      + 'Deletes everything else for good: videos, frames, voices and cast sheets. Your exported reels folder is not touched.',
+    body: 'Keeps the series title and each part\'s title, YouTube and Instagram links. '
+      + 'Deletes everything else for good: videos, frames, voices, thumbnails, story and cast. Your exported reels folder is not touched.',
     confirm: 'Move to gallery', danger: true,
   })
   if (!ok) return
@@ -158,7 +158,7 @@ const facts = computed(() => {
     <section class="raised flex flex-wrap items-center gap-4 p-5" aria-label="Gallery">
       <div class="min-w-0 flex-1">
         <p class="text-sm font-semibold">Move to gallery</p>
-        <p class="text-xs text-muted">{{ galleryReason ? `Not yet: ${galleryReason}.` : 'Posted everywhere: keep the thumbnails and links, free the disk space.' }}</p>
+        <p class="text-xs text-muted">{{ galleryReason ? `Not yet: ${galleryReason}.` : 'Posted everywhere: keep the titles and links, free the disk space.' }}</p>
       </div>
       <button class="btn btn-secondary" :disabled="!!galleryReason" :title="galleryReason ?? undefined" @click="moveToGallery">
         <Images :size="16" aria-hidden="true" /> Move to gallery

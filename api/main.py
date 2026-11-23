@@ -624,7 +624,7 @@ def delete_series(slug: str):
 
 @app.post("/api/series/{slug}/gallery", response_model=gallery.GalleryEntry)
 def move_to_gallery(slug: str):
-    """keep the thumbnails, links and text of a series posted everywhere, delete the rest (cli to-gallery)"""
+    """keep the titles and links of a series posted everywhere, delete its folder (cli to-gallery)"""
     series_path(slug)
     check_free(slug)
     if any(j["status"] == "queued" and j["slug"] == slug for j in list(JOBS)):
@@ -638,16 +638,6 @@ def move_to_gallery(slug: str):
 @app.get("/api/gallery", response_model=list[gallery.GalleryEntry])
 def gallery_list():
     return gallery.entries(lib())
-
-
-@app.get("/api/gallery/{slug}/{path:path}")
-def gallery_file(slug: str, path: str):
-    """a kept thumbnail or text file of a gallery entry"""
-    root = (lib() / gallery.GALLERY).resolve()
-    f = (root / slug / path).resolve()
-    if not f.is_relative_to(root / slug) or slug.startswith(".") or f.suffix.lower() not in MEDIA_TYPES or not f.is_file():
-        raise HTTPException(404, "not found")
-    return FileResponse(f, headers={"Cache-Control": "no-cache"})
 
 
 @app.delete("/api/series/{slug}/parts/{part}", response_model=SeriesModel)

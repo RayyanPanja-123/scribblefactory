@@ -264,8 +264,8 @@ def remove_series_folder(d: Path, slug: str) -> None:
 
 
 def cmd_to_gallery(args) -> int:
-    """Move a series posted everywhere to the gallery: keep each part's title, chosen thumbnail, YouTube and Instagram
-    links, story.md and upload.md (and series.json); delete the rest of its folder. Dry run unless --yes."""
+    """Move a series posted everywhere to the gallery: keep the series title and each part's title, YouTube and
+    Instagram links; delete its folder. Dry run unless --yes."""
     f, series = load_existing_series(args)
     d = f.parent
     if why := gallery.not_posted(d):

@@ -1,8 +1,8 @@
-"""The gallery: series posted everywhere, kept small. Moving a series there keeps, per part, its title, the chosen
-thumbnail, the YouTube and Instagram links and the text written for it (story.md, upload.md), plus series.json (the
-cast); every rendered file (videos, frames, audio, cast sheets) is deleted with the series folder.
+"""The gallery: series posted everywhere, kept small. Moving a series there keeps only the series title and, per
+part, its title and YouTube and Instagram links; every file of the series folder is deleted with it.
 
-library/_gallery/<slug>/gallery.json (GalleryEntry), series.json, part-NN/{thumbnail.png, story.md, upload.md}.
+library/_gallery/<slug>/gallery.json (GalleryEntry). Entries moved before this kept thumbnails and text files beside it;
+those are ignored.
 The leading _ keeps it out of the series list (a series folder holds series.json; this one doesn't)."""
 from __future__ import annotations
 
@@ -10,21 +10,20 @@ import shutil
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field
+from pydantic import ConfigDict, Field
 
 from .io import atomic_write_json, load_part, load_series
 from .schemas import PartId, Post, Strict, UtcDateTime, utcnow
 
 GALLERY = "_gallery"
-KEEP = ("story.md", "upload.md")  # small, and written by hand: kept with the thumbnail
 SITES = {"youtube": "YouTube", "instagram": "Instagram"}
 
 
 class GalleryPart(Strict):
+    model_config = ConfigDict(extra="ignore")  # older entries also hold a thumbnail path
     id: PartId
     number: int
     title: str
-    thumbnail: str | None = Field(description="path inside the entry's folder; null: the part had no thumbnail")
     youtube: Post
     instagram: Post
 
@@ -71,23 +70,13 @@ def build(d: Path, library: Path) -> Path:
     tmp = root / f".tmp-{slug}-{utcnow():%Y%m%d%H%M%S}"
     tmp.mkdir()
     try:
-        shutil.copy2(d / "series.json", tmp / "series.json")
         parts = []
         for pid in series.parts:
-            pdir, out = d / pid, tmp / pid
-            out.mkdir()
-            p = load_part(pdir / "part.json")
-            thumb = next((pdir / r for r in filter(None, (p.thumbnail_choice, "thumbs/thumb-1.png")) if (pdir / r).is_file()), None)
-            if thumb:
-                shutil.copy2(thumb, out / f"thumbnail{thumb.suffix}")
-            for k in KEEP:
-                if (pdir / k).is_file():
-                    shutil.copy2(pdir / k, out / k)
+            p = load_part(d / pid / "part.json")
             parts.append(GalleryPart(id=pid, number=p.number, title=p.title, youtube=p.posted.youtube,
-                                     instagram=p.posted.instagram,
-                                     thumbnail=f"{pid}/thumbnail{thumb.suffix}" if thumb else None))
+                                     instagram=p.posted.instagram))
         entry = GalleryEntry(slug=slug, title=series.title, created_at=series.created_at, moved_at=utcnow(),
-                             freed_bytes=max(size(d) - size(tmp), 0), parts=parts)
+                             freed_bytes=size(d), parts=parts)
         atomic_write_json(tmp / "gallery.json", entry.model_dump(mode="json"))
         tmp.rename(root / slug)
     except BaseException:

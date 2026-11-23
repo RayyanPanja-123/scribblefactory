@@ -1301,7 +1301,6 @@
         "type": "object"
       },
       "GalleryPart": {
-        "additionalProperties": false,
         "properties": {
           "id": {
             "pattern": "^part-[0-9]{2}$",
@@ -1315,18 +1314,6 @@
             "title": "Number",
             "type": "integer"
           },
-          "thumbnail": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "path inside the entry's folder; null: the part had no thumbnail",
-            "title": "Thumbnail"
-          },
           "title": {
             "title": "Title",
             "type": "string"
@@ -1339,7 +1326,6 @@
           "id",
           "number",
           "title",
-          "thumbnail",
           "youtube",
           "instagram"
         ],
@@ -4739,53 +4725,6 @@
         "summary": "Gallery List"
       }
     },
-    "/api/gallery/{slug}/{path}": {
-      "get": {
-        "description": "a kept thumbnail or text file of a gallery entry",
-        "operationId": "gallery_file_api_gallery__slug___path__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "slug",
-            "required": true,
-            "schema": {
-              "title": "Slug",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "path",
-            "required": true,
-            "schema": {
-              "title": "Path",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Gallery File"
-      }
-    },
     "/api/health": {
       "get": {
         "operationId": "health_api_health_get",
@@ -5770,7 +5709,7 @@
     },
     "/api/series/{slug}/gallery": {
       "post": {
-        "description": "keep the thumbnails, links and text of a series posted everywhere, delete the rest (cli to-gallery)",
+        "description": "keep the titles and links of a series posted everywhere, delete its folder (cli to-gallery)",
         "operationId": "move_to_gallery_api_series__slug__gallery_post",
         "parameters": [
           {

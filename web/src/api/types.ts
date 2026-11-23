@@ -149,26 +149,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/gallery/{slug}/{path}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Gallery File
-         * @description a kept thumbnail or text file of a gallery entry
-         */
-        get: operations["gallery_file_api_gallery__slug___path__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -542,7 +522,7 @@ export interface paths {
         put?: never;
         /**
          * Move To Gallery
-         * @description keep the thumbnails, links and text of a series posted everywhere, delete the rest (cli to-gallery)
+         * @description keep the titles and links of a series posted everywhere, delete its folder (cli to-gallery)
          */
         post: operations["move_to_gallery_api_series__slug__gallery_post"];
         delete?: never;
@@ -1487,11 +1467,6 @@ export interface components {
             instagram: components["schemas"]["Post"];
             /** Number */
             number: number;
-            /**
-             * Thumbnail
-             * @description path inside the entry's folder; null: the part had no thumbnail
-             */
-            thumbnail: string | null;
             /** Title */
             title: string;
             youtube: components["schemas"]["Post"];
@@ -3071,38 +3046,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GalleryEntry"][];
-                };
-            };
-        };
-    };
-    gallery_file_api_gallery__slug___path__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                slug: string;
-                path: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

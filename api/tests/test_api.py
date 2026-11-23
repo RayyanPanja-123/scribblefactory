@@ -862,15 +862,11 @@ def test_move_to_gallery(client, lib):
     assert r.status_code == 409 and (lib / "demo" / "part-01" / "final.mp4").exists() and client.get("/api/gallery").json() == []
     e = client.post("/api/series/demo/gallery").json()
     assert e["slug"] == "demo" and e["title"] == "Demo" and e["freed_bytes"] > 0
-    assert e["parts"][0]["thumbnail"] == "part-01/thumbnail.png" and e["parts"][0]["instagram"]["url"] == "https://instagram.com/p/y"
+    assert e["parts"][0]["title"] and e["parts"][0]["instagram"]["url"] == "https://instagram.com/p/y" and "thumbnail" not in e["parts"][0]
     assert not (lib / "demo").exists() and client.get("/api/series").json() == [] and client.get("/api/gallery").json() == [e]
+    assert [f.name for f in (lib / "_gallery" / "demo").iterdir()] == ["gallery.json"]  # titles and links only
     o = client.get("/api/overview").json()  # its posts stay in the posting log
     assert o["posts_per_month"][-1] == {"month": f"{now:%Y-%m}", "youtube": 1, "instagram": 1} and o["kpi"]["posted_this_month"] == 2
-    assert client.get("/api/gallery/demo/part-01/thumbnail.png").content == b"png2"
-    assert client.get("/api/gallery/demo/part-01/story.md").status_code == 200
-    (lib / "secret.json").write_text("{}", encoding="utf-8")
-    assert client.get("/api/gallery/demo/..%2F..%2Fsecret.json").status_code == 404  # never outside the entry
-    assert client.get("/api/gallery/demo/part-01/final.mp4").status_code == 404
 
 
 def test_folder_move_waits_out_a_short_lock(tmp_path, monkeypatch):
