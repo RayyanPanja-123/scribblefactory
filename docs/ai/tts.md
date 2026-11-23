@@ -3,6 +3,15 @@
   2.8 s for the silent end screen. Count the words before you answer; over 83 means cut, never "close enough".
   A short this tight has no room for warm-up: every line is hook, escalation, payoff or twist.
 - Short lines, one idea each. Never start with Then, After that, So, Next, Later.
+- **Talk to the viewer, like telling a friend.** The narrator speaks to one person watching, not to an audience
+  and never like a report. From line 2 on, address them 2 to 3 times a part: "you", "your", "picture this", "guess
+  what he did next", "now here's where it gets worse". Keep each aside to 2 to 5 words inside a line, never a line on
+  its own, and say it as a statement (the explanation line below is the only question). Never on line 1: the hook
+  stays a flat claim.
+- **Say the bridge words people say out loud.** When a line explains a condition, a cause or a rule (why something
+  happens, what a law or deal required, what would happen if), lead in with the spoken bridge a person would use:
+  "You see, ...", "Here's the catch: ...", "The problem was, ...", "That's because ...", "Which meant ...". One bridge
+  per explained idea; write the comma after it, so the voice pauses there.
 - Every part runs three curiosity loops, then the twist:
   1. **Hook loop** (first 3 to 4 s, about 10 words): opens the question the part answers. If it misses, nothing else counts.
      - Line 1: noun + shocking claim, at most 12 words. No date, setting, question, "Did you know", "Imagine".
@@ -27,8 +36,9 @@
   concrete, no adjectives piled on: "Then the bridge snapped." Everything before it climbs toward it.
 - **One explanation, through an everyday thing** (after the snap, before the `!!` line): when the story turns on a
   cause (why it broke, why it worked, why nobody noticed), explain that one idea in one line through something the
-  viewer has done ("Ever pushed a kid on a swing?"), then tie it back to the story. One idea per part, no jargon.
-  This is the only place a question is allowed. Skip it when the cause needs no explaining.
+  viewer has done ("Ever pushed a kid on a swing?"), then tie it back to the story with a bridge ("You see, the
+  bridge was that swing."). One idea per part, no jargon. This is the only place a question is allowed. Skip it when
+  the cause needs no explaining.
 - **Deadpan pair** (optional, at most once per part, only when it earns its ~15 words): two back-to-back lines with
   the same ending, the first good news, the second the same fact as bad news: "Luckily, the river was only two feet
   deep." / "Unluckily, the river was only two feet deep." Right after the snap, never in lines 1 to 3.
