@@ -874,6 +874,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/storage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Storage
+         * @description every stored file of the library (or one series), frames aside, with size, type, duration and sha256;
+         *     brought up to date first (only new or changed files are measured)
+         */
+        get: operations["storage_api_storage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/wardrobe": {
         parameters: {
             query?: never;
@@ -2425,6 +2446,32 @@ export interface components {
              *     }
              */
             validate: components["schemas"]["Stage"];
+        };
+        /**
+         * StoredFile
+         * @description a file of a series folder (frames aside): what it is and how big, for the Overview
+         */
+        StoredFile: {
+            /** Content Type */
+            content_type: string;
+            /** Created At */
+            created_at: string;
+            /** Duration S */
+            duration_s: number | null;
+            /** Filename */
+            filename: string;
+            /** Part */
+            part: string | null;
+            /** Path */
+            path: string;
+            /** Sha256 */
+            sha256: string;
+            /** Size Bytes */
+            size_bytes: number;
+            /** Slug */
+            slug: string;
+            /** Updated At */
+            updated_at: string;
         };
         /** StoryCheck */
         StoryCheck: {
@@ -4583,6 +4630,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SfxCatalog"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    storage_api_storage_get: {
+        parameters: {
+            query?: {
+                slug?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoredFile"][];
                 };
             };
             /** @description Validation Error */

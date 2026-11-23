@@ -78,6 +78,15 @@ def test_health(client):
     assert client.get("/api/health").json() == {"ok": True}
 
 
+def test_storage_lists_stored_files(client, lib):
+    files = {(f["part"], f["filename"]): f for f in client.get("/api/storage").json()}
+    f = files[("part-01", "final.mp4")]
+    assert (f["slug"], f["size_bytes"], f["content_type"]) == ("demo", 1024, "video/mp4") and len(f["sha256"]) == 64
+    assert "id" not in f and not any(name.endswith(".png") and "frames" in k for k, name in files)  # frames: no rows
+    assert client.get("/api/storage?slug=demo").json() == list(files.values())
+    assert client.get("/api/storage?slug=nope").status_code == 404
+
+
 def test_overview(client, lib):
     o = client.get("/api/overview").json()
     assert len(o["sheet_steps"]) == 6  # Story Voice Plan Stills Final Post

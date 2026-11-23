@@ -68,6 +68,20 @@ class SeriesCard(BaseModel):
     posted: PostedCounts
 
 
+class StoredFile(BaseModel):
+    """a file of a series folder (frames aside): what it is and how big, for the Overview"""
+    slug: str
+    part: str | None  # part-01, or None for a series-level file (cast sheets)
+    path: str  # its folder under library/database/storage
+    filename: str
+    size_bytes: int
+    content_type: str
+    duration_s: float | None  # audio and video
+    sha256: str
+    created_at: str  # first seen
+    updated_at: str  # the file's modified time
+
+
 class Notification(BaseModel):
     id: str
     title: str

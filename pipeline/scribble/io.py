@@ -627,3 +627,59 @@ def series_bytes(series_dir) -> bytes | None:
         return text.encode()  # imported and not saved since: the file's own bytes
     s = load_series(Path(series_dir) / SERIES_FILE)
     return (json.dumps(s.model_dump(mode="json"), indent=2, ensure_ascii=False) + "\n").encode()
+
+
+# ---- stored files (db.StoredFile): the files of a series folder and their metadata ----
+
+UNTRACKED_DIRS = {"frames", "cast-frames"}  # thousands of render frames each: no row per frame
+MEDIA = {".mp3", ".wav", ".mp4", ".m4a"}  # files with a duration
+CONTENT_TYPES = {".md": "text/markdown", ".txt": "text/plain", ".json": "application/json", ".ass": "text/x-ssa",
+                 ".key": "text/plain", ".png": "image/png", ".jpg": "image/jpeg", ".mp3": "audio/mpeg",
+                 ".wav": "audio/wav", ".m4a": "audio/mp4", ".mp4": "video/mp4"}
+
+
+def _iso(ts: float) -> str:
+    from datetime import datetime, timezone
+    return datetime.fromtimestamp(ts, timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _sha256(f: Path) -> str:
+    h = hashlib.sha256()
+    with open(f, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def sync_files(series_dir) -> int:
+    """bring the stored_file rows of a series folder up to date: a new or changed file (size or modified time) is
+    measured and hashed again, the row of a file gone is dropped. Returns how many rows changed."""
+    from . import ff  # ffprobe only when something is measured (ff imports the stage runner, which imports io)
+    d = Path(series_dir)
+    if not series_exists(d):
+        return 0
+    library, slug = series_where(d)
+    root = storage_root(library)
+    part_of = {folder: pid for pid, folder in part_folders_of(d).items()}
+    known = {(r["path"], r["filename"]): r for r in db.get_files(library, slug)}
+    seen, rows = set(), []
+    for f in sorted(d.rglob("*")):
+        rel = f.relative_to(d)
+        if (not f.is_file() or UNTRACKED_DIRS & set(rel.parts) or f.name.startswith(".")
+                or f.name.endswith((".imported", ".tmp"))):
+            continue
+        st = f.stat()
+        key = (f.parent.relative_to(root).as_posix(), f.name)
+        seen.add(key)
+        updated, old = _iso(st.st_mtime), known.get(key)
+        if old and (old["size_bytes"], old["updated_at"]) == (st.st_size, updated):
+            continue
+        rows.append({"part": part_of.get(rel.parts[0]) if len(rel.parts) > 1 else None, "path": key[0],
+                     "filename": f.name, "size_bytes": st.st_size,
+                     "content_type": CONTENT_TYPES.get(f.suffix.lower(), "application/octet-stream"),
+                     "duration_s": ff.duration(f) if f.suffix.lower() in MEDIA else None, "sha256": _sha256(f),
+                     "created_at": old["created_at"] if old else _iso(time.time()), "updated_at": updated})
+    gone = [k for k in known if k not in seen]
+    if rows or gone:
+        db.put_files(library, slug, rows, gone)
+    return len(rows) + len(gone)

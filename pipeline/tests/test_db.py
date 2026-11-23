@@ -44,3 +44,27 @@ def test_reading_an_empty_library_creates_nothing(tmp_path):
     lib = tmp_path / "nowhere"
     assert db.get_settings(lib) == {} and db.load_jobs(lib) == [] and db.get_catalog(lib, "props") == []
     assert not lib.exists()
+
+
+def test_stored_files_follow_the_series_folder(tmp_path):
+    import os
+    from pipeline.scribble.cli import main
+    from pipeline.scribble.io import part_dir_of, sync_files
+    lib = ["--library", str(tmp_path)]
+    assert main(["new-series", "cat", "--title", "Cat", *lib]) == 0 and main(["new-part", "cat", "--title", "Pilot", *lib]) == 0
+    d = tmp_path / "database" / "storage" / "cat"
+    p = part_dir_of(d, "part-01")
+    (p / "frames").mkdir()
+    (p / "frames" / "000000.png").write_bytes(b"png")  # frames: no rows
+    (d / "cast").mkdir()
+    (d / "cast" / "bob.png").write_bytes(b"png")
+    assert sync_files(d) == 2 and sync_files(d) == 0  # story.md and the cast sheet; nothing changed the second time
+    rows = {(r["part"], r["filename"]): r for r in db.get_files(tmp_path, "cat")}
+    assert set(rows) == {("part-01", "story.md"), (None, "bob.png")}
+    assert rows[("part-01", "story.md")]["path"] == "cat/01-pilot" and rows[(None, "bob.png")]["content_type"] == "image/png"
+    (p / "story.md").write_bytes(b"# Pilot\n\nlonger now\n")
+    os.utime(p / "story.md", (1e9, 1e9))
+    (d / "cast" / "bob.png").unlink()
+    assert sync_files(d) == 2  # one changed, one gone
+    [r] = db.get_files(tmp_path, "cat")
+    assert r["size_bytes"] == len("# Pilot\n\nlonger now\n") and r["updated_at"].startswith("2001-09-09")

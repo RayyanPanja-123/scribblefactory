@@ -3684,6 +3684,79 @@
         "title": "Stages",
         "type": "object"
       },
+      "StoredFile": {
+        "description": "a file of a series folder (frames aside): what it is and how big, for the Overview",
+        "properties": {
+          "content_type": {
+            "title": "Content Type",
+            "type": "string"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "duration_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration S"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "part": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Part"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug",
+          "part",
+          "path",
+          "filename",
+          "size_bytes",
+          "content_type",
+          "duration_s",
+          "sha256",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "StoredFile",
+        "type": "object"
+      },
       "StoryCheck": {
         "properties": {
           "ok": {
@@ -6919,6 +6992,57 @@
           }
         },
         "summary": "Put Sfx Audio"
+      }
+    },
+    "/api/storage": {
+      "get": {
+        "description": "every stored file of the library (or one series), frames aside, with size, type, duration and sha256;\nbrought up to date first (only new or changed files are measured)",
+        "operationId": "storage_api_storage_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "slug",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/StoredFile"
+                  },
+                  "title": "Response Storage Api Storage Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Storage"
       }
     },
     "/api/wardrobe": {

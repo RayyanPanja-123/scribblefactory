@@ -27,10 +27,10 @@ from api.core import (APPROVE_NEEDS, MEDIA_TYPES, OPENAPI, PART_FILES, ROOT, all
                       series_path, waiting_approvals, write_story)
 from api.events import publish
 from api.jobs import JOBS, busy, check_free, check_no_jobs, load_jobs
-from api.models import Health, Notification, Overview, PartDetail, SeriesCard, SeriesDetail
+from api.models import Health, Notification, Overview, PartDetail, SeriesCard, SeriesDetail, StoredFile
 from api.settings_routes import drop_ai_settings
-from pipeline.scribble import cli, gallery, package, settings, storycheck
-from pipeline.scribble.io import (atomic_write_json, part_dir_of, storage_root, write_series, atomic_write_text, load_part, load_series, prop_kinds,
+from pipeline.scribble import cli, db, gallery, package, settings, storycheck
+from pipeline.scribble.io import (atomic_write_json, part_dir_of, sync_files, storage_root, write_series, atomic_write_text, load_part, load_series, prop_kinds,
                                   save_series, unknown_cast_props, cast_body_problems, cast_files,
                                   cast_render_current)
 from pipeline.scribble.schemas import CastMember, PartModel, SeriesModel, Slug, Stages, utcnow
@@ -133,6 +133,15 @@ def series_list():
               "disk_usage": du(d), "posted": posted_counts(d)}
              for d in all_series() for s in [load_series(d / "series.json")]]
     return sorted(cards, key=lambda card: card["created_at"], reverse=True)
+
+
+@app.get("/api/storage", response_model=list[StoredFile])
+def storage(slug: str | None = None):
+    """every stored file of the library (or one series), frames aside, with size, type, duration and sha256;
+    brought up to date first (only new or changed files are measured)"""
+    for d in ([series_path(slug)] if slug else all_series()):
+        sync_files(d)
+    return db.get_files(lib(), slug)
 
 
 @app.get("/api/notifications", response_model=list[Notification])

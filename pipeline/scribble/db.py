@@ -381,3 +381,55 @@ def delete_part(library, slug: str, part_id: str) -> None:
         if p is not None:
             db.delete(p)
             db.commit()
+
+
+# ---- stored files: every file of a series folder, with its metadata (io.sync_files keeps them current) ----
+
+class StoredFile(SQLModel, table=True):
+    __tablename__ = "stored_file"
+    __table_args__ = (UniqueConstraint("path", "filename"),)
+    id: int | None = Field(default=None, primary_key=True)
+    series_id: int = Field(foreign_key="series.id", ondelete="CASCADE", index=True)
+    part_id: int | None = Field(default=None, foreign_key="part.id", ondelete="CASCADE", index=True)  # None: series level
+    path: str  # its folder, relative to library/database/storage: midnight-deals-inc/01-quota-night
+    filename: str
+    size_bytes: int
+    content_type: str
+    duration_s: float | None = None  # audio and video
+    sha256: str
+    created_at: str  # first seen
+    updated_at: str  # the file's modified time
+
+
+def get_files(library, slug: str | None = None) -> list[dict]:
+    """stored files (one series, or all) with their series slug and part id (None: series level)"""
+    if not _has_data(library):
+        return []
+    with Session(engine(library)) as db:
+        q = (select(StoredFile, Series.slug, Part.part_id).join(Series, Series.id == StoredFile.series_id)
+             .join(Part, Part.id == StoredFile.part_id, isouter=True).order_by(StoredFile.path, StoredFile.filename))
+        if slug:
+            q = q.where(Series.slug == slug)
+        return [{**f.model_dump(exclude={"id", "series_id", "part_id"}), "slug": s, "part": p} for f, s, p in db.exec(q)]
+
+
+def put_files(library, slug: str, rows: list[dict], gone: list[tuple[str, str]]) -> None:
+    """add or replace these files (dicts with a "part" id or None, and every StoredFile field but the ids) of the
+    series, and drop the (path, filename) pairs in gone"""
+    with Session(engine(library)) as db:
+        s = _series_row(db, slug)
+        if s is None:
+            return
+        parts = {pid: i for pid, i in db.exec(select(Part.part_id, Part.id).where(Part.series_id == s.id))}
+        for path, filename in gone:
+            db.exec(delete(StoredFile).where(StoredFile.path == path, StoredFile.filename == filename))
+        for r in rows:
+            f = db.exec(select(StoredFile).where(StoredFile.path == r["path"], StoredFile.filename == r["filename"])).first() \
+                or StoredFile(series_id=s.id, **{k: r[k] for k in ("path", "filename", "size_bytes", "content_type", "sha256",
+                                                                   "created_at", "updated_at")})
+            for k, v in r.items():
+                if k != "part":
+                    setattr(f, k, v)
+            f.series_id, f.part_id = s.id, parts.get(r["part"])
+            db.add(f)
+        db.commit()

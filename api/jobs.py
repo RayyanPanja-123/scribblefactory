@@ -20,7 +20,7 @@ from api.models import Job
 from sqlalchemy.exc import SQLAlchemyError
 
 from pipeline.scribble import cli, db
-from pipeline.scribble.io import load_part, load_series, part_dir_of, storage_root
+from pipeline.scribble.io import load_part, load_series, part_dir_of, storage_root, sync_files
 from pipeline.scribble.schemas import utcnow
 from pipeline.scribble.stages import render as render_stage
 from pipeline.scribble.stages.runner import recover_stuck
@@ -240,6 +240,10 @@ def _work() -> None:
         save_jobs()
         publish("job-started", _brief(job))
         _run(job)
+        try:  # the files the job made or changed: their stored_file rows
+            sync_files(storage_root(lib()) / job["slug"])
+        except Exception as e:  # never fails the job
+            job["output"].append(f"note: stored files not synced: {e}")
         job["finished_at"], job["pid"] = _iso(utcnow()), None
         publish("job-finished", _brief(job))
         with _cv:  # keep the last KEEP_JOBS finished jobs
