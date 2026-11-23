@@ -19,8 +19,8 @@ import { RIG_LIST, RIG_NOTES, allCreatures, isBuiltinCreature, type Rig } from '
 // Every body a cast member can have (default human): the engine's built-ins and the library's custom creatures, shared
 // by every series, with who uses each.
 const { data, error, loading, reload, refresh } = useApi(async () => {
-  const [catalog, list] = await Promise.all([api.creatures(), api.series()])
-  return { catalog, series: await Promise.all(list.map((s) => api.seriesDetail(s.slug))) }
+  const [catalog, series] = await Promise.all([api.creatures(), api.allSeriesDetails()])
+  return { catalog, series }
 })
 refetchOn(() => null, () => null, refresh)
 

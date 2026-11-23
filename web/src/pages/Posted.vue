@@ -10,10 +10,7 @@ import { useApi } from '../composables/useApi'
 import { shortDate } from '../composables/ui'
 
 // Every part with its YouTube / Instagram links. A finished part without a link is flagged "missing".
-const { data, error, loading, reload, refresh } = useApi(async () => {
-  const list = await api.series()
-  return Promise.all(list.map((s) => api.seriesDetail(s.slug)))
-})
+const { data, error, loading, reload, refresh } = useApi(() => api.allSeriesDetails())
 refetchOn(() => null, () => null, refresh)
 
 const rows = computed(() =>

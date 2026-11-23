@@ -16,8 +16,8 @@ import { SLOT_LABEL, SLOTS, buildWardrobePrompt, importWardrobe, wardrobeOptions
 // Every wardrobe item a humanoid cast member can wear, by slot: the hand-drawn built-ins and the library's custom items,
 // shared by every series, with who wears each.
 const { data, error, loading, reload, refresh } = useApi(async () => {
-  const [catalog, list] = await Promise.all([api.wardrobe(), api.series()])
-  return { catalog, series: await Promise.all(list.map((s) => api.seriesDetail(s.slug))) }
+  const [catalog, series] = await Promise.all([api.wardrobe(), api.allSeriesDetails()])
+  return { catalog, series }
 })
 refetchOn(() => null, () => null, refresh)
 

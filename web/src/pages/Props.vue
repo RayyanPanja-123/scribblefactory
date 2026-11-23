@@ -18,8 +18,8 @@ import { builtinNote, propOptions, type BuiltinProp } from '../lib/props'
 // Every prop a cast member can hold (one per hand): the built-ins and the library's custom ones, shared by every
 // series, with who holds each.
 const { data, error, loading, reload, refresh } = useApi(async () => {
-  const [catalog, list] = await Promise.all([api.props(), api.series()])
-  return { catalog, series: await Promise.all(list.map((s) => api.seriesDetail(s.slug))) }
+  const [catalog, series] = await Promise.all([api.props(), api.allSeriesDetails()])
+  return { catalog, series }
 })
 refetchOn(() => null, () => null, refresh)
 
