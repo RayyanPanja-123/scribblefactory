@@ -18,7 +18,7 @@ from pathlib import Path
 
 from pydantic import TypeAdapter, ValidationError
 
-from . import db, gallery, sheet, storycheck
+from . import backup, db, gallery, sheet, storycheck
 from .io import (atomic_write_json, series_where, part_dir_of, part_exists, part_folder_name, part_folders_of, series_dirs, series_exists, storage_root, cast_body_problems, cast_files, cast_key, cast_render_current, load_part, load_series, prop_kinds, replace_file, save_part,
                  save_series, unknown_cast_props)
 from .schemas import CastMember, Expression, PartId, PartModel, Post, SeriesModel, Slug, Stages, StoryModel, Style, Voice, utcnow
@@ -307,6 +307,15 @@ def remove_series_folder(d: Path, slug: str) -> None:
 
 # files of removed features (thumbnails, the test render, preview.mp4; 2026-11-23): migrate-storage deletes them
 LEFTOVERS = ["preview.mp4", "test-render.mp4", "thumbs"]
+
+
+def cmd_export(args) -> int:
+    """the database as JSON files (backup.export): settings without the Gemini key, catalogs, series and parts"""
+    library = library_root(args)
+    out = Path(args.out) if args.out else library / "export"
+    n = backup.export(library, out)
+    print(f"exported {n['series']} series, {n['parts']} parts, {n['catalogs']} catalogs and the settings to {out}")
+    return 0
 
 
 def cmd_migrate_storage(args) -> int:
@@ -708,6 +717,12 @@ def build_parser() -> Parser:
     c.add_argument("slug")
     c.add_argument("--yes", action="store_true", help="really delete")
     c.set_defaults(func=cmd_delete_series)
+
+    c = sub.add_parser("export", parents=[common],
+                       help="write the database as JSON (settings without the Gemini key, catalogs, series, parts) "
+                            "laid out as an old library: for backups and git diffs (default: library/export)")
+    c.add_argument("--out", help="folder to write (replaced whole)")
+    c.set_defaults(func=cmd_export)
 
     c = sub.add_parser("migrate-storage", parents=[common],
                        help="one-time: move series folders into library/database/storage and delete files of removed "

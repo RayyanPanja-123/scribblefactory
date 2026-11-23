@@ -68,3 +68,26 @@ def test_stored_files_follow_the_series_folder(tmp_path):
     assert sync_files(d) == 2  # one changed, one gone
     [r] = db.get_files(tmp_path, "cat")
     assert r["size_bytes"] == len("# Pilot\n\nlonger now\n") and r["updated_at"].startswith("2001-09-09")
+
+
+def test_export_round_trips_into_an_empty_library(tmp_path):
+    import shutil
+    from pipeline.scribble.cli import main
+    from pipeline.scribble.io import load_part, load_props, load_series, part_dir_of, series_dirs
+    a, b = tmp_path / "a", tmp_path / "b"
+    lib = ["--library", str(a)]
+    assert main(["new-series", "cat", "--title", "Cat", *lib]) == 0 and main(["new-part", "cat", "--title", "Pilot", *lib]) == 0
+    assert main(["cast-add", "cat", "bob", "--name", "Bob", "--color", "#ff0000", *lib]) == 0
+    (a / "props.json").write_text(json.dumps({"props": [{"id": "staff", "name": "Staff",
+                                                         "shapes": [{"shape": "line", "pts": [[0, 0], [0, 50]]}]}]}))
+    db.put_settings(a, {"render_workers": 2, "gemini_key": "secret"})
+    assert main(["export", *lib]) == 0
+    out = a / "export"
+    assert "secret" not in (out / "settings.json").read_text() and (out / "props.json").is_file()
+    shutil.copytree(out, b)  # restore: an empty library with the export copied in
+    assert [d.name for d in series_dirs(b)] == ["cat"]
+    sa, sb = a / "database" / "storage" / "cat", b / "database" / "storage" / "cat"
+    assert load_series(sb / "series.json") == load_series(sa / "series.json")
+    assert load_part(part_dir_of(sb, "part-01") / "part.json") == load_part(part_dir_of(sa, "part-01") / "part.json")
+    assert load_props(b) == load_props(a) and db.get_settings(b) == {"render_workers": 2}
+    assert main(["export", *lib]) == 0 and not list(a.glob(".export-*"))  # replaced whole, no temp left

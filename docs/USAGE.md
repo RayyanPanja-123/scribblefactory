@@ -125,6 +125,13 @@ Any stage can be re-run from its chip menu. Captions on or off: `cli set-caption
 2. Upload final.mp4 to YouTube Shorts and Instagram Reels by hand.
 3. **Mark posted** with each link (`cli mark-posted <slug> <part> youtube --url https://...`).
 
+## Backup
+
+Series, parts, cast, catalogs and settings live in `library/database/scribble.db`; media are plain files beside it in
+`library/database/storage/`. `cli export [--out DIR]` writes the database as JSON (default `library/export/`): settings
+without the Gemini key, the catalogs, and every series.json / part.json, laid out as a library. To restore, copy the
+export into an empty library: the files are imported on first use.
+
 ## 7. Cleaning up
 
 Rendered frames are large (about 1-2 GB a part). final.mp4 does not need them.
