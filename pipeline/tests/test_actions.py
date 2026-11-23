@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from pipeline.tests.helpers import new_part
 from pipeline.scribble.io import save_part, unknown_actions
 from pipeline.scribble.schemas import (ACTIONS, ActionLibrary, CustomAction, PartModel, SeriesModel, StoryModel,
                                        actions_with)
@@ -165,9 +166,7 @@ def test_do_stage_errors_have_line_numbers(line, msg):
 
 
 def test_prep_fails_on_a_bad_do_and_keeps_the_script_identical(tmp_path):
-    d = tmp_path / "part-01"
-    d.mkdir()
-    save_part(d / "part.json", PartModel(id="part-01", number=1, title="T"))
+    d = new_part(tmp_path)
     plain = "# T\n\n@cast fred\nFred ran.\n\nFred sat.\n"
     (d / "story.md").write_text(plain, encoding="utf-8")
     assert run_stage(d, "prep", prep.run, inputs=prep.INPUTS, outputs=prep.OUTPUTS) == "done"

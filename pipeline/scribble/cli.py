@@ -305,50 +305,12 @@ def remove_series_folder(d: Path, slug: str) -> None:
         print(f"note: could not delete every file of {trash.name} (in use?); delete it later")
 
 
-# files of removed features (thumbnails, the test render, preview.mp4; 2026-11-23): migrate-storage deletes them
-LEFTOVERS = ["preview.mp4", "test-render.mp4", "thumbs"]
-
-
 def cmd_export(args) -> int:
     """the database as JSON files (backup.export): settings without the Gemini key, catalogs, series and parts"""
     library = library_root(args)
     out = Path(args.out) if args.out else library / "export"
     n = backup.export(library, out)
     print(f"exported {n['series']} series, {n['parts']} parts, {n['catalogs']} catalogs and the settings to {out}")
-    return 0
-
-
-def cmd_migrate_storage(args) -> int:
-    """One-time move of every series folder still directly in the library into library/database/storage/<slug>,
-    deleting each part's LEFTOVERS. Dry run unless --yes. Refused while any part renders or has a stage running."""
-    library = library_root(args)
-    old = sorted(d for d in library.iterdir() if (d / "series.json").is_file()) if library.is_dir() else []
-    root = storage_root(library)
-    busy = [f"{d.name} {p}" for d in [*old, *(root.iterdir() if root.is_dir() else [])] for p in part_folders(d)
-            if part_busy(d / p)]
-    if busy:
-        raise UserError(f"{busy[0]} is rendering or has a stage running; wait for it or stop it")
-    taken = [d.name for d in old if (root / d.name).exists()]
-    if taken:
-        raise UserError(f"{root / taken[0]} exists already; move or delete one of the two by hand")
-    for d in old:
-        gone = [f"{p}/{name}" for p in part_folders(d) for name in LEFTOVERS if (d / p / name).exists()]
-        print(f"{'move' if args.yes else 'would move'} {d.name} -> {root / d.name}"
-              + (f"; {'delete' if args.yes else 'would delete'} {', '.join(gone)}" if gone else ""))
-        if not args.yes:
-            continue
-        root.mkdir(parents=True, exist_ok=True)
-        move_aside(d, root / d.name)
-        for rel in gone:
-            f = root / d.name / rel
-            shutil.rmtree(f) if f.is_dir() else f.unlink()
-    # series.json / part.json into the database (series_dirs imports them), then part folders named by title
-    renamed = [f"{d.name}/{r}" for d in (series_dirs(library) if args.yes else [])
-               for pid in part_folders_of(d) if (r := retitle_folder(d, pid))]
-    print(f"part folders renamed: {', '.join(renamed)}" if renamed else
-          "part folders: imported and renamed by title with --yes" if not args.yes else "part folders: named by title already")
-    if not args.yes:
-        print("add --yes to move")
     return 0
 
 
@@ -723,12 +685,6 @@ def build_parser() -> Parser:
                             "laid out as an old library: for backups and git diffs (default: library/export)")
     c.add_argument("--out", help="folder to write (replaced whole)")
     c.set_defaults(func=cmd_export)
-
-    c = sub.add_parser("migrate-storage", parents=[common],
-                       help="one-time: move series folders into library/database/storage and delete files of removed "
-                            "features (dry run unless --yes)")
-    c.add_argument("--yes", action="store_true", help="really move")
-    c.set_defaults(func=cmd_migrate_storage)
 
     c = sub.add_parser("to-gallery", parents=[common],
                        help="move a series posted to YouTube and Instagram to the gallery: keep titles and "

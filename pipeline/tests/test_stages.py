@@ -1,4 +1,5 @@
 import shutil
+from pipeline.tests.helpers import new_part
 from pipeline.scribble.io import part_dir_of
 import subprocess
 
@@ -52,9 +53,7 @@ Last line continues here."""
 
 @pytest.fixture
 def part(tmp_path):
-    d = tmp_path / "part-01"
-    d.mkdir()
-    save_part(d / "part.json", PartModel(id="part-01", number=1, title="T"))
+    d = new_part(tmp_path)
     return d
 
 

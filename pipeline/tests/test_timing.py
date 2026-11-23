@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+from pipeline.tests.helpers import new_part
 from pipeline.scribble.io import load_part, save_part
 from pipeline.scribble.schemas import PartModel, PhrasesModel
 from pipeline.scribble.stages import timing
@@ -195,9 +196,7 @@ def test_schema_invalid(over):
 
 @pytest.fixture
 def part(tmp_path):
-    d = tmp_path / "part-01"
-    d.mkdir()
-    save_part(d / "part.json", PartModel(id="part-01", number=1, title="T"))
+    d = new_part(tmp_path)
     return d
 
 

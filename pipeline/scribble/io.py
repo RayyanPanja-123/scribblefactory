@@ -531,8 +531,7 @@ def delete_set(library, set_id: str) -> None:
 def load_part(path) -> PartModel:
     """the part whose folder holds this (former) part.json path; FileNotFoundError when there is none"""
     pdir = Path(path).parent
-    if not series_exists(pdir.parent):  # a bare part folder with no series (tests): its part.json stays a file
-        return PartModel.model_validate_json((pdir / PART_FILE).read_bytes())
+    adopt(pdir.parent)
     library, slug = series_where(pdir.parent)
     data = db.get_part(library, slug, pdir.name)
     if data is None:
@@ -542,8 +541,7 @@ def load_part(path) -> PartModel:
 
 def part_exists(part_dir) -> bool:
     part_dir = Path(part_dir)
-    if not series_exists(part_dir.parent):
-        return (part_dir / PART_FILE).is_file()
+    adopt(part_dir.parent)
     return db.get_part(*series_where(part_dir.parent), part_dir.name) is not None
 
 
@@ -619,9 +617,6 @@ def save_part(path, model: PartModel) -> None:
             kept = getattr(old, name).approved_at
             if kept and getattr(model.approvals, name).approved_at is None:
                 getattr(model.approvals, name).approved_at = kept
-    if not series_exists(pdir.parent):  # a bare part folder with no series (tests): stays a file
-        atomic_write_json(pdir / PART_FILE, model.model_dump(mode="json"))
-        return
     db.put_part(library, slug, pdir.name, model.model_dump(mode="json"))
     series = load_series(pdir.parent / SERIES_FILE)
     updated = _managed_series_status(pdir.parent, series)

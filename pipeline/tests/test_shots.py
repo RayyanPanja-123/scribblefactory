@@ -3,6 +3,7 @@ import math
 
 import pytest
 
+from pipeline.tests.helpers import new_part
 from pipeline.scribble.io import atomic_write_json, load_part, save_part, save_series
 from pipeline.scribble.schemas import PartModel, PhrasesModel, SeriesModel
 from pipeline.scribble.stages import prep, shots
@@ -61,9 +62,7 @@ def test_prep_strips_directives():
 
 
 def test_prep_stage_writes_script_without_directives(tmp_path):
-    d = tmp_path / "part-01"
-    d.mkdir()
-    save_part(d / "part.json", PartModel(id="part-01", number=1, title="T"))
+    d = new_part(tmp_path)
     (d / "story.md").write_text(DIRECTED, encoding="utf-8")
     assert run_stage(d, "prep", prep.run, inputs=prep.INPUTS, outputs=prep.OUTPUTS) == "done"
     script = (d / "script-for-tts.txt").read_text(encoding="utf-8")

@@ -5,6 +5,7 @@ import pytest
 from pydantic import ValidationError
 
 from pipeline.scribble import io
+from pipeline.tests.helpers import new_part
 from pipeline.scribble.schemas import PartModel, SeriesModel, utcnow
 from pipeline.scribble.schemas.export import OUT_DIR, render
 
@@ -52,11 +53,11 @@ def test_series_round_trip(tmp_path):
 
 
 def test_part_round_trip(tmp_path):
-    p = tmp_path / "part.json"
+    p = new_part(tmp_path) / "part.json"
     m = PartModel.model_validate(part_data())
     io.save_part(p, m)
     assert io.load_part(p) == m
-    on_disk = json.loads(p.read_text())
+    on_disk = io.load_part(p).model_dump(mode="json")
     assert on_disk["stages"]["validate"]["status"] == "done"
     assert list(on_disk["stages"]) == ["prep", "import_check", "timing", "shots", "validate",
                                        "render", "audio", "finish"]
@@ -87,7 +88,7 @@ def test_invalid(model, data):
 
 def test_atomic_write_keeps_original_on_failure(tmp_path, monkeypatch):
     p = tmp_path / "part.json"
-    io.save_part(p, PartModel.model_validate(part_data()))
+    io.atomic_write_json(p, part_data())
     before = p.read_bytes()
 
     def boom(fd):
@@ -95,7 +96,7 @@ def test_atomic_write_keeps_original_on_failure(tmp_path, monkeypatch):
 
     monkeypatch.setattr(io.os, "fsync", boom)
     with pytest.raises(OSError):
-        io.save_part(p, PartModel.model_validate(part_data(title="New")))
+        io.atomic_write_json(p, part_data(title="New"))
     assert p.read_bytes() == before
     assert [f.name for f in tmp_path.iterdir()] == ["part.json"]  # temp file cleaned up
 
@@ -108,7 +109,7 @@ def test_refuses_protected_files(tmp_path):
 
 
 def test_part_approval_not_lost(tmp_path):
-    p = tmp_path / "part.json"
+    p = new_part(tmp_path) / "part.json"
     io.save_part(p, PartModel.model_validate(part_data()))
     io.save_part(p, PartModel.model_validate(part_data(approvals={})))  # stale model without approval
     assert io.load_part(p).approvals.stills.approved_at is not None
@@ -155,7 +156,7 @@ def test_naive_datetime_object_rejected():
 
 def test_replace_retries_then_raises(tmp_path, monkeypatch):
     p = tmp_path / "part.json"
-    io.save_part(p, PartModel.model_validate(part_data()))
+    io.atomic_write_json(p, part_data())
     before = p.read_bytes()
     calls = []
 
@@ -166,7 +167,7 @@ def test_replace_retries_then_raises(tmp_path, monkeypatch):
     monkeypatch.setattr(io.os, "replace", locked)
     monkeypatch.setattr(io.time, "sleep", lambda s: None)
     with pytest.raises(PermissionError):
-        io.save_part(p, PartModel.model_validate(part_data(title="New")))
+        io.atomic_write_json(p, part_data(title="New"))
     assert len(calls) == 1 + io.REPLACE_RETRIES
     assert p.read_bytes() == before
     assert [f.name for f in tmp_path.iterdir()] == ["part.json"]
@@ -174,7 +175,7 @@ def test_replace_retries_then_raises(tmp_path, monkeypatch):
 
 def test_replace_retry_succeeds(tmp_path, monkeypatch):
     p = tmp_path / "part.json"
-    io.save_part(p, PartModel.model_validate(part_data()))
+    io.atomic_write_json(p, part_data())
     real, calls = io.os.replace, []
 
     def flaky(src, dst):
@@ -185,8 +186,8 @@ def test_replace_retry_succeeds(tmp_path, monkeypatch):
 
     monkeypatch.setattr(io.os, "replace", flaky)
     monkeypatch.setattr(io.time, "sleep", lambda s: None)
-    io.save_part(p, PartModel.model_validate(part_data(title="New")))
-    assert io.load_part(p).title == "New"
+    io.atomic_write_json(p, part_data(title="New"))
+    assert json.loads(p.read_text())["title"] == "New"
 
 
 def test_series_v1_migrates_to_v3_keeping_approvals(tmp_path):
