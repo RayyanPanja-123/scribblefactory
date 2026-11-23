@@ -105,9 +105,12 @@ test("flame: off draws exactly as before; low / high add layered tongues on mane
     FIRE.forEach((c, i) => assert.equal(fills(low, c).length, 14 + (i === 2))); // + the glowing eye in the core colour
     FIRE.forEach((c, i) => assert.equal(fills(high, c).length, 22 + (i === 2)));
     assert.ok(tall(high) > 1.5 * tall(low));
-    // the creature's own lines keep their boil: the flame-off ops are all still there, in order
-    const own = high.filter((x) => !FIRE.includes(x.style));
-    assert.ok(off.every((x) => own.some((y) => y.style === x.style && JSON.stringify(y.pts) === JSON.stringify(x.pts))));
+    // the creature's own lines keep their boil: the flame-off ops are all still there, but the eye's white catchlight
+    // (a glowing eye has none)
+    const own = high.filter((x) => !FIRE.includes(x.style)), shine = (x) => x.style === "#ffffff" && x.pts.length === 1;
+    const kept = off.filter((x) => !shine(x));
+    assert.equal(off.length - kept.length, 1);
+    assert.ok(kept.every((x) => own.some((y) => y.style === x.style && JSON.stringify(y.pts) === JSON.stringify(x.pts))));
   }
   assert.equal(fills(record(horse, { action: "idle", flame: "high" }), FIRE[2]).length, 23); // 22 tongue cores + the eye
   assert.equal(record(creature("cat"), { action: "idle", flame: "low" }).filter((x) => x.style === FIRE[0]).length, 14);

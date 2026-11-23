@@ -2,6 +2,10 @@
   "name": "scribblefactory",
   "private": true,
   "scripts": {
-    "dev": "bash scripts/dev.sh"
+    "dev": "bash scripts/dev.sh",
+    "test": "npm run test:py && npm run test:engine && npm run test:web",
+    "test:py": "bash -c 'V=.venv/bin; [ -d $V ] || V=.venv/Scripts; $V/python -m pytest -q pipeline/tests'",
+    "test:engine": "npm --prefix engine test",
+    "test:web": "npm --prefix web run typecheck && npm --prefix web test"
   }
 }
