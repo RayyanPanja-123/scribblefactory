@@ -649,7 +649,9 @@ def _seat_riders(actors, rides, pos, subject=None, action=None) -> list[Actor]:
                 h.action, h.expression, h.prop = "idle", "neutral", None
         if a.action not in RIDE_ACTIONS:
             a.action = "idle"
-        a.start_pos, a.end_pos, a.target, a.prop, a.mount = h.start_pos, None, None, None, m
+        a.start_pos, a.end_pos, a.mount = h.start_pos, None, m
+        if a.action not in ("give", "receive"):  # a hand-off keeps its partner and prop (arms only, fine in the saddle)
+            a.target, a.prop = None, None
         a.facing = "left" if h.facing == "left" else "right"
         by[r], pos[r] = a, pos[m]
     return [by[a.cast_id] for a in actors] + [by[r] for r in rides if r not in {a.cast_id for a in actors}]

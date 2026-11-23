@@ -158,7 +158,7 @@ def parse_look(arg: str, line: int, looks_of=None, creatures=None) -> tuple[tupl
 
 
 # what a rider can do in the saddle (upper body only); any other action falls back to idle (storycheck warns)
-RIDE_ACTIONS = ("idle", "talk", "point", "wave", "react", "gasp", "angry", "cheer")
+RIDE_ACTIONS = ("idle", "talk", "point", "wave", "react", "gasp", "angry", "cheer", "give", "receive")
 
 
 def parse_ride(arg: str, line: int, cast_ids=None, creatures=None) -> tuple[str, str | None]:

@@ -43,3 +43,9 @@ def test_seat_riders():
     c = out["charro"]
     assert (c.mount, c.action, c.prop, c.start_pos, c.end_pos, c.facing) == ("horse", "idle", None, (0.0, 0.0), None, "right")
     assert pos["charro"] == 1.5 and out["horse"].action == "walk"
+    # a hand-off in the saddle keeps its partner and prop
+    beto = Actor(cast_id="beto", action="give", start_pos=(1.0, 0.0), facing="right", expression="neutral",
+                 target="charro", prop="scroll")
+    charro.action, charro.target, charro.prop = "receive", "beto", None
+    out = {a.cast_id: a for a in _seat_riders([horse, charro, beto], {"charro": "horse"}, pos)}
+    assert (out["charro"].action, out["charro"].target) == ("receive", "beto")
