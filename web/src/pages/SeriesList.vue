@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowRight, Clapperboard, HardDrive, ImageOff, Instagram, Plus, SearchX, Youtube } from 'lucide-vue-next'
+import { ArrowRight, Clapperboard, HardDrive, Instagram, Plus, SearchX, Youtube } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
 import { api } from '../api/client'
 import Card from '../components/Card.vue'
@@ -56,13 +56,8 @@ function clearFilters() { search.value = ''; status.value = 'all' }
     <EmptyState v-else-if="!shown.length" :icon="SearchX" title="No match" :text="`Nothing matches “${search}”.`" />
     <div v-else class="space-y-4" role="list">
       <Card v-for="(s, i) in shown" :key="s.slug" role="listitem" :index="i" lift
-        class="relative flex items-center gap-4 p-3 sm:gap-6">
+        class="relative flex items-center gap-4 p-4 sm:gap-6 sm:px-6">
         <div class="flex min-w-0 flex-1 items-center gap-4 sm:gap-6">
-          <div class="inset aspect-[9/16] w-20 shrink-0 overflow-hidden p-1.5 sm:w-24">
-            <img v-if="s.cover" :src="s.cover" alt="" loading="lazy" class="size-full rounded-[10px] object-cover" />
-            <div v-else class="grid size-full place-items-center text-faint"><ImageOff :size="24" aria-hidden="true" /></div>
-          </div>
-  
           <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
               <!-- the title link covers the whole row (after:inset-0); the actions sit above it -->

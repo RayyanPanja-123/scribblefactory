@@ -7,8 +7,8 @@ export type StageStatus = 'pending' | 'running' | 'done' | 'failed'
 
 export interface PipelineState {
   stages: Partial<Record<string, StageStatus>>
-  approvals: { stills: boolean; test_render: boolean; final: boolean }
-  files: { voice: boolean; stillsSheet: boolean; testRender: boolean }
+  approvals: { stills: boolean; final: boolean }
+  files: { voice: boolean; stillsSheet: boolean }
   castApproved: boolean // every series cast member approved (the stills render refuses otherwise)
 }
 
@@ -18,7 +18,7 @@ export interface Plan {
 }
 
 const PREP_STRETCH = ['import_check', 'timing', 'shots', 'validate']
-const FINISH_STRETCH = ['audio', 'finish', 'thumbnails']
+const FINISH_STRETCH = ['audio', 'finish']
 
 export function nextSteps(s: PipelineState): Plan {
   if (Object.values(s.stages).includes('running')) return { steps: [], stop: 'a stage is running' }

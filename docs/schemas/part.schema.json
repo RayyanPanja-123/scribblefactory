@@ -34,12 +34,6 @@
           "default": {
             "approved_at": null
           }
-        },
-        "test_render": {
-          "$ref": "#/$defs/Approval",
-          "default": {
-            "approved_at": null
-          }
         }
       },
       "title": "Approvals",
@@ -244,17 +238,6 @@
             "status": "pending"
           }
         },
-        "thumbnails": {
-          "$ref": "#/$defs/Stage",
-          "default": {
-            "error": null,
-            "finished_at": null,
-            "inputs_hash": null,
-            "pid": null,
-            "started_at": null,
-            "status": "pending"
-          }
-        },
         "timing": {
           "$ref": "#/$defs/Stage",
           "default": {
@@ -291,9 +274,6 @@
           "approved_at": null
         },
         "stills": {
-          "approved_at": null
-        },
-        "test_render": {
           "approved_at": null
         }
       }
@@ -373,14 +353,6 @@
           "started_at": null,
           "status": "pending"
         },
-        "thumbnails": {
-          "error": null,
-          "finished_at": null,
-          "inputs_hash": null,
-          "pid": null,
-          "started_at": null,
-          "status": "pending"
-        },
         "timing": {
           "error": null,
           "finished_at": null,
@@ -398,18 +370,6 @@
           "status": "pending"
         }
       }
-    },
-    "thumbnail_choice": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Thumbnail Choice"
     },
     "title": {
       "title": "Title",

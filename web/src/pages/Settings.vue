@@ -116,7 +116,7 @@ const field = 'inset mt-1 block h-10 w-28 rounded-md px-4 text-sm text-ink outli
       <label class="flex items-start gap-2 text-sm">
         <input v-model="softwareGl" type="checkbox" class="mt-1" />
         <span>Force software rendering (SwiftShader)<span class="block text-xs text-muted">Debugging only: much slower, but
-          works without a GPU. Renders, test renders and frames rendered before are redone when this changes.</span></span>
+          works without a GPU. Renders and frames rendered before are redone when this changes.</span></span>
       </label>
 
       <fieldset>

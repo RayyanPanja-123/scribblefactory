@@ -80,7 +80,7 @@ def test_status(lib, capsys):
     assert main(["status", "cat"]) == 0
     out = capsys.readouterr().out
     assert "Cat (cat)" in out and "part-01" in out and "Pilot" in out
-    for name in ("prep", "import_check", "validate", "thumbnails", "stills", "youtube"):
+    for name in ("prep", "import_check", "validate", "finish", "stills", "youtube"):
         assert name in out
 
 
@@ -369,7 +369,7 @@ def test_final_approval_cleans_up_disposable_assets(lib, capsys):
               "thumbs/thumb-1.png", "upload.md", "stills-sheet.png", "phrases.json", "story.json"):
         (d / f).parent.mkdir(parents=True, exist_ok=True)
         (d / f).write_bytes(b"x" * 1000)
-    keep = {"final.mp4", "voice.mp3", "qa.json", "thumbs", "upload.md", "stills-sheet.png", "phrases.json",
+    keep = {"final.mp4", "voice.mp3", "qa.json", "upload.md", "stills-sheet.png", "phrases.json",
             "story.json", "story.md", "part.json"}
     assert main(["approve", "cat", "part-01", "final"]) == 0  # finish not done: refused, nothing deleted
     assert "cleanup skipped: no finished final.mp4" in capsys.readouterr().out
@@ -378,7 +378,7 @@ def test_final_approval_cleans_up_disposable_assets(lib, capsys):
     p.stages.finish.status = "done"
     save_part(d / "part.json", p)
     assert main(["cleanup", "cat", "part-01"]) == 0
-    assert "deleted frames, audio, preview.mp4, test-render.mp4, captions.ass (0.0 MB freed)" in capsys.readouterr().out
+    assert "deleted frames, audio, captions.ass, preview.mp4, test-render.mp4, thumbs (0.0 MB freed)" in capsys.readouterr().out
     assert {f.name for f in d.iterdir()} == keep
     assert main(["cleanup", "cat", "part-01"]) == 0  # again: nothing left to delete
     assert "nothing (already clean)" in capsys.readouterr().out

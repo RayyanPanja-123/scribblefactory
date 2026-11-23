@@ -184,10 +184,6 @@
           "stills": {
             "$ref": "#/components/schemas/Approval",
             "default": {}
-          },
-          "test_render": {
-            "$ref": "#/components/schemas/Approval",
-            "default": {}
           }
         },
         "title": "Approvals",
@@ -2393,13 +2389,6 @@
             ],
             "title": "Story Md"
           },
-          "thumbs": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Thumbs",
-            "type": "array"
-          },
           "tts_script": {
             "anyOf": [
               {
@@ -2445,7 +2434,6 @@
           "part",
           "files",
           "versions",
-          "thumbs",
           "qa",
           "upload_md",
           "story_md",
@@ -2465,8 +2453,7 @@
             "$ref": "#/components/schemas/Approvals",
             "default": {
               "final": {},
-              "stills": {},
-              "test_render": {}
+              "stills": {}
             }
           },
           "id": {
@@ -2511,9 +2498,6 @@
               "shots": {
                 "status": "pending"
               },
-              "thumbnails": {
-                "status": "pending"
-              },
               "timing": {
                 "status": "pending"
               },
@@ -2521,17 +2505,6 @@
                 "status": "pending"
               }
             }
-          },
-          "thumbnail_choice": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Thumbnail Choice"
           },
           "title": {
             "title": "Title",
@@ -2606,17 +2579,6 @@
             "default": {},
             "title": "Stages",
             "type": "object"
-          },
-          "thumbnail_choice": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Thumbnail Choice"
           },
           "title": {
             "anyOf": [
@@ -2922,17 +2884,6 @@
       },
       "SeriesCard": {
         "properties": {
-          "cover": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Cover"
-          },
           "created_at": {
             "title": "Created At",
             "type": "string"
@@ -2967,7 +2918,6 @@
           "created_at",
           "status",
           "part_count",
-          "cover",
           "disk_usage",
           "posted"
         ],
@@ -3718,12 +3668,6 @@
               "status": "pending"
             }
           },
-          "thumbnails": {
-            "$ref": "#/components/schemas/Stage",
-            "default": {
-              "status": "pending"
-            }
-          },
           "timing": {
             "$ref": "#/components/schemas/Stage",
             "default": {
@@ -3845,24 +3789,6 @@
           "preset"
         ],
         "title": "Style",
-        "type": "object"
-      },
-      "Thumbnail": {
-        "properties": {
-          "n": {
-            "enum": [
-              1,
-              2,
-              3
-            ],
-            "title": "N",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "n"
-        ],
-        "title": "Thumbnail",
         "type": "object"
       },
       "Top": {
@@ -6091,7 +6017,6 @@
             "schema": {
               "enum": [
                 "stills",
-                "test_render",
                 "final"
               ],
               "title": "What",
@@ -6323,64 +6248,6 @@
           }
         },
         "summary": "Mark Posted"
-      }
-    },
-    "/api/series/{slug}/parts/{part}/pick-thumbnail": {
-      "post": {
-        "operationId": "pick_thumbnail_api_series__slug__parts__part__pick_thumbnail_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "slug",
-            "required": true,
-            "schema": {
-              "title": "Slug",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "part",
-            "required": true,
-            "schema": {
-              "title": "Part",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Thumbnail"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PartModel"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Pick Thumbnail"
       }
     },
     "/api/series/{slug}/parts/{part}/sfx-suggestions": {

@@ -477,7 +477,7 @@ def save_part(path, model: PartModel) -> None:
     path = Path(path)
     if path.exists():
         old = load_part(path).approvals
-        for name in ("stills", "test_render", "final"):
+        for name in ("stills", "final"):
             kept = getattr(old, name).approved_at
             if kept and getattr(model.approvals, name).approved_at is None:
                 getattr(model.approvals, name).approved_at = kept

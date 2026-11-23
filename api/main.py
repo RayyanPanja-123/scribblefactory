@@ -22,7 +22,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
-from api.core import (APPROVE_NEEDS, MEDIA_TYPES, OPENAPI, PART_FILES, ROOT, all_series, cover, du, lib, media_url,
+from api.core import (APPROVE_NEEDS, MEDIA_TYPES, OPENAPI, PART_FILES, ROOT, all_series, du, lib, media_url,
                       part_json, part_path, part_summary, parts_of, posted_counts, safe_folder_name, series_json,
                       series_path, waiting_approvals, write_story)
 from api.events import publish
@@ -57,7 +57,7 @@ def health():
 
 
 # the exposure sheet's columns: the same journey as web/src/lib/partSteps.ts, coarse (from files on disk + jobs)
-SHEET_STEPS = ["Story", "Voice", "Plan", "Stills", "Final", "Thumb", "Post"]
+SHEET_STEPS = ["Story", "Voice", "Plan", "Stills", "Final", "Post"]
 
 
 def sheet_cells(slug: str, pdir: Path, p) -> list[str]:
@@ -69,7 +69,6 @@ def sheet_cells(slug: str, pdir: Path, p) -> list[str]:
         (ok("shots", "validate"), ["shots", "validate"], False),
         (bool(p.approvals.stills.approved_at), [], (pdir / "stills-sheet.png").is_file()),
         (bool(p.approvals.final.approved_at), ["render", "audio", "finish"], ok("render", "audio", "finish")),
-        (bool(p.thumbnail_choice), ["thumbnails"], False),
         (bool(p.posted.youtube or p.posted.instagram), [], False),
     ]
     cur = next((i for i, (done, _, _) in enumerate(steps) if not done), len(steps))
@@ -130,7 +129,7 @@ def overview():
 @app.get("/api/series", response_model=list[SeriesCard])
 def series_list():
     cards = [{"slug": s.slug, "title": s.title, "created_at": s.created_at.isoformat(), "status": s.status,
-              "part_count": len(s.parts), "cover": cover(d),
+              "part_count": len(s.parts),
               "disk_usage": du(d), "posted": posted_counts(d)}
              for d in all_series() for s in [load_series(d / "series.json")]]
     return sorted(cards, key=lambda card: card["created_at"], reverse=True)
@@ -176,10 +175,8 @@ def part_detail(slug: str, part: str, audio_notice: str | None = None):
     except StageError:
         voice = None
     qa, upload, story, tts = pdir / "qa.json", pdir / "upload.md", pdir / "story.md", pdir / "script-for-tts.txt"
-    thumbs = sorted(f.name for f in (pdir / "thumbs").glob("thumb-*.png"))
-    versions = {rel: (pdir / rel).stat().st_mtime_ns for rel in [*(f for f in PART_FILES if files[f]),
-                                                                  *(f"thumbs/{t}" for t in thumbs)]}
-    return {"part": part_json(pdir), "files": files, "versions": versions, "thumbs": thumbs,
+    versions = {rel: (pdir / rel).stat().st_mtime_ns for rel in PART_FILES if files[rel]}
+    return {"part": part_json(pdir), "files": files, "versions": versions,
             "qa": json.loads(qa.read_bytes()) if qa.is_file() else None,
             "upload_md": upload.read_text(encoding="utf-8") if upload.is_file() else None,
             "story_md": story.read_text(encoding="utf-8") if story.is_file() else None,
@@ -300,7 +297,7 @@ def part_action(slug: str, part: str, *argv: str) -> dict:
 
 
 @app.post("/api/series/{slug}/parts/{part}/approve/{what}", response_model=PartModel)
-def approve(slug: str, part: str, what: Literal["stills", "test_render", "final"]):
+def approve(slug: str, part: str, what: Literal["stills", "final"]):
     pdir = part_path(slug, part)
     if what not in waiting_approvals(pdir, load_part(pdir / "part.json")) \
             and not getattr(load_part(pdir / "part.json").approvals, what).approved_at:
@@ -320,15 +317,6 @@ def approve_cast(slug: str, body: CastApproval):
     cli_call("approve-cast", slug, body.cast_id)  # refused until that member's render shows its current look
     publish("series-changed", {"slug": slug})
     return series_json(d)
-
-
-class Thumbnail(BaseModel):
-    n: Literal[1, 2, 3]
-
-
-@app.post("/api/series/{slug}/parts/{part}/pick-thumbnail", response_model=PartModel)
-def pick_thumbnail(slug: str, part: str, body: Thumbnail):
-    return part_action(slug, part, "pick-thumbnail", slug, part, str(body.n))
 
 
 class Posting(BaseModel):

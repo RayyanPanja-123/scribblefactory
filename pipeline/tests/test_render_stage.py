@@ -93,18 +93,12 @@ def part(tmp_path, monkeypatch):
     (pd / "voice.mp3").write_bytes(b"voice")
     (pd / "story.md").write_text("# Pilot\n\nBob works.\n")
     part = {"schema_version": 1, "id": "part-01", "number": 1, "title": "Pilot",
-            "approvals": {"stills": {"approved_at": "2026-11-16T10:00:00Z"},
-                          "test_render": {"approved_at": "2026-11-16T10:00:00Z"}}}
+            "approvals": {"stills": {"approved_at": "2026-11-16T10:00:00Z"}}}
     (pd / "part.json").write_text(json.dumps(part))
 
     state = {"info": dict(GPU), "calls": [], "fail": set(), "interrupt": set(), "starts": 0, "killed": 0, "lost": 0}
 
-    def fake_encode(frames, first, count, voice, out):
-        out.write_bytes(b"mp4")
-        return out
-
     monkeypatch.setattr(render, "start_worker", lambda part_dir, idx, swiftshader, events: FakeWorker(part_dir, idx, events, state))
-    monkeypatch.setattr(render, "encode", fake_encode)
     monkeypatch.setattr(render, "POLL_S", 0.01)
     monkeypatch.setenv("SCRIBBLE_LIBRARY", str(lib))
     pd = PartDir(pd)
@@ -130,7 +124,6 @@ def test_full_render_writes_chunks_frames_and_preview(part, capsys):
         assert render.frames_hash(part) != before
         before = render.frames_hash(part)
         db.put_catalogs(part.parent.parent, {kind: []})
-    assert (part / "preview.mp4").read_bytes() == b"mp4"
     out = capsys.readouterr().out
     assert "chunk 1/2 done" in out and "chunk 2/2 done" in out and "fps overall" in out
     assert load_part(part / "part.json").stages.render.status == "done"
@@ -141,7 +134,6 @@ def test_resume_skips_finished_chunks(part, capsys):
     assert cli_render() == 1
     assert load_part(part / "part.json").stages.render.status == "failed"
     assert (part / "frames" / "chunks" / "c000.json").exists()
-    assert not (part / "preview.mp4").exists()
     part.state["fail"], part.state["calls"] = set(), []
     assert cli_render() == 0
     assert part.state["calls"] == [(150, 179)]  # only the unfinished chunk
@@ -152,7 +144,7 @@ def test_partial_chunk_rerenders(part):
     assert cli_render() == 0
     (part / "frames" / "000160.png").unlink()  # one frame of chunk 1 lost
     part.state["calls"] = []
-    render.run(part)  # the stage itself (the CLI would report "up to date": preview.mp4 exists, inputs unchanged)
+    render.run(part)  # the stage itself (the CLI would report "up to date": chunks exist, inputs unchanged)
     assert part.state["calls"] == [(150, 179)]
     assert render.frame_path(part / "frames", 160).exists()
 
@@ -209,7 +201,6 @@ def test_user_files_untouched(part):
 
 @pytest.mark.parametrize("cmd,clear,msg", [
     (["render"], "stills", "not approved yet: stills"),
-    (["test-render"], "stills", "not approved yet: stills"),
 ])
 def test_gates_need_approvals(part, capsys, cmd, clear, msg):
     pj = json.loads((part / "part.json").read_text())
@@ -221,16 +212,7 @@ def test_gates_need_approvals(part, capsys, cmd, clear, msg):
     assert load_part(part / "part.json").stages.render.status == "pending"
 
 
-def test_render_does_not_need_the_test_render(part):
-    """the test render is optional: an unapproved one never blocks the full render"""
-    pj = json.loads((part / "part.json").read_text())
-    pj["approvals"]["test_render"] = {"approved_at": None}
-    (part / "part.json").write_text(json.dumps(pj))
-    assert cli_render() == 0
-    assert load_part(part / "part.json").stages.render.status == "done"
-
-
-@pytest.mark.parametrize("cmd", [["render"], ["test-render"]])
+@pytest.mark.parametrize("cmd", [["render"]])
 def test_gates_need_cast_approval(part, capsys, cmd):
     sj = part.parent / "series.json"
     s = json.loads(sj.read_text())
@@ -238,30 +220,6 @@ def test_gates_need_cast_approval(part, capsys, cmd):
     sj.write_text(json.dumps(s))
     assert main([*cmd, "office-nap", "part-01"]) == 1
     assert "cast not approved: amy" in capsys.readouterr().err
-
-
-def test_test_render_clamps_start(part, monkeypatch):
-    calls = []
-
-    class R:
-        returncode, stderr = 0, ""
-
-    def fake_run(cmd):
-        a, b = map(int, cmd[cmd.index("--frames") + 1].split("-"))
-        out = Path(cmd[cmd.index("--out-dir") + 1])
-        for n in range(a, b + 1):
-            render.frame_path(out, n).write_bytes(b"png")
-        calls.append((a, b))
-        return R()
-
-    monkeypatch.setattr(render, "run_tree", fake_run)
-    monkeypatch.setattr(render.shutil, "which", lambda name: name)
-    assert main(["test-render", "office-nap", "part-01", "--at", "4"]) == 0  # 4 s = frame 120, but only 180 frames
-    assert calls == [(30, 179)]
-    assert (part / "test-render.mp4").read_bytes() == b"mp4"
-    assert main(["test-render", "office-nap", "part-01"]) == 0
-    assert calls[-1] == (0, 149)
-
 
 def test_ctrl_c_kills_workers_marks_failed_and_resumes(part):
     from pipeline.scribble.stages.runner import run_stage

@@ -68,7 +68,7 @@ async function moveToGallery() {
   const ok = await confirm({
     title: `Move “${s.title}” to the gallery?`,
     body: 'Keeps the series title and each part\'s title, YouTube and Instagram links. '
-      + 'Deletes everything else for good: videos, frames, voices, thumbnails, story and cast. Your exported reels folder is not touched.',
+      + 'Deletes everything else for good: videos, frames, voices, story and cast. Your exported reels folder is not touched.',
     confirm: 'Move to gallery', danger: true,
   })
   if (!ok) return

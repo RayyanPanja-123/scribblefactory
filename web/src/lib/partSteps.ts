@@ -1,4 +1,4 @@
-// The part's journey as 8 human-sized steps for the stepper: what is done, where it stands now, what is left.
+// The part's journey as 6 human-sized steps for the stepper: what is done, where it stands now, what is left.
 // Pure: the page renders it, the tests pin it. The current step is the first one not done.
 
 import type { PartState } from './partNext'
@@ -23,7 +23,6 @@ const DEFS: Def[] = [
   { key: 'stills', label: 'Stills', href: '#review', stages: [], done: (s) => s.approvals.stills, review: (s) => s.files.stillsSheet },
   { key: 'final', label: 'Final', href: '#approvals', stages: ['render', 'audio', 'finish'], done: (s) => s.approvals.final,
     review: (s) => ok(s, 'render', 'audio', 'finish') },
-  { key: 'thumbnail', label: 'Thumbnail', href: '#thumbnails', stages: ['thumbnails'], done: (s) => s.thumbnailPicked },
   { key: 'post', label: 'Post', href: '#posting', stages: [], done: (s) => s.posted.youtube || s.posted.instagram },
 ]
 
@@ -42,7 +41,7 @@ export function partSteps(s: PartState): PartStepView[] {
   })
 }
 
-/** Steps only the creator can do (write, record, pick, post). Their current cell, and every review cell, gets circled. */
-export const HUMAN_STEPS = ['story', 'voice', 'thumbnail', 'post']
+/** Steps only the creator can do (write, record, post). Their current cell, and every review cell, gets circled. */
+export const HUMAN_STEPS = ['story', 'voice', 'post']
 export const needsYou = (s: { key: string; status: StepStatus }) =>
   s.status === 'review' || (s.status === 'current' && HUMAN_STEPS.includes(s.key))

@@ -35,9 +35,6 @@ def lib(tmp_path, monkeypatch):
     assert cli(["cast-add", "demo", "bob", "--name", "Bob", "--color", "#ff0000"]) == 0
     assert cli(["new-part", "demo", "--title", "Pilot"]) == 0
     d = tmp_path / "demo" / "part-01"
-    (d / "thumbs").mkdir()
-    for n in (1, 2, 3):
-        (d / "thumbs" / f"thumb-{n}.png").write_bytes(b"png%d" % n)
     (d / "stills-sheet.png").write_bytes(b"sheet")
     (d / "final.mp4").write_bytes(bytes(range(256)) * 4)
     (d / "qa.json").write_text('{"ok": true, "checks": {}}', encoding="utf-8")
@@ -82,9 +79,9 @@ def test_health(client):
 
 def test_overview(client, lib):
     o = client.get("/api/overview").json()
-    assert len(o["sheet_steps"]) == 7  # Story Voice Plan Stills Final Thumb Post (the test render is optional)
+    assert len(o["sheet_steps"]) == 6  # Story Voice Plan Stills Final Post
     [row] = o["sheet"]  # story not prepped yet: the first column is current, the rest to do
-    assert (row["part"], row["number"], row["cells"]) == ("part-01", 1, ["current"] + ["todo"] * 6)
+    assert (row["part"], row["number"], row["cells"]) == ("part-01", 1, ["current"] + ["todo"] * 5)
     cli(["mark-posted", "demo", "part-01", "youtube", "--url", "https://yt/x"])
     o = client.get("/api/overview").json()
     assert o["kpi"] == {"series": 1, "parts_in_progress": 1, "waiting_for_approval": 1, "posted_this_month": 1}
@@ -94,12 +91,10 @@ def test_overview(client, lib):
     assert o["sheet"] == []  # posted parts leave the sheet
 
 
-def test_series_list_and_cover(client, lib):
+def test_series_list(client, lib):
     [s] = client.get("/api/series").json()
-    assert (s["slug"], s["part_count"], s["cover"]) == ("demo", 1, "/api/media/demo/part-01/thumbs/thumb-1.png")
+    assert (s["slug"], s["part_count"]) == ("demo", 1) and "cover" not in s
     assert s["posted"] == {"youtube": 0, "instagram": 0} and s["disk_usage"] > 0
-    cli(["pick-thumbnail", "demo", "part-01", "2"])
-    assert client.get("/api/series").json()[0]["cover"].endswith("thumb-2.png")
 
 
 def test_series_detail(client):
@@ -115,7 +110,6 @@ def test_part_detail(client):
     r = client.get(P).json()
     assert r["part"]["title"] == "Pilot"
     assert r["files"]["story.md"] and r["files"]["final.mp4"] and not r["files"]["voice.mp3"]
-    assert r["thumbs"] == ["thumb-1.png", "thumb-2.png", "thumb-3.png"]
     assert (r["qa"]["ok"], r["upload_md"], r["voice_duration"], r["frames_bytes"]) == (True, "Title\n", None, 100)
     assert r["part_bytes"] > r["frames_bytes"]
     assert client.get("/api/series/demo/parts/part-09").status_code == 404
@@ -126,7 +120,7 @@ def test_media_versions_change_on_rerender(client, lib):
     import os
     sheet = lib / "demo" / "part-01" / "stills-sheet.png"
     v1 = client.get(P).json()["versions"]
-    assert {"stills-sheet.png", "final.mp4", "thumbs/thumb-1.png"} <= v1.keys() and "voice.mp3" not in v1
+    assert {"stills-sheet.png", "final.mp4"} <= v1.keys() and "voice.mp3" not in v1
     os.utime(sheet, ns=(v1["stills-sheet.png"] + 10**9,) * 2)  # rendered again a second later
     assert client.get(P).json()["versions"]["stills-sheet.png"] != v1["stills-sheet.png"]
     assert client.get("/api/media/demo/part-01/stills-sheet.png").headers["cache-control"] == "no-cache"
@@ -154,7 +148,7 @@ def test_media_range(client):
 # ---------------- actions ----------------
 
 def test_approve_gates(client, lib):
-    assert client.post(f"{P}/approve/test_render").status_code == 409  # no test-render.mp4
+    assert client.post(f"{P}/approve/test_render").status_code == 422  # removed
     r = client.post(f"{P}/approve/final")
     assert r.status_code == 409 and "finish not done" in r.json()["detail"]
     r = client.post(f"{P}/approve/stills")
@@ -227,12 +221,6 @@ def test_delete_cast(client, lib):
     assert client.delete("/api/series/demo/cast/bob?force=true").json()["cast"] == []
     assert client.delete("/api/series/demo/cast/bob").status_code == 404
 
-
-def test_pick_thumbnail(client, lib):
-    assert client.post(f"{P}/pick-thumbnail", json={"n": 3}).json()["thumbnail_choice"] == "thumbs/thumb-3.png"
-    (lib / "demo" / "part-01" / "thumbs" / "thumb-2.png").unlink()
-    assert client.post(f"{P}/pick-thumbnail", json={"n": 2}).status_code == 409
-    assert client.post(f"{P}/pick-thumbnail", json={"n": 4}).status_code == 422
 
 
 def test_mark_posted(client):
@@ -365,7 +353,7 @@ def test_busy_part_409(client, lib, monkeypatch):
     end = time.time() + 10
     while client.get(P).json()["busy"] is None and time.time() < end:
         time.sleep(0.05)
-    for r in (client.post(f"{P}/approve/stills"), client.post(f"{P}/pick-thumbnail", json={"n": 1}),
+    for r in (client.post(f"{P}/approve/stills"),
               client.put(f"{P}/upload.md", json={"text": "x"}), client.post(f"{P}/clean-frames"),
               client.post("/api/series/demo/approve-cast", json={"cast_id": "bob"})):
         assert r.status_code == 409 and "running" in r.json()["detail"]
@@ -574,22 +562,6 @@ def test_check_story(client, lib):
     assert client.get("/api/series/demo/parts/part-09/check-story").status_code == 404
 
 
-def test_cover_is_a_small_cached_jpeg(client, lib):
-    from PIL import Image
-    thumb = lib / "demo" / "part-01" / "thumbs" / "thumb-1.png"
-    Image.new("RGB", (1080, 1920), "red").save(thumb)
-    url = client.get("/api/series").json()[0]["cover"]
-    assert url == "/api/media/demo/part-01/thumbs/thumb-1-360.jpg"
-    small = thumb.with_name("thumb-1-360.jpg")
-    with Image.open(small) as im:
-        assert (im.format, im.size) == ("JPEG", (360, 640))
-    made = small.stat().st_mtime_ns
-    client.get("/api/series")
-    assert small.stat().st_mtime_ns == made  # cached
-    assert client.get(url).headers["content-type"] == "image/jpeg"
-    assert client.get(f"{P}").json()["thumbs"] == ["thumb-1.png", "thumb-2.png", "thumb-3.png"]  # not a candidate
-
-
 def test_approving_final_cleans_up(client, lib):
     finish_done(lib)
     d = lib / "demo" / "part-01"
@@ -597,7 +569,7 @@ def test_approving_final_cleans_up(client, lib):
     r = client.post(f"{P}/approve/final")
     assert r.status_code == 200 and r.json()["approvals"]["final"]["approved_at"]
     assert not (d / "frames").exists() and not (d / "preview.mp4").exists()
-    assert (d / "final.mp4").exists() and (d / "thumbs" / "thumb-1.png").exists()
+    assert (d / "final.mp4").exists() and (d / "upload.md").exists()
     assert client.get(P).json()["frames_bytes"] == 0
 
 
@@ -845,7 +817,6 @@ def test_move_to_gallery(client, lib):
     p = load_part(f)
     now = datetime.now(timezone.utc)
     p.posted.youtube, p.posted.instagram = Post(url="https://youtu.be/x", posted_at=now), Post(url="https://instagram.com/p/y", posted_at=now)
-    p.thumbnail_choice = "thumbs/thumb-2.png"
     save_part(f, p)
     real = os.replace  # the series folder held open: 409, the series untouched and no half-made gallery entry
     def held(src, dst):

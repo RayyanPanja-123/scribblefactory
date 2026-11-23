@@ -26,7 +26,7 @@ export type Settings = S['Settings']
 export type PackageResult = S['PackageResult']
 export type CaptionReply = S['Captions']
 export type GalleryEntry = S['GalleryEntry']
-export type Approval = 'stills' | 'test_render' | 'final'
+export type Approval = 'stills' | 'final'
 export type Platform = 'youtube' | 'instagram'
 export type ExportResult = { path: string; filename: string }
 export type Notification = { id: string; title: string; message: string; slug: string; series_title: string; href: string }
@@ -77,7 +77,6 @@ export const api = {
   approve: (slug: string, p: string, what: Approval) => call<PartModel>('POST', `${part(slug, p)}/approve/${what}`),
   approveCast: (slug: string, castId: string) =>
     call<SeriesModel>('POST', `/api/series/${e(slug)}/approve-cast`, { cast_id: castId }),
-  pickThumbnail: (slug: string, p: string, n: 1 | 2 | 3) => call<PartModel>('POST', `${part(slug, p)}/pick-thumbnail`, { n }),
   markPosted: (slug: string, p: string, body: { platform: Platform; url: string; date?: string; force?: boolean }) =>
     call<PartModel>('POST', `${part(slug, p)}/mark-posted`, body),
   saveUpload: (slug: string, p: string, text: string) => call<PartDetail>('PUT', `${part(slug, p)}/upload.md`, { text }),

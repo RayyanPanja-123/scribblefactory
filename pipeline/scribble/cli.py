@@ -316,7 +316,7 @@ def cmd_status(args) -> int:
 def _print_table(d: Path, parts: list[str]) -> None:
     stages = list(Stages.model_fields)
     header = ["part", "title"] + [Stages.model_fields[n].alias or n for n in stages] \
-        + ["stills", "test_render", "final", "youtube", "instagram"]
+        + ["stills", "final", "youtube", "instagram"]
     rows = [header]
     for pid in parts:
         f = d / pid / "part.json"
@@ -326,7 +326,7 @@ def _print_table(d: Path, parts: list[str]) -> None:
         p = load_part(f)
         rows.append([p.id, p.title]
                     + [getattr(p.stages, n).status for n in stages]
-                    + [_date(getattr(p.approvals, n).approved_at) for n in ("stills", "test_render", "final")]
+                    + [_date(getattr(p.approvals, n).approved_at) for n in ("stills", "final")]
                     + [_date(post.posted_at if post else None) for post in (p.posted.youtube, p.posted.instagram)])
     widths = [max(len(r[i]) for r in rows) for i in range(len(header))]
     for r in rows:
@@ -372,21 +372,10 @@ def cmd_check_story(args) -> int:
 
 def cmd_render(args) -> int:
     pdir = part_dir(args)
-    gate(pdir, ("stills",))  # the test render is optional
+    gate(pdir, ("stills",))
     fn = functools.partial(render_stage.run, workers=args.workers, swiftshader=args.swiftshader, force=args.force)
     result = run_stage(pdir, "render", fn, force=args.force, inputs=render_stage.INPUTS, outputs=render_stage.OUTPUTS)
     return 1 if result == "failed" else 0
-
-
-def cmd_test_render(args) -> int:
-    pdir = part_dir(args)
-    gate(pdir, ("stills",))
-    try:
-        out = render_stage.test_render(pdir, at=args.at, swiftshader=args.swiftshader)
-    except StageError as e:
-        raise UserError(str(e))
-    print(f"test render: {out}")
-    return 0
 
 
 def run_engine(*args) -> None:
@@ -468,8 +457,9 @@ def cmd_approve(args) -> int:
 
 # Only there to make final.mp4: once it is approved they are dead weight (frames alone are 1-2 GB a part).
 # Kept: story.md, voice.mp3, voice-tight.wav, script-for-tts.txt, phrases.json, story.json, part.json, final.mp4,
-# qa.json, thumbs/, upload.md, stills-sheet.png. Changing an approved video afterwards means rendering it again.
-DISPOSABLE = ["frames", "audio", "preview.mp4", "test-render.mp4", "captions.ass", "end-card.png"]
+# qa.json, upload.md, stills-sheet.png. Changing an approved video afterwards means rendering it again.
+DISPOSABLE = ["frames", "audio", "captions.ass", "end-card.png",
+              "preview.mp4", "test-render.mp4", "thumbs"]  # the last three: left by removed features
 
 
 def cleanup(pdir: Path) -> int | None:
@@ -495,7 +485,7 @@ def cleanup(pdir: Path) -> int | None:
             continue
         gone.append(name)
     print(f"cleanup: deleted {', '.join(gone) or 'nothing (already clean)'} ({freed / 1e6:.1f} MB freed); "
-          f"final.mp4, voice, story and thumbnails kept")
+          f"final.mp4, voice and story kept")
     return freed
 
 
@@ -535,17 +525,6 @@ def cmd_set_aspect(args) -> int:
     print(f"{args.slug} aspect: {args.aspect} (parts re-run from shots to apply)")
     return 0
 
-
-def cmd_pick_thumbnail(args) -> int:
-    pdir = part_dir(args)
-    choice = f"thumbs/thumb-{args.n}.png"
-    if not (pdir / choice).exists():
-        raise UserError(f"{pdir / choice} not found: run {args.slug} {args.part} --stage thumbnails first")
-    part = load_part(pdir / "part.json")
-    part.thumbnail_choice = choice
-    save_part(pdir / "part.json", part)
-    print(f"{args.part} thumbnail: {choice}")
-    return 0
 
 
 def cmd_mark_posted(args) -> int:
@@ -651,8 +630,8 @@ def build_parser() -> Parser:
     c.set_defaults(func=cmd_delete_series)
 
     c = sub.add_parser("to-gallery", parents=[common],
-                       help="move a series posted to YouTube and Instagram to the gallery: keep thumbnails, links and "
-                            "text, delete the rest (dry run unless --yes)")
+                       help="move a series posted to YouTube and Instagram to the gallery: keep titles and "
+                            "links, delete the rest (dry run unless --yes)")
     c.add_argument("slug")
     c.add_argument("--yes", action="store_true", help="really move it")
     c.set_defaults(func=cmd_to_gallery)
@@ -722,7 +701,7 @@ def build_parser() -> Parser:
     c.add_argument("part")
     c.set_defaults(func=cmd_check_story)
 
-    c = sub.add_parser("render", parents=[common], help="full render in parallel chunks (resumable) -> preview.mp4")
+    c = sub.add_parser("render", parents=[common], help="full render in parallel chunks (resumable) -> frames/")
     c.add_argument("slug")
     c.add_argument("part")
     c.add_argument("--workers", type=int, default=None,
@@ -730,13 +709,6 @@ def build_parser() -> Parser:
     c.add_argument("--force", action="store_true", help="delete all frames and render again")
     c.add_argument("--swiftshader", action="store_true", help="software WebGL instead of the GPU")
     c.set_defaults(func=cmd_render)
-
-    c = sub.add_parser("test-render", parents=[common], help="5 s test clip with voice -> test-render.mp4")
-    c.add_argument("slug")
-    c.add_argument("part")
-    c.add_argument("--at", type=float, default=0.0, help="start time in seconds (clamped to the part)")
-    c.add_argument("--swiftshader", action="store_true", help="software WebGL instead of the GPU")
-    c.set_defaults(func=cmd_test_render)
 
     c = sub.add_parser("cast-sheet", parents=[common],
                        help="render cast members (default: all) -> <series>/cast/<id>.png, <id>-idle.png")
@@ -749,14 +721,14 @@ def build_parser() -> Parser:
     c.add_argument("part")
     c.set_defaults(func=cmd_render_stills)
 
-    c = sub.add_parser("approve", parents=[common], help="approve a part's stills, test render or final")
+    c = sub.add_parser("approve", parents=[common], help="approve a part's stills or final")
     c.add_argument("slug")
     c.add_argument("part")
-    c.add_argument("what", choices=["stills", "test_render", "final"])
+    c.add_argument("what", choices=["stills", "final"])
     c.set_defaults(func=cmd_approve)
 
     c = sub.add_parser("cleanup", parents=[common],
-                       help="delete what only made final.mp4 (frames, audio stems, preview, test render, captions.ass) "
+                       help="delete what only made final.mp4 (frames, audio stems, captions.ass) "
                             "of a part whose final is approved; approving the final does this automatically")
     c.add_argument("slug")
     c.add_argument("part")
@@ -776,12 +748,6 @@ def build_parser() -> Parser:
     c.add_argument("slug")
     c.add_argument("aspect", choices=["9:16", "16:9"])
     c.set_defaults(func=cmd_set_aspect)
-
-    c = sub.add_parser("pick-thumbnail", parents=[common], help="choose thumbnail candidate 1, 2 or 3")
-    c.add_argument("slug")
-    c.add_argument("part")
-    c.add_argument("n", type=int, choices=[1, 2, 3])
-    c.set_defaults(func=cmd_pick_thumbnail)
 
     c = sub.add_parser("mark-posted", parents=[common], help="record a posted link")
     c.add_argument("slug")

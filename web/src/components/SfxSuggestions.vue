@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Suggested @sfx for a part (rule-based, never applied silently): accept writes "@sfx <id>" into story.md above the
-// line, reject hides it for good. Shown at the stills / test-render stage, before the final render.
+// line, reject hides it for good. Shown at the stills stage, before the final render.
 import { Check, Play, Volume2, X } from 'lucide-vue-next'
 import { ref, watch } from 'vue'
 import { api, sfxAudio } from '../api/client'
@@ -29,7 +29,7 @@ const play = (id: string) => new Audio(sfxAudio(id)).play().catch(() => {})
       <h3 id="sfx-title" class="font-display text-lg font-semibold">Sound effects</h3>
       <span class="text-xs text-muted">{{ data.written }} of {{ data.max }} in story.md · {{ data.timed ? 'timed from the voice' : 'times estimated' }}</span>
     </div>
-    <p class="mt-1 text-sm text-muted">Suggestions only: accepting writes the <code>@sfx</code> line into story.md (the test render and the final pick it up).</p>
+    <p class="mt-1 text-sm text-muted">Suggestions only: accepting writes the <code>@sfx</code> line into story.md (the final picks it up).</p>
     <ul v-if="data.suggestions.length" class="mt-4 space-y-2">
       <li v-for="s in data.suggestions" :key="`${s.line}-${s.id}`" class="inset flex flex-wrap items-center gap-3 rounded-md p-3 text-sm">
         <button type="button" class="round-btn size-8!" :aria-label="`Preview ${s.id}`" @click="play(s.id)"><Play :size="14" aria-hidden="true" /></button>

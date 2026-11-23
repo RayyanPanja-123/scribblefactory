@@ -13,7 +13,7 @@ import { label } from '../composables/ui'
 const { data, error, loading, reload, refresh } = useApi(() => Promise.all([api.overview(), api.series()]))
 refetchOn(() => null, () => null, refresh)
 
-const SECTION: Record<string, string> = { stills: 'review', test_render: 'approvals', final: 'approvals' }
+const SECTION: Record<string, string> = { stills: 'review', final: 'approvals' }
 const rows = computed(() => {
   if (!data.value) return []
   const titles = new Map(data.value[1].map((s) => [s.slug, s.title]))

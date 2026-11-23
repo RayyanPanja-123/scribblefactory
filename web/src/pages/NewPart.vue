@@ -12,9 +12,8 @@ import { useApi } from '../composables/useApi'
 import { partSteps } from '../lib/partSteps'
 
 // the whole journey, so it is clear what follows the story (no links: those sections live on the part page)
-const steps = partSteps({ stages: {}, approvals: { stills: false, test_render: false, final: false },
-  files: { voice: false, stillsSheet: false, testRender: false }, castApproved: false, busy: null, failed: null,
-  thumbs: false, thumbnailPicked: false, posted: { youtube: false, instagram: false } }).map((s) => ({ ...s, href: '' }))
+const steps = partSteps({ stages: {}, approvals: { stills: false, final: false },
+  files: { voice: false, stillsSheet: false }, castApproved: false, busy: null, failed: null, posted: { youtube: false, instagram: false } }).map((s) => ({ ...s, href: '' }))
 
 const props = defineProps<{ slug: string }>()
 const router = useRouter()

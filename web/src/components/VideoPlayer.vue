@@ -4,7 +4,7 @@ import { computed, ref, watch } from 'vue'
 
 // Reel-style player over /api/media (Range requests make seeking work): the video fills its box, tap or Space
 // plays/pauses (big button in the centre while paused), arrows seek 5 s, a thin bar at the bottom scrubs.
-// Sources (test render / preview / final) are tabs over the top. Fills its parent: the parent sets the size.
+// Sources are tabs over the top. Fills its parent: the parent sets the size.
 const p = defineProps<{ sources: { key: string; label: string; src: string }[]; top?: string }>()
 const current = ref(p.sources.at(-1)?.key)
 const src = computed(() => p.sources.find((s) => s.key === current.value)?.src)

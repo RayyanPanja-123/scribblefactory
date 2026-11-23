@@ -26,7 +26,7 @@ export type SeriesStep =
   | { kind: 'open-part'; text: string; part: string; action: string }
   | { kind: 'done'; text: string }
 
-const APPROVAL = { stills: 'stills', test_render: 'test render', final: 'final video' } as Record<string, string>
+const APPROVAL = { stills: 'stills', final: 'final video' } as Record<string, string>
 
 export function seriesNext(s: SeriesState): SeriesStep {
   if (!s.cast) return { kind: 'add-cast', text: 'No cast yet. Add the characters with cast-add, or import cast JSON on a new series.' }

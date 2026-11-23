@@ -3,11 +3,11 @@ import { RotateCw } from 'lucide-vue-next'
 import { onBeforeUnmount, ref } from 'vue'
 import { label, statusChip } from '../composables/ui'
 
-// 9 stage chips. With `menu`, each chip opens a small menu: the error (failed) and "re-run (force)".
+// 8 stage chips. With `menu`, each chip opens a small menu: the error (failed) and "re-run (force)".
 const p = defineProps<{ stages: Record<string, string>; errors?: Record<string, string | null>; menu?: boolean; disabled?: string | null }>()
 const emit = defineEmits<{ rerun: [stage: string] }>()
-const SHORT: Record<string, string> = { prep: 'script', import_check: 'voice check', timing: 'timing', shots: 'shots', render: 'video', audio: 'sound', finish: 'final', thumbnails: 'thumbs', validate: 'story check' }
-const FRIENDLY: Record<string, string> = { prep: 'Prepare script', import_check: 'Check voice', timing: 'Align voice', shots: 'Plan shots', render: 'Render video', audio: 'Make sound', finish: 'Finish and QA', thumbnails: 'Make thumbnails', validate: 'Check story' }
+const SHORT: Record<string, string> = { prep: 'script', import_check: 'voice check', timing: 'timing', shots: 'shots', render: 'video', audio: 'sound', finish: 'final', validate: 'story check' }
+const FRIENDLY: Record<string, string> = { prep: 'Prepare script', import_check: 'Check voice', timing: 'Align voice', shots: 'Plan shots', render: 'Render video', audio: 'Make sound', finish: 'Finish and QA', validate: 'Check story' }
 // what each stage does (pipeline/scribble/stages/*.py headers), shown in the chip's hover / focus tooltip
 const ABOUT: Record<string, string> = {
   prep: 'Turns story.md into script-for-tts.txt: the plain spoken text to paste into the voice site (every @ line stripped).',
@@ -15,10 +15,9 @@ const ABOUT: Record<string, string> = {
   timing: 'Listens to the voice on this machine and finds when each word is spoken (phrases.json). Makes voice-tight.wav with long pauses shortened; voice.mp3 is never changed.',
   shots: 'Plans the video from story.md\'s @ lines and the word timings (story.json): set, cast, positions, actions, faces, camera, weather, lightning and sound cues. Fixed rules and seed, no AI: the same script gives the same plan.',
   validate: 'Checks the plan against the word timings and the cast: sets, actions and cast members exist, no gaps. Changes nothing.',
-  render: 'Draws every frame in the 3D engine, in batches; resumable and only redraws what changed. Gives a voice-only preview.mp4. Stills and the 5 s test clip live here too.',
+  render: 'Draws every frame in the 3D engine, in batches; resumable and only redraws what changed. Stills live here too.',
   audio: 'Makes music and sound effects from the plan\'s cues, adds the @sfx sounds, and mixes them under the voice.',
-  finish: 'Joins frames and mixed audio into final.mp4 with word-by-word captions, caption effects and the end card, then checks the result (qa.json).',
-  thumbnails: 'Picks 3 caption-free thumbnail candidates from the frames (twist shot, first wide, busiest shot). Creates upload.md only if missing.',
+  finish: 'Joins frames and mixed audio into final.mp4 with word-by-word captions, caption effects and the end card, then checks the result (qa.json). Also writes upload.md if missing.',
 }
 const open = ref<string | null>(null)
 

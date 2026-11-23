@@ -23,7 +23,7 @@ class Kpi(BaseModel):
 class Waiting(BaseModel):
     slug: str
     part: str | None  # None: series-level (cast)
-    waiting: list[str]  # "stills" | "test_render" | "final" | "cast:<id>"
+    waiting: list[str]  # "stills" | "final" | "cast:<id>"
 
 
 class MonthPosts(BaseModel):
@@ -64,7 +64,6 @@ class SeriesCard(BaseModel):
     created_at: str
     status: str
     part_count: int
-    cover: str | None
     disk_usage: int
     posted: PostedCounts
 
@@ -84,9 +83,8 @@ class PartSummary(BaseModel):
     number: int | None = None
     title: str | None = None
     stages: dict[str, StageStatus] = {}
-    approvals: dict[str, str | None] = {}  # stills/test_render/final -> approved_at (ISO) or None
+    approvals: dict[str, str | None] = {}  # stills/final -> approved_at (ISO) or None
     posted: Posted | None = None
-    thumbnail_choice: str | None = None
     waiting: list[str] = []
 
 
@@ -105,8 +103,7 @@ class SeriesDetail(BaseModel):
 class PartDetail(BaseModel):
     part: PartModel
     files: dict[str, bool]
-    versions: dict[str, int]  # file (thumbs/<name> too) -> modified time: the ?v of its media url, new per re-render
-    thumbs: list[str]
+    versions: dict[str, int]  # file -> modified time: the ?v of its media url, new per re-render
     qa: dict | None
     upload_md: str | None
     story_md: str | None

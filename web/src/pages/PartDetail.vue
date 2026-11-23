@@ -61,7 +61,6 @@ const gate = computed<Record<string, string | null>>(() => ({
   'cast-sheet': series.value?.cast.length ? null : 'no cast yet: add some with cast-add',
   'render-stills': stages.value.shots !== 'done' ? 'shot plan not done yet'
     : unapprovedCast.value.length ? `cast not approved: ${unapprovedCast.value.join(', ')}` : null,
-  'test-render': approved('stills') ? null : 'stills not approved yet',
   render: approved('stills') ? null : 'stills not approved yet',
 }))
 const why = (cmd: string) => busy.value ?? gate.value[cmd]
@@ -72,13 +71,11 @@ const failedStage = computed(() => {
 })
 const state = computed<PartState>(() => ({
   stages: stages.value as never,
-  approvals: { stills: approved('stills'), test_render: approved('test_render'), final: approved('final') },
-  files: { voice: has('voice.mp3'), stillsSheet: has('stills-sheet.png'), testRender: has('test-render.mp4') },
+  approvals: { stills: approved('stills'), final: approved('final') },
+  files: { voice: has('voice.mp3'), stillsSheet: has('stills-sheet.png') },
   castApproved: !unapprovedCast.value.length,
   busy: busy.value,
   failed: failedStage.value,
-  thumbs: !!d.value?.thumbs.length,
-  thumbnailPicked: !!p.value?.thumbnail_choice,
   posted: { youtube: !!p.value?.posted.youtube, instagram: !!p.value?.posted.instagram },
 }))
 const next = computed(() => partNext(state.value))
@@ -87,7 +84,7 @@ const steps = computed(() => partSteps(state.value))
 const focus = computed(() => {
   const n = next.value
   if (n.kind === 'approve') return n.approval === 'stills' ? 'review' : 'approvals'
-  return ({ voice: 'voice', thumbnail: 'thumbnails', post: 'posting' } as Record<string, string>)[n.kind] ?? null
+  return ({ voice: 'voice', post: 'posting' } as Record<string, string>)[n.kind] ?? null
 })
 const approvalOf = (key: Approval) => APPROVALS.find((a) => a.key === key)!
 const workers = ref(2)
@@ -201,7 +198,7 @@ async function uploadVoice(e: Event) {
 const anyApproval = computed(() => APPROVALS.some((a) => approved(a.key) || has(a.file)))
 const show = computed(() => ({
   video: sources.value.length > 0,
-  review: has('stills-sheet.png') || !!d.value?.thumbs.length,
+  review: has('stills-sheet.png'),
   approvals: anyApproval.value,
   qa: !!qa.value,
   upload: has('final.mp4') || approved('final'),
@@ -217,7 +214,7 @@ const tabs = computed(() => [
   { id: 'tools', label: 'Tools' },
 ] as { id: Tab; label: string }[])
 // the tab where the current step (lib/partSteps) happens
-const STEP_TAB: Record<string, Tab> = { story: 'story', voice: 'voice', plan: 'story', stills: 'review', test: 'review', final: 'review', thumbnail: 'review', post: 'publish' }
+const STEP_TAB: Record<string, Tab> = { story: 'story', voice: 'voice', plan: 'story', stills: 'review', final: 'review', post: 'publish' }
 const stepTab = computed<Tab>(() => STEP_TAB[steps.value.find((x) => x.status !== 'done')?.key ?? 'post'])
 const chosen = ref<Tab | null>(null)
 const tab = computed<Tab>(() => {
@@ -226,7 +223,7 @@ const tab = computed<Tab>(() => {
 })
 // every in-page link (#voice, #posting, ...) opens its tab, then scrolls to that section
 const TAB_OF: Record<string, Tab> = { story: 'story', voice: 'voice', video: 'review', review: 'review', approvals: 'review', qa: 'review',
-  thumbnails: 'review', sfx: 'review', upload: 'publish', posting: 'publish', run: 'tools', disk: 'tools', publish: 'publish', tools: 'tools' }
+  sfx: 'review', upload: 'publish', posting: 'publish', run: 'tools', disk: 'tools', publish: 'publish', tools: 'tools' }
 const player = ref<InstanceType<typeof FloatingPlayer>>()
 async function goTo(id: string) {
   if (!TAB_OF[id]) return
@@ -254,7 +251,6 @@ function onTabKey(e: KeyboardEvent) { // arrow keys move between tabs (WAI-ARIA 
 // ---- approvals ----
 const APPROVALS: { key: Approval; label: string; file: string }[] = [
   { key: 'stills', label: 'Stills', file: 'stills-sheet.png' },
-  { key: 'test_render', label: 'Test render', file: 'test-render.mp4' },
   { key: 'final', label: 'Final', file: 'final.mp4' },
 ]
 function approvalReason(a: (typeof APPROVALS)[number]): string | null {
@@ -264,7 +260,7 @@ function approvalReason(a: (typeof APPROVALS)[number]): string | null {
 }
 async function approve(a: (typeof APPROVALS)[number]) {
   if (a.key === 'final') {
-    const ok = await confirm({ title: 'Approve the final video?', body: 'Approvals are kept for good: only approve after watching final.mp4 to the end. Approving also deletes what only made it (frames, audio stems, preview, test render) to free space: changing the video later means rendering it again. final.mp4, voice, story and thumbnails are kept.', confirm: 'Approve final' })
+    const ok = await confirm({ title: 'Approve the final video?', body: 'Approvals are kept for good: only approve after watching final.mp4 to the end. Approving also deletes what only made it (frames, audio stems) to free space: changing the video later means rendering it again. final.mp4, voice and story are kept.', confirm: 'Approve final' })
     if (!ok) return
   }
   if (await act(() => api.approve(props.slug, props.part, a.key), `${a.label} approved`)) refresh()
@@ -275,11 +271,10 @@ async function approve(a: (typeof APPROVALS)[number]) {
 const REDO: Record<Approval, { steps: string[]; body: string }> = {
   stills: { steps: ['run --stage shots --force', 'run --stage validate --force', 'render-stills'],
     body: 'Plans the shots again from story.md, then renders a new stills sheet. Change the story, cast, sets or props first if something in it was wrong.' },
-  test_render: { steps: ['test-render'], body: 'Renders the 5 s test again. Takes a minute or two.' },
   // the story stages first, without --force: they skip themselves unless story.md or voice.mp3 changed
   final: { steps: ['run --stage prep', 'run --stage import_check', 'run --stage timing', 'run --stage shots', 'run --stage validate',
-    'render --force', 'run --stage audio --force', 'run --stage finish --force', 'run --stage thumbnails --force'],
-    body: 'Picks up a changed story.md and voice.mp3 (save the new story and upload the new voice first), deletes every frame and renders the whole video again, then the sound, final.mp4 and thumbnails. This is the slow one.' },
+    'render --force', 'run --stage audio --force', 'run --stage finish --force'],
+    body: 'Picks up a changed story.md and voice.mp3 (save the new story and upload the new voice first), deletes every frame and renders the whole video again, then the sound and final.mp4. This is the slow one.' },
 }
 const canReject = (a: (typeof APPROVALS)[number]) => !approved(a.key) && has(a.file)
 async function reject(a: (typeof APPROVALS)[number]) {
@@ -289,14 +284,12 @@ async function reject(a: (typeof APPROVALS)[number]) {
 }
 
 // ---- media ----
-// ?v: the file's modified time, so a re-rendered stills sheet, video or thumbnail is a new url, never a cached copy
+// ?v: the file's modified time, so a re-rendered stills sheet or video is a new url, never a cached copy
 const src = (rel: string) => {
   const v = d.value?.versions[rel]
   return media(props.slug, `${props.part}/${rel}`) + (v ? `?v=${v}` : '')
 }
 const sources = computed(() => [
-  { key: 'test', label: 'Test render', file: 'test-render.mp4' },
-  { key: 'preview', label: 'Preview', file: 'preview.mp4' },
   { key: 'final', label: 'Final', file: 'final.mp4' },
 ].filter((s) => has(s.file)).map((s) => ({ ...s, src: src(s.file) })))
 
@@ -321,12 +314,6 @@ async function exportPart() {
   }
 }
 
-const TILT = [-5, 3, -2]
-const picked = computed(() => p.value?.thumbnail_choice)
-async function pick(n: number) {
-  if (await act(() => api.pickThumbnail(props.slug, props.part, n as 1 | 2 | 3), `Thumbnail ${n} picked`)) refresh()
-}
-
 // ---- QA ----
 type Check = { ok: boolean; value: unknown; want: unknown }
 const qa = computed(() => d.value?.qa as { ok: boolean; checks: Record<string, Check>; warnings?: string[] } | null | undefined)
@@ -348,7 +335,7 @@ async function deletePart() {
   const posted = p.value?.posted.youtube || p.value?.posted.instagram
   const ok = await confirm({
     title: `Delete part ${p.value?.number}: ${p.value?.title}?`,
-    body: `Deletes the whole part folder for good: story.md, voice.mp3, every video, the frames and the thumbnails `
+    body: `Deletes the whole part folder for good: story.md, voice.mp3, every video and the frames `
       + `(${bytes(d.value!.part_bytes)}). Other parts keep their numbers.${posted ? ' It is marked posted: the posted links are lost too.' : ''}`,
     confirm: 'Delete part', danger: true,
   })
@@ -439,7 +426,6 @@ watch(() => props.part, () => { chosen.value = null })
                 <RefreshCw :size="16" aria-hidden="true" /> Reject and render again
               </button>
             </template>
-            <a v-else-if="next.kind === 'thumbnail'" href="#thumbnails" class="btn btn-primary">Pick a thumbnail <ArrowRight :size="16" aria-hidden="true" /></a>
             <a v-else-if="next.kind === 'post'" href="#posting" class="btn btn-primary">Add the links <ArrowRight :size="16" aria-hidden="true" /></a>
           </div>
         </div>
@@ -608,7 +594,7 @@ watch(() => props.part, () => { chosen.value = null })
           <section v-if="show.approvals" id="approvals" :class="{ 'next-target': focus === 'approvals' }" class="raised p-6">
             <h3 class="font-display text-lg font-semibold">Approvals</h3>
             <div class="mt-4 flex flex-wrap gap-x-8 gap-y-4">
-              <div v-for="a in APPROVALS.filter((x) => x.key !== 'test_render' || has(x.file) || approved(x.key))" :key="a.key">
+              <div v-for="a in APPROVALS" :key="a.key">
                 <Switch :on="approved(a.key)" :label="a.label" :reason="approved(a.key) ? null : approvalReason(a)" @request="approve(a)" />
                 <p class="mt-1 text-xs text-muted">
                   {{ approved(a.key) ? shortDate(p.approvals[a.key].approved_at) : approvalReason(a) ?? 'ready to approve' }}
@@ -652,11 +638,11 @@ watch(() => props.part, () => { chosen.value = null })
       <!-- @sfx suggestions: from the stills on, until the final is approved -->
       <SfxSuggestions v-if="has('stills-sheet.png') && !approved('final')" :slug="slug" :part="part" :story-md="d?.story_md" :busy="busy" @changed="refresh" />
 
-      <!-- light table: sheets + thumbnail polaroids -->
+      <!-- light table: the stills sheet -->
       <section v-if="show.review" id="review" :class="{ 'next-target': focus === 'review' }" class="raised p-6">
         <h3 class="font-display text-lg font-semibold">Light table</h3>
-        <p class="text-sm text-muted">Click a sheet to zoom. Click a polaroid to pick the thumbnail.</p>
-        <div class="lighttable inset mt-4 grid gap-8 p-8 lg:grid-cols-[1fr_auto]">
+        <p class="text-sm text-muted">Click a sheet to zoom.</p>
+        <div class="lighttable inset mt-4 p-8">
           <div class="flex flex-wrap items-start gap-6">
             <figure v-for="sh in [{ f: 'stills-sheet.png', t: 'Stills sheet', url: has('stills-sheet.png') ? src('stills-sheet.png') : null }]"
               :key="sh.f" class="w-60">
@@ -667,23 +653,6 @@ watch(() => props.part, () => { chosen.value = null })
               <div v-else class="grid h-40 place-items-center rounded-md border-2 border-dashed border-rule-strong text-sm text-muted">not rendered yet</div>
               <figcaption class="mt-2 text-center text-sm font-semibold">{{ sh.t }}</figcaption>
             </figure>
-          </div>
-          <div id="thumbnails" class="rounded-md" :class="{ 'next-target': focus === 'thumbnails' }">
-            <p class="mb-8 text-center text-sm font-semibold">Thumbnail</p>
-            <div v-if="d.thumbs.length" class="flex gap-5">
-              <motion.button v-for="(t, i) in d.thumbs" :key="t" class="relative w-32 bg-white p-2 pb-8 shadow-[var(--shadow-sheet)]"
-                :animate="picked === `thumbs/${t}` ? { rotate: 0, y: -12, scale: 1.06 } : { rotate: TILT[i % 3], y: 0, scale: 1 }"
-                :while-hover="picked === `thumbs/${t}` ? undefined : { y: -4 }" :transition="SPRING"
-                :aria-pressed="picked === `thumbs/${t}`" :aria-label="`Pick thumbnail ${i + 1}`" :disabled="!!busy"
-                @click="pick(Number(t.match(/\d+/)![0]))">
-                <img :src="src(`thumbs/${t}`)" :alt="`Thumbnail candidate ${i + 1}`" loading="lazy" class="w-full object-cover" :class="wide ? 'aspect-video' : 'aspect-[9/16]'" />
-                <span class="absolute bottom-2 left-0 w-full text-center font-display text-sm text-muted">#{{ i + 1 }}</span>
-                <span v-if="picked === `thumbs/${t}`" class="absolute -top-2 left-1/2 grid size-6 -translate-x-1/2 place-items-center rounded-full bg-ink text-[var(--on-ink)] shadow-[var(--shadow-sheet)]">
-                  <Check :size="14" :stroke-width="3" aria-hidden="true" />
-                </span>
-              </motion.button>
-            </div>
-            <p v-else class="text-sm text-muted">No candidates yet (thumbnails stage).</p>
           </div>
         </div>
       </section>
@@ -705,7 +674,7 @@ watch(() => props.part, () => { chosen.value = null })
         <h3 class="font-display text-lg font-semibold">Manual controls</h3>
         <p class="text-xs text-muted">The Next step card runs these for you; use them to redo one step by hand.</p>
         <div class="mt-4 grid gap-3 sm:grid-cols-2">
-          <div v-for="c in [{ cmd: 'render-stills', label: 'Render stills' }, { cmd: 'test-render', label: 'Test render (5 s)' }, { cmd: 'cast-sheet', label: 'Render whole cast' }]"
+          <div v-for="c in [{ cmd: 'render-stills', label: 'Render stills' }, { cmd: 'cast-sheet', label: 'Render whole cast' }]"
             :key="c.cmd" class="flex flex-col">
             <button class="btn btn-secondary justify-center" :disabled="!!why(c.cmd)" :title="why(c.cmd) ?? undefined"
               @click="run([c.cmd])">{{ c.label }}</button>

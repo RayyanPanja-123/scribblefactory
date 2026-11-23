@@ -22,7 +22,7 @@ from .. import settings
 from ..io import atomic_write_json, atomic_write_text, load_part, replace_file
 from ..schemas import PhrasesModel, SeriesModel, StoryModel
 from .audio import loudness
-from .prep import FX_MODES, TWIST_PREFIX, _is_directive, clean_markdown
+from .prep import FX_MODES, TWIST_PREFIX, _is_directive, clean_markdown, strip_directives
 from .render import FPS, check_frames
 from .runner import StageError
 from .shots import token
@@ -498,6 +498,37 @@ def runtime(seconds: float, words: int, speech: float) -> dict:
     return {"runtime": {"seconds": round(seconds, 3), "words": words, "speech_seconds": speech}, "warnings": warn}
 
 
+# ---------------- upload.md (the user's to edit: created once, never overwritten) ----------------
+
+HASHTAGS = "#shorts #stickman #history"
+
+
+def first_sentence(text: str) -> str:
+    text = " ".join(text.split())
+    m = re.match(r".*?(?<!\.)[.!?](?!\.)(?=\s|$)", text)  # an ellipsis doesn't end the sentence
+    return m.group(0) if m else text
+
+
+def upload_text(series: SeriesModel, number: int, script: str) -> str:
+    title = f"{series.title} — Part {number}"
+    body = f"Title: {title}\n\n{first_sentence(script)} Part {number} of {len(series.parts)}.\n\n{HASHTAGS}\n"
+    return f"# {title}\n\n## YouTube\n\n{body}\n## Instagram\n\n{body}"
+
+
+def write_upload_md(part_dir: Path) -> None:
+    upload, script = part_dir / "upload.md", part_dir / "story.md"  # story.md: the narration as written, not respelled
+    if upload.exists():
+        print("upload.md exists, kept")
+        return
+    if not script.exists():
+        print("upload.md: no story.md to write it from, skipped")
+        return
+    series = load_model(part_dir.parent / "series.json", SeriesModel)
+    number = int(part_dir.name.removeprefix("part-"))
+    atomic_write_text(upload, upload_text(series, number, clean_markdown(strip_directives(script.read_text(encoding="utf-8")))))
+    print("upload.md written")
+
+
 # ---------------- entry ----------------
 
 def check_gate(part_dir: Path) -> None:
@@ -559,3 +590,4 @@ def run(part_dir: Path) -> None:
     for w in report["warnings"]:
         print(f"warning: {w}")
     print(f"final: {part_dir / 'final.mp4'}")
+    write_upload_md(part_dir)

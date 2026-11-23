@@ -1,4 +1,4 @@
-"""finish (captions, encode, QA), thumbnails, and the posting CLI commands. Tiny synthetic parts in temp dirs."""
+"""finish (captions, encode, QA, upload.md) and the posting CLI commands. Tiny synthetic parts in temp dirs."""
 
 import json
 import re
@@ -11,7 +11,7 @@ import pytest
 from pipeline.scribble.cli import main
 from pipeline.scribble.io import load_part, load_series, save_part, save_series
 from pipeline.scribble.schemas import PartModel, PhrasesModel, SeriesModel, Stage, StoryModel, Style, Voice
-from pipeline.scribble.stages import finish, prep, shots, thumbnails
+from pipeline.scribble.stages import finish, prep, shots
 from pipeline.scribble.stages.runner import StageError
 
 needs_ffmpeg = pytest.mark.skipif(not (shutil.which("ffmpeg") and shutil.which("ffprobe")),
@@ -238,38 +238,25 @@ def test_captions_off(lib, monkeypatch):
     assert (pdir(lib) / "captions.ass").exists()
 
 
-# ---------------- thumbnails ----------------
+# ---------------- upload.md (finish writes it once) ----------------
 
-def test_pick_frames():
-    story = StoryModel.model_validate(STORY)
-    assert thumbnails.pick_frames(story) == [49, 29, 49]  # twist s03, first wide s02, most actors + expressive s03
-    no_twist = StoryModel.model_validate({**STORY, "shots": [{**s, "twist": False} for s in STORY["shots"]]})
-    assert thumbnails.pick_frames(no_twist)[0] == FRAMES // 2
-
-
-def test_thumbnails_and_upload_md(lib):
+def test_upload_md_written_once(lib):
     d = pdir(lib)
-    assert stage(lib, "thumbnails") == 0
-    for k, n in enumerate([49, 29, 49], 1):
-        assert (d / "thumbs" / f"thumb-{k}.png").read_bytes() == (d / "frames" / f"{n:06d}.png").read_bytes()
+    finish.write_upload_md(d)  # no story.md: skipped
+    assert not (d / "upload.md").exists()
+    (d / "story.md").write_text(f"# T\n\n@set office\n{TEXT}\n", encoding="utf-8")
+    finish.write_upload_md(d)
     text = (d / "upload.md").read_text(encoding="utf-8")
     assert "## YouTube" in text and "## Instagram" in text
     assert text.count("Title: Demo Tales — Part 1") == 2
     assert text.count("Old John Smith ran far, then he stopped. Part 1 of 2.") == 2
-    assert text.count(thumbnails.HASHTAGS) == 2
+    assert text.count(finish.HASHTAGS) == 2
     (d / "upload.md").write_text("my edits", encoding="utf-8")
-    assert stage(lib, "thumbnails", "--force") == 0
+    finish.write_upload_md(d)
     assert (d / "upload.md").read_text(encoding="utf-8") == "my edits"
 
 
 # ---------------- CLI ----------------
-
-def test_pick_thumbnail(lib):
-    assert cli(lib, "pick-thumbnail", "demo", "part-01", "2") == 1  # no thumbs yet
-    assert stage(lib, "thumbnails") == 0
-    assert cli(lib, "pick-thumbnail", "demo", "part-01", "2") == 0
-    assert load_part(pdir(lib) / "part.json").thumbnail_choice == "thumbs/thumb-2.png"
-
 
 def test_mark_posted(lib):
     args = ("mark-posted", "demo", "part-01", "youtube")
@@ -292,8 +279,6 @@ def test_clean_frames(lib, capsys):
     assert cli(lib, "clean-frames", "demo", "part-01") == 1  # no final yet
     assert (d / "frames").exists()
     assert stage(lib, "finish") == 0
-    assert stage(lib, "thumbnails") == 0
-    (d / "preview.mp4").write_bytes(b"preview")
     before = {p.relative_to(d) for p in d.rglob("*") if "frames" not in p.parts}
     capsys.readouterr()
     assert cli(lib, "clean-frames", "demo", "part-01") == 0
@@ -303,8 +288,8 @@ def test_clean_frames(lib, capsys):
 
 
 def test_first_sentence_skips_ellipsis():
-    assert thumbnails.first_sentence("It was bad... so bad. Then more.") == "It was bad... so bad."
-    assert thumbnails.first_sentence("Really?  Yes.") == "Really?"
+    assert finish.first_sentence("It was bad... so bad. Then more.") == "It was bad... so bad."
+    assert finish.first_sentence("Really?  Yes.") == "Really?"
 
 
 # ---------------- caption effects ----------------
@@ -390,7 +375,7 @@ def test_fx_deterministic():
 
 @needs_ffmpeg
 def test_finish_reruns_only_for_what_it_uses(lib, capsys):
-    assert stage(lib, "finish") == 0 and stage(lib, "thumbnails") == 0
+    assert stage(lib, "finish") == 0
     first = (pdir(lib) / "captions.ass").read_bytes()
     sf = lib / "demo" / "series.json"
     series = load_series(sf)

@@ -28,7 +28,6 @@ class Stages(Strict):
     render: Stage = Stage()
     audio: Stage = Stage()
     finish: Stage = Stage()
-    thumbnails: Stage = Stage()
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True, serialize_by_alias=True)
 
@@ -39,7 +38,6 @@ class Approval(Strict):
 
 class Approvals(Strict):
     stills: Approval = Approval()
-    test_render: Approval = Approval()
     final: Approval = Approval()
 
 
@@ -60,8 +58,19 @@ class PartModel(Strict):
     title: str
     stages: Stages = Stages()
     approvals: Approvals = Approvals()
-    thumbnail_choice: str | None = None
     posted: Posted = Posted()
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_removed(cls, d):
+        """thumbnails and the test render were removed (2026-11-23): older part.json files still name them"""
+        if isinstance(d, dict):
+            d = {k: v for k, v in d.items() if k != "thumbnail_choice"}
+            if isinstance(d.get("stages"), dict):
+                d["stages"] = {k: v for k, v in d["stages"].items() if k != "thumbnails"}
+            if isinstance(d.get("approvals"), dict):
+                d["approvals"] = {k: v for k, v in d["approvals"].items() if k != "test_render"}
+        return d
 
     @model_validator(mode="after")
     def _id_matches_number(self):

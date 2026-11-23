@@ -657,23 +657,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/series/{slug}/parts/{part}/pick-thumbnail": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Pick Thumbnail */
-        post: operations["pick_thumbnail_api_series__slug__parts__part__pick_thumbnail_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/series/{slug}/parts/{part}/sfx-suggestions": {
         parameters: {
             query?: never;
@@ -1006,8 +989,6 @@ export interface components {
             final: components["schemas"]["Approval"];
             /** @default {} */
             stills: components["schemas"]["Approval"];
-            /** @default {} */
-            test_render: components["schemas"]["Approval"];
         };
         /** BuiltinCreature */
         BuiltinCreature: {
@@ -1838,8 +1819,6 @@ export interface components {
             } | null;
             /** Story Md */
             story_md: string | null;
-            /** Thumbs */
-            thumbs: string[];
             /** Tts Script */
             tts_script: string | null;
             /** Upload Md */
@@ -1856,8 +1835,7 @@ export interface components {
             /**
              * @default {
              *       "final": {},
-             *       "stills": {},
-             *       "test_render": {}
+             *       "stills": {}
              *     }
              */
             approvals: components["schemas"]["Approvals"];
@@ -1893,9 +1871,6 @@ export interface components {
              *       "shots": {
              *         "status": "pending"
              *       },
-             *       "thumbnails": {
-             *         "status": "pending"
-             *       },
              *       "timing": {
              *         "status": "pending"
              *       },
@@ -1905,8 +1880,6 @@ export interface components {
              *     }
              */
             stages: components["schemas"]["Stages"];
-            /** Thumbnail Choice */
-            thumbnail_choice?: string | null;
             /** Title */
             title: string;
         };
@@ -1936,8 +1909,6 @@ export interface components {
             stages: {
                 [key: string]: "pending" | "running" | "done" | "failed";
             };
-            /** Thumbnail Choice */
-            thumbnail_choice?: string | null;
             /** Title */
             title?: string | null;
             /**
@@ -2055,8 +2026,6 @@ export interface components {
         };
         /** SeriesCard */
         SeriesCard: {
-            /** Cover */
-            cover: string | null;
             /** Created At */
             created_at: string;
             /** Disk Usage */
@@ -2449,12 +2418,6 @@ export interface components {
              *       "status": "pending"
              *     }
              */
-            thumbnails: components["schemas"]["Stage"];
-            /**
-             * @default {
-             *       "status": "pending"
-             *     }
-             */
             timing: components["schemas"]["Stage"];
             /**
              * @default {
@@ -2504,14 +2467,6 @@ export interface components {
             locked: boolean;
             /** Preset */
             preset: string;
-        };
-        /** Thumbnail */
-        Thumbnail: {
-            /**
-             * N
-             * @enum {integer}
-             */
-            n: 1 | 2 | 3;
         };
         /** Top */
         Top: {
@@ -3987,7 +3942,7 @@ export interface operations {
             path: {
                 slug: string;
                 part: string;
-                what: "stills" | "test_render" | "final";
+                what: "stills" | "final";
             };
             cookie?: never;
         };
@@ -4122,42 +4077,6 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["Posting"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PartModel"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    pick_thumbnail_api_series__slug__parts__part__pick_thumbnail_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                slug: string;
-                part: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["Thumbnail"];
             };
         };
         responses: {

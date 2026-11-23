@@ -5,13 +5,13 @@ import { jobFraction, parseProgress } from './progress'
 import { buildPrompt, importProp } from './propPrompt'
 import { seriesNext, type SeriesState } from './seriesNext'
 
-const ALL = ['prep', 'import_check', 'timing', 'shots', 'validate', 'render', 'audio', 'finish', 'thumbnails']
-const NONE = { stills: false, test_render: false, final: false }
+const ALL = ['prep', 'import_check', 'timing', 'shots', 'validate', 'render', 'audio', 'finish']
+const NONE = { stills: false, final: false }
 function state(doneUpto: number, over: Partial<PipelineState> = {}): PipelineState {
   return {
     stages: Object.fromEntries(ALL.map((s, i) => [s, i < doneUpto ? 'done' : 'pending'])),
     approvals: NONE,
-    files: { voice: true, stillsSheet: false, testRender: false },
+    files: { voice: true, stillsSheet: false },
     castApproved: true,
     ...over,
   }
@@ -26,7 +26,7 @@ describe('nextSteps', () => {
     })
   })
   it('no voice yet: only prep, then stops for the voice', () => {
-    const p = nextSteps(state(0, { files: { voice: false, stillsSheet: false, testRender: false } }))
+    const p = nextSteps(state(0, { files: { voice: false, stillsSheet: false } }))
     expect(p.steps).toEqual(['run --stage prep'])
     expect(p.stop).toMatch(/voice\.mp3/)
   })
@@ -39,22 +39,22 @@ describe('nextSteps', () => {
     expect(nextSteps(state(5, { castApproved: false }))).toEqual({ steps: [], stop: 'cast approval: check the cast sheet' })
   })
   it('stills sheet waiting: nothing to run, stops at the gate', () => {
-    const files = { voice: true, stillsSheet: true, testRender: false }
+    const files = { voice: true, stillsSheet: true }
     expect(nextSteps(state(5, { files }))).toEqual({ steps: [], stop: 'stills approval' })
   })
-  it('stills approved: full render to thumbnails (no test render), stops at final approval', () => {
+  it('stills approved: full render to finish, stops at final approval', () => {
     const p = nextSteps(state(5, { approvals: { ...NONE, stills: true } }))
     expect(p).toEqual({
-      steps: ['render', 'run --stage audio', 'run --stage finish', 'run --stage thumbnails'], stop: 'final approval',
+      steps: ['render', 'run --stage audio', 'run --stage finish'], stop: 'final approval',
     })
   })
   it('render done, audio failed: resumes at audio', () => {
-    const s = state(6, { approvals: { ...NONE, stills: true, test_render: true } })
+    const s = state(6, { approvals: { ...NONE, stills: true } })
     s.stages.audio = 'failed'
-    expect(nextSteps(s).steps).toEqual(['run --stage audio', 'run --stage finish', 'run --stage thumbnails'])
+    expect(nextSteps(s).steps).toEqual(['run --stage audio', 'run --stage finish'])
   })
   it('everything done and approved: nothing left', () => {
-    expect(nextSteps(state(9, { approvals: { stills: true, test_render: true, final: true } }))).toEqual({ steps: [], stop: null })
+    expect(nextSteps(state(8, { approvals: { stills: true, final: true } }))).toEqual({ steps: [], stop: null })
   })
   it('a running stage blocks planning', () => {
     const s = state(3)
@@ -197,8 +197,8 @@ describe('seriesNext', () => {
   })
 
   it('points at the first part that waits, else the first unfinished one', () => {
-    const parts = [part(1, { finished: true, started: true }), part(2, { started: true }), part(3, { waiting: ['stills', 'test_render'] })]
-    expect(seriesNext(s({ parts }))).toEqual({ kind: 'open-part', part: 'part-03', action: 'Review', text: 'Part 3 is waiting for you: stills, test render.' })
+    const parts = [part(1, { finished: true, started: true }), part(2, { started: true }), part(3, { waiting: ['stills', 'final'] })]
+    expect(seriesNext(s({ parts }))).toEqual({ kind: 'open-part', part: 'part-03', action: 'Review', text: 'Part 3 is waiting for you: stills, final video.' })
     expect(seriesNext(s({ parts: parts.slice(0, 2) }))).toMatchObject({ part: 'part-02', action: 'Continue' })
     expect(seriesNext(s({ parts: [part(1)] }))).toMatchObject({ action: 'Start' })
     expect(seriesNext(s({ parts: [parts[0]] })).kind).toBe('done')
@@ -208,21 +208,20 @@ describe('seriesNext', () => {
 import { partNext, type PartState } from './partNext'
 
 describe('partNext', () => {
-  const ALL_OK = { stills: true, test_render: true, final: true }
+  const ALL_OK = { stills: true, final: true }
   const p = (doneUpto: number, over: Partial<PartState> = {}): PartState => ({
-    ...state(doneUpto), busy: null, failed: null, thumbs: true, thumbnailPicked: false, posted: { youtube: false, instagram: false }, ...over,
+    ...state(doneUpto), busy: null, failed: null, posted: { youtube: false, instagram: false }, ...over,
   })
   it('walks the part from story to posted', () => {
     expect(partNext(p(0, { busy: 'job 3 is running' })).kind).toBe('wait')
     expect(partNext(p(0))).toMatchObject({ kind: 'run', steps: ['run --stage prep', 'run --stage import_check', 'run --stage timing', 'run --stage shots', 'run --stage validate', 'render-stills'] })
-    expect(partNext(p(1, { files: { voice: false, stillsSheet: false, testRender: false } })).kind).toBe('voice')
+    expect(partNext(p(1, { files: { voice: false, stillsSheet: false } })).kind).toBe('voice')
     expect(partNext(p(5, { castApproved: false })).kind).toBe('cast')
-    expect(partNext(p(5, { files: { voice: true, stillsSheet: true, testRender: false } }))).toMatchObject({ kind: 'approve', approval: 'stills' })
-    expect(partNext(p(5, { approvals: { ...NONE, stills: true }, files: { voice: true, stillsSheet: true, testRender: true } }))).toMatchObject({ kind: 'run', steps: ['render', 'run --stage audio', 'run --stage finish', 'run --stage thumbnails'] })
-    expect(partNext(p(9, { approvals: { ...ALL_OK, final: false } }))).toMatchObject({ approval: 'final' })
-    expect(partNext(p(9, { approvals: ALL_OK })).kind).toBe('thumbnail')
-    expect(partNext(p(9, { approvals: ALL_OK, thumbnailPicked: true })).kind).toBe('post')
-    expect(partNext(p(9, { approvals: ALL_OK, thumbnailPicked: true, posted: { youtube: true, instagram: false } })))
+    expect(partNext(p(5, { files: { voice: true, stillsSheet: true } }))).toMatchObject({ kind: 'approve', approval: 'stills' })
+    expect(partNext(p(5, { approvals: { ...NONE, stills: true }, files: { voice: true, stillsSheet: true } }))).toMatchObject({ kind: 'run', steps: ['render', 'run --stage audio', 'run --stage finish'] })
+    expect(partNext(p(8, { approvals: { ...ALL_OK, final: false } }))).toMatchObject({ approval: 'final' })
+    expect(partNext(p(8, { approvals: ALL_OK })).kind).toBe('post')
+    expect(partNext(p(8, { approvals: ALL_OK, posted: { youtube: true, instagram: false } })))
       .toEqual({ kind: 'done', text: 'Posted. Add the Instagram link if it goes up there too.' })
   })
   it('a failed stage says so and offers the re-run', () => {
@@ -233,10 +232,10 @@ describe('partNext', () => {
     const at = (s: PartState) => partSteps(s).map((x) => `${x.key}:${x.status}`).join(' ')
     expect(at(p(0))).toMatch(/^story:current voice:todo/)
     expect(at(p(5))).toMatch(/^story:done voice:done plan:done stills:current final:todo/)
-    expect(at(p(5, { files: { voice: true, stillsSheet: true, testRender: false } }))).toContain('stills:review')
+    expect(at(p(5, { files: { voice: true, stillsSheet: true } }))).toContain('stills:review')
     expect(at(p(5, { busy: 'job 1' }))).toContain('stills:running')
     expect(at(p(2, { stages: { ...state(2).stages, timing: 'failed' } }))).toContain('voice:failed')
-    expect(at(p(9, { approvals: ALL_OK, thumbnailPicked: true, posted: { youtube: true, instagram: false } })))
+    expect(at(p(8, { approvals: ALL_OK, posted: { youtube: true, instagram: false } })))
       .not.toMatch(/current|todo/)
   })
 })

@@ -57,10 +57,9 @@ def test_approve_part_sets_once_and_never_clears(lib, capsys):
     assert main(["approve", "nap", "part-01", "stills"]) == 0
     assert load_part(f).approvals.stills.approved_at == first
     assert "already approved" in capsys.readouterr().out
-    assert main(["approve", "nap", "part-01", "test_render"]) == 0
     assert main(["approve", "nap", "part-01", "final"]) == 0
     a = load_part(f).approvals
-    assert a.stills.approved_at == first and a.test_render.approved_at and a.final.approved_at
+    assert a.stills.approved_at == first and a.final.approved_at
 
 
 def test_approve_bad_input(lib):

@@ -1,14 +1,14 @@
-"""render: chunked, parallel, resumable full render -> frames/000000.png... + preview.mp4 (voice only, no music).
+"""render: chunked, parallel, resumable full render -> frames/000000.png... (finish turns them into final.mp4).
 
 Frames render in chunks of CHUNK frames. Each worker is one long-lived `node engine/render.mjs --worker` process
 (one browser, one driver lookup, one page build) that renders the chunks it is handed over stdin.
 A finished chunk writes frames/chunks/cNNN.json {first, last, count, renderer, inputs_hash}. A chunk is skipped
 on the next run only if its json, all its PNGs and the inputs hash match. If the inputs hash or the renderer
 (GPU / driver / Chromium...) differs from the existing chunks, every frame is deleted and re-rendered.
-Only frames/*.png, frames/chunks/, frames/test/, frames/.render.lock and the two mp4s are ever written or deleted.
+Only frames/*.png, frames/chunks/ and frames/.render.lock are ever written or deleted.
 Process safety: workers run in their own process group; on Ctrl+C, failure or exit each worker's whole tree
 (node + Chromium) is killed. frames/.render.lock (holding the PID) stops a second render on the same part.
-Also here: the test render (5 s clip with its voice slice) and the approval gates.
+Also here: the approval gates.
 """
 
 import hashlib
@@ -25,7 +25,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from .. import settings
-from ..io import LIBRARY_FILES, WARDROBE_SEED, atomic_write_bytes, atomic_write_json, catalog_bytes, load_part
+from ..io import LIBRARY_FILES, WARDROBE_SEED, atomic_write_json, catalog_bytes, load_part
 from ..schemas import SeriesModel, StoryModel
 from .runner import StageError
 from .validate import load_model
@@ -35,7 +35,6 @@ RENDER_MJS = ENGINE / "render.mjs"
 PAGE_FILES = [*sorted((ENGINE / "page").glob("*.js")), WARDROBE_SEED]  # the seed draws while the library has no wardrobe.json
 FPS = 30
 CHUNK = 150
-TEST_FRAMES = 150  # 5 s
 POLL_S = 0.5           # how often the scheduler wakes up (keeps Ctrl+C responsive)
 READY_TIMEOUT_S = 120  # browser start + page build per worker
 EXIT_TIMEOUT_S = 30
@@ -46,7 +45,7 @@ GPU_RESETS = 3
 
 INPUTS = ["story.json", "phrases.json", "../series.json", *(f"../../{f}" for f in LIBRARY_FILES), "voice-tight.wav",
           *map(str, PAGE_FILES)]
-OUTPUTS = ["preview.mp4"]
+OUTPUTS = ["frames/chunks"]  # the frames are the output; finish encodes final.mp4 from them
 
 
 # ---------------- gates ----------------
@@ -442,29 +441,6 @@ def check_frames(frames: Path, first: int, count: int) -> None:
         raise StageError(f"{len(missing)} of {count} frames missing (first: {missing[:5]}); render again")
 
 
-# ---------------- encoding ----------------
-
-def encode(frames: Path, first: int, count: int, voice: Path, out: Path) -> Path:
-    """frames first..first+count-1 + the matching voice slice -> H.264 yuv420p 30 fps mp4, written atomically."""
-    ffmpeg = shutil.which("ffmpeg")
-    if not ffmpeg:
-        raise StageError("ffmpeg not found on PATH")
-    if not voice.exists():
-        raise StageError(f"{voice.name} not found")
-    tmp = out.with_name(f".{out.stem}.tmp.mp4")
-    r = subprocess.run([ffmpeg, "-y", "-v", "error", "-framerate", str(FPS), "-start_number", str(first),
-                        "-i", str(frames / "%06d.png"), "-ss", f"{first / FPS:.3f}", "-t", f"{count / FPS:.3f}",
-                        "-i", str(voice), "-map", "0:v", "-map", "1:a", "-frames:v", str(count),
-                        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", str(FPS), "-crf", "18",
-                        "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(tmp)],
-                       capture_output=True, text=True)
-    if r.returncode != 0:
-        tmp.unlink(missing_ok=True)
-        raise StageError(f"ffmpeg failed: {r.stderr.strip()[-400:]}")
-    os.replace(tmp, out)
-    return out
-
-
 # ---------------- entry points ----------------
 
 def run(part_dir: Path, workers: int | None = None, swiftshader: bool = False, force: bool = False) -> None:
@@ -477,44 +453,4 @@ def run(part_dir: Path, workers: int | None = None, swiftshader: bool = False, f
     with render_lock(part_dir):
         render_chunks(part_dir, story.duration_frames, workers, swiftshader, force)
         check_frames(part_dir / "frames", 0, story.duration_frames)
-        out = encode(part_dir / "frames", 0, story.duration_frames, part_dir / "voice-tight.wav", part_dir / "preview.mp4")
-    print(f"preview: {out}")
-
-
-def test_render(part_dir: Path, at: float = 0.0, swiftshader: bool = False) -> Path:
-    """TEST_FRAMES frames from `at` seconds (clamped to the part) -> part-NN/test-render.mp4 with its voice slice."""
-    story = check_gate(part_dir, ("stills",))
-    swiftshader = swiftshader or settings.software_gl(part_dir.parents[1])
-    total = story.duration_frames
-    count = min(TEST_FRAMES, total)
-    first = max(0, min(round(at * FPS), total - count))
-    test = part_dir / "frames" / "test"
-    with render_lock(part_dir):
-        shutil.rmtree(test, ignore_errors=True)
-        test.mkdir(parents=True)
-        t0 = time.monotonic()
-        r = run_tree(node_cmd("--part", part_dir, "--frames", f"{first}-{first + count - 1}", "--out-dir", test,
-                              "--info-out", test / "renderer.json", swiftshader=swiftshader))
-        if r.returncode != 0:
-            raise StageError(f"test render failed: {r.stderr.strip()[-400:]}")
-        secs = max(time.monotonic() - t0, 1e-3)
-        print(f"rendered frames {first}-{first + count - 1} in {secs:.1f} s ({count / secs:.1f} fps)")
-        check_frames(test, first, count)
-        return encode(test, first, count, voice_with_sfx(part_dir), part_dir / "test-render.mp4")
-
-
-def voice_with_sfx(part_dir: Path) -> Path:
-    """voice-tight.wav, or audio/voice-sfx.wav (the voice with its @sfx mixed in) when story.md has any"""
-    from .. import sfx as sfx_lib  # numpy and ffmpeg only when there is a test render
-    from .audio import decode, wav_bytes
-    voice_f = part_dir / "voice-tight.wav"
-    if not voice_f.exists():
-        return voice_f  # encode reports it
-    voice = decode(voice_f)
-    x = sfx_lib.stem(part_dir, voice)
-    if x is None:
-        return voice_f
-    out = part_dir / "audio" / "voice-sfx.wav"
-    atomic_write_bytes(out, wav_bytes(voice + x))
-    return out
-
+    print(f"frames: {story.duration_frames} rendered")

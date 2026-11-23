@@ -54,7 +54,7 @@ const fields = computed(() => {
 
 // ---- the exposure sheet: unposted parts as rows, the part's journey as columns, grouped by series ----
 type Row = Overview['sheet'][number]
-const HREF = ['#story', '#voice', '#run', '#review', '#video', '#approvals', '#thumbnails', '#posting']
+const HREF = ['#story', '#voice', '#run', '#review', '#approvals', '#posting']
 const NOTE: Record<string, string> = { current: 'up next', review: 'approve it', running: 'running', failed: 'failed', done: 'done', todo: 'to do' }
 const groups = computed(() => {
   const out: { slug: string; title: string; rows: Row[] }[] = []
@@ -65,7 +65,7 @@ const groups = computed(() => {
   }
   return out
 })
-const KEYS = ['story', 'voice', 'plan', 'stills', 'test', 'final', 'thumbnail', 'post'] // lib/partSteps keys
+const KEYS = ['story', 'voice', 'plan', 'stills', 'final', 'post'] // lib/partSteps keys
 const circled = (c: string, i: number) => needsYou({ key: KEYS[i], status: c as Parameters<typeof needsYou>[0]['status'] })
 const castWaiting = computed(() => (data.value?.[0].waiting ?? []).filter((w) => !w.part))
 // cells the creator owns right now, plus cast sheets waiting: the "Needs you" count

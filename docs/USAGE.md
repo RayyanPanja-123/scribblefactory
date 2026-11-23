@@ -110,32 +110,28 @@ Progress shows live in the jobs drawer. The stops, in order:
 1. **Cast approval** (if a new cast member appears): cast sheet, then approve.
 2. **Stills approval**: one still per shot on the light table. Approve the stills, or fix story.md and run again.
 3. **Final approval**: Run next renders all frames (parallel, resumable: a crash or restart continues where it
-   stopped), adds music and sound effects, burns in captions, runs QA (qa.json) and makes three thumbnails.
+   stopped), adds music and sound effects, burns in captions, runs QA (qa.json) and writes upload.md (once).
    Watch final.mp4 to the end and check the QA card, then approve the final.
-
-Optional: **Test render (5 s)** in the part's Tools renders a 5 s clip with voice before the full render (a new
-machine, a new set, a sync worry). It never blocks anything; approving it is optional too.
 
 Any stage can be re-run from its chip menu. Captions on or off: `cli set-captions <slug> on|off`, then re-run finish.
 
-## 6. Thumbnail, upload text, posting
+## 6. Upload text, posting
 
-1. Light table: click a polaroid to pick the thumbnail (`cli pick-thumbnail <slug> <part> 1|2|3`).
-2. **Captions** (saved as upload.md): a YouTube card (title, description with tags, pinned comment) and an Instagram
+1. **Captions** (saved as upload.md): a YouTube card (title, description with tags, pinned comment) and an Instagram
    card (one caption with everything), each field with Copy. **Write with Gemini** fills them from the story plus the
    brand tags in Settings; review, then Ctrl+S. Gemini is the only outside AI and only writes captions: paste
    your key in **Settings → Gemini API key** (write-only). **Settings → Caption model** picks the free model tried
    first (default `gemini-flash-latest`); when it is busy or out of quota the next free one answers.
-3. Upload final.mp4 to YouTube Shorts and Instagram Reels by hand.
-4. **Mark posted** with each link (`cli mark-posted <slug> <part> youtube --url https://...`).
+2. Upload final.mp4 to YouTube Shorts and Instagram Reels by hand.
+3. **Mark posted** with each link (`cli mark-posted <slug> <part> youtube --url https://...`).
 
 ## 7. Cleaning up
 
 Rendered frames are large (about 1-2 GB a part). final.mp4 does not need them.
 
 - **Automatic**: approving the final deletes everything that only made final.mp4: `frames/`, `audio/` (music,
-  sfx and mix stems), preview.mp4, test-render.mp4, captions.ass and end-card.png. Kept: final.mp4, qa.json, voice.mp3,
-  story.md, script, phrases.json, story.json, thumbs/, upload.md, the stills sheet. Changing the video afterwards
+  sfx and mix stems), captions.ass and end-card.png (and preview.mp4, test-render.mp4, thumbs/ left by older versions). Kept: final.mp4, qa.json, voice.mp3,
+  story.md, script, phrases.json, story.json, upload.md, the stills sheet. Changing the video afterwards
   means rendering it again. Approved before this existed, or the cleanup was skipped: `cli cleanup <slug> <part>`.
 - Frames only, before approving: Disk card → **Clean frames** (`cli clean-frames <slug> <part>`), once finish is done.
 - Every posted part: `cli clean-frames --posted [<slug>]` lists what it would delete (approved final, posted on

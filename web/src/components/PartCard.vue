@@ -8,7 +8,7 @@ import StageChips from './StageChips.vue'
 
 const p = defineProps<{ slug: string; part: PartSummary; index: number }>()
 
-const APPROVALS = ['stills', 'final'] as const // the test render is optional
+const APPROVALS = ['stills', 'final'] as const
 function approval(a: string): [string, string] {
   if (p.part.approvals[a]) return ['chip-green', 'approved']
   if (p.part.waiting.includes(a)) return ['chip-amber', 'waiting for you']

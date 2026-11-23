@@ -52,7 +52,7 @@ def test_part_round_trip(tmp_path):
     on_disk = json.loads(p.read_text())
     assert on_disk["stages"]["validate"]["status"] == "done"
     assert list(on_disk["stages"]) == ["prep", "import_check", "timing", "shots", "validate",
-                                       "render", "audio", "finish", "thumbnails"]
+                                       "render", "audio", "finish"]
 
 
 @pytest.mark.parametrize("model,data", [

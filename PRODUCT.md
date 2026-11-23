@@ -16,8 +16,8 @@ A local, offline factory that turns a written story plus a recorded voice track 
 Everything runs on the creator's own machine: the renderer (Three.js + Playwright), the Python pipeline and the library on disk. Runs fully offline. AI help works via copy/paste with any chat AI (ChatGPT, Claude, Gemini): the app writes the prompt and imports the reply; there are no AI providers, accounts or API keys. Every editor also works by hand. Stories are a plain-text script format (`docs/STORY_GUIDE.md`) the engine animates directly.
 
 ## Operating Context
-- Workflow per part: story -> voice -> stills -> test render -> final -> thumbnail -> upload text -> posted.
-- Human approval gates: stills, test render, final, and per-series cast sheets.
+- Workflow per part: story -> voice -> stills -> final -> upload text -> posted.
+- Human approval gates: stills, final, and per-series cast sheets.
 - Long-running render jobs run one at a time on a worker; the UI shows live job status over SSE.
 - Library generation: Props, Sets, Creatures, Actions and Wardrobe each have their own Generate with AI modal. The modal collects a description, creates a type-specific copy/paste prompt, accepts JSON, and imports directly into that library.
 - Actions page: custom `@do` actions as keyframed poses, facing the camera or sideways, with a move speed (negative glides backwards).
