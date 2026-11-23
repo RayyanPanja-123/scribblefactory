@@ -8,7 +8,7 @@ from pathlib import Path
 from fastapi import HTTPException
 
 from pipeline.scribble import cli
-from pipeline.scribble.io import load_part, load_series, series_dirs, storage_root
+from pipeline.scribble.io import load_part, load_series, part_dir_of, part_folders_of, series_dirs, series_exists, storage_root
 from pipeline.scribble.schemas import Stages
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,7 +31,7 @@ def series_path(slug: str) -> Path:
         d = cli.series_dir(argparse.Namespace(library=None, slug=slug))
     except cli.UserError as e:
         raise HTTPException(404, str(e))
-    if not (d / "series.json").exists():
+    if not series_exists(d):
         raise HTTPException(404, f"series {slug!r} not found")
     return d
 
@@ -53,10 +53,9 @@ def du(path: Path) -> int:
 
 
 def parts_of(d: Path):
-    """(part id, PartModel or None) for each part listed in series.json"""
-    for pid in load_series(d / "series.json").parts:
-        f = d / pid / "part.json"
-        yield pid, (load_part(f) if f.exists() else None)
+    """(part id, PartModel) for each part of the series, by number"""
+    for pid, folder in part_folders_of(d).items():
+        yield pid, load_part(d / folder / "part.json")
 
 
 def media_url(slug: str, rel: str) -> str:

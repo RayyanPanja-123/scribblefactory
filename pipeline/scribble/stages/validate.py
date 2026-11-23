@@ -5,7 +5,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from ..schemas import PhrasesModel, SeriesModel, StoryModel
-from ..io import LIBRARY_FILES, custom_moves, library_of, outdoor_sets, unknown_actions
+from ..io import LIBRARY_FILES, custom_moves, library_of, load_series, outdoor_sets, unknown_actions
 from ..validate import validate
 from .runner import StageError
 
@@ -25,7 +25,7 @@ def load_model(path: Path, model):
 def run(part_dir: Path) -> None:
     story = load_model(part_dir / "story.json", StoryModel)
     phrases = load_model(part_dir / "phrases.json", PhrasesModel)
-    series = load_model(part_dir.parent / "series.json", SeriesModel)
+    series = load_series(part_dir.parent / "series.json")
     if unknown := unknown_actions(story, library_of(part_dir)):  # the engine would throw mid-render
         raise StageError(f"unknown action: {', '.join(unknown)} (not built in, not in library/actions.json)")
     errors = validate(story, phrases, {c.id for c in series.cast}, outdoor_sets(library_of(part_dir)),

@@ -2,6 +2,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from pipeline.scribble.io import part_dir_of, series_exists
 import pytest
 
 from pipeline.scribble.cli import main
@@ -20,9 +21,9 @@ def test_new_series(lib):
     f = lib / "database" / "storage" / "office-cat" / "series.json"
     s = load_series(f)
     assert (s.title, s.status, s.parts, s.cast) == ("Office Cat", "draft", [], [])
-    before = f.read_bytes()
+    before = load_series(f)
     assert main(["new-series", "office-cat", "--title", "Other"]) == 1
-    assert f.read_bytes() == before
+    assert load_series(f) == before
 
 
 def test_new_series_bad_slug(lib):
@@ -41,14 +42,14 @@ def test_new_part_numbering(lib):
     assert main(["new-part", "cat", "--title", "Pilot"]) == 0
     assert main(["new-part", "cat"]) == 0
     assert load_series(lib / "database" / "storage" / "cat" / "series.json").parts == ["part-01", "part-02"]
-    p1 = load_part(lib / "database" / "storage" / "cat" / "part-01" / "part.json")
+    p1 = load_part(part_dir_of(lib / "database" / "storage" / "cat", "part-01") / "part.json")
     assert (p1.id, p1.number, p1.title, p1.stages.render.status) == ("part-01", 1, "Pilot", "pending")
-    assert (lib / "database" / "storage" / "cat" / "part-01" / "story.md").read_text() == "# Pilot\n\n"
+    assert (part_dir_of(lib / "database" / "storage" / "cat", "part-01") / "story.md").read_text() == "# Pilot\n\n"
 
 
 def test_new_part_skips_existing_folders(lib):
     main(["new-series", "cat", "--title", "Cat"])
-    leftover = lib / "database" / "storage" / "cat" / "part-02"
+    leftover = part_dir_of(lib / "database" / "storage" / "cat", "part-02")
     leftover.mkdir()
     (leftover / "story.md").write_text("my story")
     (lib / "database" / "storage" / "cat" / "part-xx").mkdir()  # non-matching folder names are ignored
@@ -66,9 +67,7 @@ def test_new_part_missing_series(lib, capsys):
 def test_new_part_limit_99(lib):
     main(["new-series", "cat", "--title", "Cat"])
     f = lib / "database" / "storage" / "cat" / "series.json"
-    s = load_series(f)
-    s.parts = [f"part-{n:02d}" for n in range(1, 100)]
-    f.write_text(s.model_dump_json())
+    (f.parent / "99-the-last").mkdir()  # a folder numbered 99: the next part would be 100
     assert main(["new-part", "cat"]) == 1
     assert not (lib / "database" / "storage" / "cat" / "part-100").exists()
 
@@ -120,34 +119,34 @@ def test_usage_error_is_user_error(lib):
 def test_library_flag_beats_env(lib, tmp_path_factory):
     other = tmp_path_factory.mktemp("other")
     assert main(["new-series", "cat", "--title", "Cat", "--library", str(other)]) == 0
-    assert (other / "database" / "storage" / "cat" / "series.json").exists()
+    assert series_exists(other / "database" / "storage" / "cat")
     assert not (lib / "database" / "storage" / "cat").exists()
 
 
 def test_env_var_respected(lib):
     assert main(["new-series", "cat", "--title", "Cat"]) == 0
-    assert (lib / "database" / "storage" / "cat" / "series.json").exists()
+    assert series_exists(lib / "database" / "storage" / "cat")
 
 
 def test_default_is_cwd_library(tmp_path, monkeypatch):
     monkeypatch.delenv("SCRIBBLE_LIBRARY", raising=False)
     monkeypatch.chdir(tmp_path)
     assert main(["new-series", "cat", "--title", "Cat"]) == 0
-    assert (tmp_path / "library" / "database" / "storage" / "cat" / "series.json").exists()
+    assert series_exists(tmp_path / "library" / "database" / "storage" / "cat")
 
 
 def test_status_reports_orphans(lib, capsys):
     main(["new-series", "cat", "--title", "Cat"])
-    (lib / "database" / "storage" / "cat" / "part-03").mkdir()
+    (part_dir_of(lib / "database" / "storage" / "cat", "part-03")).mkdir()
     (lib / "database" / "storage" / "cat" / "part-xx").mkdir()  # not a part folder, ignored
     capsys.readouterr()
     assert main(["status", "cat"]) == 0  # no parts listed: warning still shown
-    assert capsys.readouterr().out.splitlines()[-1] == "warning: orphan folder part-03 (not in series.json)"
+    assert capsys.readouterr().out.splitlines()[-1] == "warning: orphan folder part-03 (no part of the series)"
     main(["new-part", "cat"])  # becomes part-04
     capsys.readouterr()
     assert main(["status", "cat"]) == 0
     out = capsys.readouterr().out
-    assert out.splitlines()[-1] == "warning: orphan folder part-03 (not in series.json)"
+    assert out.splitlines()[-1] == "warning: orphan folder part-03 (no part of the series)"
     assert out.index("part-04") < out.index("warning:")
     assert out.count("warning:") == 1
 
@@ -168,9 +167,9 @@ def test_cast_add_keeps_approvals_and_rejects_duplicates(lib):
     s = load_series(f)
     s.cast[0].approved_at = datetime(2026, 11, 16, tzinfo=timezone.utc)
     save_series(f, s)
-    before = f.read_bytes()
+    before = load_series(f)
     assert main(["cast-add", "cat", "bob", "--name", "Other", "--color", "#000000"]) == 1
-    assert f.read_bytes() == before
+    assert load_series(f) == before
     assert main(["cast-add", "cat", "amy", "--name", "Amy", "--color", "#e2453c"]) == 0
     cast = load_series(f).cast
     assert [c.id for c in cast] == ["bob", "amy"]
@@ -265,12 +264,12 @@ def test_cast_edit_same_colour_keeps_approval(lib):
 
 def test_cast_edit_bad_input(lib, capsys):
     f = _approved_cat(lib)
-    before = f.read_bytes()
+    before = load_series(f)
     assert main(["cast-edit", "cat", "zed", "--name", "Z"]) == 1
     assert main(["cast-edit", "cat", "bob"]) == 1
     assert main(["cast-edit", "cat", "bob", "--color", "blue"]) == 1
     assert "nothing to change" in capsys.readouterr().err
-    assert f.read_bytes() == before
+    assert load_series(f) == before
 
 
 def test_cast_edit_costume_flags(lib, capsys):
@@ -284,7 +283,7 @@ def test_cast_edit_costume_flags(lib, capsys):
     assert (c.headwear.kind, c.headwear.color, c.legwear.kind, c.legwear.color) ==         ("postman_cap", "#2e3a59", "ragged_shorts", "#3a3a3a")
     assert ([p.model_dump() for p in c.props], c.default_expression, c.approved_at) == \
         ([{"kind": "clipboard", "hand": "left"}], "exhausted", None)
-    assert json.loads(f.read_text())["schema_version"] == 3
+    assert load_series(f).schema_version == 3
     rendered(lib / "database" / "storage" / "cat")
     main(["approve-cast", "cat", "bob"])
     approved = load_series(f).cast[0].approved_at
@@ -303,9 +302,9 @@ def test_cast_edit_costume_flags(lib, capsys):
                                     ["--props", "apple:left,medal:right,bottle:left"]])
 def test_cast_edit_bad_costume(lib, change):
     f = _approved_cat(lib)
-    before = f.read_bytes()
+    before = load_series(f)
     assert main(["cast-edit", "cat", "bob", *change]) == 1  # a bad costume is refused
-    assert f.read_bytes() == before
+    assert load_series(f) == before
 
 
 def test_cast_edit_props(lib, capsys):
@@ -328,7 +327,7 @@ def test_clean_frames_posted(lib, capsys):
     for _ in range(3):
         main(["new-part", "cat"])
     for pid in ("part-01", "part-02", "part-03"):
-        d = lib / "database" / "storage" / "cat" / pid
+        d = part_dir_of(lib / "database" / "storage" / "cat", pid)
         (d / "frames").mkdir()
         (d / "frames" / "000000.png").write_bytes(b"x" * 2_000_000)
         (d / "final.mp4").write_bytes(b"mp4")
@@ -336,17 +335,17 @@ def test_clean_frames_posted(lib, capsys):
         main(["mark-posted", "cat", pid, "youtube", "--url", "https://yt/x"])
     main(["mark-posted", "cat", "part-01", "instagram", "--url", "https://ig/x"])
     main(["mark-posted", "cat", "part-03", "instagram", "--url", "https://ig/y"])
-    (lib / "database" / "storage" / "cat" / "part-03" / "final.mp4").unlink()  # no final.mp4 on disk: frames kept
+    (part_dir_of(lib / "database" / "storage" / "cat", "part-03") / "final.mp4").unlink()  # no final.mp4 on disk: frames kept
     capsys.readouterr()
     assert main(["clean-frames", "--posted"]) == 0  # dry run
     out = capsys.readouterr().out
     assert "would delete" in out and "dry run: 2.0 MB would be freed (1 part(s)); add --yes" in out
-    assert (lib / "database" / "storage" / "cat" / "part-01" / "frames").exists()
+    assert (part_dir_of(lib / "database" / "storage" / "cat", "part-01") / "frames").exists()
     assert main(["clean-frames", "--posted", "cat", "--yes"]) == 0
     assert "2.0 MB freed (1 part(s))" in capsys.readouterr().out
-    assert not (lib / "database" / "storage" / "cat" / "part-01" / "frames").exists()
-    assert (lib / "database" / "storage" / "cat" / "part-02" / "frames").exists()  # instagram missing
-    assert (lib / "database" / "storage" / "cat" / "part-03" / "frames").exists()
+    assert not (part_dir_of(lib / "database" / "storage" / "cat", "part-01") / "frames").exists()
+    assert (part_dir_of(lib / "database" / "storage" / "cat", "part-02") / "frames").exists()  # instagram missing
+    assert (part_dir_of(lib / "database" / "storage" / "cat", "part-03") / "frames").exists()
     assert main(["clean-frames", "--posted", "cat", "part-02"]) == 1
     assert main(["clean-frames", "cat"]) == 1
 
@@ -363,14 +362,14 @@ def test_final_approval_cleans_up_disposable_assets(lib, capsys):
     from pipeline.scribble.io import save_part
     main(["new-series", "cat", "--title", "Cat"])
     main(["new-part", "cat"])
-    d = lib / "database" / "storage" / "cat" / "part-01"
+    d = part_dir_of(lib / "database" / "storage" / "cat", "part-01")
     for f in ("frames/000000.png", "frames/stills/s01.png", "frames/chunks/c000.json", "audio/mix.wav",
               "preview.mp4", "test-render.mp4", "captions.ass", "final.mp4", "voice.mp3", "qa.json",
               "thumbs/thumb-1.png", "upload.md", "stills-sheet.png", "phrases.json", "story.json"):
         (d / f).parent.mkdir(parents=True, exist_ok=True)
         (d / f).write_bytes(b"x" * 1000)
     keep = {"final.mp4", "voice.mp3", "qa.json", "upload.md", "stills-sheet.png", "phrases.json",
-            "story.json", "story.md", "part.json"}
+            "story.json", "story.md"}
     assert main(["approve", "cat", "part-01", "final"]) == 0  # finish not done: refused, nothing deleted
     assert "cleanup skipped: no finished final.mp4" in capsys.readouterr().out
     assert (d / "frames").exists()
@@ -387,17 +386,17 @@ def test_final_approval_cleans_up_disposable_assets(lib, capsys):
 def test_cleanup_refused_before_final_approval(lib, capsys):
     main(["new-series", "cat", "--title", "Cat"])
     main(["new-part", "cat"])
-    (lib / "database" / "storage" / "cat" / "part-01" / "frames").mkdir()
+    (part_dir_of(lib / "database" / "storage" / "cat", "part-01") / "frames").mkdir()
     assert main(["cleanup", "cat", "part-01"]) == 1
     assert "final not approved yet" in capsys.readouterr().out
-    assert (lib / "database" / "storage" / "cat" / "part-01" / "frames").exists()
+    assert (part_dir_of(lib / "database" / "storage" / "cat", "part-01") / "frames").exists()
 
 
 def test_delete_part(lib, capsys):
     main(["new-series", "cat", "--title", "Cat"])
     for _ in range(3):
         main(["new-part", "cat"])
-    d = lib / "database" / "storage" / "cat" / "part-02"
+    d = part_dir_of(lib / "database" / "storage" / "cat", "part-02")
     (d / "voice.mp3").write_bytes(b"x" * 1000)
     capsys.readouterr()
     assert main(["delete-part", "cat", "part-02"]) == 0  # dry run
@@ -420,5 +419,5 @@ def test_delete_series(lib, capsys):
     assert "would delete" in capsys.readouterr().out and (lib / "database" / "storage" / "cat").exists()
     assert main(["delete-series", "cat", "--yes"]) == 0
     assert sorted(x.name for x in (lib / "database" / "storage").iterdir()) == ["dog"]  # the other series kept
-    assert (lib / "props.json").exists()  # and the props
+    assert (lib / "props.json").exists() or (lib / "props.json.imported").exists()  # and the props
     assert main(["delete-series", "cat", "--yes"]) == 1

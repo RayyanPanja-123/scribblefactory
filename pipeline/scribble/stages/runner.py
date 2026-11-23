@@ -6,7 +6,7 @@ import os
 import traceback
 from pathlib import Path
 
-from ..io import LIBRARY_FILES, catalog_bytes, library_of, load_part, save_part
+from ..io import LIBRARY_FILES, catalog_bytes, library_of, load_part, save_part, series_bytes
 from ..schemas import utcnow
 
 
@@ -31,6 +31,8 @@ def inputs_hash(part_dir: Path, inputs, extra=None) -> str:
                 h.update(x.name.encode() + b"\0" + x.read_bytes() + b"\0")
         elif library_level and f.name in LIBRARY_FILES:  # a catalog: its old file's bytes, from the database
             h.update(catalog_bytes(f.parent, f.name) or b"<missing>")
+        elif name == "../series.json":  # the series: its old file's bytes, from the database
+            h.update(series_bytes(part_dir.parent) or b"<missing>")
         else:
             h.update(f.read_bytes() if f.exists() else b"<missing>")
         h.update(b"\0")

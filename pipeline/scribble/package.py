@@ -15,8 +15,8 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from . import db
-from .io import (atomic_write_json, series_dirs, storage_root, cast_wardrobe_problems, creature_bodies, load_actions, load_creatures,
-                 load_props, load_sets, load_wardrobe, prop_kinds, save_part, save_series, set_kinds, wardrobe_slots)
+from .io import (atomic_write_json, part_dir_of, part_folder_name, part_folders_of, series_dirs, storage_root, cast_wardrobe_problems, creature_bodies, load_actions, load_creatures,
+                 load_part, load_props, load_series, load_sets, load_wardrobe, prop_kinds, save_part, save_series, set_kinds, wardrobe_slots)
 from .schemas import (ACTIONS, ActionLibrary, CastMember, CreatureLibrary, CustomAction, CustomCreature, CustomProp,
                       CustomSet, PartModel, PropLibrary, SeriesModel, SetLibrary, Style, Voice, WardrobeItem,
                       WardrobeLibrary, utcnow)
@@ -287,7 +287,7 @@ def parse(text: str, library) -> dict:
         with tempfile.TemporaryDirectory(prefix="scribble-package-") as tmp:
             stage(result, library, Path(tmp), approved=True)
             for p in result["parts"]:
-                r = check_story(storage_root(tmp) / slug / f"part-{p['number']:02d}")
+                r = check_story(part_dir_of(storage_root(tmp) / slug, f"part-{p['number']:02d}"))
                 for x in r["problems"]:
                     err(f"PART {p['number']} SCRIPT", p["script_line"] + x["line"] if x["line"] else None, x["message"])
                 for x in r["warnings"]:
@@ -317,17 +317,16 @@ def stage(result: dict, library: Path, root: Path, approved: bool = False) -> No
     d.mkdir(parents=True)
     now = utcnow()
     cast = [c.model_copy(update={"approved_at": now if approved else None}) for c in result["cast"]]
-    parts = []
-    for p in result["parts"]:
-        pid = f"part-{p['number']:02d}"
-        (d / pid).mkdir()
-        save_part(d / pid / "part.json", PartModel(id=pid, number=p["number"], title=p["title"][:120]))
-        (d / pid / "story.md").write_text(p["story"], encoding="utf-8", newline="\n")
-        (d / pid / "script-for-tts.txt").write_text(p["voice"], encoding="utf-8", newline="\n")
-        parts.append(pid)
     # voice_name and style preset are placeholders, as for new-series
-    save_series(d / "series.json", SeriesModel(slug=s["slug"], title=s["title"], created_at=now, parts=parts,
-                                               voice=Voice(voice_name=""), style=Style(preset="default"), cast=cast))
+    save_series(d / "series.json", SeriesModel(slug=s["slug"], title=s["title"], created_at=now, voice=Voice(voice_name=""),
+                                               style=Style(preset="default"), cast=cast))
+    for p in result["parts"]:
+        pid, title = f"part-{p['number']:02d}", p["title"][:120]
+        pd = d / part_folder_name(p["number"], title)
+        pd.mkdir()
+        save_part(pd / "part.json", PartModel(id=pid, number=p["number"], title=title))
+        (pd / "story.md").write_text(p["story"], encoding="utf-8", newline="\n")
+        (pd / "script-for-tts.txt").write_text(p["voice"], encoding="utf-8", newline="\n")
 
 
 def import_package(text: str, library) -> dict:
@@ -344,11 +343,20 @@ def import_package(text: str, library) -> dict:
     old = {field: db.get_catalog(library, field) for field in fields}
     try:
         stage(result, library, tmp)
-        db.put_catalogs(library, {field: json.loads((tmp / f"{field}.json").read_bytes())[field] for field in fields})
+        db.put_catalogs(library, {field: db.get_catalog(tmp, field) for field in fields})  # stage() wrote them into tmp
+        # the series was built in tmp's own database: its folder moves in, its rows are copied over
+        slug = result["series"]["slug"]
+        src, dst = storage_root(tmp) / slug, storage_root(library) / slug
+        series = load_series(src / "series.json")
+        parts = [(folder, load_part(src / folder / "part.json")) for folder in part_folders_of(src).values()]
         storage_root(library).mkdir(parents=True, exist_ok=True)
-        os.replace(storage_root(tmp) / result["series"]["slug"], storage_root(library) / result["series"]["slug"])
+        os.replace(src, dst)
+        save_series(dst / "series.json", series)
+        for folder, p in parts:
+            save_part(dst / folder / "part.json", p)
     except BaseException:
         db.put_catalogs(library, old)
+        db.delete_series(library, result["series"]["slug"])
         raise
     finally:
         shutil.rmtree(tmp, ignore_errors=True)

@@ -30,7 +30,7 @@ from api.jobs import JOBS, busy, check_free, check_no_jobs, load_jobs
 from api.models import Health, Notification, Overview, PartDetail, SeriesCard, SeriesDetail
 from api.settings_routes import drop_ai_settings
 from pipeline.scribble import cli, gallery, package, settings, storycheck
-from pipeline.scribble.io import (atomic_write_json, storage_root, atomic_write_text, load_part, load_series, prop_kinds,
+from pipeline.scribble.io import (atomic_write_json, part_dir_of, storage_root, write_series, atomic_write_text, load_part, load_series, prop_kinds,
                                   save_series, unknown_cast_props, cast_body_problems, cast_files,
                                   cast_render_current)
 from pipeline.scribble.schemas import CastMember, PartModel, SeriesModel, Slug, Stages, utcnow
@@ -80,7 +80,7 @@ def sheet_cells(slug: str, pdir: Path, p) -> list[str]:
             out.append("todo")
         elif any(st.get(x) == "failed" for x in stages):
             out.append("failed")
-        elif busy(slug, pdir.name):
+        elif busy(slug, p.id):
             out.append("running")
         else:
             out.append("review" if review else "current")
@@ -103,11 +103,11 @@ def overview():
             if p is None:
                 continue
             in_progress += p.stages.finish.status != "done"
-            if w := waiting_approvals(d / pid, p):
+            if w := waiting_approvals(part_dir_of(d, pid), p):
                 waiting.append({"slug": d.name, "part": pid, "waiting": w})
             if not (p.posted.youtube or p.posted.instagram) and s.status != "archived":
                 sheet.append({"slug": d.name, "series_title": s.title, "part": pid, "number": p.number,
-                              "title": p.title, "cells": sheet_cells(d.name, d / pid, p)})
+                              "title": p.title, "cells": sheet_cells(d.name, part_dir_of(d, pid), p)})
             for platform in ("youtube", "instagram"):
                 post = getattr(p.posted, platform)
                 if post and (m := post.posted_at.strftime("%Y-%m")) in per_month:
@@ -155,7 +155,7 @@ def notifications():
 def series_detail(slug: str):
     d = series_path(slug)
     s = load_series(d / "series.json")
-    return {"series": s.model_dump(mode="json"), "parts": [part_summary(d / pid, p) for pid, p in parts_of(d)],
+    return {"series": s.model_dump(mode="json"), "parts": [part_summary(part_dir_of(d, pid), p) for pid, p in parts_of(d)],
             "cast": {c.id: cast_render(d, c) for c in s.cast}}
 
 
@@ -217,6 +217,9 @@ def media(slug: str, path: str):
     except ValidationError:
         raise HTTPException(404, "not found")
     root = (storage_root(lib()) / slug).resolve()
+    first, _, rest = path.partition("/")  # web urls name a part by its id (part-01/final.mp4): its folder on disk
+    if rest and first.startswith("part-"):
+        path = f"{part_dir_of(root, first).name}/{rest}"
     f = (root / path).resolve()
     if not f.is_relative_to(root) or f.suffix.lower() not in MEDIA_TYPES or not f.is_file():
         raise HTTPException(404, "not found")
@@ -433,7 +436,7 @@ def merge_cast(slug: str, entries: list[dict]) -> dict:
         else:
             series.cast.append(c)
     # written directly: save_series would restore a cleared approval (it only ever adds approvals)
-    atomic_write_json(d / "series.json", series.model_dump(mode="json"))
+    write_series(d / "series.json", series)
     publish("series-changed", {"slug": slug})
     return series_json(d)
 
@@ -462,12 +465,12 @@ def delete_cast(slug: str, cast_id: str, force: bool = False):
     if not any(c.id == cast_id for c in series.cast):
         raise HTTPException(404, f"cast id {cast_id!r} not in {slug}")
     word = re.compile(rf"(?<![\w-]){re.escape(cast_id)}(?![\w-])")
-    used = [pid for pid, _ in parts_of(d) if (f := d / pid / "story.md").is_file()
+    used = [pid for pid, _ in parts_of(d) if (f := part_dir_of(d, pid) / "story.md").is_file()
             and any(l.lstrip().startswith("@") and word.search(l) for l in f.read_text(encoding="utf-8").splitlines())]
     if used and not force:
         raise HTTPException(409, f"used in {', '.join(used)}")
     series.cast = [c for c in series.cast if c.id != cast_id]
-    atomic_write_json(d / "series.json", series.model_dump(mode="json"))
+    write_series(d / "series.json", series)
     publish("series-changed", {"slug": slug})
     return series_json(d)
 
@@ -566,7 +569,7 @@ def auto_pick_part_audio(slug: str, part: str, title: str, number: int) -> str:
         return f"Audio found ({source.name}) but it is over {MAX_VOICE_BYTES // 2**20} MB; upload it in Voice."
     if not (data[:3] == b"ID3" or (len(data) > 1 and data[0] == 0xFF and data[1] & 0xE0 == 0xE0)):
         return f"Audio found ({source.name}) but it is not a valid mp3; upload it in Voice."
-    destination = series_dir / part / "voice.mp3"
+    destination = part_dir_of(series_dir, part) / "voice.mp3"
     destination.write_bytes(data)
     return f"Audio auto-selected: {source.name}"
 
@@ -587,10 +590,10 @@ def create_part(slug: str, body: NewPart):
     check_free(slug)
     cli_call("new-part", slug, *([f"--title={body.title}"] if body.title else []))
     part = load_series(d / "series.json").parts[-1]
-    model = load_part(d / part / "part.json")
+    model = load_part(part_dir_of(d, part) / "part.json")
     audio_notice = auto_pick_part_audio(slug, part, model.title, model.number)
     if body.story is not None:
-        write_story(d / part, body.story)
+        write_story(part_dir_of(d, part), body.story)
     publish("series-changed", {"slug": slug})
     return part_detail(slug, part, audio_notice)
 
@@ -671,10 +674,9 @@ def startup() -> None:
     notes = load_jobs() + drop_ai_settings()
     for d in all_series():
         for pid, p in parts_of(d):
-            if p is None:
-                continue
-            notes += [f"{d.name} {pid}: {n}" for n in render_stage.clear_stale_lock(d / pid)]
-            notes += [f"{d.name} {pid}: {n} was left running: marked failed (interrupted)" for n in recover_stuck(d / pid)]
+            pdir = part_dir_of(d, pid)
+            notes += [f"{d.name} {pid}: {n}" for n in render_stage.clear_stale_lock(pdir)]
+            notes += [f"{d.name} {pid}: {n} was left running: marked failed (interrupted)" for n in recover_stuck(pdir)]
     for n in notes:
         print(f"startup: {n}", flush=True)
 

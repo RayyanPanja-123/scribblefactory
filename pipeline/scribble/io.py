@@ -1,4 +1,4 @@
-"""Load/save series.json, part.json and the shared catalogs (database: db.py). Writes are atomic; saves never drop an existing approval."""
+"""Load/save series, parts and the shared catalogs (rows of the database, db.py); file writes are atomic. Saves never drop an existing approval."""
 
 import hashlib
 import json
@@ -37,13 +37,54 @@ def library_of(path) -> Path:
     for q in (p, *p.parents):
         if q.name == "storage" and q.parent.name == "database":
             return q.parent.parent
-    return p.parents[1] if p.name.startswith("part-") else p.parents[2]
+    return p.parents[1] if p.is_dir() or p.name.startswith("part-") else p.parents[2]
+
+
+# A series and its parts are database rows (db.py). The code still names them by their old files, as keys:
+# <series folder>/series.json is the series, <part folder>/part.json the part; an old file found there is imported
+# (adopt) and kept as <name>.imported.
+SERIES_FILE, PART_FILE = "series.json", "part.json"
+
+
+def series_where(series_dir) -> tuple[Path, str]:
+    """(library, slug) of a series folder: library/database/storage/<slug>, or <library>/<slug> (bare, in tests)"""
+    d = Path(series_dir)
+    inside = d.parent.name == "storage" and d.parent.parent.name == "database"
+    return (d.parent.parent.parent if inside else d.parent), d.name
+
+
+def adopt(series_dir) -> None:
+    """import an old series.json, and every part.json beside it, of this series folder into the database; each
+    file is kept as <name>.imported"""
+    d = Path(series_dir)
+    f = d / SERIES_FILE
+    old_parts = sorted(d.glob(f"*/{PART_FILE}")) if d.is_dir() else []
+    if not f.is_file() and not old_parts:
+        return
+    library, slug = series_where(d)
+    if f.is_file():
+        text = f.read_text(encoding="utf-8")
+        db.put_series(library, {**SeriesModel.model_validate_json(text).model_dump(mode="json"), "slug": slug}, file_text=text)
+        db.retire(f)
+    if db.get_series(library, slug) is None:
+        return  # parts without their series: left for when it is there
+    for pf in old_parts:
+        db.put_part(library, slug, pf.parent.name, PartModel.model_validate_json(pf.read_bytes()).model_dump(mode="json"))
+        db.retire(pf)
+
+
+def series_exists(series_dir) -> bool:
+    adopt(series_dir)
+    return db.get_series(*series_where(series_dir)) is not None
 
 
 def series_dirs(library) -> list[Path]:
-    """every series folder of the library (a folder holding series.json), by slug"""
+    """every series folder of the library, by slug"""
     root = storage_root(library)
-    return sorted(d for d in root.iterdir() if (d / "series.json").is_file()) if root.is_dir() else []
+    for d in (root.iterdir() if root.is_dir() else []):
+        if (d / SERIES_FILE).is_file():
+            adopt(d)
+    return [root / slug for slug in db.series_slugs(library)]
 
 
 def atomic_write_json(path, data) -> None:
@@ -87,7 +128,13 @@ def replace_file(tmp, path) -> None:
 
 
 def load_series(path) -> SeriesModel:
-    return SeriesModel.model_validate_json(Path(path).read_bytes())
+    """the series of this (former) series.json path; FileNotFoundError when there is none"""
+    d = Path(path).parent
+    adopt(d)
+    data = db.get_series(*series_where(d))
+    if data is None:
+        raise FileNotFoundError(f"no series {d.name!r} in the database")
+    return SeriesModel.model_validate(data)
 
 
 # one cast member's render (cli cast-sheet <slug> [id]): <series>/cast/<id>.png (every pose in one row, plus a row
@@ -159,7 +206,7 @@ def _remove(library, file: str, lib, field: str, item_id: str, *blockers) -> Non
 
 def _cast_with(library, wants) -> list[tuple[Path, str]]:
     """(series.json, cast id) for every cast member, in every series of the library, that wants(member)"""
-    return [(f, c.id) for f in sorted(storage_root(library).glob("*/series.json")) for c in load_series(f).cast if wants(c)]
+    return [(f, c.id) for f in (d / SERIES_FILE for d in series_dirs(library)) for c in load_series(f).cast if wants(c)]
 
 
 def _cast_names(pairs) -> list[str]:
@@ -167,10 +214,15 @@ def _cast_names(pairs) -> list[str]:
     return [f"{f.parent.name}/{cid}" for f, cid in pairs]
 
 
+def all_parts(library) -> list[tuple[str, Path]]:
+    """("<slug>/<part id>", part folder) for every part of every series in the library"""
+    return [(f"{d.name}/{pid}", d / folder) for d in series_dirs(library) for pid, folder in part_folders_of(d).items()]
+
+
 def _stories_with(library, wants) -> list[str]:
     """"<slug>/<part id>" for every story.md in the library with a line (stripped) that wants(line)"""
-    return [f"{f.parent.parent.name}/{f.parent.name}" for f in sorted(storage_root(library).glob("*/part-*/story.md"))
-            if any(wants(line.strip()) for line in f.read_text(encoding="utf-8").splitlines())]
+    return [name for name, pdir in all_parts(library) if (f := pdir / "story.md").is_file()
+            and any(wants(line.strip()) for line in f.read_text(encoding="utf-8").splitlines())]
 
 
 def load_props(library) -> PropLibrary:
@@ -330,7 +382,7 @@ def _clear_approvals(pairs) -> list[str]:
         if c.approved_at:
             c.approved_at = None
             # written directly: save_series would restore the approval (it only ever adds approvals)
-            atomic_write_json(f, series.model_dump(mode="json"))
+            write_series(f, series)
             cleared.append(f"{series.slug}/{cid}")
     return cleared
 
@@ -465,48 +517,113 @@ def delete_set(library, set_id: str) -> None:
 
 
 def load_part(path) -> PartModel:
-    return PartModel.model_validate_json(Path(path).read_bytes())
+    """the part whose folder holds this (former) part.json path; FileNotFoundError when there is none"""
+    pdir = Path(path).parent
+    if not series_exists(pdir.parent):  # a bare part folder with no series (tests): its part.json stays a file
+        return PartModel.model_validate_json((pdir / PART_FILE).read_bytes())
+    library, slug = series_where(pdir.parent)
+    data = db.get_part(library, slug, pdir.name)
+    if data is None:
+        raise FileNotFoundError(f"no part in {pdir}")
+    return PartModel.model_validate(data)
 
 
-def _managed_series_status(path: Path, model: SeriesModel) -> str:
+def part_exists(part_dir) -> bool:
+    part_dir = Path(part_dir)
+    if not series_exists(part_dir.parent):
+        return (part_dir / PART_FILE).is_file()
+    return db.get_part(*series_where(part_dir.parent), part_dir.name) is not None
+
+
+def part_folders_of(series_dir) -> dict[str, str]:
+    """part id -> its folder name, by number"""
+    adopt(series_dir)
+    return db.part_folders(*series_where(series_dir))
+
+
+def part_dir_of(series_dir, part_id: str) -> Path:
+    """the folder of this part (series_dir / its folder; series_dir / part_id when there is no such part)"""
+    return Path(series_dir) / part_folders_of(series_dir).get(part_id, part_id)
+
+
+def part_id_of(part_dir) -> str:
+    """the part id (part-NN) of a part folder"""
+    return load_part(Path(part_dir) / PART_FILE).id
+
+
+def slugify(s: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")[:60] or "new-story"
+
+
+def part_folder_name(number: int, title: str) -> str:
+    """a part's folder: 01-<title slug>, so folders sort in part order and never clash"""
+    return f"{number:02d}-{slugify(title)}"
+
+
+def _managed_series_status(series_dir: Path, model: SeriesModel) -> str:
     """Derive the workflow status while leaving archived as an explicit manual state."""
     if model.status == "archived":
         return "archived"
-    if not model.parts:
+    folders = list(part_folders_of(series_dir).values())
+    if not folders:
         return "draft"
-    parts = [load_part(path.parent / pid / "part.json") if (path.parent / pid / "part.json").is_file() else None
-             for pid in model.parts]
-    complete = all(p is not None and p.stages.finish.status == "done"
+    parts = [load_part(series_dir / f / PART_FILE) for f in folders]
+    complete = all(p.stages.finish.status == "done"
                    and p.approvals.final.approved_at
                    and (p.posted.youtube or p.posted.instagram)
                    for p in parts)
     return "complete" if complete else "active"
 
 
+def write_series(path, model: SeriesModel) -> None:
+    """store the series as it is: approvals cleared on purpose stay cleared (save_series keeps every approval)"""
+    d = Path(path).parent
+    library, slug = series_where(d)
+    db.put_series(library, {**model.model_dump(mode="json"), "slug": slug})
+
+
 def save_series(path, model: SeriesModel) -> None:
-    path = Path(path)
-    if path.exists():
+    """add or update the series of this (former) series.json path; never drops a cast approval. Its parts are
+    their own rows (save_part): model.parts is not stored."""
+    d = Path(path).parent
+    if series_exists(d):
         on_disk = {c.id: c.approved_at for c in load_series(path).cast}
         for c in model.cast:
             if c.approved_at is None and on_disk.get(c.id):
                 c.approved_at = on_disk[c.id]
-    model.status = _managed_series_status(path, model)
-    atomic_write_json(path, model.model_dump(mode="json"))
+        model.status = _managed_series_status(d, model)
+    else:
+        model.status = "draft" if model.status != "archived" else "archived"
+    write_series(path, model)
 
 
 def save_part(path, model: PartModel) -> None:
-    path = Path(path)
-    if path.exists():
+    """add or update the part in the folder of this (former) part.json path; never drops an approval"""
+    pdir = Path(path).parent
+    library, slug = series_where(pdir.parent)
+    if part_exists(pdir):
         old = load_part(path).approvals
         for name in ("stills", "final"):
             kept = getattr(old, name).approved_at
             if kept and getattr(model.approvals, name).approved_at is None:
                 getattr(model.approvals, name).approved_at = kept
-    atomic_write_json(path, model.model_dump(mode="json"))
-    series_path = path.parent.parent / "series.json"
-    if series_path.is_file():
-        series = load_series(series_path)
-        updated = _managed_series_status(series_path, series)
-        if series.status != updated:
-            series.status = updated
-            atomic_write_json(series_path, series.model_dump(mode="json"))
+    if not series_exists(pdir.parent):  # a bare part folder with no series (tests): stays a file
+        atomic_write_json(pdir / PART_FILE, model.model_dump(mode="json"))
+        return
+    db.put_part(library, slug, pdir.name, model.model_dump(mode="json"))
+    series = load_series(pdir.parent / SERIES_FILE)
+    updated = _managed_series_status(pdir.parent, series)
+    if series.status != updated:
+        series.status = updated
+        write_series(pdir.parent / SERIES_FILE, series)
+
+
+def series_bytes(series_dir) -> bytes | None:
+    """the series as its old series.json held it, byte for byte (None: no such series), so stage and frame hashes
+    over ../series.json stay what they were before the database"""
+    if not series_exists(series_dir):
+        return None
+    if (text := db.series_file_text(*series_where(series_dir))) is not None:
+        return text.encode()  # imported and not saved since: the file's own bytes
+    s = load_series(Path(series_dir) / SERIES_FILE)
+    return (json.dumps(s.model_dump(mode="json"), indent=2, ensure_ascii=False) + "\n").encode()

@@ -13,7 +13,7 @@ import zlib
 from pathlib import Path
 from typing import NamedTuple
 
-from ..io import (LIBRARY_FILES, atomic_write_json, library_of, cast_body_problems, creature_bodies, creature_halves, creature_wardrobe, custom_actions,
+from ..io import (LIBRARY_FILES, atomic_write_json, library_of, load_part, load_series, cast_body_problems, creature_bodies, creature_halves, creature_wardrobe, custom_actions,
                   custom_moves,
                   outdoor_sets,
                   prop_kinds, set_kinds, set_weather, wardrobe_slots,
@@ -987,13 +987,13 @@ def run(part_dir: Path) -> None:
     if not story_md.exists():
         raise StageError("story.md not found")
     phrases = load_model(part_dir / "phrases.json", PhrasesModel)
-    series = load_model(part_dir.parent / "series.json", SeriesModel)
+    series = load_series(part_dir.parent / "series.json")
     library = library_of(part_dir)
     if unknown := unknown_cast_props(series.cast, library):
         raise StageError(f"cast holds a prop that is not in library/props.json: {', '.join(unknown)}")
     if problems := cast_body_problems(series.cast, library):
         raise StageError(f"cast body: {'; '.join(problems)}")
-    story = plan(story_md.read_text(encoding="utf-8"), phrases, series, int(part_dir.name.split("-")[1]),
+    story = plan(story_md.read_text(encoding="utf-8"), phrases, series, load_part(part_dir / "part.json").number,
                  prop_kinds(library), outdoor_sets(library), creature_bodies(library), custom_actions(library),
                  set_weather(library), wardrobe_slots(library), creature_halves(library))
     if unknown := sorted({s.set for s in story.shots} - set(set_kinds(library))):  # the engine would throw mid-render

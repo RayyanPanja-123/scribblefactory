@@ -3,6 +3,7 @@ import json
 import pytest
 
 from pipeline.scribble import db, package
+from pipeline.scribble.io import part_dir_of
 from pipeline.scribble.cli import main as cli
 from pipeline.scribble.io import load_props, load_series, load_sets, save_prop
 from pipeline.scribble.schemas import CustomProp
@@ -124,8 +125,8 @@ def test_import_writes_everything(lib):
     s = load_series(d / "series.json")
     assert s.parts == ["part-01", "part-02"] and [c.id for c in s.cast] == ["ava", "ben"]
     assert all(c.approved_at is None for c in s.cast)  # an imported look still needs approval
-    assert (d / "part-02" / "story.md").read_text(encoding="utf-8").startswith("# Part 2")
-    assert (d / "part-01" / "script-for-tts.txt").read_text(encoding="utf-8") == voice("The lantern pointed at Ava. To be continued.")
+    assert (part_dir_of(d, "part-02") / "story.md").read_text(encoding="utf-8").startswith("# Part 2")
+    assert (part_dir_of(d, "part-01") / "script-for-tts.txt").read_text(encoding="utf-8") == voice("The lantern pointed at Ava. To be continued.")
     assert [x.id for x in load_sets(lib).sets] == ["bakery"]
     assert not list(lib.glob(".import-*"))
 

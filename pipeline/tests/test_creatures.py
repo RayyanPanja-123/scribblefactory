@@ -4,6 +4,8 @@ from pathlib import Path
 
 import pytest
 
+from pipeline.scribble import db
+
 from pipeline.scribble.io import (cast_body_problems, creature_bodies, delete_creature, load_creatures, load_series,
                                   save_creature, save_series)
 from pipeline.scribble.schemas import (BUILTIN_CREATURES, RIG_PARTS, CastMember, CustomCreature, SeriesModel)
@@ -70,7 +72,7 @@ def test_library_save_clears_approvals_and_delete_is_refused_while_used(tmp_path
     assert load_series(f).cast[0].approved_at is None
     with pytest.raises(ValueError, match="pets/rex"):
         delete_creature(tmp_path, "dog")
-    f.unlink()
+    db.delete_series(tmp_path, "pets")  # the series gone: nothing uses the creature
     delete_creature(tmp_path, "dog")
     assert load_creatures(tmp_path).creatures == []
 

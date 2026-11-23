@@ -6,7 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from pipeline.scribble.cli import main
-from pipeline.scribble.io import load_part, save_part
+from pipeline.scribble.io import load_part, load_series, save_part, write_series
 from pipeline.scribble.schemas import PartModel, PhrasesModel, SeriesModel, StoryModel
 from pipeline.scribble.validate import validate
 
@@ -215,9 +215,9 @@ def test_stage_fails_and_prints_every_error(part, capsys):
 def test_stage_reruns_when_series_cast_changes(part, capsys):
     assert run_validate(part) == 0
     sj = part.parent / "series.json"
-    d = json.loads(sj.read_text())
-    d["cast"] = [c for c in d["cast"] if c["id"] != "amy"]
-    sj.write_text(json.dumps(d))
+    s = load_series(sj)
+    s.cast = [c for c in s.cast if c.id != "amy"]
+    write_series(sj, s)
     assert run_validate(part) == 1
     assert "cast_id" in capsys.readouterr().out
 

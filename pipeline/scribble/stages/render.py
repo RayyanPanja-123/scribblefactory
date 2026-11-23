@@ -25,7 +25,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from .. import settings
-from ..io import LIBRARY_FILES, WARDROBE_SEED, atomic_write_json, catalog_bytes, library_of, load_part
+from ..io import LIBRARY_FILES, WARDROBE_SEED, atomic_write_json, catalog_bytes, library_of, load_part, load_series, part_id_of, series_bytes
 from ..schemas import SeriesModel, StoryModel
 from .runner import StageError
 from .validate import load_model
@@ -57,13 +57,13 @@ def unapproved_cast(story: StoryModel, series: SeriesModel) -> list[str]:
 
 def check_gate(part_dir: Path, needs: tuple[str, ...]) -> StoryModel:
     """Approvals the render needs, and every on-stage cast member approved. Returns the story."""
-    slug, part = part_dir.parent.name, part_dir.name
+    slug, part = part_dir.parent.name, part_id_of(part_dir)
     approvals = load_part(part_dir / "part.json").approvals
     missing = [n for n in needs if not getattr(approvals, n).approved_at]
     if missing:
         raise StageError(f"not approved yet: {', '.join(missing)} (approve {slug} {part} {missing[0]})")
     story = load_model(part_dir / "story.json", StoryModel)
-    waiting = unapproved_cast(story, load_model(part_dir.parent / "series.json", SeriesModel))
+    waiting = unapproved_cast(story, load_series(part_dir.parent / "series.json"))
     if waiting:
         raise StageError(f"cast not approved: {', '.join(waiting)} (cast-sheet {slug}, then approve-cast {slug} <id>)")
     return story
@@ -83,7 +83,8 @@ def frames_hash(part_dir: Path) -> str:
     lib = library_of(part_dir)
     for f in [part_dir / "story.json", part_dir / "phrases.json", part_dir.parent / "series.json",
               *(lib / f for f in LIBRARY_FILES), *PAGE_FILES]:
-        data = catalog_bytes(lib, f.name) if f.parent == lib else f.read_bytes() if f.exists() else None
+        data = (catalog_bytes(lib, f.name) if f.parent == lib else series_bytes(part_dir.parent) if f.name == "series.json"
+                else f.read_bytes() if f.exists() else None)
         h.update(f.name.encode() + b"\0" + (pixel_bytes(f.name, data) if data is not None else b"<missing>") + b"\0")
     return h.hexdigest()
 

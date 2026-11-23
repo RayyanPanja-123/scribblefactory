@@ -1,4 +1,5 @@
 from pipeline.scribble.cli import main as cli
+from pipeline.scribble.io import load_series, part_dir_of
 import json
 import re
 from pathlib import Path
@@ -53,7 +54,7 @@ def setup(tmp_path, story, approve=("bob", "amy")):
     for cid in approve:
         assert cli(["approve-cast", "demo", cid, "--library", lib]) == 0
     assert cli(["new-part", "demo", "--library", lib]) == 0
-    pdir = tmp_path / "database" / "storage" / "demo" / "part-01"
+    pdir = part_dir_of(tmp_path / "database" / "storage" / "demo", "part-01")
     (pdir / "story.md").write_text(story, encoding="utf-8")
     return pdir
 
@@ -167,13 +168,15 @@ def test_duration_estimate_uses_measured_words_per_second(tmp_path):
     from pipeline.scribble.storycheck import FALLBACK_WPS, estimate_runtime, measured_wps
     assert measured_wps(tmp_path) == FALLBACK_WPS  # nothing finished yet
     assert estimate_runtime(130, FALLBACK_WPS) == 52.8  # 130 / 2.6 + the 0.3 s tail + the 2.5 s end screen
+    lib = ["--library", str(tmp_path)]
+    assert cli(["new-series", "demo", "--title", "Demo", *lib]) == 0
+    for _ in range(3):
+        assert cli(["new-part", "demo", *lib]) == 0
     for n, (words, speech) in enumerate([(120, 40.0), (180, 60.0)], 1):  # 300 words in 100 s: 3 per s
-        d = tmp_path / "database" / "storage" / "demo" / f"part-0{n}"
-        d.mkdir(parents=True)
+        d = part_dir_of(tmp_path / "database" / "storage" / "demo", f"part-0{n}")
         (d / "qa.json").write_text(json.dumps({"runtime": {"seconds": speech + 1, "words": words,
                                                             "speech_seconds": speech}}), encoding="utf-8")
-    (tmp_path / "database" / "storage" / "demo" / "part-03").mkdir()
-    (tmp_path / "database" / "storage" / "demo" / "part-03" / "qa.json").write_text("{}", encoding="utf-8")  # older qa.json: ignored
+    (part_dir_of(tmp_path / "database" / "storage" / "demo", "part-03") / "qa.json").write_text("{}", encoding="utf-8")  # older qa.json: ignored
     assert measured_wps(tmp_path) == 3.0
 
 
@@ -252,7 +255,7 @@ def test_look_on_a_creature(tmp_path):
     """a creature wears custom headwear / face / accessory / back items only: a crown look passes, trousers fail"""
     pdir = setup(tmp_path, "# T\n\n@cast bob, amy\n@look amy: pants\nAmy sat.\n@look amy: hat\nAmy sat.\n@look amy: wig\nAmy sat.\n")
     f = tmp_path / "database" / "storage" / "demo" / "series.json"
-    s = json.loads(f.read_text(encoding="utf-8"))
+    s = load_series(f).model_dump(mode="json")
     amy = next(c for c in s["cast"] if c["id"] == "amy")
     amy.update(body="cat", headwear={"kind": "crown"}, legwear={"kind": "trousers"},
                looks={"hat": {"headwear": {"kind": "crown"}}, "pants": {"legwear": {"kind": "trousers"}}})
@@ -268,7 +271,7 @@ def test_flame_look_on_a_creature(tmp_path):
     """flame is a creature's look: @look horse: blazing passes; on a humanoid it warns (not drawn); a bad level is refused"""
     pdir = setup(tmp_path, "# T\n\n@cast bob, amy\n@look amy: blazing\nAmy rode.\n@look amy: default\nAmy rested.\n")
     f = tmp_path / "database" / "storage" / "demo" / "series.json"
-    s = json.loads(f.read_text(encoding="utf-8"))
+    s = load_series(f).model_dump(mode="json")
     amy = next(c for c in s["cast"] if c["id"] == "amy")
     bob = next(c for c in s["cast"] if c["id"] == "bob")
     amy.update(body="horse", looks={"blazing": {"flame": "high", "flame_color": "#3a7bff"}, "embers": {"flame": "low"}})
@@ -297,7 +300,10 @@ def test_unused_custom_actions_counts_every_series_and_the_gallery(tmp_path):
     from pipeline.tests.test_actions import SALUTE
     ids = ["wave-a", "wave-b", "wave-c"]
     (tmp_path / "actions.json").write_text(json.dumps({"actions": [{**SALUTE, "id": i} for i in ids]}), encoding="utf-8")
-    for story, action in [("database/storage/a/part-01", ids[0]), ("_gallery/b/part-01", ids[1])]:
-        (tmp_path / story).mkdir(parents=True)
+    assert cli(["new-series", "a", "--title", "A", "--library", str(tmp_path)]) == 0
+    assert cli(["new-part", "a", "--library", str(tmp_path)]) == 0
+    a = part_dir_of(tmp_path / "database" / "storage" / "a", "part-01").relative_to(tmp_path).as_posix()
+    for story, action in [(a, ids[0]), ("_gallery/b/part-01", ids[1])]:
+        (tmp_path / story).mkdir(parents=True, exist_ok=True)
         (tmp_path / story / "story.md").write_text(f"# T\n\n@do bob: {action}\nBob moved.\n", encoding="utf-8")
     assert unused_custom_actions(tmp_path) == ids[2:]

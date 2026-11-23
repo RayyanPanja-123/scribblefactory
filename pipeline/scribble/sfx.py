@@ -18,7 +18,7 @@ from typing import Annotated, Literal
 from pydantic import Field, field_validator
 
 from . import ff
-from .io import atomic_write_json, library_of, storage_root
+from .io import all_parts, atomic_write_json, library_of, storage_root
 from .schemas import Strict
 from .stages.prep import TWIST_PREFIX, clean_markdown
 from .stages.runner import StageError
@@ -107,8 +107,8 @@ def missing_files(library) -> list[str]:
 
 def sfx_users(library, sfx_id: str) -> list[str]:
     """"<slug>/<part>" of every story.md with an @sfx of this id"""
-    return [f"{f.parent.parent.name}/{f.parent.name}" for f in sorted(storage_root(library).glob("*/part-*/story.md"))
-            if any(d[1] == sfx_id for d in directives(f.read_text(encoding="utf-8")))]
+    return [name for name, pdir in all_parts(library) if (f := pdir / "story.md").is_file()
+            and any(d[1] == sfx_id for d in directives(f.read_text(encoding="utf-8")))]
 
 
 # ---------------- the directive ----------------

@@ -191,8 +191,10 @@ def test_seed_is_stable_and_per_part():
 
 @pytest.fixture
 def part(tmp_path):
-    save_series(tmp_path / "series.json", SERIES)
-    d = tmp_path / "part-01"
+    sd = tmp_path / "database" / "storage" / "office-nap"
+    sd.mkdir(parents=True)
+    save_series(sd / "series.json", SERIES)
+    d = sd / "part-01"
     d.mkdir()
     save_part(d / "part.json", PartModel(id="part-01", number=1, title="T"))
     (d / "story.md").write_text(DIRECTED, encoding="utf-8")

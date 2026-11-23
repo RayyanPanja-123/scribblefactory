@@ -25,7 +25,7 @@ import re
 from pathlib import Path
 from typing import NamedTuple, get_args
 
-from ..io import (CREATURE_HINT, CREATURE_SLOTS, LIBRARY_FILES, atomic_write_text, custom_actions, library_of, load_series,
+from ..io import (CREATURE_HINT, CREATURE_SLOTS, LIBRARY_FILES, atomic_write_text, custom_actions, library_of, load_series, series_exists,
                   prop_kinds)
 from ..schemas import BuiltinProp, Expression, Intensity, Weather, WeatherKind, actions_with
 from .runner import StageError
@@ -319,9 +319,8 @@ def respell(text: str, pronunciations: dict[str, str]) -> str:
 
 
 def pronunciations(part_dir: Path) -> dict[str, str]:
-    """the series' voice.pronunciations ({} without a series.json)"""
-    f = part_dir.parent / "series.json"
-    return load_series(f).voice.pronunciations if f.is_file() else {}
+    """the series' voice.pronunciations ({} without a series)"""
+    return load_series(part_dir.parent / "series.json").voice.pronunciations if series_exists(part_dir.parent) else {}
 
 
 def extra_inputs(part_dir: Path) -> dict:

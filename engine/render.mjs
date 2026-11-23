@@ -84,6 +84,21 @@ const loadLibrary = (library) => {
   }
 };
 
+/** the series of a series folder: its database rows (series + cast_member, pipeline/scribble/db.py), or its
+ * series.json when there is no database row (engine tests) */
+const loadSeries = (seriesDir) => {
+  const dbFile = path.join(libraryOf(seriesDir), "database", "scribble.db");
+  const db = fs.existsSync(dbFile) ? new DatabaseSync(dbFile, { readOnly: true }) : null;
+  try {
+    const s = db?.prepare("SELECT id, slug, title, status, created_at, data FROM series WHERE slug = ?").get(path.basename(path.resolve(seriesDir)));
+    if (!s) return readJson(path.join(seriesDir, "series.json"));
+    const cast = db.prepare("SELECT data FROM cast_member WHERE series_id = ? ORDER BY id").all(s.id).map((r) => JSON.parse(r.data));
+    return { slug: s.slug, title: s.title, status: s.status, created_at: s.created_at, ...JSON.parse(s.data), cast };
+  } finally {
+    db?.close();
+  }
+};
+
 function writeFileAtomic(file, data) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const tmp = `${file}.tmp`;
@@ -149,7 +164,7 @@ async function openPage(port, swiftshader) {
 function frameJobs(a) {
   const part = path.resolve(a.part);
   const data = { story: readJson(path.join(part, "story.json")), phrases: readJson(path.join(part, "phrases.json")),
-    series: readJson(path.join(part, "..", "series.json")), ...loadLibrary(libraryOf(path.join(part, ".."))) };
+    series: loadSeries(path.join(part, "..")), ...loadLibrary(libraryOf(path.join(part, ".."))) };
   if (a.stills) {
     const dir = path.join(part, "frames", "stills");
     return { data, manifestDir: dir, jobs: data.story.shots.map((s) => ({ label: s.id, file: path.join(dir, `${s.id}.png`),
@@ -172,10 +187,10 @@ function frameJobs(a) {
 
 function castJobs(a) {
   const dir = path.resolve(a.series);
-  const data = { series: readJson(path.join(dir, "series.json")), story: { seed: 0 }, ...loadLibrary(libraryOf(dir)) };
-  if (!data.series.cast.length) throw new Error("series.json has no cast");
+  const data = { series: loadSeries(dir), story: { seed: 0 }, ...loadLibrary(libraryOf(dir)) };
+  if (!data.series.cast.length) throw new Error("the series has no cast");
   const cast = a.cast ? data.series.cast.filter((c) => c.id === a.cast) : data.series.cast;
-  if (!cast.length) throw new Error(`cast id ${a.cast} not in series.json`);
+  if (!cast.length) throw new Error(`cast id ${a.cast} not in the series`);
   const manifestDir = path.join(dir, "cast-frames", ...(a.cast ? [a.cast] : [])), jobs = [];
   for (const c of cast) for (const [label, pose, expression] of POSES) {
     jobs.push({ label: `${c.id} ${label}`, file: path.join(manifestDir, `${c.id}-${label}.png`),

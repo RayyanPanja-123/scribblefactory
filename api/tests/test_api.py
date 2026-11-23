@@ -1,4 +1,5 @@
 import contextlib
+from pipeline.scribble.io import part_dir_of
 import io
 import json
 import os
@@ -19,7 +20,7 @@ import api.main as m
 from api import jobs, settings_routes
 from pipeline.scribble import db
 from pipeline.scribble.cli import main as cli
-from pipeline.scribble.io import load_part, save_part
+from pipeline.scribble.io import load_part, load_series, save_part
 from pipeline.scribble.stages import render as render_stage
 from pipeline.scribble.stages.render import pid_alive
 from pipeline.tests.helpers import rendered
@@ -34,7 +35,7 @@ def lib(tmp_path, monkeypatch):
     assert cli(["new-series", "demo", "--title", "Demo"]) == 0
     assert cli(["cast-add", "demo", "bob", "--name", "Bob", "--color", "#ff0000"]) == 0
     assert cli(["new-part", "demo", "--title", "Pilot"]) == 0
-    d = tmp_path / "database" / "storage" / "demo" / "part-01"
+    d = part_dir_of(tmp_path / "database" / "storage" / "demo", "part-01")
     (d / "stills-sheet.png").write_bytes(b"sheet")
     (d / "final.mp4").write_bytes(bytes(range(256)) * 4)
     (d / "qa.json").write_text('{"ok": true, "checks": {}}', encoding="utf-8")
@@ -50,7 +51,7 @@ def client(lib):
 
 
 def finish_done(lib):
-    f = lib / "database" / "storage" / "demo" / "part-01" / "part.json"
+    f = part_dir_of(lib / "database" / "storage" / "demo", "part-01") / "part.json"
     p = load_part(f)
     p.stages.finish.status = "done"
     save_part(f, p)
@@ -118,7 +119,7 @@ def test_part_detail(client):
 def test_media_versions_change_on_rerender(client, lib):
     """a re-rendered file gets a new ?v, and media is served no-cache: the browser never shows a stale picture"""
     import os
-    sheet = lib / "database" / "storage" / "demo" / "part-01" / "stills-sheet.png"
+    sheet = part_dir_of(lib / "database" / "storage" / "demo", "part-01") / "stills-sheet.png"
     v1 = client.get(P).json()["versions"]
     assert {"stills-sheet.png", "final.mp4"} <= v1.keys() and "voice.mp3" not in v1
     os.utime(sheet, ns=(v1["stills-sheet.png"] + 10**9,) * 2)  # rendered again a second later
@@ -214,7 +215,7 @@ def test_add_cast(client, lib):
 
 def test_delete_cast(client, lib):
     client.post("/api/series/demo/cast", json={"cast": [{"id": "ann", "name": "Ann", "color": "#00ff00"}]})
-    (lib / "database" / "storage" / "demo" / "part-01" / "story.md").write_text("# Pilot\n\n@set street\n@cast bob\nAnnie met bob.\n", encoding="utf-8")
+    (part_dir_of(lib / "database" / "storage" / "demo", "part-01") / "story.md").write_text("# Pilot\n\n@set street\n@cast bob\nAnnie met bob.\n", encoding="utf-8")
     r = client.delete("/api/series/demo/cast/bob")
     assert r.status_code == 409 and "part-01" in r.json()["detail"]
     assert [c["id"] for c in client.delete("/api/series/demo/cast/ann").json()["cast"]] == ["bob"]  # "Annie" is narration
@@ -237,14 +238,14 @@ def test_mark_posted(client):
 def test_upload_md(client, lib):
     r = client.put(f"{P}/upload.md", json={"text": "New title\n#shorts\n"})
     assert r.status_code == 200 and r.json()["upload_md"] == "New title\n#shorts\n"
-    assert (lib / "database" / "storage" / "demo" / "part-01" / "upload.md").read_bytes() == b"New title\n#shorts\n"
+    assert (part_dir_of(lib / "database" / "storage" / "demo", "part-01") / "upload.md").read_bytes() == b"New title\n#shorts\n"
 
 
 def test_story_md(client, lib):
     story = "# T\n\n@set room\nHello.\n"
     r = client.put(f"{P}/story.md", json={"text": story})
     assert r.status_code == 200 and r.json()["story_md"] == story
-    assert (lib / "database" / "storage" / "demo" / "part-01" / "story.md").read_bytes() == story.encode()
+    assert (part_dir_of(lib / "database" / "storage" / "demo", "part-01") / "story.md").read_bytes() == story.encode()
     assert client.put("/api/series/demo/parts/part-99/story.md", json={"text": "x"}).status_code == 404
 
 
@@ -268,7 +269,7 @@ def test_create_series_and_part(client, lib):
     assert "unique: sul" in client.post("/api/series", json=dup).json()["detail"]
     r = client.post("/api/series/fresh/parts", json={"title": "One", "story": "# One\n\n@cast ann\nAnn ran.\n"})
     assert r.status_code == 200 and r.json()["part"]["id"] == "part-01"
-    assert (lib / "database" / "storage" / "fresh" / "part-01" / "story.md").read_text(encoding="utf-8") == "# One\n\n@cast ann\nAnn ran.\n"
+    assert (part_dir_of(lib / "database" / "storage" / "fresh", "part-01") / "story.md").read_text(encoding="utf-8") == "# One\n\n@cast ann\nAnn ran.\n"
     assert client.post("/api/series/fresh/parts", json={}).json()["part"]["title"] == "Part 2"
     assert client.post("/api/series/nope/parts", json={}).status_code == 404
 
@@ -291,7 +292,7 @@ def test_custom_props(client, lib):
     assert client.put("/api/props/flag", json=FLAG).json()["custom"][0]["id"] == "flag"
     assert client.post("/api/series", json=hold).status_code == 200
     # a new drawing clears the holder's approval; a rename alone does not
-    s = json.loads((lib / "database" / "storage" / "flags" / "series.json").read_text(encoding="utf-8"))
+    s = load_series(lib / "database" / "storage" / "flags" / "series.json").model_dump(mode="json")
     s["cast"][0]["approved_at"] = "2026-01-01T00:00:00Z"
     (lib / "database" / "storage" / "flags" / "series.json").write_text(json.dumps(s), encoding="utf-8")
     assert client.put("/api/props/flag", json={**FLAG, "name": "Banner"}).json()["cleared"] == []
@@ -303,7 +304,7 @@ def test_custom_props(client, lib):
     assert r.status_code == 409 and "flags/ann" in r.json()["detail"]
     s["cast"][0]["props"] = []
     (lib / "database" / "storage" / "flags" / "series.json").write_text(json.dumps(s), encoding="utf-8")
-    story = lib / "database" / "storage" / "demo" / "part-01" / "story.md"
+    story = part_dir_of(lib / "database" / "storage" / "demo", "part-01") / "story.md"
     story.write_text("# T\n\n@do bob: eat flag\nHi.\n", encoding="utf-8")
     r = client.delete("/api/props/flag")
     assert r.status_code == 409 and "demo/part-01" in r.json()["detail"]
@@ -321,7 +322,7 @@ def test_custom_sets(client, lib):
     assert client.put("/api/sets/kitchen", json={**kitchen, "id": "other"}).status_code == 409
     assert client.put("/api/sets/room", json={**kitchen, "id": "room"}).status_code == 422  # built-in name
     assert client.put("/api/sets/kitchen", json=kitchen).json()["custom"][0]["id"] == "kitchen"
-    story = lib / "database" / "storage" / "demo" / "part-01" / "story.md"
+    story = part_dir_of(lib / "database" / "storage" / "demo", "part-01") / "story.md"
     story.write_text("# T\n\n@set kitchen\nHi.\n", encoding="utf-8")
     r = client.delete("/api/sets/kitchen")
     assert r.status_code == 409 and "demo/part-01" in r.json()["detail"]
@@ -330,7 +331,7 @@ def test_custom_sets(client, lib):
     assert client.delete("/api/sets/kitchen").status_code == 404
 
 def test_voice_upload(client, lib):
-    f = lib / "database" / "storage" / "demo" / "part-01" / "voice.mp3"
+    f = part_dir_of(lib / "database" / "storage" / "demo", "part-01") / "voice.mp3"
     assert client.put(f"{P}/voice.mp3", content=b"not audio").status_code == 415 and not f.exists()
     r = client.put(f"{P}/voice.mp3", content=b"ID3first")
     assert r.status_code == 200 and r.json()["files"]["voice.mp3"] and f.read_bytes() == b"ID3first"
@@ -340,11 +341,11 @@ def test_voice_upload(client, lib):
 
 
 def test_clean_frames_gate(client, lib):
-    frames = lib / "database" / "storage" / "demo" / "part-01" / "frames"
+    frames = part_dir_of(lib / "database" / "storage" / "demo", "part-01") / "frames"
     assert client.post(f"{P}/clean-frames").status_code == 409 and frames.exists()
     finish_done(lib)
     assert client.post(f"{P}/clean-frames").status_code == 200 and not frames.exists()
-    assert (lib / "database" / "storage" / "demo" / "part-01" / "final.mp4").exists()
+    assert (part_dir_of(lib / "database" / "storage" / "demo", "part-01") / "final.mp4").exists()
 
 
 def test_busy_part_409(client, lib, monkeypatch):
@@ -403,7 +404,7 @@ def test_job_cancel_kills_tree(client, lib, monkeypatch):
         time.sleep(0.05)
     child, step_pid = map(int, out[0].split())
     # as a real render would: its stage running under the step's pid, and its lock
-    d = lib / "database" / "storage" / "demo" / "part-01"
+    d = part_dir_of(lib / "database" / "storage" / "demo", "part-01")
     p = load_part(d / "part.json")
     p.stages.render.status, p.stages.render.pid = "running", step_pid
     save_part(d / "part.json", p)
@@ -518,7 +519,7 @@ def test_jobs_persist_and_resume_after_restart(client, lib):
 
 
 def test_startup_fails_stuck_stages_and_keeps_live_ones(client, lib, capsys):
-    f = lib / "database" / "storage" / "demo" / "part-01" / "part.json"
+    f = part_dir_of(lib / "database" / "storage" / "demo", "part-01") / "part.json"
     p = load_part(f)
     p.stages.timing.status, p.stages.timing.pid = "running", dead_pid()
     p.stages.prep.status, p.stages.prep.pid = "running", os.getpid()  # this python process: still running
@@ -532,7 +533,7 @@ def test_startup_fails_stuck_stages_and_keeps_live_ones(client, lib, capsys):
 
 
 def test_status_command_fails_stuck_stages(lib, capsys):
-    f = lib / "database" / "storage" / "demo" / "part-01" / "part.json"
+    f = part_dir_of(lib / "database" / "storage" / "demo", "part-01") / "part.json"
     p = load_part(f)
     p.stages.shots.status, p.stages.shots.pid = "running", dead_pid()
     save_part(f, p)
@@ -542,7 +543,7 @@ def test_status_command_fails_stuck_stages(lib, capsys):
 
 
 def test_startup_stops_orphan_render_workers(client, lib):
-    pdir = lib / "database" / "storage" / "demo" / "part-01"
+    pdir = part_dir_of(lib / "database" / "storage" / "demo", "part-01")
     worker = subprocess.Popen(["node", "-e", "setTimeout(() => {}, 60000)"], **render_stage.GROUP)
     try:
         (pdir / "frames" / ".render.lock").write_text(f"{dead_pid()}\n{worker.pid}", encoding="utf-8")
@@ -554,7 +555,7 @@ def test_startup_stops_orphan_render_workers(client, lib):
 
 
 def test_check_story(client, lib):
-    (lib / "database" / "storage" / "demo" / "part-01" / "story.md").write_text("# Pilot\n\n@set moon\nBob waved.\n", encoding="utf-8")
+    (part_dir_of(lib / "database" / "storage" / "demo", "part-01") / "story.md").write_text("# Pilot\n\n@set moon\nBob waved.\n", encoding="utf-8")
     r = client.get(f"{P}/check-story").json()
     assert r["ok"] is False and r["words"] == 2
     assert [(p["line"], p["message"].split(" (")[0]) for p in r["problems"]] == [
@@ -564,7 +565,7 @@ def test_check_story(client, lib):
 
 def test_approving_final_cleans_up(client, lib):
     finish_done(lib)
-    d = lib / "database" / "storage" / "demo" / "part-01"
+    d = part_dir_of(lib / "database" / "storage" / "demo", "part-01")
     (d / "preview.mp4").write_bytes(b"p")
     r = client.post(f"{P}/approve/final")
     assert r.status_code == 200 and r.json()["approvals"]["final"]["approved_at"]
@@ -577,19 +578,19 @@ def test_delete_part(client, lib):
     assert cli(["new-part", "demo", "--title", "Two"]) == 0
     r = client.delete("/api/series/demo/parts/part-02")
     assert r.status_code == 200 and r.json()["parts"] == ["part-01"]
-    assert not (lib / "database" / "storage" / "demo" / "part-02").exists()
+    assert not (part_dir_of(lib / "database" / "storage" / "demo", "part-02")).exists()
     assert client.delete("/api/series/demo/parts/part-02").status_code == 404
-    (lib / "database" / "storage" / "demo" / "part-01" / "frames" / ".render.lock").write_text(str(os.getpid()), encoding="utf-8")
+    (part_dir_of(lib / "database" / "storage" / "demo", "part-01") / "frames" / ".render.lock").write_text(str(os.getpid()), encoding="utf-8")
     r = client.delete(P)
     assert r.status_code == 409 and "render is running" in r.json()["detail"]
-    assert (lib / "database" / "storage" / "demo" / "part-01").exists()
+    assert (part_dir_of(lib / "database" / "storage" / "demo", "part-01")).exists()
 
 
 def test_delete_series(client, lib):
-    (lib / "database" / "storage" / "demo" / "part-01" / "frames" / ".render.lock").write_text(str(os.getpid()), encoding="utf-8")
+    (part_dir_of(lib / "database" / "storage" / "demo", "part-01") / "frames" / ".render.lock").write_text(str(os.getpid()), encoding="utf-8")
     r = client.delete("/api/series/demo")
     assert r.status_code == 409 and "render is running" in r.json()["detail"]
-    (lib / "database" / "storage" / "demo" / "part-01" / "frames" / ".render.lock").unlink()
+    (part_dir_of(lib / "database" / "storage" / "demo", "part-01") / "frames" / ".render.lock").unlink()
     # Windows: a folder held open by another program (an Explorer window) can't be renamed aside: 409, nothing lost
     real = os.replace
     def held(src, dst):
@@ -640,7 +641,7 @@ def test_actions(client, lib):
     assert client.put("/api/actions/wave", json={**salute, "id": "wave"}).status_code == 422  # built-in id
     assert client.put("/api/actions/bow", json=salute).status_code == 409  # id mismatch
     assert [a["id"] for a in client.put("/api/actions/salute", json=salute).json()["custom"]] == ["salute"]
-    story = lib / "database" / "storage" / "demo" / "part-01" / "story.md"
+    story = part_dir_of(lib / "database" / "storage" / "demo", "part-01") / "story.md"
     story.write_text("@set room\n@do bob: salute\nBob stood up.\n", encoding="utf-8")
     r = client.delete("/api/actions/salute")
     assert r.status_code == 409 and "demo/part-01" in r.json()["detail"]  # still used by a story
@@ -740,7 +741,7 @@ def test_sfx_library_crud(client, lib):
     assert client.put("/api/sfx/boing/audio?name=Boing.mp3", content=b"not audio").status_code == 415
     assert client.put("/api/sfx/boing/audio?name=boing.exe", content=b"x").status_code == 415
     # used in a story: delete refused
-    (lib / "database" / "storage" / "demo" / "part-01" / "story.md").write_text("# T\n\n@sfx pop\nBob waved.\n", encoding="utf-8")
+    (part_dir_of(lib / "database" / "storage" / "demo", "part-01") / "story.md").write_text("# T\n\n@sfx pop\nBob waved.\n", encoding="utf-8")
     r = client.delete("/api/sfx/pop")
     assert r.status_code == 409 and "demo/part-01" in r.json()["detail"]
     assert client.delete("/api/sfx/click").status_code == 200
@@ -750,13 +751,13 @@ def test_sfx_library_crud(client, lib):
 
 def test_sfx_suggestions_accept_reject(client, lib):
     md = "# T\n\n@set office\nBob found the gold.\nBob waved at everyone in the office and smiled for a very long time.\n!! Bob was the traitor.\n"
-    (lib / "database" / "storage" / "demo" / "part-01" / "story.md").write_text(md, encoding="utf-8")
+    (part_dir_of(lib / "database" / "storage" / "demo", "part-01") / "story.md").write_text(md, encoding="utf-8")
     r = client.get(f"{P}/sfx-suggestions").json()
     ids = [(s["line"], s["id"]) for s in r["suggestions"]]
     assert (4, "fahhh") in ids and (6, "riser") in ids and (6, "among_us") in ids and not r["timed"]
     hook = next(s for s in r["suggestions"] if s["id"] == "fahhh")
     r = client.post(f"{P}/sfx-suggestions", json={**hook, "accept": True}).json()
-    assert (lib / "database" / "storage" / "demo" / "part-01" / "story.md").read_text(encoding="utf-8").split("\n")[3:5] == ["@sfx fahhh", "Bob found the gold."]
+    assert (part_dir_of(lib / "database" / "storage" / "demo", "part-01") / "story.md").read_text(encoding="utf-8").split("\n")[3:5] == ["@sfx fahhh", "Bob found the gold."]
     assert r["written"] == 1 and "fahhh" not in [s["id"] for s in r["suggestions"]]
     riser = next(s for s in r["suggestions"] if s["id"] == "riser")
     r = client.post(f"{P}/sfx-suggestions", json={**riser, "accept": False}).json()
@@ -813,7 +814,7 @@ def test_move_to_gallery(client, lib):
     from datetime import datetime, timezone
     from pipeline.scribble.schemas import Post
     assert "not marked posted to YouTube or Instagram" in client.post("/api/series/demo/gallery").json()["detail"]
-    f = lib / "database" / "storage" / "demo" / "part-01" / "part.json"
+    f = part_dir_of(lib / "database" / "storage" / "demo", "part-01") / "part.json"
     p = load_part(f)
     now = datetime.now(timezone.utc)
     p.posted.youtube, p.posted.instagram = Post(url="https://youtu.be/x", posted_at=now), Post(url="https://instagram.com/p/y", posted_at=now)
@@ -828,7 +829,7 @@ def test_move_to_gallery(client, lib):
     mp.setattr(m.cli, "FOLDER_MOVE_TRIES", 1)
     r = client.post("/api/series/demo/gallery")
     mp.undo()
-    assert r.status_code == 409 and (lib / "database" / "storage" / "demo" / "part-01" / "final.mp4").exists() and client.get("/api/gallery").json() == []
+    assert r.status_code == 409 and (part_dir_of(lib / "database" / "storage" / "demo", "part-01") / "final.mp4").exists() and client.get("/api/gallery").json() == []
     e = client.post("/api/series/demo/gallery").json()
     assert e["slug"] == "demo" and e["title"] == "Demo" and e["freed_bytes"] > 0
     assert e["parts"][0]["title"] and e["parts"][0]["instagram"]["url"] == "https://instagram.com/p/y" and "thumbnail" not in e["parts"][0]

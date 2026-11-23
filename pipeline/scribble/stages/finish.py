@@ -19,7 +19,7 @@ from pathlib import Path
 
 from .. import ff
 from .. import settings
-from ..io import atomic_write_json, atomic_write_text, library_of, load_part, replace_file
+from ..io import atomic_write_json, atomic_write_text, library_of, load_part, load_series, part_id_of, replace_file, series_exists
 from ..schemas import PhrasesModel, SeriesModel, StoryModel
 from .audio import loudness
 from .prep import FX_MODES, TWIST_PREFIX, _is_directive, clean_markdown, strip_directives
@@ -523,8 +523,8 @@ def write_upload_md(part_dir: Path) -> None:
     if not script.exists():
         print("upload.md: no story.md to write it from, skipped")
         return
-    series = load_model(part_dir.parent / "series.json", SeriesModel)
-    number = int(part_dir.name.removeprefix("part-"))
+    series = load_series(part_dir.parent / "series.json")
+    number = load_part(part_dir / "part.json").number
     atomic_write_text(upload, upload_text(series, number, clean_markdown(strip_directives(script.read_text(encoding="utf-8")))))
     print("upload.md written")
 
@@ -535,7 +535,7 @@ def check_gate(part_dir: Path) -> None:
     stages = load_part(part_dir / "part.json").stages
     waiting = [n for n in ("render", "audio") if getattr(stages, n).status != "done"]
     if waiting:
-        slug, part = part_dir.parent.name, part_dir.name
+        slug, part = part_dir.parent.name, part_id_of(part_dir)
         raise StageError(f"{' and '.join(waiting)} not done yet: "
                          + "; ".join(f"render {slug} {part}" if n == "render" else f"run {slug} {part} --stage audio"
                                      for n in waiting))
@@ -544,8 +544,8 @@ def check_gate(part_dir: Path) -> None:
 def extra_inputs(part_dir: Path) -> dict:
     """the only series.json field finish uses (hashed instead of the whole file: approvals, new parts don't count), and
     the end screen's handles (library/settings.json: a changed handle re-runs finish, nothing else)"""
-    f = part_dir.parent / "series.json"
-    return {"captions": json.loads(f.read_bytes()).get("style", {}).get("captions", True) if f.exists() else None,
+    d = part_dir.parent
+    return {"captions": load_series(d / "series.json").style.captions if series_exists(d) else None,
             "socials": settings.load(library_of(part_dir))["socials"]}
 
 
@@ -553,7 +553,7 @@ def run(part_dir: Path) -> None:
     check_gate(part_dir)
     story = load_model(part_dir / "story.json", StoryModel)
     phrases = load_model(part_dir / "phrases.json", PhrasesModel)
-    captions_on = load_model(part_dir.parent / "series.json", SeriesModel).style.captions
+    captions_on = load_series(part_dir.parent / "series.json").style.captions
     md = part_dir / "story.md"
     overrides = fx_overrides(md.read_text(encoding="utf-8"), len(phrases.words)) if md.exists() else None
     check_frames(part_dir / "frames", 0, story.duration_frames)

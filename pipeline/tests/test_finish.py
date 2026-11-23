@@ -1,5 +1,6 @@
 """finish (captions, encode, QA, upload.md) and the posting CLI commands. Tiny synthetic parts in temp dirs."""
 
+from pipeline.scribble.io import part_dir_of
 import json
 import re
 import shutil
@@ -89,7 +90,7 @@ def lib(template, tmp_path, monkeypatch):
 
 
 def pdir(lib):
-    return lib / "database" / "storage" / "demo" / "part-01"
+    return part_dir_of(lib / "database" / "storage" / "demo", "part-01")
 
 
 def cli(lib, *args):
@@ -249,7 +250,7 @@ def test_upload_md_written_once(lib):
     text = (d / "upload.md").read_text(encoding="utf-8")
     assert "## YouTube" in text and "## Instagram" in text
     assert text.count("Title: Demo Tales — Part 1") == 2
-    assert text.count("Old John Smith ran far, then he stopped. Part 1 of 2.") == 2
+    assert text.count("Old John Smith ran far, then he stopped. Part 1 of 1.") == 2
     assert text.count(finish.HASHTAGS) == 2
     (d / "upload.md").write_text("my edits", encoding="utf-8")
     finish.write_upload_md(d)

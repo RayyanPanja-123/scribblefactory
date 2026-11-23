@@ -100,7 +100,7 @@ def engine(library) -> Engine:
         return e
 
 
-def _retire(f: Path) -> None:
+def retire(f: Path) -> None:
     try:
         os.replace(f, f.with_name(f.name + ".imported"))
     except FileNotFoundError:  # another process imported it first
@@ -156,7 +156,7 @@ def _import_old(lib: Path, e: Engine) -> None:
             with Session(e) as db:
                 replace(db, data)
                 db.commit()
-        _retire(f)
+        retire(f)
 
 
 def _has_data(library) -> bool:
@@ -223,3 +223,161 @@ def put_catalogs(library, kinds: dict[str, list[dict]]) -> None:
         for kind, items in kinds.items():
             _put_kind(db, kind, items)
         db.commit()
+
+
+# ---- series, parts, cast (were <series>/series.json and <series>/<part>/part.json) ----
+# Columns hold what is queried; data holds the rest of the model exactly as it dumps. io.py turns rows back into
+# SeriesModel / PartModel (load_series, load_part) and writes them (save_series, save_part).
+
+SERIES_COLUMNS = ("slug", "title", "status", "created_at")
+PART_COLUMNS = ("id", "number", "title")
+
+
+class Series(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    slug: str = Field(unique=True, index=True)
+    title: str
+    status: str
+    created_at: str
+    data: dict = Field(sa_column=Column(JSON, nullable=False))  # voice, style...: every other SeriesModel field
+    # the imported series.json's text, until the series is next saved: hashes over ../series.json use it, so a file
+    # written by an older model (a field added since) hashes as it did and nothing re-runs (io.series_bytes)
+    file_text: str | None = None
+
+
+class Part(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint("series_id", "part_id"), UniqueConstraint("series_id", "folder"))
+    id: int | None = Field(default=None, primary_key=True)
+    series_id: int = Field(foreign_key="series.id", ondelete="CASCADE", index=True)
+    part_id: str  # part-01: the stable id in URLs, CLI commands and job tags
+    number: int
+    title: str
+    folder: str  # its folder in the series folder, 01-<title slug> (io.part_folder_name)
+    data: dict = Field(sa_column=Column(JSON, nullable=False))  # approvals, posted...: every other PartModel field
+
+
+class CastMember(SQLModel, table=True):
+    __tablename__ = "cast_member"
+    __table_args__ = (UniqueConstraint("series_id", "cast_id"),)
+    id: int | None = Field(default=None, primary_key=True)  # insertion order: the cast's list order
+    series_id: int = Field(foreign_key="series.id", ondelete="CASCADE", index=True)
+    cast_id: str
+    name: str
+    approved_at: str | None = None
+    data: dict = Field(sa_column=Column(JSON, nullable=False))  # the whole member as CastMember dumps it
+
+
+class StageRun(SQLModel, table=True):
+    __tablename__ = "stage_run"
+    part: int = Field(foreign_key="part.id", ondelete="CASCADE", primary_key=True)
+    stage: str = Field(primary_key=True)  # prep, import_check, timing, shots, validate, render, audio, finish
+    status: str = Field(index=True)
+    started_at: str | None = None
+    finished_at: str | None = None
+    error: str | None = None
+    inputs_hash: str | None = None
+    pid: int | None = None
+
+
+def _series_row(db: Session, slug: str) -> Series | None:
+    return db.exec(select(Series).where(Series.slug == slug)).first()
+
+
+def series_slugs(library) -> list[str]:
+    if not _has_data(library):
+        return []
+    with Session(engine(library)) as db:
+        return list(db.exec(select(Series.slug).order_by(Series.slug)))
+
+
+def get_series(library, slug: str) -> dict | None:
+    """the series as SeriesModel dumps it (parts: its part ids by number, cast: in list order), or None"""
+    if not _has_data(library):
+        return None
+    with Session(engine(library)) as db:
+        s = _series_row(db, slug)
+        if s is None:
+            return None
+        parts = db.exec(select(Part.part_id).where(Part.series_id == s.id).order_by(Part.number))
+        cast = db.exec(select(CastMember.data).where(CastMember.series_id == s.id).order_by(CastMember.id))
+        return {**{k: getattr(s, k) for k in SERIES_COLUMNS}, **s.data, "parts": list(parts), "cast": list(cast)}
+
+
+def put_series(library, d: dict, file_text: str | None = None) -> None:
+    """add or replace the series d["slug"] (a SeriesModel dump) and its whole cast. Its parts are rows of their own
+    and stay: d["parts"] is not stored."""
+    with Session(engine(library)) as db:
+        s = _series_row(db, d["slug"]) or Series(slug=d["slug"], title="", status="", created_at="", data={})
+        s.title, s.status, s.created_at = d["title"], d["status"], d["created_at"]
+        s.data = {k: v for k, v in d.items() if k not in (*SERIES_COLUMNS, "parts", "cast")}
+        s.file_text = file_text
+        db.add(s)
+        db.flush()
+        db.exec(delete(CastMember).where(CastMember.series_id == s.id))
+        db.add_all(CastMember(series_id=s.id, cast_id=c["id"], name=c["name"], approved_at=c.get("approved_at"), data=c)
+                   for c in d["cast"])
+        db.commit()
+
+
+def series_file_text(library, slug: str) -> str | None:
+    if not _has_data(library):
+        return None
+    with Session(engine(library)) as db:
+        return db.exec(select(Series.file_text).where(Series.slug == slug)).first()
+
+
+def delete_series(library, slug: str) -> None:
+    """the series row with its parts, stage runs and cast (cascade)"""
+    with Session(engine(library)) as db:
+        if s := _series_row(db, slug):
+            db.delete(s)
+            db.commit()
+
+
+def part_folders(library, slug: str) -> dict[str, str]:
+    """part id -> its folder, by number"""
+    if not _has_data(library):
+        return {}
+    with Session(engine(library)) as db:
+        s = _series_row(db, slug)
+        rows = db.exec(select(Part.part_id, Part.folder).where(Part.series_id == s.id).order_by(Part.number)).all() if s else []
+        return {pid: folder for pid, folder in rows}
+
+
+def get_part(library, slug: str, folder: str) -> dict | None:
+    """the part in this folder as PartModel dumps it (stages by name), or None"""
+    if not _has_data(library):
+        return None
+    with Session(engine(library)) as db:
+        s = _series_row(db, slug)
+        p = db.exec(select(Part).where(Part.series_id == s.id, Part.folder == folder)).first() if s else None
+        if p is None:
+            return None
+        stages = {r.stage: r.model_dump(exclude={"part", "stage"}) for r in db.exec(select(StageRun).where(StageRun.part == p.id))}
+        return {"id": p.part_id, "number": p.number, "title": p.title, "stages": stages, **p.data}
+
+
+def put_part(library, slug: str, folder: str, d: dict) -> None:
+    """add or replace part d["id"] (a PartModel dump) of the series, in this folder, with its stage runs"""
+    with Session(engine(library)) as db:
+        s = _series_row(db, slug)
+        if s is None:
+            raise KeyError(f"series {slug!r} is not in the database")
+        p = db.exec(select(Part).where(Part.series_id == s.id, Part.part_id == d["id"])).first() \
+            or Part(series_id=s.id, part_id=d["id"], number=0, title="", folder=folder, data={})
+        p.number, p.title, p.folder = d["number"], d["title"], folder
+        p.data = {k: v for k, v in d.items() if k not in (*PART_COLUMNS, "stages")}
+        db.add(p)
+        db.flush()
+        for name, st in d["stages"].items():
+            db.merge(StageRun(part=p.id, stage=name, **st))
+        db.commit()
+
+
+def delete_part(library, slug: str, part_id: str) -> None:
+    with Session(engine(library)) as db:
+        s = _series_row(db, slug)
+        p = db.exec(select(Part).where(Part.series_id == s.id, Part.part_id == part_id)).first() if s else None
+        if p is not None:
+            db.delete(p)
+            db.commit()

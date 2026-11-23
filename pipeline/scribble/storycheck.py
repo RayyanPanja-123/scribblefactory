@@ -17,7 +17,7 @@ from pathlib import Path
 
 from . import sfx as sfx_lib
 from . import background_music
-from .io import (CREATURE_HINT, library_of, storage_root, cast_body_problems, creature_bodies, creature_wardrobe, custom_actions, load_series,
+from .io import (CREATURE_HINT, all_parts, library_of, part_id_of, storage_root, cast_body_problems, creature_bodies, creature_wardrobe, custom_actions, load_series,
                  prop_kinds, set_kinds, unknown_cast_props, wardrobe_slots)
 from .schemas import HAND_RIGS
 from .stages.finish import MAX_RUNTIME_S, MIN_RUNTIME_S
@@ -42,7 +42,7 @@ SLOW_OPEN = re.compile(r"^\W*(once upon|(in|on|by|during|back in) (the (year|sum
 def measured_wps(library: Path) -> float:
     """words per second of speech over every finished part's qa.json runtime, else FALLBACK_WPS"""
     words = seconds = 0.0
-    for f in storage_root(library).glob("*/part-*/qa.json"):
+    for f in (f for _, pdir in all_parts(library) if (f := pdir / "qa.json").is_file()):
         try:
             r = json.loads(f.read_bytes()).get("runtime") or {}
             words, seconds = words + r["words"], seconds + r["speech_seconds"]
@@ -314,7 +314,7 @@ def check_story(part_dir: Path) -> dict:
         warnings.append({"line": end[0], "message": "the last line is a sign-off: drop it. Every part ends on a silent "
                                                     "\"Follow for more\" screen; the voice never asks for a follow"})
     if not problems:
-        warnings += staging(md, series, library, part_dir.name)
+        warnings += staging(md, series, library, part_id_of(part_dir))
     wps = measured_wps(library)
     seconds = estimate_runtime(len(words), wps)
     if seconds > MAX_RUNTIME_S:
@@ -396,7 +396,7 @@ def unused_custom_actions(library: Path) -> list[str]:
     if not actions:
         return []
     used = set()
-    for story in [*storage_root(library).glob("*/part-*/story.md"), *library.glob("_gallery/*/part-*/story.md")]:
+    for story in [*(f for _, pdir in all_parts(library) if (f := pdir / "story.md").is_file()), *library.glob("_gallery/*/part-*/story.md")]:
         for number, line in enumerate(story.read_text(encoding="utf-8").splitlines(), 1):
             directive = line.strip()
             if not directive.startswith("@do "):

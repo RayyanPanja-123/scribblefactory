@@ -11,6 +11,13 @@ from pipeline.scribble.schemas.export import OUT_DIR, render
 T = "2026-11-16T10:00:00Z"
 
 
+
+def series_file(tmp_path):
+    """series.json of the series office-cat (series_data's slug) in a library at tmp_path"""
+    d = tmp_path / "database" / "storage" / "office-cat"
+    d.mkdir(parents=True, exist_ok=True)
+    return d / "series.json"
+
 def series_data(**over):
     d = {
         "slug": "office-cat",
@@ -36,8 +43,8 @@ def part_data(**over):
 
 
 def test_series_round_trip(tmp_path):
-    p = tmp_path / "series.json"
-    m = SeriesModel.model_validate(series_data())
+    p = series_file(tmp_path)
+    m = SeriesModel.model_validate(series_data(parts=[], status="draft"))  # parts: rows of their own
     io.save_series(p, m)
     assert io.load_series(p) == m
     io.save_series(p, io.load_series(p))
@@ -108,7 +115,7 @@ def test_part_approval_not_lost(tmp_path):
 
 
 def test_cast_approval_not_lost(tmp_path):
-    p = tmp_path / "series.json"
+    p = series_file(tmp_path)
     io.save_series(p, SeriesModel.model_validate(series_data()))
     stale = series_data()
     stale["cast"][0]["approved_at"] = None
@@ -131,11 +138,11 @@ def test_utcnow_is_aware_utc():
 
 def test_datetimes_stored_as_utc_z(tmp_path):
     plus2 = datetime(2026, 11, 16, 12, 0, tzinfo=timezone(timedelta(hours=2)))
-    m = SeriesModel.model_validate(series_data(created_at=plus2))
+    m = SeriesModel.model_validate(series_data(created_at=plus2, parts=[], status="draft"))
     assert m.created_at == datetime(2026, 11, 16, 10, 0, tzinfo=timezone.utc)
-    p = tmp_path / "series.json"
+    p = series_file(tmp_path)
     io.save_series(p, m)
-    on_disk = json.loads(p.read_text())
+    on_disk = json.loads(io.series_bytes(p.parent))
     assert on_disk["created_at"] == "2026-11-16T10:00:00Z"
     assert on_disk["cast"][0]["approved_at"] == "2026-11-16T10:00:00Z"
     assert io.load_series(p) == m
@@ -187,7 +194,7 @@ def test_series_v1_migrates_to_v3_keeping_approvals(tmp_path):
     v1 = series_data(cast=[{"id": "bob", "name": "Bob", "outfit_color": "#1a2B3c", "eyes": "dots", "approved_at": T},
                            {"id": "amy", "name": "Amy", "outfit_color": "#e2453c", "eyes": "half_closed"}])
     v1["schema_version"] = 1
-    f = tmp_path / "series.json"
+    f = series_file(tmp_path)
     f.write_text(json.dumps(v1))
     s = load_series(f)
     bob, amy = s.cast
@@ -196,7 +203,7 @@ def test_series_v1_migrates_to_v3_keeping_approvals(tmp_path):
     assert (bob.headwear.kind, bob.legwear.kind, bob.props, bob.default_expression) == ("none", "none", [], "neutral")
     assert bob.approved_at is not None and amy.approved_at is None
     save_series(f, s)
-    on_disk = json.loads(f.read_text())
+    on_disk = json.loads(io.series_bytes(f.parent))
     assert on_disk["schema_version"] == 3 and "outfit_color" not in on_disk["cast"][0]
     assert on_disk["cast"][0]["approved_at"] == v1["cast"][0]["approved_at"]
     assert load_series(f) == s  # v2 round trip
@@ -225,14 +232,14 @@ def test_series_v2_single_prop_migrates_to_props_keeping_approvals(tmp_path):
                 "prop": prop, "default_expression": "neutral", "approved_at": T}
     v2 = series_data(cast=[member("sul", {"kind": "clipboard", "hand": "right"}), member("fred", {"kind": "none", "hand": "right"})])
     v2["schema_version"] = 2
-    f = tmp_path / "series.json"
+    f = series_file(tmp_path)
     f.write_text(json.dumps(v2))
     sul, fred = load_series(f).cast
     assert [p.model_dump() for p in sul.props] == [{"kind": "clipboard", "hand": "right"}]
     assert fred.props == []
     assert sul.approved_at is not None and fred.approved_at is not None
     save_series(f, load_series(f))
-    on_disk = json.loads(f.read_text())
+    on_disk = json.loads(io.series_bytes(f.parent))
     assert on_disk["schema_version"] == 3 and "prop" not in on_disk["cast"][0]
     assert [c["approved_at"] for c in on_disk["cast"]] == [T, T]
 

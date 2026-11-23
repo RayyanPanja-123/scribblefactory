@@ -12,7 +12,7 @@ from typing import Literal
 
 from pydantic import ConfigDict, Field
 
-from .io import atomic_write_json, load_part, load_series
+from .io import atomic_write_json, load_part, load_series, part_dir_of
 from .schemas import PartId, Post, Strict, UtcDateTime, utcnow
 
 GALLERY = "_gallery"
@@ -49,8 +49,7 @@ def not_posted(d: Path) -> list[str]:
         return ["it has no parts"]
     out = []
     for pid in series.parts:
-        f = d / pid / "part.json"
-        p = load_part(f) if f.exists() else None
+        p = load_part(part_dir_of(d, pid) / "part.json")
         missing = [name for k, name in SITES.items() if not (p and getattr(p.posted, k))]
         if missing:
             out.append(f"{pid} is not marked posted to {' or '.join(missing)}")
@@ -72,7 +71,7 @@ def build(d: Path, library: Path) -> Path:
     try:
         parts = []
         for pid in series.parts:
-            p = load_part(d / pid / "part.json")
+            p = load_part(part_dir_of(d, pid) / "part.json")
             parts.append(GalleryPart(id=pid, number=p.number, title=p.title, youtube=p.posted.youtube,
                                      instagram=p.posted.instagram))
         entry = GalleryEntry(slug=slug, title=series.title, created_at=series.created_at, moved_at=utcnow(),

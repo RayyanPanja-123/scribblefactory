@@ -6,6 +6,7 @@ Exit codes: 0 ok, 1 user error or stage failed, 2 not implemented.
 import argparse
 import functools
 import os
+import json
 import re
 import shutil
 import subprocess
@@ -17,8 +18,8 @@ from pathlib import Path
 
 from pydantic import TypeAdapter, ValidationError
 
-from . import gallery, sheet, storycheck
-from .io import (atomic_write_json, series_dirs, storage_root, cast_body_problems, cast_files, cast_key, cast_render_current, load_part, load_series, prop_kinds, replace_file, save_part,
+from . import db, gallery, sheet, storycheck
+from .io import (atomic_write_json, series_where, part_dir_of, part_exists, part_folder_name, part_folders_of, series_dirs, series_exists, storage_root, cast_body_problems, cast_files, cast_key, cast_render_current, load_part, load_series, prop_kinds, replace_file, save_part,
                  save_series, unknown_cast_props)
 from .schemas import CastMember, Expression, PartId, PartModel, Post, SeriesModel, Slug, Stages, StoryModel, Style, Voice, utcnow
 from .stages import STAGES
@@ -55,20 +56,20 @@ def series_dir(args) -> Path:
 
 def cmd_new_series(args) -> int:
     d = series_dir(args)
-    if (d / "series.json").exists():
-        raise UserError(f"{d / 'series.json'} already exists, not overwriting")
+    if series_exists(d):
+        raise UserError(f"series {args.slug!r} already exists, not overwriting")
     # voice_name and style preset are placeholders: fill them with set-voice / set-style.
     series = SeriesModel(slug=args.slug, title=args.title, created_at=utcnow(),
                          voice=Voice(voice_name=""), style=Style(preset="default"))
     d.mkdir(parents=True, exist_ok=True)  # an interrupted earlier run may have left the folder
     save_series(d / "series.json", series)
-    print(f"created {d / 'series.json'}")
+    print(f"created series {args.slug} ({d})")
     return 0
 
 
 def load_existing_series(args) -> tuple[Path, SeriesModel]:
     f = series_dir(args) / "series.json"
-    if not f.exists():
+    if not series_exists(f.parent):
         raise UserError(f"series {args.slug!r} not found at {f.parent}")
     return f, load_series(f)
 
@@ -161,23 +162,63 @@ def cmd_set_style(args) -> int:
     return 0
 
 
+PART_FOLDER = re.compile(r"(?:part-)?([0-9]{2})(?:-.+)?")  # 01-<title slug>, or part-01 from before titles
+
+
 def part_folders(d: Path) -> list[str]:
-    """Sorted part-NN folder names on disk."""
-    return sorted(f.name for f in d.iterdir() if f.is_dir() and re.fullmatch(r"part-[0-9]{2}", f.name))
+    """Sorted part folder names on disk (01-<title slug>, or part-NN)."""
+    return sorted(f.name for f in d.iterdir() if f.is_dir() and PART_FOLDER.fullmatch(f.name)) if d.is_dir() else []
+
+
+def folder_number(name: str) -> int:
+    return int(PART_FOLDER.fullmatch(name)[1])
+
+
+def part_busy(pdir: Path) -> bool:
+    """a render or a stage is running on this part folder"""
+    if render_stage.lock_owner(pdir):
+        return True
+    f = pdir / "part.json"  # a part not imported yet
+    stages = json.loads(f.read_bytes()).get("stages", {}) if f.is_file() else \
+        load_part(f).stages.model_dump() if part_exists(pdir) else {}
+    return any(s.get("status") == "running" for s in stages.values())
+
+
+def retitle_folder(d: Path, pid: str, dry_run: bool = False) -> str | None:
+    """rename a part's folder to 01-<title slug> when its title changed; refused (UserError) while it is busy.
+    Returns "old -> new" when it was (or, dry run, would be) renamed, else None."""
+    folder = part_folders_of(d)[pid]
+    p = load_part(d / folder / "part.json")
+    want = part_folder_name(p.number, p.title)
+    if folder == want:
+        return None
+    if (d / want).exists():
+        raise UserError(f"{d / want} exists already; move or delete it by hand")
+    if dry_run:
+        return f"{folder} -> {want}"
+    if part_busy(d / folder):
+        raise UserError(f"{d.name} {pid} is rendering or has a stage running; its folder is renamed once it is done")
+    move_aside(d / folder, d / want)
+    try:
+        db.put_part(*series_where(d), want, p.model_dump(mode="json"))
+    except BaseException:
+        os.replace(d / want, d / folder)
+        raise
+    return f"{folder} -> {want}"
 
 
 def cmd_new_part(args) -> int:
     d = series_dir(args)
-    if not (d / "series.json").exists():
+    if not series_exists(d):
         raise UserError(f"series {args.slug!r} not found at {d}")
     series = load_series(d / "series.json")
     # Count folders too, so a part folder left by an interrupted run is never reused.
-    number = max([int(p[5:]) for p in series.parts + part_folders(d)], default=0) + 1
+    number = max([int(p[5:]) for p in series.parts] + [folder_number(f) for f in part_folders(d)], default=0) + 1
     if number > 99:
         raise UserError("series already has part-99; parts are limited to 99")
     pid = f"part-{number:02d}"
     title = args.title or f"Part {number}"
-    pdir = d / pid
+    pdir = d / part_folder_name(number, title)
     pdir.mkdir()
     save_part(pdir / "part.json", PartModel(id=pid, number=number, title=title))
     try:
@@ -221,12 +262,12 @@ def cmd_delete_part(args) -> int:
         print(f"would delete {pdir} ({size / 1e6:.1f} MB: {', '.join(files)}) and remove {args.part} from "
               f"series.json; add --yes to delete")
         return 0
-    # rename aside first (atomic), then series.json, then the files: never a listed part with half its files gone
+    # rename aside first (atomic), then the database rows, then the files: never a listed part with half its files gone
     trash = pdir.with_name(f".deleted-{args.part}-{utcnow():%Y%m%d%H%M%S}")
     move_aside(pdir, trash)
     try:
-        series.parts = [x for x in series.parts if x != args.part]
-        save_series(f, series)
+        db.delete_part(library_root(args), args.slug, args.part)
+        save_series(f, load_series(f))  # its status
     except BaseException:
         os.replace(trash, pdir)
         raise
@@ -258,6 +299,7 @@ def cmd_delete_series(args) -> int:
 def remove_series_folder(d: Path, slug: str) -> None:
     trash = d.with_name(f".deleted-{slug}-{utcnow():%Y%m%d%H%M%S}")
     move_aside(d, trash)  # one atomic step: from here the series is gone from the library
+    db.delete_series(*series_where(d))
     shutil.rmtree(trash, ignore_errors=True)
     if trash.exists():
         print(f"note: could not delete every file of {trash.name} (in use?); delete it later")
@@ -272,15 +314,11 @@ def cmd_migrate_storage(args) -> int:
     deleting each part's LEFTOVERS. Dry run unless --yes. Refused while any part renders or has a stage running."""
     library = library_root(args)
     old = sorted(d for d in library.iterdir() if (d / "series.json").is_file()) if library.is_dir() else []
-    if not old:
-        print("nothing to move: every series is in database/storage already")
-        return 0
-    busy = [f"{d.name} {p}" for d in old for p in part_folders(d)
-            if render_stage.lock_owner(d / p) or ((d / p / "part.json").is_file() and any(
-                s.status == "running" for s in load_part(d / p / "part.json").stages.__dict__.values()))]
+    root = storage_root(library)
+    busy = [f"{d.name} {p}" for d in [*old, *(root.iterdir() if root.is_dir() else [])] for p in part_folders(d)
+            if part_busy(d / p)]
     if busy:
         raise UserError(f"{busy[0]} is rendering or has a stage running; wait for it or stop it")
-    root = storage_root(library)
     taken = [d.name for d in old if (root / d.name).exists()]
     if taken:
         raise UserError(f"{root / taken[0]} exists already; move or delete one of the two by hand")
@@ -295,6 +333,11 @@ def cmd_migrate_storage(args) -> int:
         for rel in gone:
             f = root / d.name / rel
             shutil.rmtree(f) if f.is_dir() else f.unlink()
+    # series.json / part.json into the database (series_dirs imports them), then part folders named by title
+    renamed = [f"{d.name}/{r}" for d in (series_dirs(library) if args.yes else [])
+               for pid in part_folders_of(d) if (r := retitle_folder(d, pid))]
+    print(f"part folders renamed: {', '.join(renamed)}" if renamed else
+          "part folders: imported and renamed by title with --yes" if not args.yes else "part folders: named by title already")
     if not args.yes:
         print("add --yes to move")
     return 0
@@ -330,13 +373,13 @@ def _date(dt) -> str:
 
 def cmd_status(args) -> int:
     d = series_dir(args)
-    if not (d / "series.json").exists():
+    if not series_exists(d):
         raise UserError(f"series {args.slug!r} not found at {d}")
     s = load_series(d / "series.json")
-    for pid in s.parts:
-        if (d / pid / "part.json").exists():
-            for name in recover_stuck(d / pid):
-                print(f"note: {pid} {name} was left running by a process that is gone: marked failed (interrupted)")
+    folders = part_folders_of(d)
+    for pid, folder in folders.items():
+        for name in recover_stuck(d / folder):
+            print(f"note: {pid} {name} was left running by a process that is gone: marked failed (interrupted)")
     print(f"{s.title} ({s.slug})  status: {s.status}  parts: {len(s.parts)}")
     print(f"voice: {s.voice.voice_name or '-'}  style: {s.style.preset} ({'locked' if s.style.locked else 'unlocked'})")
     cast = [f"{c.id} ({c.top.color}, {c.eyes}, "
@@ -345,8 +388,8 @@ def cmd_status(args) -> int:
     if s.parts:
         _print_table(d, s.parts)
     for name in part_folders(d):
-        if name not in s.parts:
-            print(f"warning: orphan folder {name} (not in series.json)")
+        if name not in folders.values():
+            print(f"warning: orphan folder {name} (no part of the series)")
     return 0
 
 
@@ -356,9 +399,9 @@ def _print_table(d: Path, parts: list[str]) -> None:
         + ["stills", "final", "youtube", "instagram"]
     rows = [header]
     for pid in parts:
-        f = d / pid / "part.json"
-        if not f.exists():
-            rows.append([pid, "(part.json missing)"] + [""] * (len(header) - 2))
+        f = part_dir_of(d, pid) / "part.json"
+        if not part_exists(f.parent):
+            rows.append([pid, "(part missing)"] + [""] * (len(header) - 2))
             continue
         p = load_part(f)
         rows.append([p.id, p.title]
@@ -375,8 +418,8 @@ def part_dir(args) -> Path:
         TypeAdapter(PartId).validate_python(args.part)
     except ValidationError:
         raise UserError(f"invalid part {args.part!r}: expected part-NN")
-    pdir = series_dir(args) / args.part
-    if not (pdir / "part.json").exists():
+    pdir = part_dir_of(series_dir(args), args.part)
+    if not part_exists(pdir):
         raise UserError(f"part {args.part!r} not found at {pdir}")
     return pdir
 
@@ -621,9 +664,9 @@ def clean_posted(args) -> int:
         dirs = series_dirs(root)
     total = count = 0
     for d in dirs:
-        for pid in load_series(d / "series.json").parts:
-            pdir, frames = d / pid, d / pid / "frames"
-            if not (pdir / "part.json").exists() or not frames.exists():
+        for pid, folder in part_folders_of(d).items():
+            pdir, frames = d / folder, d / folder / "frames"
+            if not frames.exists():
                 continue
             p = load_part(pdir / "part.json")
             if not (p.approvals.final.approved_at and p.posted.youtube and p.posted.instagram

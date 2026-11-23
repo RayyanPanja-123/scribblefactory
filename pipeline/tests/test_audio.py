@@ -1,5 +1,6 @@
 """audio stage: @background-music (none here: silence) + SFX from cues, mix to -14 LUFS. Real ffmpeg, temp dirs only."""
 
+from pipeline.scribble.io import part_dir_of
 import hashlib
 import shutil
 import subprocess
@@ -33,7 +34,7 @@ STORY = {
 
 
 def make_part(lib):
-    d = lib / "database" / "storage" / "demo" / "part-01"
+    d = part_dir_of(lib / "database" / "storage" / "demo", "part-01")
     d.mkdir(parents=True)
     save_part(d / "part.json", PartModel(id="part-01", number=1, title="T"))
     (d / "story.json").write_text(StoryModel.model_validate(STORY).model_dump_json(), encoding="utf-8")
