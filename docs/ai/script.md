@@ -49,7 +49,12 @@
   the end of the part, across `@set` changes. Rider and mount are one wider actor: move the mount
   (`@do charro-horse: walk`) and the rider goes along. In the saddle the rider can only idle, talk, point, wave,
   react, gasp, angry or cheer; any other `@do` falls back to idle (check-story warns). One rider per creature, get off
-  before riding another; `@car ride` seats everyone in the car instead.
+  before riding another; `@car ride` seats everyone in the car instead. The mount is a cast member with a creature
+  body (the cast list marks it "rideable"); one named after a person (`charro-horse`) is that person's mount.
+  Whenever a rider and their mount share `@cast`, put the rider in the saddle by default, even when the narration
+  never says "rode": a horseman stays on his horse. Get off (`@ride charro: none`) only for a beat the saddle cannot
+  do (give, eat, walk, fight...) or when the narration puts them on foot. Narration that has someone riding with no
+  mount in the cast: write `MISSING: cast <id>: <creature> for <rider> to ride`.
   ```
   @ride charro: charro-horse
   @do charro-horse: walk

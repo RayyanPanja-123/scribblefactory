@@ -6,9 +6,11 @@ type Look = { props?: { kind: string }[] | null }
 type Cast = { id: string; name: string; body?: string; looks?: Record<string, Look> }
 
 /** one cast line: its looks for @look (with what each holds), and a non-human body, which wears no wardrobe */
+// ponytail: every non-human body is labelled rideable; a humanoid custom creature is not (prep refuses it). Pass the
+// creature gaits in if that ever misleads the AI.
 const castLine = (c: Cast) => {
   const looks = ['default', ...Object.entries(c.looks ?? {}).map(([k, l]) => (l.props?.length ? `${k} (holds ${l.props.map((p) => p.kind).join(', ')})` : k))]
-  return `- \`${c.id}\` ${c.name}${c.body && c.body !== 'human' ? ` (body ${c.body}: no wardrobe)` : ''}; looks: ${looks.join(', ')}`
+  return `- \`${c.id}\` ${c.name}${c.body && c.body !== 'human' ? ` (body ${c.body}: no wardrobe, rideable with @ride)` : ''}; looks: ${looks.join(', ')}`
 }
 
 /** the spoken lines of a story.md: no title, no directives, no blanks */

@@ -22,6 +22,7 @@ export function voicePrompt(o: { title: string; parts: number; notes?: string; c
     ...(o.parts > 2 ? ['...'] : []),
     '<<<END>>>',
     '```',
+    'Then the self-check lines, below the block.',
     '',
   ].filter((l, i, a) => l !== '' || a[i - 1] !== '').join('\n')
 }

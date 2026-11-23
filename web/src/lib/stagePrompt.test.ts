@@ -9,7 +9,7 @@ describe('stagePrompt', () => {
     const p = stagePrompt({ series: 'Romans', title: 'Parade', story, cast: [{ id: 'caligula', name: 'Caligula', looks: { coins: { props: [{ kind: 'coin' }] }, toga: {} } }, { id: 'rex', name: 'Rex', body: 'cat' }], inventory: '# LIBRARY INVENTORY\nSETS colosseum' })
     expect(p).toContain('## Directives')
     expect(p).toContain('`caligula` Caligula; looks: default, coins (holds coin), toga')
-    expect(p).toContain('`rex` Rex (body cat: no wardrobe); looks: default')
+    expect(p).toContain('`rex` Rex (body cat: no wardrobe, rideable with @ride); looks: default')
     expect(p).toContain('SETS colosseum')
     expect(p).toContain('Caligula threw a parade.')
     expect(p).not.toContain('@set street')

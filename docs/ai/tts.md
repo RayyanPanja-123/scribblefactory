@@ -46,3 +46,10 @@
 - **Major cliffhanger** on every part except the last: the twist pays off the hook, then rips open a bigger question
   the next part answers (a betrayal, a death sentence, a stranger at the door). The viewer must need the next part.
   The last part has no cliffhanger: its twist closes the whole story.
+- **Story logic holds across parts.** Every cliffhanger is paid off in the next part, never dropped. Any rule the
+  story sets up (what a curse does, how a deal works, who can win) is stated once and then obeyed; the ending follows
+  from those rules, never from a new one invented at the last line.
+- **Self-check before you answer.** Under the scripts (below `<<<END>>>` when there is one, never inside a part), one
+  plain line per part: word count, then the line numbers of the hook, rehook, snap and `!!` twist, then the
+  cliffhanger it opens (or "closes the story"). If a count is over 83 or a beat is missing, fix the part first:
+  the check must describe the scripts you send.
