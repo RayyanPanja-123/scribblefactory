@@ -149,6 +149,13 @@ def check_story(part_dir: Path) -> dict:
     creatures = creature_wardrobe(series.cast, bodies)
     handless = {c.id: f"a {bodies[c.body][0]}" for c in series.cast
                 if c.body in bodies and bodies[c.body][0] not in HAND_RIGS}
+    for c in series.cast:  # flame is drawn on creatures only: on a humanoid (own look or a named one) it is left out
+        if bodies.get(c.body, ("humanoid",))[0] == "humanoid":
+            for look, m in [(None, c), *c.looks.items()]:
+                if (m.flame not in (None, "off")) or m.flame_color:
+                    warnings.append({"line": None, "message": f"{c.id} is a humanoid: "
+                                     f"{'look ' + repr(look) if look else 'its own look'} sets a flame, which is only "
+                                     "drawn on creatures (horse, cat...)"})
     for cid, (rig, worn) in creatures.items():
         for look, items in worn.items():
             if items:

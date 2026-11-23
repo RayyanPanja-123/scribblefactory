@@ -263,6 +263,26 @@ def test_look_on_a_creature(tmp_path):
     assert len(warn) == 2 and "its own look puts on headwear crown" in warn[0]
 
 
+def test_flame_look_on_a_creature(tmp_path):
+    """flame is a creature's look: @look horse: blazing passes; on a humanoid it warns (not drawn); a bad level is refused"""
+    pdir = setup(tmp_path, "# T\n\n@cast bob, amy\n@look amy: blazing\nAmy rode.\n@look amy: default\nAmy rested.\n")
+    f = tmp_path / "demo" / "series.json"
+    s = json.loads(f.read_text(encoding="utf-8"))
+    amy = next(c for c in s["cast"] if c["id"] == "amy")
+    bob = next(c for c in s["cast"] if c["id"] == "bob")
+    amy.update(body="horse", looks={"blazing": {"flame": "high", "flame_color": "#3a7bff"}, "embers": {"flame": "low"}})
+    bob.update(flame="low")
+    f.write_text(json.dumps(s), encoding="utf-8")
+    r = check_story(pdir)
+    assert not [p for p in r["problems"] if "@look" in p["message"]]
+    warn = [w["message"] for w in r["warnings"] if "sets a flame" in w["message"]]
+    assert warn == ["bob is a humanoid: its own look sets a flame, which is only drawn on creatures (horse, cat...)"]
+    amy["looks"]["blazing"]["flame"] = "huge"
+    f.write_text(json.dumps(s), encoding="utf-8")
+    with pytest.raises(ValueError, match="flame"):  # rejected on load (the editor and API never save one)
+        check_story(pdir)
+
+
 def test_hold_in_check_story(tmp_path):
     pdir = setup(tmp_path, "# T\n\n@cast bob, amy\n@hold bob: medal\nBob won.\n@hold amy: trident\nAmy too.\n")
     r = check_story(pdir)

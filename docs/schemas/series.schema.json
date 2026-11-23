@@ -100,6 +100,38 @@
           ],
           "default": null
         },
+        "flame": {
+          "anyOf": [
+            {
+              "enum": [
+                "off",
+                "low",
+                "high"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "null: unchanged. non-humanoid creatures only: fire on the mane, tail and hooves, eyes glowing (off | low | high). Left out of the saved file when unset, so older casts and their approvals stay as they were",
+          "title": "Flame"
+        },
+        "flame_color": {
+          "anyOf": [
+            {
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "null: unchanged. the flame's outer colour; the middle layer and the core (and the glowing eyes) are lighter mixes of it. Unset: fire (red, orange, yellow core)",
+          "title": "Flame Color"
+        },
         "footwear": {
           "anyOf": [
             {
@@ -278,6 +310,38 @@
             }
           ],
           "default": null
+        },
+        "flame": {
+          "anyOf": [
+            {
+              "enum": [
+                "off",
+                "low",
+                "high"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "null: off. non-humanoid creatures only: fire on the mane, tail and hooves, eyes glowing (off | low | high). Left out of the saved file when unset, so older casts and their approvals stay as they were",
+          "title": "Flame"
+        },
+        "flame_color": {
+          "anyOf": [
+            {
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "the flame's outer colour; the middle layer and the core (and the glowing eyes) are lighter mixes of it. Unset: fire (red, orange, yellow core)",
+          "title": "Flame Color"
         },
         "footwear": {
           "anyOf": [

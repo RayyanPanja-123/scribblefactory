@@ -67,6 +67,22 @@ def _id_key(key: str):
     return f
 
 
+Flame = Literal["off", "low", "high"]
+FLAME_DESC = ("non-humanoid creatures only: fire on the mane, tail and hooves, eyes glowing (off | low | high). "
+              "Left out of the saved file when unset, so older casts and their approvals stay as they were")
+
+
+FLAME_COLOR_DESC = ("the flame's outer colour; the middle layer and the core (and the glowing eyes) are lighter mixes "
+                    "of it. Unset: fire (red, orange, yellow core)")
+
+
+def _drop_null_flame(d):
+    for k in ("flame", "flame_color"):
+        if isinstance(d, dict) and d.get(k) is None:
+            d.pop(k, None)
+    return d
+
+
 def _drop_null_accent(self, nxt):
     """an unset accent is left out of the saved file, so casts saved before accents existed stay byte-identical"""
     d = nxt(self)
@@ -209,6 +225,13 @@ class CastLook(Strict):
     default_expression: Expression | None = None
     eyes: Literal["dots", "half_closed"] | None = None
     headless: bool | None = Field(default=None, description="creatures with a stump only")
+    flame: Flame | None = Field(default=None, description="null: unchanged. " + FLAME_DESC)
+    flame_color: HexColor | None = Field(default=None, description="null: unchanged. " + FLAME_COLOR_DESC)
+
+    @model_serializer(mode="wrap")
+    def _no_null_flame(self, nxt):
+        return _drop_null_flame(nxt(self))
+
     @field_validator("props")
     @classmethod
     def _one_per_hand(cls, v):
@@ -254,6 +277,8 @@ class CastMember(Strict):
                                                     "Other rigs are drawn in top.color ($main) and top.accent_color "
                                                     "($accent), eyes and mouth only, no costume")
     headless: bool = Field(default=False, description="creatures with a stump only: the stump instead of the head")
+    flame: Flame | None = Field(default=None, description="null: off. " + FLAME_DESC)
+    flame_color: HexColor | None = Field(default=None, description=FLAME_COLOR_DESC)
     looks: dict[Slug, CastLook] = Field(default={}, description="named variants a story switches to with @look "
                                                                "<cast>: <name> (default: back to this entry's own)")
     approved_at: UtcDateTime | None = None
@@ -262,6 +287,15 @@ class CastMember(Strict):
     @classmethod
     def _one_per_hand(cls, v):
         return _one_hand_each(v)
+
+    @model_serializer(mode="wrap")
+    def _no_null_flame(self, nxt):
+        return _drop_null_flame(nxt(self))
+
+    @field_validator("flame")
+    @classmethod
+    def _flame_off(cls, v):
+        return None if v == "off" else v  # off is the default: stored as unset, so the look key never changes
 
     @field_validator("headwear", "legwear", mode="before")
     @classmethod

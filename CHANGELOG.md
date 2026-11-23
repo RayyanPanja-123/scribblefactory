@@ -1,6 +1,11 @@
 # Changelog
 
 ## Unreleased
+- Creatures can burn: a cast entry or look sets `flame` (off, low, high) and optionally `flame_color`. Flat tongues
+  in three layers (outer, middle, core) stand on the mane, tail and every hoof, sway and flicker with the line boil,
+  and the eyes glow in the core colour. `@look charro-horse: blazing` switches it on. Off or unset draws exactly as
+  before and keeps every cast approval. The cast editor has the controls and a live creature preview; check-story
+  warns when a humanoid sets a flame (not drawn).
 - Shorts are now 30 to 35 s, never over 35: 70 to 83 words (was 110 to 175, up to 58 s). The story rules
   (docs/ai/tts.md) and every story prompt say so, with the hook, intensifier and rehook positions scaled down;
   check-story and finish QA warn above 35 s and below 30 s, the story importer outside 70 to 83 words.

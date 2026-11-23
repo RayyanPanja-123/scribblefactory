@@ -17,5 +17,7 @@
   3 for `accessory`, `face`. Each id fits one slot.
 - Built-in wardrobe: tops `plain suit tank shirt dress`; headwear `flat_cap postman_cap bowler straw_hat wide_hat`;
   legwear `shorts ragged_shorts trousers`.
+- Creatures only (not humanoids): `"flame"` (`off low high`: fire on the mane, tail and hooves, eyes glowing) and
+  `"flame_color"` (hex, the outer flame; unset is fire). Both work in looks: `"looks": { "blazing": { "flame": "high" } }`.
 - Optional: `"default_expression"` (`neutral happy cheer sad angry surprised sleepy cheeky exhausted worried dead`), `"eyes"` (`dots`,
   `half_closed`).

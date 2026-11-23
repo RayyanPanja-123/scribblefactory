@@ -1,7 +1,7 @@
 // Creatures: rig poses (pure) and every built-in drawn in every action through a recording 2D context.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { BUILTIN as ALL_BUILTIN, JOINT_OF, RIGS, creature, creaturePose, drawCreature, measure } from "../page/creatures.js";
+import { BUILTIN as ALL_BUILTIN, FIRE, JOINT_OF, RIGS, creature, creaturePose, drawCreature, flamePalette, measure } from "../page/creatures.js";
 import { find, lookup, setLibrary } from "../page/library.js";
 import { FEET_Y, FIGURE_PX, drawStickman, figurePx, fitOf, hipPx } from "../page/stickman.js";
 
@@ -92,4 +92,38 @@ test("measure: height from the drawing, the horse much taller than the cat", () 
   const by = Object.fromEntries(BUILTIN.map((c) => [c.id, measure(c)]));
   assert.ok(by.horse.top > 3 * by.cat.top && by.cat.top > 150);
   assert.equal(by.chicken.leg, 120);
+});
+
+test("flame: off draws exactly as before; low / high add layered tongues on mane, tail and hooves, high bigger; eyes glow", () => {
+  const horse = creature("horse"), fills = (ops, c) => ops.filter((x) => x.op === "fill" && x.style === c);
+  const tall = (ops) => Math.max(...fills(ops, FIRE[0]).map((x) => Math.max(...x.pts.map((q) => q[1])) - Math.min(...x.pts.map((q) => q[1]))));
+  for (const action of ["idle", "walk"]) {
+    const off = record(horse, { action, phase: 0.2 });
+    assert.deepEqual(record(horse, { action, phase: 0.2, flame: "off" }), off); // off / unset: byte-identical drawing
+    const low = record(horse, { action, phase: 0.2, flame: "low" }), high = record(horse, { action, phase: 0.2, flame: "high" });
+    // 3 layers per tongue: mane 3 + tail 3 + 4 hooves x 2 (low); 5 + 5 + 4 x 3 (high)
+    FIRE.forEach((c, i) => assert.equal(fills(low, c).length, 14 + (i === 2))); // + the glowing eye in the core colour
+    FIRE.forEach((c, i) => assert.equal(fills(high, c).length, 22 + (i === 2)));
+    assert.ok(tall(high) > 1.5 * tall(low));
+    // the creature's own lines keep their boil: the flame-off ops are all still there, in order
+    const own = high.filter((x) => !FIRE.includes(x.style));
+    assert.ok(off.every((x) => own.some((y) => y.style === x.style && JSON.stringify(y.pts) === JSON.stringify(x.pts))));
+  }
+  assert.equal(fills(record(horse, { action: "idle", flame: "high" }), FIRE[2]).length, 23); // 22 tongue cores + the eye
+  assert.equal(record(creature("cat"), { action: "idle", flame: "low" }).filter((x) => x.style === FIRE[0]).length, 14);
+  assert.equal(record(creature("snake"), { action: "idle", flame: "high" }).filter((x) => x.style === FIRE[0]).length, 5); // head only
+});
+
+test("flame colour: outer layer is the colour, middle and core lighter mixes of it; unset is fire", () => {
+  assert.deepEqual(flamePalette(null), FIRE);
+  assert.deepEqual(flamePalette("#2050ff"), ["#2050ff", "#7996ff", "#c7d3ff"]);
+  const ops = record(creature("horse"), { action: "idle", flame: "low", flame_color: "#2050ff" });
+  assert.equal(ops.filter((x) => x.style === "#2050ff").length, 14);
+  assert.equal(ops.filter((x) => FIRE.includes(x.style)).length, 0);
+});
+
+test("flame on a humanoid: drawStickman ignores it (humanoids unchanged)", () => {
+  const draw = (cv, o) => drawStickman(cv, o);
+  const o = { action: "walk", phase: 0.3, eyes: "dots", expression: "neutral", color: "#123456" };
+  assert.deepEqual(record(null, { ...o, flame: "high" }, draw), record(null, o, draw));
 });

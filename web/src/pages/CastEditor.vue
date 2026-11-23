@@ -8,6 +8,7 @@ import { ArrowLeft, Pencil, Plus, RefreshCw, Trash2, X } from 'lucide-vue-next'
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, type CastMember } from '../api/client'
+import CreaturePreview from '../components/CreaturePreview.vue'
 import ErrorCard from '../components/ErrorCard.vue'
 import WardrobePreview from '../components/WardrobePreview.vue'
 import { act, confirm } from '../composables/feedback'
@@ -34,7 +35,8 @@ const MANY: Slot[] = ['accessory', 'face'] // up to 3 each
 const KIND_SLOTS: Slot[] = ['headwear', 'legwear'] // stored as {kind, color}; the rest as {id, color} or null
 /** what a look can change (pipeline CastLook); name and body stay the member's own */
 const LOOK_FIELDS = ['top', 'headwear', 'legwear', 'hair', 'facial_hair', 'footwear', 'back', 'accessory', 'face', 'props',
-  'default_expression', 'eyes', 'headless'] as const
+  'default_expression', 'eyes', 'headless', 'flame', 'flame_color'] as const
+const FLAMES = ['off', 'low', 'high'] as const
 type Worn = { id: string; color: string | null; accent?: string | null } // id '': nothing
 type Obj = Record<string, unknown>
 
@@ -74,6 +76,7 @@ const accentOf = (w: Worn) => (w.id && w.accent ? { accent: w.accent } : {})
 // ---- drafts: an outfit as form state; one for the base, one for the look being edited ----
 type Draft = {
   name: string; eyes: CastMember['eyes']; expression: string; body: string; headless: boolean; hands: Record<Hand, string>
+  flame: (typeof FLAMES)[number]; flameColor: string | null // creatures only; null colour: fire
   top: { style: string; color: string; accent: string | null; number: string }
   one: Record<string, Worn>; many: Record<string, Worn[]>
 }
@@ -89,6 +92,7 @@ function toDraft(c: Obj): Draft {
   return {
     name: c.name as string, eyes: c.eyes as CastMember['eyes'], expression: (c.default_expression as string) ?? 'neutral',
     body: (c.body as string) ?? 'human', headless: !!c.headless, hands,
+    flame: (c.flame as Draft['flame']) ?? 'off', flameColor: (c.flame_color as string) ?? null,
     top: { style: (t.style as string) ?? 'plain', color: (t.color as string) ?? DEFAULT_TOP_COLOR, accent: (t.accent_color as string) ?? null, number: (t.number as string) ?? '' },
     one: Object.fromEntries(ONE.map((s) => [s, worn(c[s])])),
     many: Object.fromEntries(MANY.map((s) => [s, ((c[s] ?? []) as unknown[]).map(worn)])),
@@ -105,6 +109,7 @@ function toEntry(d: Draft): Obj {
   return {
     ...rest, ...one, name: d.name.trim(), eyes: d.eyes, default_expression: d.expression, body: d.body,
     headless: d.headless && !!creature(d.body)?.parts.stump,
+    flame: d.flame, flame_color: d.flame !== 'off' ? d.flameColor : null, // the server stores off as unset
     top: { ...c.top, style: d.top.style, color: d.top.color, accent_color: d.top.accent, number: d.top.number.trim() || null },
     props: HANDS.filter((h) => d.hands[h]).map((h) => ({ kind: d.hands[h], hand: h })),
     ...Object.fromEntries(MANY.map((s) => [s, d.many[s].filter((w) => w.id).map((w) => ({ id: w.id, color: w.color, ...accentOf(w) }))])),
@@ -116,6 +121,7 @@ function lookDiff(look: Obj, base: Obj): Obj {
   const out: Obj = {}
   for (const k of LOOK_FIELDS) {
     if (JSON.stringify(look[k] ?? null) === JSON.stringify(base[k] ?? null)) continue
+    if (k === 'flame_color' && look[k] == null) continue // a look keeps the base's flame colour (null: unchanged)
     out[k] = look[k] ?? { id: 'none' } // only the plain slots (hair, facial_hair, footwear, back) are ever null
   }
   return out
@@ -271,6 +277,24 @@ const swatch = 'mt-1 block h-10 w-14 shrink-0 cursor-pointer rounded-md'
               <option v-for="e in EXPRESSIONS" :key="e" :value="e">{{ e }}</option>
             </select>
           </label>
+          <template v-if="!humanoid">
+            <label class="block text-xs font-semibold text-muted">Flame (mane, tail, hooves; eyes glow)
+              <select v-model="draft.flame" :class="field">
+                <option v-for="f in FLAMES" :key="f" :value="f">{{ f }}</option>
+              </select>
+            </label>
+            <label v-if="draft.flame !== 'off'" class="block text-xs font-semibold text-muted">Flame colour
+              <span class="flex items-center gap-1">
+                <input :value="draft.flameColor ?? '#d8432a'" type="color" :class="[swatch, !draft.flameColor && 'opacity-40']"
+                  :aria-label="draft.flameColor ? 'Flame colour' : 'Flame colour: fire (pick one to recolour)'"
+                  @input="draft.flameColor = ($event.target as HTMLInputElement).value" />
+                <button v-if="draft.flameColor" type="button" class="btn btn-secondary mt-1 size-8 justify-center p-0" aria-label="Back to fire colours" @click="draft.flameColor = null">
+                  <X :size="14" aria-hidden="true" />
+                </button>
+                <span v-if="!draft.flameColor" class="ml-1 text-xs">fire</span>
+              </span>
+            </label>
+          </template>
           <label v-if="creature(base.body)?.parts.stump" class="flex items-center gap-2 text-sm">
             <input v-model="draft.headless" type="checkbox" class="size-4" /> Headless (the stump instead of the head)
           </label>
@@ -396,6 +420,8 @@ const swatch = 'mt-1 block h-10 w-14 shrink-0 cursor-pointer rounded-md'
         <figure>
           <WardrobePreview v-if="humanoid && entry" class="h-80" :wear="entry" :library="library" :build="creature(base.body)?.build"
             :expression="draft.expression" :seed="`${slug}:${id}`" :label="`${base.name}${active ? `, look ${active}` : ''}, live preview`" />
+          <CreaturePreview v-else-if="creature(base.body)" class="h-80" :creature="creature(base.body)!" :color="draft.top.color" :headless="draft.headless"
+            :flame="draft.flame" :flame-color="draft.flameColor" :label="`${base.name}${active ? `, look ${active}` : ''}, live preview`" />
           <div v-else class="drawing grid h-80 place-items-center rounded-md p-4 text-center text-sm text-muted">No live preview for this body: save and render to see it.</div>
           <figcaption class="mt-2 text-center text-xs text-muted">Live preview (idle){{ active ? `: look ${active}` : '' }}</figcaption>
         </figure>

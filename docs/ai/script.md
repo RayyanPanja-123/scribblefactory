@@ -25,7 +25,8 @@
   (its `looks`, listed with the cast); `default` always exists and puts their own outfit back. The look stays on for
   the rest of the part, across `@set` changes, until another `@look`; each part starts in `default`. A look can
   also hold props (a look with `"props"`). Only humanoids wear wardrobe: a creature (cat, horse...) cannot be dressed
-  by a look; use `@face` or `@do` for it.
+  by a look; use `@face` or `@do` for it. A creature's look can set its flame (`"flame": "low"` or `"high"`: fire on
+  the mane, tail and hooves, eyes glowing; `"off"` puts it out), e.g. `@look charro-horse: blazing`.
   ```
   @look ethan: crown
   Ethan crowned himself.           <- wears the crown from here on

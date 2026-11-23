@@ -231,9 +231,41 @@ function drawShapes(p, shapes, T, col, boil, seed, light = 1) {
 
 const paintShape = (g, pts, light) => paintVolume(g, pts, light, STYLE.creature);
 
+// ---- flame (cast flame: low | high, flame_color): tongues on the mane, tail and hooves, eyes glowing ----
+// per level: tongue height (fraction of the creature's height) and tongues on the mane / tail / each hoof
+export const FLAME = { low: { h: 0.09, mane: 3, tail: 3, hoof: 2 }, high: { h: 0.16, mane: 5, tail: 5, hoof: 3 },
+  layers: [1, 0.64, 0.34], sway: 0.2, swayHz: 1.3, flickerHz: 2.1, lean: -0.18, outline: 5 };
+export const FIRE = ["#d8432a", "#f08a24", "#ffd23a"]; // outer, middle, core (no flame_color)
+const mixHex = (a, b, k) => "#" + [1, 3, 5].map((i) => Math.round(parseInt(a.slice(i, i + 2), 16) * (1 - k)
+  + parseInt(b.slice(i, i + 2), 16) * k).toString(16).padStart(2, "0")).join("");
+/** [outer, middle, core] for a flame colour (null: fire); the core is also the glowing eyes' colour */
+export const flamePalette = (c) => (c ? [c, mixHex(c, "#ffffff", 0.4), mixHex(c, "#ffffff", 0.75)] : FIRE);
+const TONGUE = [[-0.5, 0], [-0.55, -0.35], [-0.25, -0.7], [0.05, -1], [0.3, -0.6], [0.5, -0.3], [0.5, 0], [0, 0.22]];
+/** one flame tongue standing on canvas point [bx, by]: h tall, layered outer to core, swaying with t (seeded phase) */
+function tongue(p, [bx, by], h, pal, t, R, boil) {
+  const ph = TAU * R(), ph2 = TAU * R();
+  const a = FLAME.lean + FLAME.sway * Math.sin(TAU * FLAME.swayHz * t + ph);
+  const H = h * (0.85 + 0.15 * Math.sin(TAU * FLAME.flickerHz * t + ph2)), W = 0.6 * H;
+  FLAME.layers.forEach((k, i) => {
+    const pts = TONGUE.map(([x, y]) => { // the tip bends further than the base: a curl, not a tilt
+      const lx = x * W * k, ly = y * H * k, b = a * Math.max(0, -y);
+      return [bx + lx * Math.cos(b) - ly * Math.sin(b), by + lx * Math.sin(b) + ly * Math.cos(b)];
+    });
+    p.poly(jitter(pts, boil, 1.5), pal[i], i ? 0 : FLAME.outline);
+  });
+}
+const lowest = (shapes) => extent(shapes)[1];
+const farthest = (shapes) => shapes.flatMap((s) => s.pts).reduce((a, q) => (Math.hypot(...q) > Math.hypot(...a) ? q : a), [0, 0]);
+const highest = (shapes) => shapes.flatMap((s) => s.pts).reduce((a, q) => (q[1] < a[1] ? q : a), [0, 0]);
+/** n points from u0 to u1 of the way along the segment 0 -> q (local space) */
+const along = (q, n, u0 = 0.15, u1 = 1) => Array.from({ length: n }, (_, i) => {
+  const u = n === 1 ? (u0 + u1) / 2 : u0 + ((u1 - u0) * i) / (n - 1);
+  return [q[0] * u, q[1] * u];
+});
+
 /** o: drawStickman options (top.color = $main, top.accent_color = $accent, else the creature's accent), plus
  *  headless. Uses action, phase, t, boil, breath, mouth, lid, facing, seated, buckle, stagger, mood, wave, pointK,
- *  eat, reach, props (biped hands); ignores expression and costume. */
+ *  eat, reach, props (biped hands), flame (low | high, else none) and flame_color; ignores expression and costume. */
 export function drawCreature(canvas, def, o) {
   const g = canvas.getContext("2d");
   g.setTransform(1, 0, 0, 1, 0, 0);
@@ -259,15 +291,28 @@ export function drawCreature(canvas, def, o) {
   const far = (draw) => { g.save(); g.filter = FAR.shade; draw(); g.restore(); };
   const legsShown = k.sit < 0.6, lt = o.facing === "left" ? -1 : 1; // key light stays on screen right (card mirrored)
   const legs = def.rig === "quadruped" ? [["leg_front", 0], ["leg_back", 2]] : parts.leg ? [["leg", 0]] : [];
+  // flame: its own rng (the creature's own lines boil exactly as without it), never a filter or a blur
+  const lvl = FLAME[o.flame], pal = lvl && flamePalette(o.flame_color), fb = lvl && rng(o.seed, "flame", o.boil);
+  const fire = (T, pts, scale, key) => { // tongues standing on local points pts of a part placed by T
+    const R = rng(o.seed, "flame", key);
+    for (const q of pts) tongue(p, T(q), lvl.h * m.top * scale, pal, o.t || 0, R, fb);
+  };
+  const hooves = (part, T, key) => lvl && fire(T, along([0, lowest(parts[part]) - 12], lvl.hoof, 1, 1)
+    .map(([x, y], i) => [x + (i - (lvl.hoof - 1) / 2) * 20, y]), 0.7, key);
 
   if (legsShown) for (const [part, i] of legs) far(() => drawShapes(p, parts[part], legAt(part, k.legs[i + 1], FAR.dx), col, boil, `${o.seed}:${part}`, lt));
+  if (legsShown) for (const [part, i] of legs) hooves(part, legAt(part, k.legs[i + 1], FAR.dx), `${part}:far`);
   if (parts.arm) far(() => drawArm(1, FAR.dx));
   if (parts.tail) drawShapes(p, parts.tail, at("tail", k.tail), col, boil, `${o.seed}:tail`, lt);
+  if (lvl && parts.tail) fire(at("tail", k.tail), along(farthest(parts.tail), lvl.tail, 0.05, 1), 1, "tail");
   if (legsShown) for (const [part, i] of legs) drawShapes(p, parts[part], legAt(part, k.legs[i]), col, boil, `${o.seed}:${part}`, lt);
+  if (legsShown) for (const [part, i] of legs) hooves(part, legAt(part, k.legs[i]), part);
   // head (or stump) before the body, so the body covers the base of the neck
   const head = o.headless ? parts.stump : parts.head;
   if (head) drawShapes(p, head, at("head", k.head), col, boil, `${o.seed}:${o.headless ? "stump" : "head"}`, lt);
   drawShapes(p, parts.body, body, col, boil, `${o.seed}:body`, lt);
+  // mane: along the neck crest, from the withers up the back of the head (over the body's edge)
+  if (lvl && head) fire(at("head", k.head), along(highest(head).map((v) => v * 0.75), lvl.mane), 1, "mane");
   if (parts.wing) drawShapes(p, parts.wing, at("wing", k.wing), col, boil, `${o.seed}:wing`, lt);
   if (parts.arm) drawArm(0, 0);
   if (!o.headless && def.face) face(parts.head ? at("head", k.head) : body);
@@ -283,6 +328,7 @@ export function drawCreature(canvas, def, o) {
     if (eye) {
       const [x, y] = T(eye);
       if ((o.lid || 0) >= 0.5) p.stroke(jitter([[x - FACE.eye, y], [x + FACE.eye, y]], boil, 1), 6);
+      else if (lvl) { p.dot(x, y, FACE.eye + 6); p.dot(x, y, FACE.eye + 2, pal[2]); } // glowing: a big flame-core dot, ink rim
       else {
         p.dot(x, y, FACE.eye);
         if (STYLE.creature?.eye) p.dot(x + FACE.eye * 0.3, y - FACE.eye * 0.35, FACE.eye * STYLE.creature.eye, "#ffffff"); // catchlight

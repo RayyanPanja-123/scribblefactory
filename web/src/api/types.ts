@@ -1081,6 +1081,16 @@ export interface components {
             /** Face */
             face?: components["schemas"]["WardrobeSlot"][] | null;
             facial_hair?: components["schemas"]["WardrobeSlot"] | null;
+            /**
+             * Flame
+             * @description null: unchanged. non-humanoid creatures only: fire on the mane, tail and hooves, eyes glowing (off | low | high). Left out of the saved file when unset, so older casts and their approvals stay as they were
+             */
+            flame?: ("off" | "low" | "high") | null;
+            /**
+             * Flame Color
+             * @description null: unchanged. the flame's outer colour; the middle layer and the core (and the glowing eyes) are lighter mixes of it. Unset: fire (red, orange, yellow core)
+             */
+            flame_color?: string | null;
             footwear?: components["schemas"]["WardrobeSlot"] | null;
             /** @description null: unchanged; "none": taken off */
             hair?: components["schemas"]["WardrobeSlot"] | null;
@@ -1131,6 +1141,16 @@ export interface components {
              */
             face: components["schemas"]["WardrobeSlot"][];
             facial_hair?: components["schemas"]["WardrobeSlot"] | null;
+            /**
+             * Flame
+             * @description null: off. non-humanoid creatures only: fire on the mane, tail and hooves, eyes glowing (off | low | high). Left out of the saved file when unset, so older casts and their approvals stay as they were
+             */
+            flame?: ("off" | "low" | "high") | null;
+            /**
+             * Flame Color
+             * @description the flame's outer colour; the middle layer and the core (and the glowing eyes) are lighter mixes of it. Unset: fire (red, orange, yellow core)
+             */
+            flame_color?: string | null;
             footwear?: components["schemas"]["WardrobeSlot"] | null;
             /** @description wardrobe slots: an id, {"id", "color"} or null */
             hair?: components["schemas"]["WardrobeSlot"] | null;

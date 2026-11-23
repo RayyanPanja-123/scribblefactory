@@ -4,13 +4,15 @@
 // A humanoid is a stickman with its build (engine/page/stickman.js), shown facing the camera.
 import { onMounted, ref, watch } from 'vue'
 // @ts-expect-error plain JS module from the engine, no types
-import { CRW, GX, drawCreature, measure } from '../../../engine/page/creatures.js'
+import { CRW, FLAME, GX, drawCreature, measure } from '../../../engine/page/creatures.js'
 // @ts-expect-error plain JS module from the engine, no types
 import { CW, drawStickman, figurePx } from '../../../engine/page/stickman.js'
 import type { CustomCreature } from '../lib/creatures'
 
 // hi: a sharper canvas for drawings shown large (model sheet)
-const p = defineProps<{ creature: CustomCreature; action?: string; headless?: boolean; color?: string; label: string; hi?: boolean }>()
+// flame / flameColor: the cast's flame (creatures only)
+const p = defineProps<{ creature: CustomCreature; action?: string; headless?: boolean; color?: string; label: string; hi?: boolean
+  flame?: string; flameColor?: string | null }>()
 const cv = ref<HTMLCanvasElement>()
 const error = ref('')
 const FEET = 1000, PAD = 40
@@ -28,12 +30,13 @@ function draw() {
     const o = {
       seed: `preview:${def.id}`, boil: 0, t: 0.15, action: a, phase: a === 'walk' || a === 'run' ? 0.25 : 0, lid: 0,
       mouth: a === 'talk' ? 0.8 : 0, breath: 0, facing: humanoid ? 'camera' : 'right', headless: p.headless,
-      top: { color: p.color ?? '#c98a4b' }, mood: { k: 1, bounce: 0, shake: 0.5 }, eat: { k: 1, chew: 0.5 }, props: [],
+      top: { color: p.color ?? '#c98a4b' }, flame: p.flame, flame_color: p.flameColor, mood: { k: 1, bounce: 0, shake: 0.5 }, eat: { k: 1, chew: 0.5 }, props: [],
     }
     if (humanoid) drawStickman(card, { ...o, color: o.top.color, eyes: 'dots', expression: 'neutral', build: def.build })
     else drawCreature(card, def, o)
     // humanoid: the card is CW wide around its middle; reach = the card's half width
-    const m = humanoid ? { half: CW / 2 - PAD, top: figurePx(def.build) } : measure(def)
+    const m0 = humanoid ? { half: CW / 2 - PAD, top: figurePx(def.build) } : measure(def)
+    const m = { ...m0, top: Math.min(FEET, m0.top * (!humanoid && FLAME[p.flame ?? ''] ? 1.15 : 1)) } // headroom for the mane's flames
     const cx = humanoid ? CW / 2 : GX, w = Math.min(card.width, 2 * (m.half + PAD)), h = Math.min(1024, m.top + 2 * PAD)
     const s = Math.min(out.width / w, out.height / h)
     g.drawImage(card, cx - w / 2, FEET - m.top - PAD, w, h, (out.width - w * s) / 2, (out.height - h * s) / 2, w * s, h * s)
@@ -43,7 +46,7 @@ function draw() {
   }
 }
 onMounted(draw)
-watch(() => [p.creature, p.action, p.headless, p.color], draw, { deep: true })
+watch(() => [p.creature, p.action, p.headless, p.color, p.flame, p.flameColor], draw, { deep: true })
 </script>
 
 <template>

@@ -66,6 +66,7 @@ const DIRECTIVES: Directive[] = [
     rules: ['Looks come from the cast member (Looks tab of the character editor). default always exists: it puts their normal outfit back.',
       'It stays on until you change it again, even in a new place, and resets at the start of a new part.',
       'Only humanoids wear wardrobe: a cat or horse cannot be dressed by a look. Use @face or @do for it.',
+      'A creature’s look can set it on fire: Flame (off, low, high) and its colour, on the Character tab. @look charro-horse: blazing.',
       'Several people at once: @look amy, bob: wedding.'],
     example: '@look mike: headless' },
   { id: 'hold', syntax: '@hold <cast>: <prop> [left | right]', what: 'Puts a prop in someone’s hand from the next line on.',
