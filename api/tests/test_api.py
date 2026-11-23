@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 
 import api.main as m
 from api import jobs, settings_routes
+from pipeline.scribble import db
 from pipeline.scribble.cli import main as cli
 from pipeline.scribble.io import load_part, save_part
 from pipeline.scribble.stages import render as render_stage
@@ -523,7 +524,8 @@ def test_jobs_persist_and_resume_after_restart(client, lib):
     new = client.post("/api/jobs", json={"slug": "demo", "part": "part-01", "steps": ["render-stills"]}).json()
     assert new["id"] == 9  # ids continue after the saved ones
     client.delete(f"/api/jobs/{new['id']}")
-    saved = {j["id"]: j for j in json.loads((lib / ".jobs.json").read_text(encoding="utf-8"))}
+    assert not (lib / ".jobs.json").exists() and (lib / ".jobs.json.imported").exists()  # imported, kept
+    saved = {j["id"]: j for j in db.load_jobs(lib)}
     assert saved[8]["status"] == "done" and saved[8]["output"] == ["resumed"] and 9 in saved
 
 
@@ -693,19 +695,15 @@ def test_creatures(client, lib):
 
 def test_drop_old_ai_settings(tmp_path, monkeypatch):
     monkeypatch.setenv("SCRIBBLE_LIBRARY", str(tmp_path))
-    f = tmp_path / "settings.json"
-    assert settings_routes.drop_ai_settings() == []  # no file: nothing to do
-    f.write_text(json.dumps({"provider": "gemini", "gemini_api_key": "k", "api_key": "s", "model": "x"}), encoding="utf-8")
-    assert settings_routes.drop_ai_settings() and not f.exists()  # only provider keys: the file goes
-    f.write_text(json.dumps({"openrouter_api_key": "k", "other": 1}), encoding="utf-8")
-    settings_routes.drop_ai_settings()
-    assert json.loads(f.read_text(encoding="utf-8")) == {"other": 1}  # anything else is kept
+    assert settings_routes.drop_ai_settings() == []  # nothing set: nothing to do
+    db.put_settings(tmp_path, {"provider": "gemini", "gemini_api_key": "k", "api_key": "s", "model": "x"})
+    assert settings_routes.drop_ai_settings() and db.get_settings(tmp_path) == {}
+    (tmp_path / "settings.json").write_text(json.dumps({"openrouter_api_key": "k", "other": 1}), encoding="utf-8")
+    settings_routes.drop_ai_settings()  # an old settings.json is imported first
+    assert db.get_settings(tmp_path) == {"other": 1}  # anything else is kept
     assert settings_routes.drop_ai_settings() == []
-    f.write_text("{not json", encoding="utf-8")
-    assert "could not" in settings_routes.drop_ai_settings()[0]  # a broken file never stops startup
-    f.write_text(json.dumps({"api_key": "s", "render_workers": 4}), encoding="utf-8")
-    settings_routes.drop_ai_settings()
-    assert json.loads(f.read_text(encoding="utf-8")) == {"render_workers": 4}  # render settings survive the cleanup
+    (tmp_path / "settings.json").write_text("{not json", encoding="utf-8")
+    assert settings_routes.drop_ai_settings() == [] and db.get_settings(tmp_path) == {"other": 1}  # broken: ignored
 
 
 def test_settings(client, lib):
@@ -722,7 +720,7 @@ def test_settings(client, lib):
                               "export_directory": r"D:\personal\short-animations\reels", "audio_directory": r"D:\personal\short-animations\audios"} and r["workers_now"] == 6
     r = client.put("/api/settings", json={"render_workers": 6, "socials": {"youtube": "@chan", "facebook": "page"}}).json()
     assert r["settings"]["socials"] == {"youtube": "@chan", "instagram": "", "facebook": "page"}
-    assert json.loads((lib / "settings.json").read_text(encoding="utf-8"))["keep"] == 1  # unknown keys kept
+    assert db.get_settings(lib)["keep"] == 1  # unknown keys kept
 
 
 def test_story_package_validate_then_import(client, lib):
@@ -836,7 +834,7 @@ def test_captions_gemini(client, lib, monkeypatch):
     monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout: contextlib.nullcontext(io.BytesIO(b'{"candidates": []}')))
     assert client.post("/api/captions", json={"prompt": "write"}).status_code == 502
     assert not client.put("/api/settings/gemini-key", json={"key": ""}).json()["gemini_key_last4"]
-    assert "gemini_key" not in json.loads((lib / "settings.json").read_text(encoding="utf-8"))
+    assert "gemini_key" not in db.get_settings(lib)
 
 
 def test_move_to_gallery(client, lib):

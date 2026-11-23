@@ -1,38 +1,28 @@
-"""library/settings.json: machine-level options (render workers, socials, folders, caption model)."""
+"""Settings (the setting table, pipeline/scribble/db.py): machine-level options (render workers, socials, folders, caption model)."""
 
-import json
 from typing import Literal
 
 from fastapi import HTTPException, APIRouter
 from pydantic import BaseModel, Field
 
 from api.core import lib
-from pipeline.scribble import settings
-from pipeline.scribble.io import atomic_write_json
+from pipeline.scribble import db, settings
 
 router = APIRouter()
 
 
-# library/settings.json held third-party AI provider settings and keys; AI help is copy/paste now, except captions
+# settings held third-party AI provider settings and keys; AI help is copy/paste now, except captions
 # (Gemini, keyed in Settings: write_captions)
 OLD_AI_KEYS = {"provider", "base_url", "model", "omniroute_model", "gemini_model", "openrouter_model",
                "api_key", "gemini_api_key", "openrouter_api_key"}
 
 
 def drop_ai_settings() -> list[str]:
-    """remove the old provider keys from settings.json (the file too, when nothing else is left); never fails startup"""
-    f = lib() / "settings.json"
-    try:
-        s = json.loads(f.read_text(encoding="utf-8"))
-        if not isinstance(s, dict) or not OLD_AI_KEYS & s.keys():
-            return []
-        rest = {k: v for k, v in s.items() if k not in OLD_AI_KEYS}
-        atomic_write_json(f, rest) if rest else f.unlink()
-        return ["settings.json: old AI provider settings and keys removed"]
-    except FileNotFoundError:
+    """remove the old provider keys from the settings"""
+    if not OLD_AI_KEYS & db.get_settings(lib()).keys():
         return []
-    except (OSError, ValueError) as e:
-        return [f"settings.json: could not clean up old AI settings ({e})"]
+    db.put_settings(lib(), {}, drop=OLD_AI_KEYS)
+    return ["settings: old AI provider settings and keys removed"]
 
 
 class Socials(BaseModel):
@@ -100,10 +90,5 @@ def put_settings(body: Settings):
     w = body.render_workers
     if w != "auto" and not 1 <= w <= settings.MAX_WORKERS:
         raise HTTPException(422, f"render_workers must be 'auto' or 1 to {settings.MAX_WORKERS}")
-    f = settings.path(lib())
-    try:
-        old = json.loads(f.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        old = {}
-    atomic_write_json(f, {**(old if isinstance(old, dict) else {}), **body.model_dump()})  # keep keys we don't know
+    db.put_settings(lib(), body.model_dump())  # keys we don't know stay
     return settings_view()

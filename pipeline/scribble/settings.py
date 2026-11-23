@@ -1,4 +1,4 @@
-"""library/settings.json: machine-level options. A missing file or key means its default; unknown keys are ignored.
+"""Machine-level options, the setting table of library/database/scribble.db (db.py; was library/settings.json). A missing file or key means its default; unknown keys are ignored.
 
 render_workers: "auto" (recommended for this PC) or 1..MAX_WORKERS parallel Chromium processes per render.
 force_software_gl: render with SwiftShader (software WebGL) instead of the GPU, for debugging.
@@ -15,6 +15,8 @@ import os
 import sys
 from pathlib import Path
 
+from . import db
+
 SOCIALS = ("youtube", "instagram", "facebook")
 # free-tier Gemini text models (Pro has no free quota), probed 2026-11-19. The chosen one goes first; when it is busy
 # (503), out of quota (429) or gone (404) the captions fall through the rest in this order.
@@ -30,16 +32,8 @@ WEAK_GPU = ("intel(r) uhd", "intel(r) hd", "intel(r) iris", "swiftshader", "llvm
 WEAK_GPU_WORKERS = 2  # an integrated or software GPU is the bottleneck: more browsers only queue on it
 
 
-def path(library: Path) -> Path:
-    return Path(library) / "settings.json"
-
-
 def load(library: Path) -> dict:
-    try:
-        s = json.loads(path(library).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        s = {}
-    s = s if isinstance(s, dict) else {}
+    s = db.get_settings(library)
     out = {k: s.get(k, v) for k, v in DEFAULTS.items()}
     so = out["socials"] if isinstance(out["socials"], dict) else {}
     out["socials"] = {k: str(so.get(k) or "").strip() for k in SOCIALS}
@@ -104,11 +98,7 @@ def render_workers(library: Path) -> int:
 
 
 def gemini_key(library: Path) -> str:
-    try:
-        s = json.loads(path(library).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return ""
-    return str(s.get("gemini_key") or "").strip() if isinstance(s, dict) else ""
+    return str(db.get_settings(library).get("gemini_key") or "").strip()
 
 
 def software_gl(library: Path) -> bool:

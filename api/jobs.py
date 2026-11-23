@@ -1,8 +1,7 @@
-"""The job queue: one in-process worker running CLI subprocesses. Jobs persist to library/.jobs.json, so a
+"""The job queue: one in-process worker running CLI subprocesses. Jobs persist to the job table (db.py), so a
 restart resumes the queue (main.startup). busy() / check_no_jobs(): what a running job blocks."""
 
 import itertools
-import json
 import os
 import re
 import shlex
@@ -11,7 +10,6 @@ import sys
 import threading
 from collections import deque
 from datetime import date, datetime
-from pathlib import Path
 
 from fastapi import HTTPException, APIRouter
 from pydantic import BaseModel
@@ -19,8 +17,10 @@ from pydantic import BaseModel
 from api.core import JOB_COMMANDS, KEEP_JOBS, OUTPUT_LINES, ROOT, lib, part_path, series_path
 from api.events import publish
 from api.models import Job
-from pipeline.scribble import cli
-from pipeline.scribble.io import atomic_write_json, load_part, load_series
+from sqlalchemy.exc import SQLAlchemyError
+
+from pipeline.scribble import cli, db
+from pipeline.scribble.io import load_part, load_series
 from pipeline.scribble.schemas import utcnow
 from pipeline.scribble.stages import render as render_stage
 from pipeline.scribble.stages.runner import recover_stuck
@@ -51,7 +51,7 @@ def check_no_jobs() -> None:
         raise HTTPException(409, f"job {run.get('tag', run['id'])} is running on {run['slug']} {run['part']}; wait for it or cancel it")
 
 
-# One in-process worker. Jobs persist to library/.jobs.json (atomic) on every state change, so a restart resumes the
+# One in-process worker. Jobs persist to the job table (one transaction) on every state change, so a restart resumes the
 # queue (see startup). Output lines are saved with them, not streamed to disk line by line.
 
 JOBS: list[dict] = []
@@ -108,31 +108,25 @@ def public(job: dict) -> dict:
 _save_lock = threading.Lock()
 
 
-def jobs_file() -> Path:
-    return lib() / ".jobs.json"
-
-
 def save_jobs() -> None:
     with _save_lock:
-        jobs = [{**public(j), "argv": j["argv"], "pid": j.get("pid")} for j in list(JOBS)]
-        jobs_file().parent.mkdir(parents=True, exist_ok=True)
-        atomic_write_json(jobs_file(), jobs)
+        db.save_jobs(lib(), [{**public(j), "argv": j["argv"], "pid": j.get("pid")} for j in list(JOBS)])
 
 
 def load_jobs() -> list[str]:
-    """library/.jobs.json -> JOBS. A job left running by the last API process failed ("interrupted by restart"); its
+    """the job table -> JOBS. A job left running by the last API process failed ("interrupted by restart"); its
     process, if it still runs (job steps start in their own process group, so they can outlive the API), is stopped:
     no one follows its output any more. Queued jobs stay queued and the worker picks them up. Returns notes."""
     global _ids
-    f, notes = jobs_file(), []
+    notes = []
     try:
-        saved = json.loads(f.read_bytes()) if f.is_file() else []
-    except (OSError, ValueError) as e:
-        return [f"ignoring unreadable {f.name}: {e}"]
+        saved = db.load_jobs(lib())
+    except (OSError, SQLAlchemyError) as e:
+        return [f"could not read the jobs: {e}"]
     for j in saved:
         # Jobs written before tags were introduced are still valid history. Derive their tag once
         # from the current series title and keep it in the persisted record from then on.
-        if "tag" not in j:
+        if not j.get("tag"):
             try:
                 j["tag"] = job_tag(j["slug"], j["part"])
             except (HTTPException, OSError, ValueError, KeyError):

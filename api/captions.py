@@ -11,8 +11,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from api.core import lib
 from api.settings_routes import SettingsView, settings_view
-from pipeline.scribble import settings
-from pipeline.scribble.io import atomic_write_json
+from pipeline.scribble import db, settings
 
 router = APIRouter()
 
@@ -39,13 +38,8 @@ class GeminiKey(BaseModel):
 @router.put("/api/settings/gemini-key", response_model=SettingsView)
 def put_gemini_key(body: GeminiKey):
     """write-only: GET /api/settings shows only its last 4 characters"""
-    f = settings.path(lib())
-    try:
-        old = json.loads(f.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        old = {}
-    s = {k: v for k, v in (old if isinstance(old, dict) else {}).items() if k != "gemini_key"}
-    atomic_write_json(f, {**s, "gemini_key": body.key.strip()} if body.key.strip() else s)
+    key = body.key.strip()
+    db.put_settings(lib(), {"gemini_key": key} if key else {}, drop=() if key else ("gemini_key",))
     return settings_view()
 
 

@@ -55,7 +55,7 @@ onLive((event) => {
   }
 })
 const reelLabel = computed(() =>
-  `Jobs: ${runningJob.value ? `job ${runningJob.value.id} running` : 'none running'}${queuedCount.value ? `, ${queuedCount.value} queued` : ''}`)
+  `Jobs: ${runningJob.value ? `job ${runningJob.value.tag} running` : 'none running'}${queuedCount.value ? `, ${queuedCount.value} queued` : ''}`)
 
 const isActive = (t: Tab) => t.match(String(route.name ?? ''))
 const isUtilityActive = (link: { to: string }) => route.path === link.to

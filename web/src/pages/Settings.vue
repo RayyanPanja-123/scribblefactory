@@ -4,7 +4,7 @@ import { computed, onMounted, ref } from 'vue'
 import { api, type Settings, type SettingsView } from '../api/client'
 import { act, toast } from '../composables/feedback'
 
-// Machine-level options in library/settings.json. Moving to a stronger PC: open this page, check "This PC", and
+// Machine-level options in library/database/scribble.db. Moving to a stronger PC: open this page, check "This PC", and
 // pick Auto (or a number) for the render workers. A change applies to the next render job.
 const MAX = 16
 const view = ref<SettingsView | null>(null)
@@ -75,7 +75,7 @@ const field = 'inset mt-1 block h-10 w-28 rounded-md px-4 text-sm text-ink outli
   <div class="grid items-start gap-6 lg:grid-cols-2">
     <div class="flex flex-wrap items-baseline gap-3 lg:col-span-2">
       <h2 class="font-display text-2xl font-semibold">Settings</h2>
-      <span class="text-sm text-muted">for this PC · saved in library/settings.json</span>
+      <span class="text-sm text-muted">for this PC · saved in library/database/scribble.db</span>
     </div>
 
     <section v-if="m" class="raised p-4" aria-labelledby="this-pc">
@@ -149,7 +149,7 @@ const field = 'inset mt-1 block h-10 w-28 rounded-md px-4 text-sm text-ink outli
     <form v-if="view" class="raised p-4" aria-labelledby="gemini" @submit.prevent="saveKey(geminiKey.trim())">
       <h3 id="gemini" class="flex items-center gap-2 text-sm font-semibold"><KeyRound :size="16" aria-hidden="true" /> Gemini API key</h3>
       <p class="mt-1 text-xs text-muted">Only used to write YouTube and Instagram captions. Get one at aistudio.google.com/apikey.
-        Kept in library/settings.json on this PC and never shown again, only its last 4 characters.</p>
+        Kept in library/database/scribble.db on this PC and never shown again, only its last 4 characters.</p>
       <p class="mt-2 text-sm" :class="view.gemini_key_last4 ? 'text-green-ink' : 'text-muted'">
         <template v-if="view.gemini_key_last4">Key set, ending in <span class="num font-semibold">••••{{ view.gemini_key_last4 }}</span></template>
         <template v-else>No key set.</template></p>

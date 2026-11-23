@@ -55,7 +55,7 @@ async function copyTts() {
 
 // ---- gates (client mirror of the CLI's, for the disabled reasons; the API stays the judge) ----
 const job = computed(() => jobFor(props.slug, props.part))
-const busy = computed(() => d.value?.busy ?? (job.value ? `job ${job.value.id} is ${job.value.status} on this part` : null))
+const busy = computed(() => d.value?.busy ?? (job.value ? `job ${job.value.tag} is ${job.value.status} on this part` : null))
 const unapprovedCast = computed(() => (series.value?.cast ?? []).filter((c) => !c.approved_at).map((c) => c.name))
 const gate = computed<Record<string, string | null>>(() => ({
   'cast-sheet': series.value?.cast.length ? null : 'no cast yet: add some with cast-add',
