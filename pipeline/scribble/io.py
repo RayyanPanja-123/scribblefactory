@@ -84,10 +84,56 @@ def cast_render_current(series_dir, c) -> bool:
     return f["sheet"].is_file() and f["key"].is_file() and f["key"].read_text().strip() == cast_key(c)
 
 
+# ---- the six shared catalogs (props, creatures, wardrobe, actions, sets, objects): one library/<kind>.json each ----
+
+def _load_library(library, file: str, model, seed: Path | None = None):
+    """library/<file>; none yet: the seed when there is one, else an empty catalog"""
+    f = Path(library) / file
+    src = f if f.exists() else seed
+    return model.model_validate_json(src.read_bytes()) if src else model()
+
+
+def _put(library, file: str, lib, field: str, item):
+    """add or replace item (same id) in lib.<field> and write library/<file>; returns the item it replaced, or None"""
+    items = getattr(lib, field)
+    old = next((x for x in items if x.id == item.id), None)
+    setattr(lib, field, [item if x.id == item.id else x for x in items] if old is not None else [*items, item])
+    atomic_write_json(Path(library) / file, lib.model_dump(mode="json"))
+    return old
+
+
+def _remove(library, file: str, lib, field: str, item_id: str, *blockers) -> None:
+    """remove item_id from lib.<field> and write library/<file>. KeyError: it is not there. blockers: (verb, users)
+    pairs, users() a list of names, tried in order: the first with any refuses (ValueError "<id> is still <verb> ...")"""
+    items = getattr(lib, field)
+    if not any(x.id == item_id for x in items):
+        raise KeyError(item_id)
+    for verb, users in blockers:
+        if found := users():
+            raise ValueError(f"{item_id} is still {verb} " + ", ".join(found))
+    setattr(lib, field, [x for x in items if x.id != item_id])
+    atomic_write_json(Path(library) / file, lib.model_dump(mode="json"))
+
+
+def _cast_with(library, wants) -> list[tuple[Path, str]]:
+    """(series.json, cast id) for every cast member, in every series of the library, that wants(member)"""
+    return [(f, c.id) for f in sorted(Path(library).glob("*/series.json")) for c in load_series(f).cast if wants(c)]
+
+
+def _cast_names(pairs) -> list[str]:
+    """(series.json, cast id) pairs as "<series folder>/<cast id>" """
+    return [f"{f.parent.name}/{cid}" for f, cid in pairs]
+
+
+def _stories_with(library, wants) -> list[str]:
+    """"<slug>/<part id>" for every story.md in the library with a line (stripped) that wants(line)"""
+    return [f"{f.parent.parent.name}/{f.parent.name}" for f in sorted(Path(library).glob("*/part-*/story.md"))
+            if any(wants(line.strip()) for line in f.read_text(encoding="utf-8").splitlines())]
+
+
 def load_props(library) -> PropLibrary:
     """library/props.json (custom props, shared by every series); none yet: an empty library"""
-    f = Path(library) / "props.json"
-    return PropLibrary.model_validate_json(f.read_bytes()) if f.exists() else PropLibrary()
+    return _load_library(library, "props.json", PropLibrary)
 
 
 def prop_kinds(library) -> list[str]:
@@ -104,17 +150,13 @@ def unknown_cast_props(cast, library) -> list[str]:
 
 def prop_holders(library, kind: str) -> list[tuple[Path, str]]:
     """(series.json, cast id) for every cast member, in every series of the library, holding a prop of this kind"""
-    return [(f, c.id) for f in sorted(Path(library).glob("*/series.json")) for c in load_series(f).cast
-            if any(p.kind == kind for p in c.props)]
+    return _cast_with(library, lambda c: any(p.kind == kind for p in c.props))
 
 
 def save_prop(library, prop: CustomProp) -> list[str]:
     """add or replace a custom prop. A changed drawing changes the look of everyone holding it, so their cast
     approvals are cleared (like cast-edit). Returns "<slug>/<cast id>" for each approval cleared."""
-    lib = load_props(library)
-    old = next((p for p in lib.props if p.id == prop.id), None)
-    lib.props = [prop if p.id == prop.id else p for p in lib.props] if old else [*lib.props, prop]
-    atomic_write_json(Path(library) / "props.json", lib.model_dump(mode="json"))
+    old = _put(library, "props.json", load_props(library), "props", prop)
     return _clear_approvals(prop_holders(library, prop.id)) if old and (old.shapes, old.angle, old.grip) != (prop.shapes, prop.angle, prop.grip) else []
 
 
@@ -122,29 +164,19 @@ def prop_users(library, kind: str) -> list[str]:
     """"<slug>/<part id>" for every story.md in the library with an @do line naming this prop (eat / give)"""
     # ponytail: whole-word match, so a cast id equal to the prop id also counts (blocks a delete, never breaks one)
     word = re.compile(rf"(?<![\w-]){re.escape(kind)}(?![\w-])")
-    return [f"{f.parent.parent.name}/{f.parent.name}" for f in sorted(Path(library).glob("*/part-*/story.md"))
-            if any(line.strip().startswith("@do") and word.search(line)
-                   for line in f.read_text(encoding="utf-8").splitlines())]
+    return _stories_with(library, lambda line: line.startswith("@do") and word.search(line))
 
 
 def delete_prop(library, prop_id: str) -> None:
     """remove a custom prop; refused (ValueError) while any cast member holds it or any story's @do uses it"""
-    lib = load_props(library)
-    if not any(p.id == prop_id for p in lib.props):
-        raise KeyError(prop_id)
-    if held := prop_holders(library, prop_id):
-        raise ValueError(f"{prop_id} is still held by " + ", ".join(f"{f.parent.name}/{cid}" for f, cid in held))
-    if used := prop_users(library, prop_id):
-        raise ValueError(f"{prop_id} is still used by @do in " + ", ".join(used))
-    lib.props = [p for p in lib.props if p.id != prop_id]
-    atomic_write_json(Path(library) / "props.json", lib.model_dump(mode="json"))
-
+    _remove(library, "props.json", load_props(library), "props", prop_id,
+            ("held by", lambda: _cast_names(prop_holders(library, prop_id))),
+            ("used by @do in", lambda: prop_users(library, prop_id)))
 
 
 def load_creatures(library) -> CreatureLibrary:
     """library/creatures.json (custom cast bodies, shared by every series); none yet: an empty library"""
-    f = Path(library) / "creatures.json"
-    return CreatureLibrary.model_validate_json(f.read_bytes()) if f.exists() else CreatureLibrary()
+    return _load_library(library, "creatures.json", CreatureLibrary)
 
 
 def creature_bodies(library) -> dict[str, tuple[str, bool]]:
@@ -202,8 +234,7 @@ WARDROBE_SEED = Path(__file__).parent / "seed" / "wardrobe.json"
 
 def load_wardrobe(library) -> WardrobeLibrary:
     """library/wardrobe.json (custom clothing, hair and cosmetics, shared by every series); none yet: the seed"""
-    f = Path(library) / "wardrobe.json"
-    return WardrobeLibrary.model_validate_json((f if f.exists() else WARDROBE_SEED).read_bytes())
+    return _load_library(library, "wardrobe.json", WardrobeLibrary, WARDROBE_SEED)
 
 
 def wardrobe_slots(library) -> dict[str, str]:
@@ -213,8 +244,7 @@ def wardrobe_slots(library) -> dict[str, str]:
 
 def wardrobe_wearers(library, item_id: str) -> list[tuple[Path, str]]:
     """(series.json, cast id) for every cast member, in every series of the library, wearing this item in any look"""
-    return [(f, c.id) for f in sorted(Path(library).glob("*/series.json")) for c in load_series(f).cast
-            if any(wid == item_id for _, wid in c.wardrobe())]
+    return _cast_with(library, lambda c: any(wid == item_id for _, wid in c.wardrobe()))
 
 
 def _clear_approvals(pairs) -> list[str]:
@@ -239,54 +269,38 @@ def save_wardrobe_item(library, item: WardrobeItem) -> list[str]:
     old = next((w for w in lib.wardrobe if w.id == item.id), None)
     if old and old.slot != item.slot and (worn := wardrobe_wearers(library, item.id)):
         raise ValueError(f"{item.id} is worn as a {old.slot} by {', '.join(cid for _, cid in worn)}: keep its slot")
-    lib.wardrobe = [item if w.id == item.id else w for w in lib.wardrobe] if old else [*lib.wardrobe, item]
-    atomic_write_json(Path(library) / "wardrobe.json", lib.model_dump(mode="json"))
+    _put(library, "wardrobe.json", lib, "wardrobe", item)
     return _clear_approvals(wardrobe_wearers(library, item.id)) if old and old != item else []
 
 
 def delete_wardrobe_item(library, item_id: str) -> None:
     """remove a custom wardrobe item; refused (ValueError) while any cast member wears it"""
-    lib = load_wardrobe(library)
-    if not any(w.id == item_id for w in lib.wardrobe):
-        raise KeyError(item_id)
-    if worn := wardrobe_wearers(library, item_id):
-        raise ValueError(f"{item_id} is still worn by " + ", ".join(f"{f.parent.name}/{cid}" for f, cid in worn))
-    lib.wardrobe = [w for w in lib.wardrobe if w.id != item_id]
-    atomic_write_json(Path(library) / "wardrobe.json", lib.model_dump(mode="json"))
+    _remove(library, "wardrobe.json", load_wardrobe(library), "wardrobe", item_id,
+            ("worn by", lambda: _cast_names(wardrobe_wearers(library, item_id))))
 
 
 def creature_users(library, creature_id: str) -> list[tuple[Path, str]]:
     """(series.json, cast id) for every cast member, in every series of the library, with this body"""
-    return [(f, c.id) for f in sorted(Path(library).glob("*/series.json")) for c in load_series(f).cast
-            if c.body == creature_id]
+    return _cast_with(library, lambda c: c.body == creature_id)
 
 
 def save_creature(library, creature: CustomCreature) -> list[str]:
     """add or replace a creature. A changed drawing changes the look of every cast member with that body, so their
     approvals are cleared (like save_prop). Returns "<slug>/<cast id>" for each approval cleared."""
-    lib = load_creatures(library)
-    old = next((c for c in lib.creatures if c.id == creature.id), None)
-    lib.creatures = [creature if c.id == creature.id else c for c in lib.creatures] if old else [*lib.creatures, creature]
-    atomic_write_json(Path(library) / "creatures.json", lib.model_dump(mode="json"))
+    old = _put(library, "creatures.json", load_creatures(library), "creatures", creature)
     changed = old and old.model_dump(exclude={"name"}) != creature.model_dump(exclude={"name"})
     return _clear_approvals(creature_users(library, creature.id)) if changed else []
 
 
 def delete_creature(library, creature_id: str) -> None:
     """remove a creature; refused (ValueError) while any cast member has it as its body"""
-    lib = load_creatures(library)
-    if not any(c.id == creature_id for c in lib.creatures):
-        raise KeyError(creature_id)
-    if used := creature_users(library, creature_id):
-        raise ValueError(f"{creature_id} is still the body of " + ", ".join(f"{f.parent.name}/{cid}" for f, cid in used))
-    lib.creatures = [c for c in lib.creatures if c.id != creature_id]
-    atomic_write_json(Path(library) / "creatures.json", lib.model_dump(mode="json"))
+    _remove(library, "creatures.json", load_creatures(library), "creatures", creature_id,
+            ("the body of", lambda: _cast_names(creature_users(library, creature_id))))
 
 
 def load_actions(library) -> ActionLibrary:
     """library/actions.json (custom actions: keyframes the stickman plays, shared by every series); none yet: empty"""
-    f = Path(library) / "actions.json"
-    return ActionLibrary.model_validate_json(f.read_bytes()) if f.exists() else ActionLibrary()
+    return _load_library(library, "actions.json", ActionLibrary)
 
 
 def custom_actions(library) -> dict[str, CustomAction]:
@@ -302,28 +316,18 @@ def custom_moves(library) -> dict[str, float]:
 def action_users(library, action_id: str) -> list[str]:
     """"<slug>/<part id>" for every story.md in the library with an @do clause using this action"""
     used = re.compile(rf":\s*{re.escape(action_id)}\s*(,|$)")  # a clause's action follows its colon
-    return [f"{f.parent.parent.name}/{f.parent.name}" for f in sorted(Path(library).glob("*/part-*/story.md"))
-            if any(line.strip().startswith("@do") and used.search(line)
-                   for line in f.read_text(encoding="utf-8").splitlines())]
+    return _stories_with(library, lambda line: line.startswith("@do") and used.search(line))
 
 
 def save_action(library, action: CustomAction) -> None:
     """add or replace a custom action (in-place moves: no cast approval depends on them)"""
-    lib = load_actions(library)
-    lib.actions = [action if a.id == action.id else a for a in lib.actions] if any(a.id == action.id for a in lib.actions) \
-        else [*lib.actions, action]
-    atomic_write_json(Path(library) / "actions.json", lib.model_dump(mode="json"))
+    _put(library, "actions.json", load_actions(library), "actions", action)
 
 
 def delete_action(library, action_id: str) -> None:
     """remove a custom action; refused (ValueError) while any story.md uses it in an @do"""
-    lib = load_actions(library)
-    if not any(a.id == action_id for a in lib.actions):
-        raise KeyError(action_id)
-    if used := action_users(library, action_id):
-        raise ValueError(f"{action_id} is still used by " + ", ".join(used))
-    lib.actions = [a for a in lib.actions if a.id != action_id]
-    atomic_write_json(Path(library) / "actions.json", lib.model_dump(mode="json"))
+    _remove(library, "actions.json", load_actions(library), "actions", action_id,
+            ("used by", lambda: action_users(library, action_id)))
 
 
 def unknown_actions(story, library) -> list[str]:
@@ -334,14 +338,12 @@ def unknown_actions(story, library) -> list[str]:
 
 def load_sets(library) -> SetLibrary:
     """library/sets.json (custom sets, shared by every series); none yet: an empty library"""
-    f = Path(library) / "sets.json"
-    return SetLibrary.model_validate_json(f.read_bytes()) if f.exists() else SetLibrary()
+    return _load_library(library, "sets.json", SetLibrary)
 
 
 def load_objects(library) -> WorldObjectLibrary:
     """library/objects.json: reusable geometry and capabilities for large scene objects."""
-    f = Path(library) / "objects.json"
-    return WorldObjectLibrary.model_validate_json(f.read_bytes()) if f.exists() else WorldObjectLibrary()
+    return _load_library(library, "objects.json", WorldObjectLibrary)
 
 
 def world_object_kinds(library) -> dict[str, WorldObject]:
@@ -350,17 +352,13 @@ def world_object_kinds(library) -> dict[str, WorldObject]:
 
 
 def save_object(library, obj: WorldObject) -> None:
-    lib = load_objects(library)
-    lib.objects = [obj if x.id == obj.id else x for x in lib.objects] if any(x.id == obj.id for x in lib.objects) else [*lib.objects, obj]
-    atomic_write_json(Path(library) / "objects.json", lib.model_dump(mode="json"))
+    """add or replace a world object"""
+    _put(library, "objects.json", load_objects(library), "objects", obj)
 
 
 def delete_object(library, object_id: str) -> None:
-    lib = load_objects(library)
-    if not any(x.id == object_id for x in lib.objects):
-        raise KeyError(object_id)
-    lib.objects = [x for x in lib.objects if x.id != object_id]
-    atomic_write_json(Path(library) / "objects.json", lib.model_dump(mode="json"))
+    """remove a world object"""
+    _remove(library, "objects.json", load_objects(library), "objects", object_id)
 
 
 def set_kinds(library) -> dict[str, str]:
@@ -380,27 +378,17 @@ def outdoor_sets(library) -> set[str]:
 
 def set_users(library, set_id: str) -> list[str]:
     """"<slug>/<part id>" for every story.md in the library with an @set <set_id> line"""
-    want = f"@set {set_id}"
-    return [f"{f.parent.parent.name}/{f.parent.name}" for f in sorted(Path(library).glob("*/part-*/story.md"))
-            if any(line.strip() == want for line in f.read_text(encoding="utf-8").splitlines())]
+    return _stories_with(library, lambda line: line == f"@set {set_id}")
 
 
 def save_set(library, custom: CustomSet) -> None:
     """add or replace a custom set"""
-    lib = load_sets(library)
-    lib.sets = [custom if s.id == custom.id else s for s in lib.sets] if any(s.id == custom.id for s in lib.sets)         else [*lib.sets, custom]
-    atomic_write_json(Path(library) / "sets.json", lib.model_dump(mode="json"))
+    _put(library, "sets.json", load_sets(library), "sets", custom)
 
 
 def delete_set(library, set_id: str) -> None:
     """remove a custom set; refused (ValueError) while any story uses it"""
-    lib = load_sets(library)
-    if not any(s.id == set_id for s in lib.sets):
-        raise KeyError(set_id)
-    if used := set_users(library, set_id):
-        raise ValueError(f"{set_id} is still used by " + ", ".join(used))
-    lib.sets = [s for s in lib.sets if s.id != set_id]
-    atomic_write_json(Path(library) / "sets.json", lib.model_dump(mode="json"))
+    _remove(library, "sets.json", load_sets(library), "sets", set_id, ("used by", lambda: set_users(library, set_id)))
 
 
 def load_part(path) -> PartModel:
