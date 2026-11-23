@@ -9,6 +9,7 @@ import { useApi } from '../composables/useApi'
 import { CAPABILITIES, CARRY_MODES, CATEGORIES, PIECES, type Capability, type ObjectPiece, type WorldObject } from '../lib/objects'
 import AiGenerateModal from '../components/AiGenerateModal.vue'
 import { buildObjectPrompt, importObject } from '../lib/objectPrompt'
+import { slugify } from '../lib/slug'
 
 const { data, error, loading, reload } = useApi(() => api.objects())
 const aiOpen = ref(false)
@@ -18,7 +19,6 @@ const aiSave = async (value: unknown) => { const result = await api.saveObject(v
 const selected = ref<string | null>(null)
 const form = reactive<WorldObject>({ id: '', name: '', category: 'other', capabilities: [], carry_mode: 'none', pieces: [] })
 const isNew = computed(() => selected.value === null)
-const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 const copy = <T,>(x: T): T => JSON.parse(JSON.stringify(x))
 function edit(o: WorldObject) { selected.value = o.id; Object.assign(form, copy(o)) }
 function fresh() { selected.value = null; Object.assign(form, { id: '', name: '', category: 'other', capabilities: [], carry_mode: 'none', pieces: [] }) }

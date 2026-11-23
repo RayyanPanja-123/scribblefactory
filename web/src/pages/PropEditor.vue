@@ -8,6 +8,7 @@ import PropPreview from '../components/PropPreview.vue'
 import { act, confirm, toast } from '../composables/feedback'
 import { useApi } from '../composables/useApi'
 import { HANDS, type CustomProp, type Hand, type PropShape } from '../lib/props'
+import { slugify } from '../lib/slug'
 
 // Create (/props/new) or edit one custom prop: a list of shapes in hand space, previewed live in a stickman's hand
 // by the engine's own drawing code. The server (schema PropShape) has the final say on every field.
@@ -28,7 +29,6 @@ const STARTER: Row[] = [
   { shape: 'line', pts: '0,30 0,-80', r: 20, fill: '#8a5a2b', filled: false, width: 7 },
   { shape: 'circle', pts: '0,-100', r: 22, fill: '#e8b923', filled: true, width: 8 },
 ]
-const slugify = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 
 const form = reactive({ id: '', name: '', use_for: '', idEdited: false, rows: [] as Row[], angle: 0, grip: '' })
 const hand = ref<Hand>('right')

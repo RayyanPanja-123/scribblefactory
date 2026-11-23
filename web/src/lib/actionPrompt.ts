@@ -1,8 +1,8 @@
 // "Build with AI" for custom actions: a self-contained prompt that teaches any chat AI the keyframe format, and the
 // importer for what it sends back. The server (schema CustomAction) still checks everything on save.
 import type { CustomAction } from '../api/client'
+import { slugify } from './slug'
 
-const slugify = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 
 const EXAMPLES: CustomAction[] = [
   { id: 'salute', name: 'Salute', duration: 1.4, loop: false, keys: [

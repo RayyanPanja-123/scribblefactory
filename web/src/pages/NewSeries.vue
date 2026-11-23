@@ -4,9 +4,9 @@ import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../api/client'
 import { act } from '../composables/feedback'
+import { slugify } from '../lib/slug'
 
 const router = useRouter()
-const slugify = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 
 const title = ref('')
 const slug = ref('')

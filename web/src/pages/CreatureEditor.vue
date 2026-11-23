@@ -8,6 +8,7 @@ import ErrorCard from '../components/ErrorCard.vue'
 import { act, confirm, toast } from '../composables/feedback'
 import { useApi } from '../composables/useApi'
 import { DEFAULT_BUILD, RIG_LIST, RIG_NOTES, allCreatures, builtinCreatures, isBuiltinCreature, posesFor, rigParts, type CustomCreature, type Rig } from '../lib/creatures'
+import { slugify } from '../lib/slug'
 
 // Create (/creatures/new, ?from=<id> copies one) or edit one custom creature: rig, colours and the drawing as JSON
 // (joints, face, parts), or for a humanoid (a stickman) its build: proportions and head colour. Previewed live in
@@ -18,7 +19,6 @@ const router = useRouter()
 const isNew = computed(() => props.id === 'new')
 const { data, error, loading, reload } = useApi(() => api.creatures())
 
-const slugify = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 // one shape per line, points as [x, y]
 const drawingOf = (c: CustomCreature) => JSON.stringify({ joints: c.joints, face: c.face, parts: c.parts }, null, 2)
   .replace(/\[\s+(-?[\d.]+),\s+(-?[\d.]+)\s+\]/g, '[$1, $2]')

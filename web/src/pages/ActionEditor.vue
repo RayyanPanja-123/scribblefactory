@@ -7,6 +7,7 @@ import ActionPreview from '../components/ActionPreview.vue'
 import ErrorCard from '../components/ErrorCard.vue'
 import { act, confirm } from '../composables/feedback'
 import { useApi } from '../composables/useApi'
+import { slugify } from '../lib/slug'
 
 
 // Create (/actions/new) or edit one custom action: keyframes of arm, leg and lean angles the stickman blends between,
@@ -20,7 +21,6 @@ const { data, error, loading, reload } = useApi(() => api.actions())
 type Ease = 'in-out' | 'linear' | 'back-out'
 type Key = { t: number; arms: [[number, number], [number, number]] | null; legs: [number, number] | null; knees?: [number, number] | null; lean: number; ease: Ease }
 const REST = { arms: [[-16, 0], [16, 0]] as [[number, number], [number, number]], legs: [-6, 6] as [number, number] }
-const slugify = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 const STARTER: Key[] = [ // a wave hello: rest, the right arm up, back down
   { t: 0, arms: null, legs: null, lean: 0, ease: 'in-out' },
   { t: 0.4, arms: [[-16, 0], [140, 40]], legs: null, lean: 2, ease: 'in-out' },

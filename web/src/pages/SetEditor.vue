@@ -9,6 +9,7 @@ import { act, confirm } from '../composables/feedback'
 import { useApi } from '../composables/useApi'
 import { SHAPES, STARTER, type CustomSet, type SetKind, type SetPiece } from '../lib/sets'
 import type { ObjectCatalog } from '../lib/objects'
+import { slugify } from '../lib/slug'
 
 // Create (/sets/new) or edit one custom set: floor, back wall or sky, and a list of primitive pieces in world units,
 // previewed live by the engine's own set builder. The server (schema CustomSet) and the engine (stage clearance) have
@@ -19,7 +20,6 @@ const isNew = computed(() => props.id === 'new')
 const { data, error, loading, reload } = useApi(() => api.sets())
 const { data: objectData } = useApi<ObjectCatalog>(() => api.objects())
 
-const slugify = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 const copy = <T,>(v: T): T => JSON.parse(JSON.stringify(v))
 
 type Weather = NonNullable<CustomSet['default_weather']>

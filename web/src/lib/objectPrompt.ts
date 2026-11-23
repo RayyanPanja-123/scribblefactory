@@ -1,6 +1,6 @@
 import type { ObjectPiece, WorldObject } from './objects'
+import { slugify } from './slug'
 
-const slugify = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 const sizes: Record<ObjectPiece['shape'], number> = { box: 3, cyl: 3, ball: 1, mound: 2 }
 const hex = (v: unknown, fallback: string) => typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v) ? v : fallback
 const nums = (v: unknown, n: number) => Array.isArray(v) && v.length === n && v.every((x) => typeof x === 'number')

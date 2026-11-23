@@ -2,8 +2,8 @@
 // for what it sends back. The server (schema CustomSet / SetPiece) and the engine (stage clearance) still check
 // everything on save and in the preview.
 import type { CustomSet, SetPiece } from './sets'
+import { slugify } from './slug'
 
-const slugify = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 const SIZES: Record<SetPiece['shape'], number> = { box: 3, cyl: 3, ball: 1, mound: 2 }
 
 // the built-in office, written in the custom format: the AI copies its scale and layout

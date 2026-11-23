@@ -11,6 +11,7 @@ import { act, confirm, toast, zoom } from '../composables/feedback'
 import { castSheetJob, seriesBusy } from '../composables/live'
 import { shortDate } from '../composables/ui'
 import Switch from './Switch.vue'
+import { slugify } from '../lib/slug'
 
 type CastRender = components['schemas']['CastRender']
 const p = defineProps<{ series: SeriesModel; renders: Record<string, CastRender> }>()
@@ -109,7 +110,6 @@ async function runImport() {
 // ---- add / remove one character, from the series page or any part ----
 const route = useRoute() // the cast editor returns here (a part page or the series page)
 const PALETTE = ['#3a7bd5', '#d53a3a', '#2e9e5b', '#e0a020', '#8a4fd5', '#d5703a']
-const slugify = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 const addOpen = ref(false)
 const newName = ref('')
 const newColor = ref(PALETTE[0])

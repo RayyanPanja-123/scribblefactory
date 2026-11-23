@@ -1,8 +1,8 @@
 // "Build with AI": a self-contained prompt that teaches any chat AI (web or CLI) the custom prop format, and the
 // importer for what it sends back. The server (schema PropShape / CustomProp) still checks everything on save.
 import type { CustomProp, PropShape } from './props'
+import { slugify } from './slug'
 
-const slugify = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 
 // three built-ins, written in the custom format: the AI copies their scale and style
 const EXAMPLES: CustomProp[] = [

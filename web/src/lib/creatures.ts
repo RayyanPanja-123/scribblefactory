@@ -3,6 +3,7 @@
 import type { components } from '../api/types'
 // @ts-expect-error plain JS module from the engine, no types
 import { BUILTIN, JOINT_OF, RIGS } from '../../../engine/page/creatures.js'
+import { slugify } from './slug'
 
 export type CustomCreature = components['schemas']['CustomCreature']
 export type CreatureShape = components['schemas']['CreatureShape']
@@ -31,7 +32,6 @@ export const posesFor = (rig: Rig) => (rig === 'biped' || rig === 'humanoid' ? P
 export const allCreatures = (c: CreatureCatalog | null | undefined): CustomCreature[] => [...builtinCreatures, ...(c?.custom ?? [])]
 export const isBuiltinCreature = (id: string) => builtinCreatures.some((c) => c.id === id)
 
-const slugify = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 const compact = (c: CustomCreature) => JSON.stringify(c)
 
 /** the prompt for a creature called "name" on rig: paste it into any AI chat. taken = ids already in use */

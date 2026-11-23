@@ -336,3 +336,13 @@ describe('needsYou', async () => {
     expect(needsYou({ key: 'post', status: 'done' })).toBe(false)
   })
 })
+
+import { slugify } from './slug'
+
+describe('slugify', () => {
+  it('makes a library id from a name', () => {
+    expect(slugify('  Café Chair!! ')).toBe('cafe-chair')
+    expect(slugify('--Big  Red--Hat--')).toBe('big-red-hat')
+    expect(slugify('!!!')).toBe('')
+  })
+})
