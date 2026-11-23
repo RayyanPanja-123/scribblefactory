@@ -1,22 +1,19 @@
 <script setup lang="ts">
 import { ArrowLeft, Trash2 } from 'lucide-vue-next'
 import { computed, reactive, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { api } from '../api/client'
 import CreaturePreview from '../components/CreaturePreview.vue'
 import ErrorCard from '../components/ErrorCard.vue'
-import { act, confirm, toast } from '../composables/feedback'
+import { useLibraryEditor } from '../composables/libraryEditor'
 import { useApi } from '../composables/useApi'
 import { DEFAULT_BUILD, RIG_LIST, RIG_NOTES, allCreatures, builtinCreatures, isBuiltinCreature, posesFor, rigParts, type CustomCreature, type Rig } from '../lib/creatures'
-import { slugify } from '../lib/slug'
 
 // Create (/creatures/new, ?from=<id> copies one) or edit one custom creature: rig, colours and the drawing as JSON
 // (joints, face, parts), or for a humanoid (a stickman) its build: proportions and head colour. Previewed live in
 // every pose by the engine's own drawing code. The server (schema CustomCreature) has the final say on every field.
 const props = defineProps<{ id: string }>()
 const route = useRoute()
-const router = useRouter()
-const isNew = computed(() => props.id === 'new')
 const { data, error, loading, reload } = useApi(() => api.creatures())
 
 // one shape per line, points as [x, y]
@@ -27,6 +24,8 @@ const load = (c: CustomCreature, keepId = false) => Object.assign(form, {
   ...(keepId ? {} : { id: c.id, idEdited: true }), name: c.name, use_for: c.use_for ?? '', rig: c.rig, accent: c.accent ?? '#3a2a1e', drawing: drawingOf(c),
   build: { ...DEFAULT_BUILD, ...(c.build ?? {}) } })
 
+const { isNew, missing, saving, save: saveItem, remove: removeItem } = useLibraryEditor({
+  id: () => props.id, base: '/creatures', form, custom: () => data.value?.custom })
 watch(data, (cat) => {
   if (!cat) return
   if (!isNew.value) {
@@ -38,8 +37,6 @@ watch(data, (cat) => {
   load(from, true)
   Object.assign(form, { id: '', idEdited: false, name: route.query.from ? `${from.name} copy` : '' })
 }, { immediate: true })
-const missing = computed(() => !isNew.value && data.value && !data.value.custom.some((x) => x.id === props.id))
-watch(() => form.name, (n) => { if (isNew.value && !form.idEdited) form.id = slugify(n) })
 
 const humanoid = computed(() => form.rig === 'humanoid')
 /** the drawing JSON -> joints / face / parts, or an error. A humanoid has none: it is a stickman with a build */
@@ -69,23 +66,12 @@ const BUILD_SLIDERS = [['head', 'Head size'], ['body_w', 'Body width'], ['body_h
   ['arm', 'Arm length']] as const
 const color = ref('#c98a4b')
 
-const saving = ref(false)
-async function save() {
+function save() {
   if (!draft.value) return
-  saving.value = true
   const body = { ...draft.value, name: form.name.trim(), use_for: form.use_for.trim() || null }
-  const c = await act(() => api.saveCreature(body), `Creature “${body.name}” saved`)
-  saving.value = false
-  if (!c) return
-  if (c.cleared.length) toast(`Drawing changed: approval cleared for ${c.cleared.join(', ')}. Re-run their cast sheets.`, 'info')
-  data.value = c
-  if (isNew.value) router.replace(`/creatures/${body.id}`)
+  return saveItem(() => api.saveCreature(body), `Creature “${body.name}” saved`, body.id, (c) => { data.value = c })
 }
-async function remove() {
-  const ok = await confirm({ title: `Delete “${form.name}”?`, body: 'Only possible while no cast member uses it.', confirm: 'Delete creature', danger: true })
-  if (ok && (await act(() => api.deleteCreature(props.id), 'Creature deleted'))) router.push('/creatures')
-}
-
+const remove = () => removeItem(() => api.deleteCreature(props.id), 'creature', 'Only possible while no cast member uses it.', 'Creature deleted')
 const field = 'inset mt-1 block h-10 w-full rounded-md px-4 text-sm text-ink outline-none focus:border-blue'
 </script>
 

@@ -1,20 +1,16 @@
 <script setup lang="ts">
 import { ArrowDown, ArrowLeft, ArrowUp, Plus, Trash2 } from 'lucide-vue-next'
 import { computed, reactive, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import { api } from '../api/client'
 import ErrorCard from '../components/ErrorCard.vue'
 import PropPreview from '../components/PropPreview.vue'
-import { act, confirm, toast } from '../composables/feedback'
+import { useLibraryEditor } from '../composables/libraryEditor'
 import { useApi } from '../composables/useApi'
 import { HANDS, type CustomProp, type Hand, type PropShape } from '../lib/props'
-import { slugify } from '../lib/slug'
 
 // Create (/props/new) or edit one custom prop: a list of shapes in hand space, previewed live in a stickman's hand
 // by the engine's own drawing code. The server (schema PropShape) has the final say on every field.
 const props = defineProps<{ id: string }>()
-const router = useRouter()
-const isNew = computed(() => props.id === 'new')
 const { data, error, loading, reload } = useApi(() => api.props())
 
 type Kind = PropShape['shape']
@@ -36,6 +32,8 @@ const toRow = (s: PropShape): Row => ({
   shape: s.shape, pts: s.pts.map(([x, y]) => `${x},${y}`).join(' '), r: s.r ?? 20,
   fill: s.fill ?? '#ffffff', filled: !!s.fill, width: s.width ?? 8,
 })
+const { isNew, missing, saving, save: saveItem, remove: removeItem } = useLibraryEditor({
+  id: () => props.id, base: '/props', form, custom: () => data.value?.custom })
 watch(data, (c) => {
   if (!c) return
   const p = c.custom.find((x) => x.id === props.id)
@@ -43,8 +41,6 @@ watch(data, (c) => {
   Object.assign(form, p ? { id: p.id, name: p.name, use_for: p.use_for ?? '', idEdited: true, rows: p.shapes.map(toRow), angle: p.angle ?? 0, grip: p.grip ? p.grip.join(',') : '' }
     : { id: '', name: '', use_for: '', idEdited: false, rows: STARTER.map((r) => ({ ...r })), angle: 0, grip: '' })
 }, { immediate: true })
-const missing = computed(() => !isNew.value && data.value && !data.value.custom.some((x) => x.id === props.id))
-watch(() => form.name, (n) => { if (isNew.value && !form.idEdited) form.id = slugify(n) })
 
 /** "x,y x,y" -> points, or an error for the row */
 function parse(r: Row): { shape?: PropShape; err?: string } {
@@ -76,21 +72,11 @@ const valid = computed(() => form.name.trim() && /^[a-z0-9]+(-[a-z0-9]+)*$/.test
 const addRow = (shape: Kind) => form.rows.push({ shape, pts: SHAPES[shape].pts, r: 20, fill: '#d84a3a', filled: true, width: 8 })
 const move = (i: number, d: number) => form.rows.splice(i + d, 0, ...form.rows.splice(i, 1))
 
-const saving = ref(false)
-async function save() {
-  saving.value = true
+function save() {
   const body = { ...draft.value, name: form.name.trim(), use_for: form.use_for.trim() || null }
-  const c = await act(() => api.saveProp(body), `Prop “${body.name}” saved`)
-  saving.value = false
-  if (!c) return
-  if (c.cleared.length) toast(`Drawing changed: approval cleared for ${c.cleared.join(', ')}. Re-run their cast sheets.`, 'info')
-  data.value = c
-  if (isNew.value) router.replace(`/props/${body.id}`)
+  return saveItem(() => api.saveProp(body), `Prop “${body.name}” saved`, body.id, (c) => { data.value = c })
 }
-async function remove() {
-  const ok = await confirm({ title: `Delete “${form.name}”?`, body: 'Only possible while nobody holds it and no story uses it in @do.', confirm: 'Delete prop', danger: true })
-  if (ok && (await act(() => api.deleteProp(props.id), 'Prop deleted'))) router.push('/props')
-}
+const remove = () => removeItem(() => api.deleteProp(props.id), 'prop', 'Only possible while nobody holds it and no story uses it in @do.', 'Prop deleted')
 const field = 'inset mt-1 block h-10 w-full rounded-md px-4 text-sm text-ink outline-none focus:border-blue'
 </script>
 

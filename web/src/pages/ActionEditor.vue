@@ -1,21 +1,17 @@
 <script setup lang="ts">
 import { ArrowLeft, Plus, Trash2 } from 'lucide-vue-next'
 import { computed, reactive, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import { api, type CustomAction } from '../api/client'
 import ActionPreview from '../components/ActionPreview.vue'
 import ErrorCard from '../components/ErrorCard.vue'
-import { act, confirm } from '../composables/feedback'
+import { useLibraryEditor } from '../composables/libraryEditor'
 import { useApi } from '../composables/useApi'
-import { slugify } from '../lib/slug'
 
 
 // Create (/actions/new) or edit one custom action: keyframes of arm, leg and lean angles the stickman blends between,
 // previewed live by the engine's own code. Angles in degrees on the front view, from straight down, + toward screen
 // right. The server (schema CustomAction) has the final say.
 const props = defineProps<{ id: string }>()
-const router = useRouter()
-const isNew = computed(() => props.id === 'new')
 const { data, error, loading, reload } = useApi(() => api.actions())
 
 type Ease = 'in-out' | 'linear' | 'back-out'
@@ -28,14 +24,14 @@ const STARTER: Key[] = [ // a wave hello: rest, the right arm up, back down
 ]
 const form = reactive({ id: '', name: '', use_for: '', idEdited: false, duration: 1.5, loop: true, facing: 'camera' as 'camera' | 'side', move: 0, keys: structuredClone(STARTER) })
 
+const { isNew, missing, saving, save: saveItem, remove: removeItem } = useLibraryEditor({
+  id: () => props.id, base: '/actions', form, custom: () => data.value?.custom })
 watch(data, (cat) => {
   if (!cat || isNew.value) return
   const a = cat.custom.find((x) => x.id === props.id)
   if (a) Object.assign(form, { id: a.id, name: a.name, use_for: a.use_for ?? '', idEdited: true, duration: a.duration, loop: a.loop ?? true, facing: a.facing ?? 'camera', move: a.move ?? 0,
     keys: a.keys.map((k) => ({ t: k.t, arms: k.arms ?? null, legs: k.legs ?? null, knees: k.knees ?? (k.legs ? [0, 0] : null), lean: k.lean ?? 0, ease: k.ease ?? 'in-out' })) })
 }, { immediate: true })
-const missing = computed(() => !isNew.value && data.value && !data.value.custom.some((x) => x.id === props.id))
-watch(() => form.name, (n) => { if (isNew.value && !form.idEdited) form.id = slugify(n) })
 
 const sorted = computed(() => [...form.keys].sort((a, b) => a.t - b.t))
 const draft = computed<CustomAction>(() => ({ id: form.id || 'draft', name: form.name || 'Draft', duration: form.duration,
@@ -57,18 +53,11 @@ const toggle = (k: Key, part: 'arms' | 'legs') => {
   if (part === 'legs') k.knees = k.legs ? [0, 0] : null // knees come with the legs
 }
 
-const saving = ref(false)
-async function save() {
-  saving.value = true
+function save() {
   const body = { ...draft.value, name: form.name.trim(), use_for: form.use_for.trim() || null }
-  const c = await act(() => api.saveAction(body), `Action “${body.name}” saved`)
-  saving.value = false
-  if (c && isNew.value) router.replace(`/actions/${body.id}`)
+  return saveItem(() => api.saveAction(body), `Action “${body.name}” saved`, body.id)
 }
-async function remove() {
-  const ok = await confirm({ title: `Delete “${form.name}”?`, body: 'Only possible while no story uses it in @do.', confirm: 'Delete action', danger: true })
-  if (ok && (await act(() => api.deleteAction(props.id), 'Action deleted'))) router.push('/actions')
-}
+const remove = () => removeItem(() => api.deleteAction(props.id), 'action', 'Only possible while no story uses it in @do.', 'Action deleted')
 const field = 'inset mt-1 block h-10 w-full rounded-md px-3 text-sm text-ink outline-none focus:border-blue'
 const ARM_SLIDERS = [[0, 0, 'Left arm'], [0, 1, 'Left bend'], [1, 0, 'Right arm'], [1, 1, 'Right bend']] as const
 </script>

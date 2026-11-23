@@ -1,22 +1,18 @@
 <script setup lang="ts">
 import { ArrowDown, ArrowLeft, ArrowUp, Plus, Trash2 } from 'lucide-vue-next'
 import { computed, reactive, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import { api } from '../api/client'
 import ErrorCard from '../components/ErrorCard.vue'
 import SetPreview from '../components/SetPreview.vue'
-import { act, confirm } from '../composables/feedback'
+import { useLibraryEditor } from '../composables/libraryEditor'
 import { useApi } from '../composables/useApi'
 import { SHAPES, STARTER, type CustomSet, type SetKind, type SetPiece } from '../lib/sets'
 import type { ObjectCatalog } from '../lib/objects'
-import { slugify } from '../lib/slug'
 
 // Create (/sets/new) or edit one custom set: floor, back wall or sky, and a list of primitive pieces in world units,
 // previewed live by the engine's own set builder. The server (schema CustomSet) and the engine (stage clearance) have
 // the final say.
 const props = defineProps<{ id: string }>()
-const router = useRouter()
-const isNew = computed(() => props.id === 'new')
 const { data, error, loading, reload } = useApi(() => api.sets())
 const { data: objectData } = useApi<ObjectCatalog>(() => api.objects())
 
@@ -32,14 +28,14 @@ function load(s: CustomSet) {
     weather: s.default_weather?.kind ?? 'clear', intensity: s.default_weather?.intensity ?? 'medium' })
 }
 const showWeather = ref(true) // preview the default weather over the set
+const { isNew, missing, saving, save: saveItem, remove: removeItem } = useLibraryEditor({
+  id: () => props.id, base: '/sets', form, custom: () => data.value?.custom })
 watch(data, (c) => {
   if (!c) return
   const s = c.custom.find((x) => x.id === props.id)
   if (s) { load(s); form.idEdited = true }
   else if (isNew.value) Object.assign(form, { id: '', name: '', use_for: '', idEdited: false, kind: 'indoor', weather: 'clear', intensity: 'medium', objects: [] }, copy(STARTER.indoor))
 }, { immediate: true })
-const missing = computed(() => !isNew.value && data.value && !data.value.custom.some((x) => x.id === props.id))
-watch(() => form.name, (n) => { if (isNew.value && !form.idEdited) form.id = slugify(n) })
 
 /** a new set: switching kind swaps in that kind's starter until you change a piece */
 function setKind(k: SetKind) {
@@ -61,21 +57,12 @@ const addObject = (object: string) => form.objects.push({ id: `${object}-${form.
 const changeShape = (p: SetPiece, shape: SetPiece['shape']) => Object.assign(p, { shape, size: copy(SHAPES[shape].start.size) })
 const move = (i: number, d: number) => form.pieces.splice(i + d, 0, ...form.pieces.splice(i, 1))
 
-const saving = ref(false)
-async function save() {
-  saving.value = true
-  const body = { ...draft.value, name: form.name.trim(), use_for: form.use_for.trim() || null }
-  const c = await act(() => api.saveSet(body), `Set “${body.name}” saved`)
-  saving.value = false
-  if (!c) return
-  data.value = c
-  if (isNew.value) router.replace(`/sets/${body.id}`)
-}
-async function remove() {
-  const ok = await confirm({ title: `Delete “${form.name}”?`, body: 'Only possible while no story uses it: change their @set lines first.', confirm: 'Delete set', danger: true })
-  if (ok && (await act(() => api.deleteSet(props.id), 'Set deleted'))) router.push('/sets')
-}
 
+function save() {
+  const body = { ...draft.value, name: form.name.trim(), use_for: form.use_for.trim() || null }
+  return saveItem(() => api.saveSet(body), `Set “${body.name}” saved`, body.id, (c) => { data.value = c })
+}
+const remove = () => removeItem(() => api.deleteSet(props.id), 'set', 'Only possible while no story uses it: change their @set lines first.', 'Set deleted')
 const field = 'inset mt-1 block h-10 w-full rounded-md px-4 text-sm text-ink outline-none focus:border-blue'
 const num = 'inset mt-1 block h-10 w-full rounded-md px-3 text-sm text-ink outline-none focus:border-blue num'
 </script>

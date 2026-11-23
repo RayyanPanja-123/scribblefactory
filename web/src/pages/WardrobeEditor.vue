@@ -1,23 +1,21 @@
 <script setup lang="ts">
 import { ArrowDown, ArrowLeft, ArrowUp, Plus, Trash2 } from 'lucide-vue-next'
 import { computed, reactive, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import { api } from '../api/client'
 import ErrorCard from '../components/ErrorCard.vue'
 import WardrobePreview from '../components/WardrobePreview.vue'
-import { act, confirm, toast } from '../composables/feedback'
+import { useLibraryEditor } from '../composables/libraryEditor'
 import { useApi } from '../composables/useApi'
 import { allCreatures } from '../lib/creatures'
 import { ANCHORS, PREVIEW_POSES, SHAPES, SLOT_LABEL, SLOTS, wardrobeOptions,
   type Anchor, type Slot, type WardrobeItem, type WardrobeLayer } from '../lib/wardrobe'
 import { EXPRESSIONS } from '../lib/expressions'
+import { slugify } from '../lib/slug'
 
 // Create (/wardrobe/new) or edit one custom wardrobe item: ink layers anchored to body points, previewed live by the
 // engine's own drawing code on the default human and on a chosen humanoid creature, in any pose. The server (schema
 // WardrobeItem) has the final say on every field.
 const props = defineProps<{ id: string }>()
-const router = useRouter()
-const isNew = computed(() => props.id === 'new')
 const { data, error, loading, reload } = useApi(async () => {
   const [catalog, creatures] = await Promise.all([api.wardrobe(), api.creatures()])
   return { catalog, creatures }
@@ -42,15 +40,15 @@ const form = reactive({ id: '', name: '', idEdited: false, slot: 'hair' as Slot,
 const load = (w: WardrobeItem | null) => Object.assign(form, w
   ? { id: w.id, name: w.name, idEdited: true, slot: w.slot, colorable: w.colorable, default_color: w.default_color, default_accent: w.default_accent ?? DEFAULT_ACCENT, rows: w.layers.map(toRow) }
   : { id: '', name: '', idEdited: false, slot: 'hair', colorable: true, default_color: '#6b4f3a', default_accent: DEFAULT_ACCENT, rows: STARTER.map((r) => ({ ...r })) })
+const { isNew, missing, saving, save: saveItem, remove: removeItem } = useLibraryEditor({
+  id: () => props.id, base: '/wardrobe', form, custom: () => data.value?.catalog.custom,
+  toId: (s) => slugify(s).replace(/-/g, '_') }) // wardrobe ids use underscores
 watch(data, (d) => {
   if (!d) return
   const w = d.catalog.custom.find((x) => x.id === props.id)
   if (!isNew.value && !w) return
   load(w ?? null)
 }, { immediate: true })
-const missing = computed(() => !isNew.value && data.value && !data.value.catalog.custom.some((x) => x.id === props.id))
-const toId = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
-watch(() => form.name, (n) => { if (isNew.value && !form.idEdited) form.id = toId(n) })
 
 /** "x,y x,y" -> a layer, or an error for the row */
 function parse(r: Row): { layer?: WardrobeLayer; err?: string } {
@@ -87,21 +85,11 @@ const wornColor = computed(() => (form.colorable && view.color ? view.color : fo
 const wornAccent = computed(() => (form.colorable && view.accent ? view.accent : form.default_accent))
 const usesAccent = computed(() => form.rows.some((r) => r.fill === 'accent'))
 
-const saving = ref(false)
-async function save() {
-  saving.value = true
+function save() {
   const body = { ...draft.value, name: form.name.trim() }
-  const c = await act(() => api.saveWardrobeItem(body), `“${body.name}” saved`)
-  saving.value = false
-  if (!c) return
-  if (c.cleared.length) toast(`Drawing changed: approval cleared for ${c.cleared.join(', ')}. Re-run their cast sheets.`, 'info')
-  data.value = { ...data.value!, catalog: c }
-  if (isNew.value) router.replace(`/wardrobe/${body.id}`)
+  return saveItem(() => api.saveWardrobeItem(body), `“${body.name}” saved`, body.id, (c) => { data.value = { ...data.value!, catalog: c } })
 }
-async function remove() {
-  const ok = await confirm({ title: `Delete “${form.name}”?`, body: 'Only possible while no cast member wears it.', confirm: 'Delete item', danger: true })
-  if (ok && (await act(() => api.deleteWardrobeItem(props.id), 'Wardrobe item deleted'))) router.push('/wardrobe')
-}
+const remove = () => removeItem(() => api.deleteWardrobeItem(props.id), 'item', 'Only possible while no cast member wears it.', 'Wardrobe item deleted')
 const field = 'inset mt-1 block h-10 w-full rounded-md px-3 text-sm text-ink outline-none focus:border-blue'
 </script>
 
