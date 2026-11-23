@@ -864,6 +864,8 @@ def test_move_to_gallery(client, lib):
     assert e["slug"] == "demo" and e["title"] == "Demo" and e["freed_bytes"] > 0
     assert e["parts"][0]["thumbnail"] == "part-01/thumbnail.png" and e["parts"][0]["instagram"]["url"] == "https://instagram.com/p/y"
     assert not (lib / "demo").exists() and client.get("/api/series").json() == [] and client.get("/api/gallery").json() == [e]
+    o = client.get("/api/overview").json()  # its posts stay in the posting log
+    assert o["posts_per_month"][-1] == {"month": f"{now:%Y-%m}", "youtube": 1, "instagram": 1} and o["kpi"]["posted_this_month"] == 2
     assert client.get("/api/gallery/demo/part-01/thumbnail.png").content == b"png2"
     assert client.get("/api/gallery/demo/part-01/story.md").status_code == 200
     (lib / "secret.json").write_text("{}", encoding="utf-8")
