@@ -8,7 +8,7 @@ import { STYLE } from "./style.js";
 export const INK = "#1c1a1a";
 export const FADE_FRAMES = 15;      // 0.5 s cross-fade when the weather changes mid-scene (a set change wipes instead)
 export const BOLT_FRAMES = 4;       // a strike's bolt shows this many frames ...
-export const FLASH = [0.32, 0.14];  // ... and the screen flashes white this much on its first frames (storm; else x0.7)
+const FLASH = [0.32, 0.14];  // ... and the screen flashes white this much on its first frames (storm; else x0.7)
 export const AMBIENT = { window: 75, gap: 12, alpha: [0.14, 0.06] }; // storm: <= 1 flash per window, never near a strike
 const LEVEL = { light: 0, medium: 1, heavy: 2 };
 // particles per intensity (light, medium, heavy): the pool size, so the cost per frame is capped. Rain and storm are

@@ -465,7 +465,7 @@ const HOLD = [deg(22), deg(108)];               // seated prop arm: upper arm an
 const rect = (x0, y0, x1, y1) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
 
 /** tube along a leg from fraction f0 to f1 of hip -> foot, half-width w0 -> w1; ragged: zigzag hem */
-export function legTube([hip, foot], f0, f1, w0, w1, ragged = false) {
+function legTube([hip, foot], f0, f1, w0, w1, ragged = false) {
   const dx = foot[0] - hip[0], dy = foot[1] - hip[1], L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L;
   const P = (f, w) => [hip[0] + dx * f - uy * w, hip[1] + dy * f + ux * w]; // w > 0: one side, < 0: the other
   const teeth = ragged ? 5 : 1, hem = [];
@@ -525,7 +525,7 @@ export function skirt(p, cos, color, k, o) {
 const ring = (cx, cy, rx, ry) => ellPts(cx, cy, rx, ry, 0, 360, 0, 16);
 const SIX = [[[0.8, 0.05], [0.42, 0.1], [0.14, 0.45], [0.12, 0.78], [0.35, 1], [0.68, 1], [0.9, 0.78], [0.86, 0.56],
   [0.58, 0.44], [0.28, 0.48], [0.13, 0.64]]];
-export const DIGITS = {
+const DIGITS = {
   0: [ring(0.5, 0.5, 0.42, 0.5)],
   1: [[[0.28, 0.2], [0.56, 0], [0.56, 1]]],
   2: [[[0.12, 0.25], [0.3, 0.04], [0.6, 0], [0.86, 0.16], [0.85, 0.38], [0.1, 1], [0.92, 1]]],
@@ -557,7 +557,7 @@ const BUILTIN = new Set(["clipboard", "stopwatch", "bottle", "syringe", "apple",
 
 /** the held prop's angle in degrees, like a clock hand with the top tipped away from the body (0 upright, 90 level,
  *  75 = 2:30 in the right hand): the cast's own { angle } wins over the prop's (library/props.json) */
-export const propAngle = (pr) => pr.angle ?? (BUILTIN.has(pr.kind) ? 0 : lookup("props", pr.kind).angle ?? 0);
+const propAngle = (pr) => pr.angle ?? (BUILTIN.has(pr.kind) ? 0 : lookup("props", pr.kind).angle ?? 0);
 
 /** prop in a hand: local shapes (hand at 0,0, y down, x away from the body) turned partly with the forearm, plus its
  *  angle (propAngle); a custom prop's grip is the point of it the hand holds (default 0,0). pr: { kind, angle? } */

@@ -12,7 +12,7 @@ export function hash(...keys) {
 }
 
 /** mulberry32 PRNG: () -> [0, 1) */
-export function mulberry32(a) {
+function mulberry32(a) {
   return () => {
     a = (a + 0x6d2b79f5) | 0;
     let t = Math.imul(a ^ (a >>> 15), 1 | a);

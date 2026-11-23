@@ -3067,13 +3067,6 @@
             "title": "Audio Directory",
             "type": "string"
           },
-          "brand_tags": {
-            "default": "",
-            "description": "hashtags every caption carries, e.g. #scribblefactory",
-            "maxLength": 300,
-            "title": "Brand Tags",
-            "type": "string"
-          },
           "caption_model": {
             "default": "gemini-flash-latest",
             "description": "free Gemini model captions try first; busy or out of quota, the next free one answers",

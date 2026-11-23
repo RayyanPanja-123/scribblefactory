@@ -15,8 +15,6 @@ export type Build = Partial<Record<'head' | 'body_w' | 'body_h' | 'leg' | 'arm',
 /** the API fills a missing top colour with this (schemas BUILTIN_WARDROBE_DEFAULT_COLORS) */
 export const DEFAULT_TOP_COLOR = '#4a6fa5'
 export const SLOTS: Slot[] = ['hair', 'facial_hair', 'headwear', 'top', 'legwear', 'footwear', 'back', 'accessory', 'face']
-/** back to front (engine/page/wardrobe.js DRAW_ORDER) */
-export const DRAW_ORDER: Slot[] = ['back', 'legwear', 'footwear', 'top', 'accessory', 'face', 'facial_hair', 'hair', 'headwear']
 export const LIST_SLOTS: Slot[] = ['accessory', 'face']
 export const SLOT_LABEL: Record<Slot, string> = {
   hair: 'Hair', facial_hair: 'Facial hair', headwear: 'Headwear', top: 'Top', legwear: 'Legwear', footwear: 'Footwear',

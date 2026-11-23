@@ -10,7 +10,7 @@ export const GESTURE = {
   ease: 0.2,               // seconds of ease at each end
   kinds: ["palm", "chin", "shrug"],
 };
-export const POINT_ARM = { rise: 0.15, hold: 0.8, fall: 0.3 }; // seconds: up, held until 0.8 s, then down
+const POINT_ARM = { rise: 0.15, hold: 0.8, fall: 0.3 }; // seconds: up, held until 0.8 s, then down
 export const STRESS = { minLetters: 5, dur: 0.25 };             // a word this long gets a small body bob
 
 /** At most one gesture per talk shot: { kind, start, dur } in shot-local seconds, or null. Seeded, stable. */
@@ -126,7 +126,7 @@ export function cameraProgress(shot, u) {
 
 // Idle life (style.js idle): standing actors (idle, talk) breathe with a small bob and shift their weight slowly; each
 // actor's phase is seeded, so two characters never sway in step.
-export const LIFE_ACTIONS = new Set(["idle", "talk"]);
+const LIFE_ACTIONS = new Set(["idle", "talk"]);
 /** { bob 0..1 (hip lift share, on top of a stressed-word bob), shift degrees (lean about the feet) } at time t for a
  *  standing actor, or null for any other action. key: the character's seed key. */
 export function idleLife(key, t, action, breath) {

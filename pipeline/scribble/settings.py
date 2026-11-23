@@ -4,7 +4,6 @@ render_workers: "auto" (recommended for this PC) or 1..MAX_WORKERS parallel Chro
 force_software_gl: render with SwiftShader (software WebGL) instead of the GPU, for debugging.
 socials: {youtube, instagram, facebook} handles shown on every part's closing "Follow for more" screen (finish);
   an empty one is left off the screen.
-brand_tags: hashtags every caption carries (the Gemini caption writer adds them to the story's own).
 caption_model: the free Gemini model captions try first (FREE_GEMINI).
 export_directory: folder where approved final videos are copied by the Export button.
 audio_directory: root folder where a folder is created for each new series' audio files.
@@ -21,7 +20,7 @@ SOCIALS = ("youtube", "instagram", "facebook")
 # (503), out of quota (429) or gone (404) the captions fall through the rest in this order.
 FREE_GEMINI = ("gemini-flash-latest", "gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash",
                "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite")
-DEFAULTS = {"render_workers": "auto", "force_software_gl": False, "socials": dict.fromkeys(SOCIALS, ""), "brand_tags": "",
+DEFAULTS = {"render_workers": "auto", "force_software_gl": False, "socials": dict.fromkeys(SOCIALS, ""),
             "caption_model": FREE_GEMINI[0], "export_directory": r"D:\personal\short-animations\reels",
             "audio_directory": r"D:\personal\short-animations\audios"}
 MAX_WORKERS = 16
@@ -44,7 +43,6 @@ def load(library: Path) -> dict:
     out = {k: s.get(k, v) for k, v in DEFAULTS.items()}
     so = out["socials"] if isinstance(out["socials"], dict) else {}
     out["socials"] = {k: str(so.get(k) or "").strip() for k in SOCIALS}
-    out["brand_tags"] = str(out["brand_tags"] or "").strip()
     out["export_directory"] = str(out["export_directory"] or DEFAULTS["export_directory"]).strip()
     out["audio_directory"] = str(out["audio_directory"] or DEFAULTS["audio_directory"]).strip()
     if out["caption_model"] not in FREE_GEMINI:

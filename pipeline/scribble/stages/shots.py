@@ -507,10 +507,6 @@ def _actors(cast, pos, subject, words, seconds, travel_dir=0, zs=None, mood=None
     return out
 
 
-def _inside(xs) -> bool:
-    return all(BOUNDS[0] <= x <= BOUNDS[1] for x in xs)
-
-
 def _group_move(xs: list[float], role: str, seconds: float) -> float:
     """signed x distance a carry / support group walks (toward the stage centre, else away), keeping every member
     inside the bounds and at least the validator's minimum speed; 0 = it stands"""

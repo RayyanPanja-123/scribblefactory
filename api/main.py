@@ -1548,15 +1548,12 @@ class Settings(BaseModel):
     force_software_gl: bool = False
     socials: Socials = Field(default_factory=Socials, description="handles on every part's closing 'Follow for more' "
                                                                   "screen (empty: left off)")
-    brand_tags: str = Field("", max_length=300, description="hashtags every caption carries, e.g. #scribblefactory")
     caption_model: Literal[settings.FREE_GEMINI] = Field(settings.FREE_GEMINI[0], description=(
         "free Gemini model captions try first; busy or out of quota, the next free one answers"))
     export_directory: str = Field(settings.DEFAULTS["export_directory"], min_length=1, max_length=500,
                                   description="folder where the Export button copies approved final videos")
     audio_directory: str = Field(settings.DEFAULTS["audio_directory"], min_length=1, max_length=500,
                                  description="root folder where each new series gets an audio folder")
-    export_directory: str = Field(settings.DEFAULTS["export_directory"], min_length=1, max_length=500,
-                                  description="folder where the Export button copies approved final videos")
 
 
 class Machine(BaseModel):

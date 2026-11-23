@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Cpu, FolderOpen, Hash, KeyRound, Megaphone, Save, Trash2 } from 'lucide-vue-next'
+import { Cpu, FolderOpen, KeyRound, Megaphone, Save, Trash2 } from 'lucide-vue-next'
 import { computed, onMounted, ref } from 'vue'
 import { api, type Settings, type SettingsView } from '../api/client'
 import { act, toast } from '../composables/feedback'
@@ -14,7 +14,6 @@ const softwareGl = ref(false)
 // handles on every part's closing "Follow for more" screen (finish); empty ones are left off it
 const SOCIALS = [['youtube', 'YouTube', '@yourchannel'], ['instagram', 'Instagram', '@yourname'], ['facebook', 'Facebook', 'yourpage']] as const
 const socials = ref({ youtube: '', instagram: '', facebook: '' })
-const brandTags = ref('') // on every Gemini-written caption, after the story's own tags
 const captionModel = ref('') // free Gemini model tried first; the API falls through the other free ones
 const exportDirectory = ref('')
 const audioDirectory = ref('')
@@ -35,7 +34,6 @@ function fill(v: SettingsView) {
   workers.value = typeof w === 'number' ? w : v.machine.recommended_workers
   softwareGl.value = !!v.settings.force_software_gl
   socials.value = { ...socials.value, ...v.settings.socials }
-  brandTags.value = v.settings.brand_tags ?? ''
   captionModel.value = v.settings.caption_model ?? v.caption_models[0]
   exportDirectory.value = v.settings.export_directory ?? ''
   audioDirectory.value = v.settings.audio_directory ?? ''
@@ -51,7 +49,6 @@ onMounted(async () => {
 const chosen = computed(() => (auto.value ? 'auto' : workers.value))
 const dirty = computed(() => !!view.value && (chosen.value !== view.value.settings.render_workers
   || softwareGl.value !== !!view.value.settings.force_software_gl
-  || brandTags.value.trim() !== (view.value.settings.brand_tags ?? '')
   || exportDirectory.value.trim() !== (view.value.settings.export_directory ?? '')
   || audioDirectory.value.trim() !== (view.value.settings.audio_directory ?? '')
   || SOCIALS.some(([k]) => socials.value[k].trim() !== (view.value!.settings.socials?.[k] ?? ''))))
@@ -59,7 +56,7 @@ const valid = computed(() => auto.value || (Number.isInteger(workers.value) && w
 async function save() {
   const v = await act(() => api.saveSettings({ render_workers: chosen.value, force_software_gl: softwareGl.value,
     socials: { youtube: socials.value.youtube.trim(), instagram: socials.value.instagram.trim(), facebook: socials.value.facebook.trim() },
-    brand_tags: brandTags.value.trim(), caption_model: captionModel.value as Settings['caption_model'],
+    caption_model: captionModel.value as Settings['caption_model'],
     export_directory: exportDirectory.value.trim(), audio_directory: audioDirectory.value.trim() }), 'Settings saved')
   if (v) fill(v)
 }
@@ -133,12 +130,6 @@ const field = 'inset mt-1 block h-10 w-28 rounded-md px-4 text-sm text-ink outli
           </label>
         </div>
       </fieldset>
-
-      <label class="block text-sm font-semibold"><span class="flex items-center gap-2"><Hash :size="16" aria-hidden="true" /> Brand tags</span>
-        <span class="mt-1 block text-xs font-normal text-muted">Hashtags Gemini puts on every YouTube and Instagram caption, after the story's own.</span>
-        <input v-model="brandTags" type="text" maxlength="300" placeholder="#scribblefactory #stickman" autocomplete="off"
-          class="inset mt-2 block h-10 w-full rounded-md px-3 text-sm font-normal text-ink outline-none focus:border-blue" />
-      </label>
 
       <label class="block text-sm font-semibold"><span class="flex items-center gap-2"><FolderOpen :size="16" aria-hidden="true" /> Export folder</span>
         <span class="mt-1 block text-xs font-normal text-muted">Approved final videos are copied here, inside a folder named for the series. The folder is created automatically.</span>

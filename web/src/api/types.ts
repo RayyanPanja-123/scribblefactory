@@ -2175,12 +2175,6 @@ export interface components {
              */
             audio_directory: string;
             /**
-             * Brand Tags
-             * @description hashtags every caption carries, e.g. #scribblefactory
-             * @default
-             */
-            brand_tags: string;
-            /**
              * Caption Model
              * @description free Gemini model captions try first; busy or out of quota, the next free one answers
              * @default gemini-flash-latest

@@ -335,7 +335,7 @@ function fence(b, a, c, at, { h = 0.9, step = 1.6, along = "x", mat }) {
 
 // Outdoor layouts that repeat along x repeat with a period dividing the scroll band (BAND, 28 units), so a
 // travel shot can wrap them around the band without a seam.
-export const BAND = { lo: -14, hi: 14 };
+const BAND = { lo: -14, hi: 14 };
 
 function dirt_road(b, R, v) {
   // crossroads: the actors' road runs across the frame (travel shots scroll along it), a side road runs off into
