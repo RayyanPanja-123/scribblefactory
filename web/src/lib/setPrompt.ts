@@ -2,6 +2,7 @@
 // for what it sends back. The server (schema CustomSet / SetPiece) and the engine (stage clearance) still check
 // everything on save and in the preview.
 import type { CustomSet, SetPiece } from './sets'
+import { aiCheck } from './aiCheck'
 import { slugify } from './slug'
 
 const SIZES: Record<SetPiece['shape'], number> = { box: 3, cyl: 3, ball: 1, mound: 2 }
@@ -65,6 +66,18 @@ Build each object from 1-4 pieces (a table: top + legs; a tree: trunk cylinder +
 \`\`\`json
 ${compact(EXAMPLE)}
 \`\`\`
+
+${aiCheck([
+  'List the 3-5 things that say where we are at a glance (a bakery: counter, bread shelves, oven, shop window) and build those big; skip filler.',
+  'Compose like a stage: the centre (x -2..2, near z 0) stays empty for the actors; the key pieces frame them behind and to the sides, one clear focal piece behind the middle.',
+  'Pick a palette of 3-4 colours plus the floor and back. The back and floor should be calm and light-to-mid so the black-ink actors with white heads stand out; save the strongest colours for the focal pieces.',
+  'Build each object from stacked, touching pieces (a table top resting on its legs, a ball crown sitting on a trunk), never floating.',
+  'Add depth with a few backdrop pieces (windows, pictures, far hills) and some variation in height.',
+], [
+  'Stage clearance: every piece that reaches |x| < 2.2 has z + depth/2 below -1.0, and nothing comes forward of z 0.6.',
+  'Pieces on the floor have y = height / 2 (a cyl uses its height, a ball its radius), so nothing sinks or floats.',
+  'size has the right count: box and cyl 3 values, ball 1, mound 2; colours are 6-digit hex.',
+])}
 
 Now design **${thing}** and reply with only its JSON object.`
 }

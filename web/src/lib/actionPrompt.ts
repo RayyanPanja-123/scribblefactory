@@ -1,6 +1,7 @@
 // "Build with AI" for custom actions: a self-contained prompt that teaches any chat AI the keyframe format, and the
 // importer for what it sends back. The server (schema CustomAction) still checks everything on save.
 import type { CustomAction } from '../api/client'
+import { aiCheck } from './aiCheck'
 import { slugify } from './slug'
 
 
@@ -83,6 +84,17 @@ walking unless the brief asks for a side-facing move; for a walk or moonwalk, us
 
 ## Examples (in this exact format)
 ${EXAMPLES.map((e) => `\`\`\`json\n${JSON.stringify(e)}\n\`\`\``).join('\n\n')}
+
+${aiCheck([
+  'Pick facing first: is the move readable from the front (waving, clapping, shrugging) or does it need a profile (bowing, kneeling, kicking, picking up)?',
+  'Sketch the 2-4 key poses in words: anticipation (a small wind-up the other way), the action (the strongest, most exaggerated pose), and the follow-through / settle.',
+  'Make each key pose a clear silhouette: arms away from the body, not hidden in front of it; push angles further than feels natural, cartoons read bigger.',
+  'Time it: the wind-up and settle slower, the hit fast (keys close together, "back-out" on the hit for snap). Loops: make the last key flow back into the first.',
+], [
+  'The first key has t 0, t values increase, all within 0..1.',
+  'arms is [[upper, bend], [upper, bend]], legs and knees are [left, right]; every angle is within its range.',
+  'On a side action every forearm bend is 0..180; on a camera action nothing relies on bending toward the viewer.',
+])}
 
 Now create **${thing}** and reply with only its JSON object.`
 }

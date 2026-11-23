@@ -4,6 +4,7 @@
 // for the reply. The server (schema WardrobeItem) checks everything on save.
 import type { components } from '../api/types'
 import seedRaw from '../../../pipeline/scribble/seed/wardrobe.json?raw'
+import { PTS_CHECK, aiCheck } from './aiCheck'
 
 export type WardrobeItem = components['schemas']['WardrobeItem']
 export type WardrobeLayer = components['schemas']['WardrobeLayer']
@@ -118,6 +119,17 @@ renderer adds a hand-drawn wobble itself.
 
 ## Examples (one per slot, in this exact format)
 ${EXAMPLES.map((e) => `\`\`\`json\n${compact(e)}\n\`\`\``).join('\n\n')}
+
+${aiCheck([
+  'Name the 2-3 features that make this item recognisable at a glance (a pirate hat: wide tricorn brim, skull badge) and draw those big; leave out stitching, folds and tiny patterns.',
+  'Choose the anchor that moves with it: hats on head_top, glasses on eyes, sleeves on arms, trousers on legs (paired, so they follow the stride). Use as few anchors as the item needs.',
+  'Size it against the figure: the head is 300 across, the body 184 wide and 300 tall. Clothes cover the part they belong to with a little overlap, so no gaps show at the seams.',
+  'Main colour as "$color" and one second colour as "$accent", so cast members can recolour it; fixed hex only for things that never change (a gold buckle, a white collar).',
+], [
+  PTS_CHECK,
+  'Every layer has an anchor from the list; circles have "r", ellipses "r" and "ry".',
+  'Nothing covers the eyes or mouth unless the item is meant to (glasses, a mask, a beard below the mouth).',
+])}
 
 Now design **${thing}** and reply with only its JSON object.`
 }

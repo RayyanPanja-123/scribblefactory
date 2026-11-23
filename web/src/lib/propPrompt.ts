@@ -1,6 +1,7 @@
 // "Build with AI": a self-contained prompt that teaches any chat AI (web or CLI) the custom prop format, and the
 // importer for what it sends back. The server (schema PropShape / CustomProp) still checks everything on save.
 import type { CustomProp, PropShape } from './props'
+import { PTS_CHECK, aiCheck } from './aiCheck'
 import { slugify } from './slug'
 
 
@@ -72,6 +73,18 @@ a light background. Build it back to front: big body shapes first, details on to
 
 ## Examples (built-in props, in this exact format)
 ${EXAMPLES.map((e) => `\`\`\`json\n${compact(e)}\n\`\`\``).join('\n\n')}
+
+${aiCheck([
+  'Picture the object as a simple icon and name its 2-4 defining features (a bag: round body, tied neck, coin sign). Those, big and clear, are what make it readable; skip everything else.',
+  'Block the silhouette with 1-3 big shapes so it is recognisable from its outline alone, then add a few details on top.',
+  'Overlap the pieces a little so nothing floats or leaves a gap (a lid sits on the jar, a strap crosses the body).',
+  'Use 2-3 main colours plus at most one light highlight; neighbouring shapes in clearly different shades.',
+  'Place the grip over the hand at (0, 0) and size it against the 1000-tall figure.',
+], [
+  PTS_CHECK,
+  'Circles have "r"; lines have no "fill" colour other than their stroke; polys have at least 3 points.',
+  'The held part covers (0, 0) and the whole prop sits roughly within x -40..110, y -110..70 (bigger only if it must be).',
+])}
 
 Now design **${thing}** and reply with only its JSON object.`
 }

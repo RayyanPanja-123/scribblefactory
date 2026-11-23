@@ -1,4 +1,5 @@
 import type { ObjectPiece, WorldObject } from './objects'
+import { aiCheck } from './aiCheck'
 import { slugify } from './slug'
 
 const sizes: Record<ObjectPiece['shape'], number> = { box: 3, cyl: 3, ball: 1, mound: 2 }
@@ -16,7 +17,17 @@ Format:
 {"id":"${id}","name":"${name.trim().slice(0, 40) || '<name>'}","category":"vehicle|container|furniture|equipment|debris|other","capabilities":[],"carry_mode":"none|one-hand|two-hand|vehicle","pieces":[]}
 
 Use only these capabilities: move, carry, enter, ride, open, close, break, steal, remove. Use two-hand for large objects such as barrels and crates. The id must be lowercase with dashes and must not be one of: ${taken.join(', ') || '(none)'}.
-Each piece uses one primitive: {"shape":"box|cyl|ball|mound","at":[x,y,z],"size":[...],"color":"#rrggbb"}. Box and cylinder use three size values, ball one, mound two. Use 1 to 8 chunky pieces, with coordinates and sizes between -4 and 4. Make it readable at 9:16 video size.`
+Each piece uses one primitive: {"shape":"box|cyl|ball|mound","at":[x,y,z],"size":[...],"color":"#rrggbb"}. Box and cylinder use three size values, ball one, mound two. Use 1 to 8 chunky pieces, with coordinates and sizes between -4 and 4. Make it readable at 9:16 video size.
+
+${aiCheck([
+  'Name the 2-3 features that make the object recognisable (a barrel: bulging body, dark hoops) and build only those.',
+  'Big body piece first, then the details touching it: pieces stack and overlap, nothing floats.',
+  'Use 2-3 clear colours with visible contrast between neighbouring pieces.',
+], [
+  '"at" is [x, y, z]; "size" has 3 values for box and cyl, 1 for ball, 2 for mound; colours are 6-digit hex.',
+  'The bottom of the object rests on y = 0 (a piece of height h standing on the ground has y = h / 2).',
+  'capabilities and carry_mode fit the object (a crate: carry, two-hand; a cart: ride or move, vehicle).',
+])}`
 }
 
 export function importObject(text: string): { object?: WorldObject; error?: string } {

@@ -3,6 +3,7 @@
 import type { components } from '../api/types'
 // @ts-expect-error plain JS module from the engine, no types
 import { BUILTIN, JOINT_OF, RIGS } from '../../../engine/page/creatures.js'
+import { PTS_CHECK, aiCheck } from './aiCheck'
 import { slugify } from './slug'
 
 export type CustomCreature = components['schemas']['CustomCreature']
@@ -85,6 +86,21 @@ This shows the format and scale only. Do NOT copy its look: unless you were aske
 ${compact(example)}
 \`\`\`
 
+${aiCheck([
+  'Name what makes this animal recognisable in silhouette (a horse: long neck and head, mane, deep chest, a bushy tail; a giraffe: the neck; a pig: round body, snout, curly tail) and exaggerate exactly that.',
+  'Fix the proportions before drawing, from the real animal: total height, body length and depth, leg length. Legs are usually about as long as the body is deep (a horse) or shorter (a cat, a dog, a pig); long thin stilts look wrong.',
+  'Body first: one big chunky shape. Then each part around its joint, with the joint INSIDE the body so every part tucks under it (the body is drawn on top and hides the seam).',
+  'Give limbs thickness: a tapered shape 40-60 wide for a big animal, with a thigh / shoulder bulge at the top, and a foot, hoof or paw at the bottom.',
+  'A furry or hairy tail is a filled poly that widens and flows (a horse tail hangs down in a long tuft), not a thin stick; only thin tails (a rat, a cat) are strokes.',
+  'Colours: "$main" for the coat, "$accent" for the second colour (mane, spots, belly, ears), fixed colours only for beaks, hooves, horns.',
+], [
+  PTS_CHECK,
+  'Feet touch the ground: for each leg, joint y + the leg drawing\'s lowest y = 0 (the leg ends exactly at the ground).',
+  'Every joint sits inside or on the edge of the body shape, and there is a joint for every part you drew.',
+  'The total height matches the real animal at a person = 950 scale, and everything fits x -512..512, y -1000..0.',
+  'The eye and mouth are on the head, in the head\'s space (around the neck joint), where the face actually is.',
+])}
+
 Now design **${thing}** from scratch${brief ? ` (${details.trim()})` : ''} and reply with only its JSON object.`
 }
 
@@ -107,6 +123,14 @@ Reply with ONE JSON object in a \`\`\`json code block and nothing else.
   (a giant: legs and body 1.3, small head; a child: big head, short legs). head_color: the skin, "#rrggbb".
 - No parts, joints or face: the renderer draws the stickman itself, with face, expressions, costume and hands.
   Clothes are not part of the body: they come from each cast member's costume.
+
+${aiCheck([
+  'Decide the one thing the silhouette should say (huge, tiny, lanky, stocky, big-headed) and push the one or two factors that say it hardest.',
+  'Keep the rest near 1 so the contrast reads; changing everything a little reads as nothing.',
+  'Pick a head_color that reads clearly against black ink and a light background (skin tones, or a bold colour for an alien / robot).',
+], [
+  'Every build factor is a number from 0.7 to 1.3; head_color is a 6-digit hex.',
+])}
 
 Now design **${thing}**${brief ? ` (${details.trim()})` : ''} and reply with only its JSON object.`
 }
