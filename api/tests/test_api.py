@@ -632,7 +632,7 @@ def test_delete_series(client, lib):
 
 
 def test_job_history_cleanup(client, lib):
-    mk = lambda i, status, finished: {"id": i, "slug": "demo", "part": "part-01", "steps": ["render-stills"], "argv": [],
+    mk = lambda i, status, finished: {"id": i, "tag": f"D{i:03d}", "slug": "demo", "part": "part-01", "steps": ["render-stills"], "argv": [],
                                       "current_step": None, "status": status, "queued_at": "2026-01-01T00:00:00Z",
                                       "started_at": None, "finished_at": finished, "returncode": 0, "output": []}
     with m._cv:
@@ -709,14 +709,14 @@ def test_drop_old_ai_settings(tmp_path, monkeypatch):
 def test_settings(client, lib):
     r = client.get("/api/settings").json()
     none = {"youtube": "", "instagram": "", "facebook": ""}
-    assert r["settings"] == {"render_workers": "auto", "force_software_gl": False, "socials": none, "brand_tags": "", "caption_model": "gemini-flash-latest",
+    assert r["settings"] == {"render_workers": "auto", "force_software_gl": False, "socials": none, "caption_model": "gemini-flash-latest",
                               "export_directory": r"D:\personal\short-animations\reels", "audio_directory": r"D:\personal\short-animations\audios"}
     assert r["workers_now"] == r["machine"]["recommended_workers"] >= 1 and len(r["examples"]) == 4
     for bad in (0, 17, "lots"):
         assert client.put("/api/settings", json={"render_workers": bad}).status_code == 422
     (lib / "settings.json").write_text(json.dumps({"keep": 1}), encoding="utf-8")
     r = client.put("/api/settings", json={"render_workers": 6, "force_software_gl": True}).json()
-    assert r["settings"] == {"render_workers": 6, "force_software_gl": True, "socials": none, "brand_tags": "", "caption_model": "gemini-flash-latest",
+    assert r["settings"] == {"render_workers": 6, "force_software_gl": True, "socials": none, "caption_model": "gemini-flash-latest",
                               "export_directory": r"D:\personal\short-animations\reels", "audio_directory": r"D:\personal\short-animations\audios"} and r["workers_now"] == 6
     r = client.put("/api/settings", json={"render_workers": 6, "socials": {"youtube": "@chan", "facebook": "page"}}).json()
     assert r["settings"]["socials"] == {"youtube": "@chan", "instagram": "", "facebook": "page"}
