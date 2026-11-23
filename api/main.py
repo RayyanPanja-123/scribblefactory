@@ -139,20 +139,17 @@ def series_list():
 @app.get("/api/notifications", response_model=list[Notification])
 def notifications():
     """Library information that is useful to review but does not belong in a part's story warnings."""
-    out = []
-    for d in all_series():
-        series = load_series(d / "series.json")
-        unused = storycheck.unused_custom_actions(d, lib())
-        if unused:
-            out.append(Notification(
-                id=f"unused-actions:{series.slug}:{','.join(unused)}",
-                title="Custom actions not used",
-                message=f"{', '.join(unused[:8])}{'…' if len(unused) > 8 else ''} are defined in the shared library but no story in this series uses them.",
-                slug=series.slug,
-                series_title=series.title,
-                href=f"/series/{series.slug}",
-            ))
-    return out
+    unused = storycheck.unused_custom_actions(lib())
+    if not unused:
+        return []
+    return [Notification(
+        id=f"unused-actions:{','.join(unused)}",
+        title="Custom actions not used",
+        message=f"{', '.join(unused[:8])}{'…' if len(unused) > 8 else ''} are in the shared library but no story uses them.",
+        slug="",
+        series_title="Shared library",
+        href="/actions",
+    )]
 
 
 @app.get("/api/series/{slug}", response_model=SeriesDetail)

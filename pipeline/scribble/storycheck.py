@@ -390,13 +390,13 @@ def staging(md: str, series, library: Path, part: str) -> list[dict]:
     return out
 
 
-def unused_custom_actions(series_dir: Path, library: Path) -> list[str]:
-    """Custom action ids not referenced by any @do directive in this series."""
+def unused_custom_actions(library: Path) -> list[str]:
+    """Custom action ids no story uses: the actions are shared, so every series and gallery story counts."""
     actions = custom_actions(library)
     if not actions:
         return []
     used = set()
-    for story in sorted(series_dir.glob("part-*/story.md")):
+    for story in [*library.glob("*/part-*/story.md"), *library.glob("_gallery/*/part-*/story.md")]:
         for number, line in enumerate(story.read_text(encoding="utf-8").splitlines(), 1):
             directive = line.strip()
             if not directive.startswith("@do "):

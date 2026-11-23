@@ -290,3 +290,14 @@ def test_hold_in_check_story(tmp_path):
     holds = [(p["line"], p["message"], p.get("missing")) for p in r["problems"] if "@hold" in p["message"]]
     assert holds == [(6, "@hold: unknown prop 'trident' (props: " + holds[0][1].split("(props: ")[1],
                       {"kind": "prop", "ids": ["trident"], "owner": None})]
+
+
+def test_unused_custom_actions_counts_every_series_and_the_gallery(tmp_path):
+    from pipeline.scribble.storycheck import unused_custom_actions
+    from pipeline.tests.test_actions import SALUTE
+    ids = ["wave-a", "wave-b", "wave-c"]
+    (tmp_path / "actions.json").write_text(json.dumps({"actions": [{**SALUTE, "id": i} for i in ids]}), encoding="utf-8")
+    for story, action in [("a/part-01", ids[0]), ("_gallery/b/part-01", ids[1])]:
+        (tmp_path / story).mkdir(parents=True)
+        (tmp_path / story / "story.md").write_text(f"# T\n\n@do bob: {action}\nBob moved.\n", encoding="utf-8")
+    assert unused_custom_actions(tmp_path) == ids[2:]
