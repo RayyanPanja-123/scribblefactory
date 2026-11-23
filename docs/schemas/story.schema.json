@@ -85,6 +85,19 @@
           "description": "the cast member's named look (@look), none: its own",
           "title": "Look"
         },
+        "mount": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "@ride: the actor (a creature in this shot) this one rides; it is drawn in the saddle and goes where its mount goes",
+          "title": "Mount"
+        },
         "prop": {
           "anyOf": [
             {

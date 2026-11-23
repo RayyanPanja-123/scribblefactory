@@ -11,6 +11,8 @@ story.md directives (one per line) are stripped from the script:
   @do fred: collapse actions for the next line's shots, overriding keyword guessing (see parse_do)
   @look mike: headless  a cast member's named look from the next line on (default: its own; see parse_look)
   @hold mike: trident  a prop in a cast member's hand from the next line on, over its look's (see parse_hold)
+  @ride charro: charro-horse  a person rides a creature from the next line on, until "@ride charro: none" or the
+                     end of the part; it stays mounted across @set changes (see parse_ride)
   @face mike: angry  a cast member's face for the next line only (see parse_face)
   @crowd cheer 10    crowd extras behind the stage: cheer | angry | gasp | neutral [N, default 8, max 12] | off
   @runners 4         background runner extras (0-6)
@@ -152,6 +154,43 @@ def parse_look(arg: str, line: int, looks_of=None, creatures=None) -> tuple[tupl
                 f'"looks" in its series.json cast entry'
                 + (f"; {w} is a {rig}: a look can change its colours, flame, stump or its {', '.join(CREATURE_SLOTS)} items)" if rig else ")"))
     return who, name
+
+
+# what a rider can do in the saddle (upper body only); any other action falls back to idle (storycheck warns)
+RIDE_ACTIONS = ("idle", "talk", "point", "wave", "react", "gasp", "angry", "cheer")
+
+
+def parse_ride(arg: str, line: int, cast_ids=None, creatures=None) -> tuple[str, str | None]:
+    """@ride <rider>: <creature> | none -> (rider, mount cast id, or None to get off). cast_ids: the series cast, or
+    None to check the syntax only. creatures: cast id -> anything, for the cast members that are not humanoids (the
+    only mounts; a rider must be a humanoid). Errors name the story.md line."""
+    def bad(msg):
+        raise StageError(f"story.md line {line}: @ride: {msg}")
+    rider, sep, mount = (x.strip() for x in arg.partition(":"))
+    if not sep or not rider or not mount or " " in rider or " " in mount:
+        bad('expected "@ride <rider>: <creature>", e.g. "@ride charro: charro-horse" (or "@ride charro: none")')
+    if cast_ids is not None:
+        creatures = creatures or {}
+        for w in (rider, mount) if mount != "none" else (rider,):
+            if w not in cast_ids:
+                bad(f"unknown cast id {w!r} (series cast: {', '.join(cast_ids)})")
+        if rider in creatures:
+            bad(f"{rider} is not a humanoid: only people ride")
+        if mount != "none" and mount not in creatures:
+            bad(f"{mount} is a humanoid, not a creature to ride (creatures in the cast: {', '.join(creatures) or 'none'})")
+    return rider, None if mount == "none" else mount
+
+
+def ride(rides: dict, rider: str, mount: str | None, line: int) -> dict:
+    """the rides (rider -> mount) after one @ride. Refused: getting on while already riding (get off first with
+    "none"), or a mount that already has a rider (one rider per creature)."""
+    if mount is None:
+        return {k: v for k, v in rides.items() if k != rider}
+    if rider in rides and rides[rider] != mount:
+        raise StageError(f"story.md line {line}: @ride: {rider} already rides {rides[rider]} (\"@ride {rider}: none\" first)")
+    if (other := next((r for r, m in rides.items() if m == mount and r != rider), None)):
+        raise StageError(f"story.md line {line}: @ride: {mount} already carries {other} (one rider per creature)")
+    return {**rides, rider: mount}
 
 
 def parse_hold(arg: str, line: int, cast_ids=None, props=None, handless=None) -> tuple[tuple[str, ...], str, str | None]:

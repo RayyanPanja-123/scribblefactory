@@ -45,6 +45,18 @@
   @hold ethan: none
   He dropped everything.
   ```
+- `@ride <rider>: <creature>`: a person rides a creature (horse...) from the next line until `@ride <rider>: none` or
+  the end of the part, across `@set` changes. Rider and mount are one wider actor: move the mount
+  (`@do charro-horse: walk`) and the rider goes along. In the saddle the rider can only idle, talk, point, wave,
+  react, gasp, angry or cheer; any other `@do` falls back to idle (check-story warns). One rider per creature, get off
+  before riding another; `@car ride` seats everyone in the car instead.
+  ```
+  @ride charro: charro-horse
+  @do charro-horse: walk
+  Charro rode into town.           <- the horse walks, Charro sits in the saddle
+  @ride charro: none
+  He got down by the well.         <- standing beside the horse
+  ```
 - `@car arrive | ride | leave | off`: persistent vehicle state. `arrive` parks beside the subject, `ride` carries up to
   three cast members through an outdoor travel shot, `leave` drives away, and `off` removes it. During `ride`, only
   `@do car: broken` is allowed; use `@car off` before staging the cast outside it.

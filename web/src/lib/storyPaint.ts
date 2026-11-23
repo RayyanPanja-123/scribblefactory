@@ -104,6 +104,11 @@ export const KINDS: Record<string, Kind> = {
       return p && prop && !more.length && ['', 'left', 'right'].includes(hand) ? { who: p.who, prop, hand } : null
     },
     build: (r) => `${r.who}: ${join(r.prop, r.hand)}` },
+  // @ride <rider>: <creature> | none: stays (across places) until none; the check refuses a non-creature mount
+  ride: { label: 'Ride', common: false, rank: 3, start: (c) => `${first(c)}: none`,
+    fields: (c) => [who(c), { key: 'mount', label: 'Rides', type: 'select', options: ['none', ...ids(c)], names: { none: 'Gets off (none)' } }],
+    parse: (a) => (p => (p && p.mount && !/\s/.test(p.mount) ? p : null))(pair(a, 'mount')),
+    build: (r) => `${r.who}: ${r.mount}` },
   do: { label: 'Action', common: true, rank: 5, start: (c) => `${first(c)}: talk`,
     fields: (c) => [who(c), { key: 'action', label: 'Does', type: 'select', options: c.actions },
       { key: 'extra', label: 'Prop / target', type: 'text' }],

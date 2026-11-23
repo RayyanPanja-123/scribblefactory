@@ -1,6 +1,18 @@
 # Changelog
 
 ## Unreleased
+- Riding: `@ride <rider>: <creature>` puts a person in the saddle from the next line until `@ride <rider>: none` or
+  the part's end, and it stays across `@set` changes. The rider is drawn on the mount's card (straddling, the far leg
+  hidden, the near leg over its side, on the saddle when worn) and goes wherever the mount walks, runs or staggers;
+  in the saddle only idle, talk, point, wave, react, gasp, angry and cheer (other actions fall back to idle,
+  check-story warns). story.json actors get an optional `mount`. check-story refuses unknown riders or creatures, a
+  humanoid mount, riding two at once and two riders on one creature, and warns when the rider is in an `@car ride`.
+  The Director Script editor has a Ride card.
+- Stage spacing uses each body's real width: a horse keeps its half width clear of its neighbours (a stage of
+  people spaces exactly as before), wide shots fit the whole horse, and the camera rises to frame a mounted pair.
+- Wide shots never cut the outermost actor: the framing keeps at least a body's width plus a wide hat's brim
+  around a spread-out cast (outdoor wides allowed only 0.6, under the figure's own 0.8). Such wides now sit a
+  little further back; re-rendered parts can change there.
 - Creatures can wear wardrobe: custom headwear, face, accessory and back items, hung on points worked out from the
   creature's own shapes (top of the skull, eyes, neck, back) and scaled to its head or body. Fit is approximate.
   Tops, legwear, footwear, hair, facial hair and built-in hats are still refused (check-story warns, @look fails).

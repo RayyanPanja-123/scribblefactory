@@ -2,8 +2,8 @@
 // render.mjs calls setup(data) once, then renderFrame(n) or renderCast(pose) per image (PNG data URL back).
 import * as THREE from "three";
 import { dolly, glide } from "./borrowed.js";
-import { BODY_W, CH, CW, FEET_Y, FIGURE_PX, HAT_TOP, HEAD_R, drawStickman, figurePx, skeleton } from "./stickman.js";
-import { CRW, creature, drawCreature, measure as creatureSize } from "./creatures.js";
+import { BODY_W, CH, CW, FEET_Y, FIGURE_PX, HAT_TOP, HEAD_R, drawStickman, figurePx, hipPx, skeleton } from "./stickman.js";
+import { CRW, RIDE, creature, creatureAnchors, drawCreature, measure as creatureSize } from "./creatures.js";
 import { lookup, setLibrary } from "./library.js";
 import { DH, DOG_FEET, DW, barkAmount, drawDog, gallopPhase } from "./dog.js";
 import { cameraProgress, gestureAmount, idleLife, lookTarget, gesturePlan, mouthCurve, mouthCycles, pointAmount, stressBob, waveAmount } from "./motion.js";
@@ -30,6 +30,7 @@ const lerp = (a, b, u) => a + (b - a) * u;
 // wide shots: fit the cast's x span + margin; never closer than maxFill (it must still read as a wide). Camera sits
 // higher and tilts down so less floor/road fills the bottom and less wall/sky sits above the heads.
 const WIDE = { margin: 0.8, maxFill: 0.30, camY: 2.1, lookY: 0.75 };
+const HAT_PAD = 0.2; // world units a wide hat's brim reaches past the body, both sides together
 const SUBJECT_MARGIN = 0.05; // props must clear the subject's on-screen card bounds grown by 5% per side
 const SHADOW = { w: 0.75, d: 0.3, opacity: 0.32, bounce: 0.08, y: 0.025 }; // y clears the room rug
 const CAR_CARD_H = CAR_CARD_W * (VH / VW), CAR_SHADOW = { w: 2.6, d: 0.55 }, CAR_HALF = 1.4;
@@ -235,10 +236,19 @@ const creatureDrop = (id) => {
   return Math.max(0, (CARD_H * (FIGURE_PX - top)) / CH * 0.85);
 };
 const CREATURE_GEO = new THREE.PlaneGeometry(CARD_W * (CRW / CW), CARD_H).translate(0, CARD_H / 2 - CARD_H * (1 - FEET_Y / CH), 0);
+// a ridden creature (@ride): the same card with RIDE.room px of headroom on top for the rider
+const RIDDEN_H = CARD_H * (CH + RIDE.room) / CH;
+const RIDDEN_GEO = new THREE.PlaneGeometry(CARD_W * (CRW / CW), RIDDEN_H)
+  .translate(0, RIDDEN_H / 2 - RIDDEN_H * (1 - (FEET_Y + RIDE.room) / (CH + RIDE.room)), 0);
+/** px from the ground to the top of a mounted pair: the mount's back plus the rider from the hip up */
+const mountedTop = (mountId, riderId) => -creatureAnchors(creatureOf(mountId)).back[0][1][1] - RIDE.sink
+  + figurePx(bodyOf(riderId).build) - (FEET_Y - hipPx(bodyOf(riderId).build));
 
 function drawCard(id, o, rim = false) {
-  const d = creatureOf(id), c = d ? card(id, CREATURE_GEO, CRW, CH) : card(id);
-  if (d) drawCreature(c.cv, d, figure(id, o)); else drawStickman(c.cv, figure(id, o));
+  const d = creatureOf(id), ridden = d && o.rider;
+  const c = ridden ? card(`${id}:ridden`, RIDDEN_GEO, CRW, CH + RIDE.room) : d ? card(id, CREATURE_GEO, CRW, CH) : card(id);
+  if (ridden) card(id, CREATURE_GEO, CRW, CH); // its shadow lives on the plain card
+  if (d) drawCreature(c.cv, d, { ...figure(id, o), room: ridden ? RIDE.room : 0 }); else drawStickman(c.cv, figure(id, o));
   if (rim) rimLight(c.cv, o.px || 1);
   c.tex.needsUpdate = true;
   return c.mesh;
@@ -274,7 +284,9 @@ function shotCamera(shot, sx, xs, u, drop = 0) {
     const Wd = setKind(shot.set) === "outdoor" ? C.wide : WIDE;
     const lo = Math.min(...xs), hi = Math.max(...xs), cx = (lo + hi) / 2;
     const end = shot.camera.speed, tan = Math.tan(rad(A.fov / 2)); // end = move size at u = 1
-    const width = hi - lo + Wd.margin + (shot.camera.move.startsWith("truck") ? 2 * M.truck * end : 0);
+    // margin: never under a body's own width plus a wide hat's brim (HAT_PAD), or an actor at the edge of a
+    // spread-out cast is cut
+    const width = hi - lo + Math.max(Wd.margin, BODY_CARD_W + HAT_PAD) + (shot.camera.move.startsWith("truck") ? 2 * M.truck * end : 0);
     const reach = shot.camera.move === "push_in" ? 1 - M.push * end : 1;
     const fit = width / (2 * tan * (W / H)) / reach;   // whole cast inside the frame edges all shot long
     const notCloser = FIG_H / (2 * tan * Wd.maxFill); // heads and feet win over size: only ever back off
@@ -467,8 +479,10 @@ function drawShot(shot, n) {
   const place = (a) => seated.get(a.cast_id) || heldPlace(a, shot.actors, placeAt, u) || placeAt(a, u);
   const owned = ownedProps.get(shot.id) || {}, wide = shot.camera.angle === "wide";
   const subject = shot.actors.find((a) => a.action !== "idle") || shot.actors[0];
+  // a body wider than the stickman (a horse) widens the span by the extra on each side, so wides fit all of it
+  const extra = (a) => (d => (d ? Math.max(0, (CARD_H * creatureSize(d).half) / CH - BODY_CARD_W / 2) : 0))(a.cast_id && creatureOf(a.cast_id));
   const span = [...shot.actors.filter((a) => !seated.has(a.cast_id)), ...animals]
-    .flatMap((a) => [a.start_pos[0], (a.end_pos || a.start_pos)[0]]);
+    .flatMap((a) => [a.start_pos[0], (a.end_pos || a.start_pos)[0]].flatMap((x) => (e => (e ? [x - e, x + e] : [x]))(extra(a))));
   for (const v of vehicles) { // where the car stands: arrive its stop, leave its start, else both ends
     const xs = v.action === "arrive" ? [(v.end_pos || v.start_pos)[0]] : v.action === "leave" ? [v.start_pos[0]]
       : [v.start_pos[0], (v.end_pos || v.start_pos)[0]];
@@ -486,16 +500,22 @@ function drawShot(shot, n) {
   const pair = subject && (subject.action === "give" || subject.action === "receive")
     ? shot.actors.find((b) => b.cast_id === subject.target) : null;
   const focusX = (pl) => (pair ? (pl(subject)[0] + pl(pair)[0]) / 2 : pl(subject)[0]);
-  const drop = (kk) => (subject ? Math.max(LIE.drop * lying(subject, kk, shot), wide || seated.has(subject.cast_id) ? 0 : creatureDrop(subject.cast_id)) : 0);
+  // a mounted subject (@ride: the rider or its mount): the framing goes up by the pair's extra height instead
+  const pairOf = (a) => (a.mount ? [a.mount, a.cast_id] : (r => r && [a.cast_id, r.cast_id])(shot.actors.find((b) => b.mount === a.cast_id)));
+  const mounted = subject && pairOf(subject), lift = mounted && !wide
+    ? Math.max(0, (CARD_H * (mountedTop(...mounted) - FIGURE_PX)) / CH * 0.85) : 0;
+  const drop = (kk) => (subject ? (lift ? -lift : Math.max(LIE.drop * lying(subject, kk, shot), wide || seated.has(subject.cast_id) ? 0 : creatureDrop(subject.cast_id))) : 0);
   const camAt = (uu) => shotCamera(shot, subject ? focusX((a) => placeAt2(a, uu)) : 0, span, uu,
     drop(shot.start_frame + uu * (shot.end_frame - shot.start_frame - 1)));
   const placeAt2 = (a, uu) => seated.get(a.cast_id) || heldPlace(a, shot.actors, placeAt, uu) || placeAt(a, uu);
   const extraShift = extrasFor(shot, camAt, placeAt2);
   shotCamera(shot, subject ? focusX(place) : 0, span, u, drop(kf));
   const gestures = [], riders = new Map(); // riders: cast id -> drawStickman options, drawn inside the car card
+  const ridden = new Map(); // @ride: mount cast id -> its rider's drawStickman options, drawn on the mount's card
   const standing = shot.actors.filter((b) => !seated.has(b.cast_id) && !["lie", "collapse", "carried"].includes(b.action));
   const ownMove = (a) => (a.end_pos ? Math.hypot(a.end_pos[0] - a.start_pos[0], a.end_pos[1] - a.start_pos[1]) : 0);
-  for (const a of shot.actors) {
+  const onMount = (a) => a.mount && shot.actors.some((b) => b.cast_id === a.mount);
+  for (const a of [...shot.actors].sort((p, q) => onMount(q) - onMount(p))) { // riders first: their mounts carry them
     const [x, z] = place(a), key = charSeed(a.cast_id);
     // carried / supported move with their holders: their stride distance is the holders' move
     const holder = shot.actors.find((h) => h.target === a.cast_id && (h.action === "carry" || h.action === "support"));
@@ -522,6 +542,8 @@ function drawShot(shot, n) {
     };
     const roll = actionPose(shot, a, o, x, u, ts, n);
     if (seated.has(a.cast_id)) { riders.set(a.cast_id, figure(a.cast_id, o)); continue; }
+    if (onMount(a)) { ridden.set(a.mount, figure(a.cast_id, o)); continue; }
+    if (ridden.has(a.cast_id)) o.rider = ridden.get(a.cast_id);
     // idle life (motion.js idleLife): breathing bob and weight shift; the head tilts toward whoever it looks at, and a
     // camera-facing two-hander angles toward the other one (card turn + a glance)
     const life = !roll.k && idleLife(key, t, o.action, o.breath);

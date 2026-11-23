@@ -13,7 +13,7 @@ import zlib
 from pathlib import Path
 from typing import NamedTuple
 
-from ..io import (LIBRARY_FILES, atomic_write_json, cast_body_problems, creature_bodies, creature_wardrobe, custom_actions,
+from ..io import (LIBRARY_FILES, atomic_write_json, cast_body_problems, creature_bodies, creature_halves, creature_wardrobe, custom_actions,
                   custom_moves,
                   outdoor_sets,
                   prop_kinds, set_kinds, set_weather, wardrobe_slots,
@@ -24,7 +24,7 @@ from ..schemas import (FRAME_SIZE, BUILTIN_CREATURES, BUILTIN_SETS, BUILTIN_WARD
 from ..validate import (CAR_SPEED, CROWD_Z, DOG_RUN_SPEED, MAX_SHOT_FRAMES, MOODS, OUTDOOR_SETS, SPEEDS,
                         custom_speeds, end_frame, validate)
 from .prep import (BUILTIN_PROPS, DO_CAR, FX_LIGHTNING, FX_MODES, MARKER_RE, clean_markdown, mark_directives, parse_do,
-                   parse_face, parse_hold, parse_lightning, parse_look, parse_weather)
+                   parse_face, parse_hold, parse_lightning, parse_look, parse_ride, parse_weather, ride, RIDE_ACTIONS)
 from .. import background_music
 from .runner import StageError
 from .validate import load_model
@@ -50,6 +50,7 @@ NEEDS_HANDS = actions_with("hands")  # creatures without hands can still be carr
 GROUP_SPEED = {"carry": 0.9, "support": 0.8}  # @do carry / support: the group walks toward the stage centre
 HOLD_GAP = 0.42            # carry / support: a holder stands this far (x) beside the held actor (engine actions.js)
 MIN_GAP = 0.8              # actors at least this far apart in x at the start and end of every shot
+HUMAN_HALF = MIN_GAP / 2   # half a stickman's width: two of them MIN_GAP apart touch; wider bodies keep their half
 MAX_ON_STAGE = round((BOUNDS[1] - BOUNDS[0]) / MIN_GAP) + 1  # 6: that many fit side by side MIN_GAP apart
 # A crowded scene (more @cast than MAX_ON_STAGE) gets a second row: whoever the scene features (named in its lines
 # or in an @do) stands in front, the rest stand behind in the gaps between them, idle, smaller by perspective.
@@ -149,6 +150,7 @@ class Tag(NamedTuple):
     strike: "tuple | None"
     face: "dict | None"
     bg_music: "tuple | None"
+    rides: dict = {}  # @ride: {rider cast id: mount cast id}, kept across @set changes until "@ride <rider>: none"
 
 
 def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILTIN_PROPS, looks_of=None, actions=(),
@@ -165,7 +167,7 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
     set_, cast, twist_next, dogs, car, do = DEFAULT_SET, tuple(default_cast), False, 0, "off", None
     bg_music = None
     crowd, crowd_wardrobe, runners, looks, strike, face = {}, {}, 0, {}, None, None
-    holds = {}
+    holds, rides = {}, {}
     weather_of = weather_of or {}
     weather = weather_of.get(set_)
     looks_of = looks_of if looks_of is not None else {c: [] for c in cast_ids}
@@ -177,7 +179,8 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
             tags.append(Tag(set=set_, cast=cast, twist=twist_next, dogs=dogs, car=car, do=do,
                             crowd={k: dict(v) for k, v in crowd.items()},
                             crowd_wardrobe={k: dict(v) for k, v in crowd_wardrobe.items()}, runners=runners,
-                            looks=dict(looks), holds={k: dict(v) for k, v in holds.items()}, weather=weather, strike=strike, face=face, bg_music=bg_music))
+                            looks=dict(looks), holds={k: dict(v) for k, v in holds.items()}, weather=weather, strike=strike, face=face, bg_music=bg_music,
+                            rides=dict(rides)))
             twist_next, strike = False, None
         elif m[1] == "!":
             twist_next = True
@@ -245,11 +248,13 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
                 who, hand, kind = parse_hold(arg, line, cast_ids, props, handless)
                 for w in who:
                     holds[w] = {**holds.get(w, {}), **dict.fromkeys(["left", "right"] if hand == "both" else [hand], kind)}
+            elif name == "ride":  # lasts until "none" or the part's end; a @set keeps it (the horse goes along)
+                rides = ride(rides, *parse_ride(arg, line, cast_ids, creatures), line)
             else:
                 raise StageError(f"story.md line {line}: bad directive @{d.strip()} (use @set <name>, @cast a, b, "
                                  f"@dogs 0-{MAX_DOGS}, @car {' | '.join(CAR_MODES)}, @fx {' | '.join(FX_MODES)} | lightning [target], "
                                  f"@weather <type> [intensity], "
-                                 f"@do <cast>: <action>, @look <cast>: <look>, @hold <cast>: <prop> [hand], @face <cast>: <expression>, @sfx <id>, "
+                                 f"@do <cast>: <action>, @look <cast>: <look>, @hold <cast>: <prop> [hand], @ride <cast>: <creature>, @face <cast>: <expression>, @sfx <id>, "
                                  f"@crowd <mood> [N] | <group> <mood> [N] | off, @crowd-look <group>: <wardrobe ids>, "
                                  f"@crowd-weapon <group>: <prop>, or @runners 0-{MAX_RUNNERS})")
     return words, tags
@@ -413,20 +418,24 @@ def back_spots(back: tuple, front_xs: list[float]) -> dict[str, float]:
     return out
 
 
-def _free(x: float, others) -> bool:
-    return BOUNDS[0] <= x <= BOUNDS[1] and all(abs(x - o) >= MIN_GAP - 1e-9 for o in others)
+def _free(x: float, others, h: float = HUMAN_HALF) -> bool:
+    """x inside the bounds and clear of others: each an x (a stickman) or (x, half width); two bodies stay MIN_GAP
+    apart, wider ones (a horse) their half widths apart, so a stage of stickmen spaces exactly as before"""
+    return BOUNDS[0] <= x <= BOUNDS[1] and all(
+        abs(x - ox) >= max(MIN_GAP, h + oh) - 1e-9 for ox, oh in (o if isinstance(o, tuple) else (o, HUMAN_HALF) for o in others))
 
 
-def place(want: float, others) -> float:
-    """nearest x to want (0.1 steps, right first on ties) that keeps MIN_GAP from others, inside the bounds"""
+def place(want: float, others, h: float = HUMAN_HALF) -> float:
+    """nearest x to want (0.1 steps, right first on ties) clear of others (_free), inside the bounds"""
     for k in range(int((BOUNDS[1] - BOUNDS[0]) * 10) + 1):
         for x in (round(want + k / 10, 3), round(want - k / 10, 3)):
-            if _free(x, others):
+            if _free(x, others, h):
                 return x
     raise StageError(f"no room on stage for {len(others) + 1} actors {MIN_GAP} units apart")
 
 
-def fit_move(x: float, d: int, action: str, seconds: float, others=(), speeds=None) -> tuple[str, int, float] | None:
+def fit_move(x: float, d: int, action: str, seconds: float, others=(), speeds=None,
+             h: float = HUMAN_HALF) -> tuple[str, int, float] | None:
     """(action, direction, distance) for a walk/run from x that ends inside the stage bounds and at least MIN_GAP
     from every other actor's x, or None (go idle).
 
@@ -438,7 +447,7 @@ def fit_move(x: float, d: int, action: str, seconds: float, others=(), speeds=No
     full, lo_speed, hi = speeds or (MOVE_SPEED[action], MIN_SPEED[action], SPEEDS[action][1])
     dist = full * seconds
     for dd in (d, -d):
-        if _free(round(x + dd * dist, 3), others):
+        if _free(round(x + dd * dist, 3), others, h):
             return action, dd, dist
     lo = lo_speed * seconds + 0.001
     hi_speed = hi * seconds
@@ -450,9 +459,9 @@ def fit_move(x: float, d: int, action: str, seconds: float, others=(), speeds=No
                   if r >= lo]
     # nearest the full distance; ties: roomier side, then right, then the longer move
     for dd, r in sorted(cands, key=lambda c: (abs(c[1] - dist), -room[c[0]], -c[0], -c[1])):
-        if _free(round(x + dd * r, 3), others):
+        if _free(round(x + dd * r, 3), others, h):
             return action, dd, r
-    return fit_move(x, d, "walk", seconds, others) if action == "run" else None
+    return fit_move(x, d, "walk", seconds, others, h=h) if action == "run" else None
 
 
 def line_moods(md: str, words: list[str]) -> list[str | None]:
@@ -473,10 +482,10 @@ def line_moods(md: str, words: list[str]) -> list[str | None]:
     return out
 
 
-def _actors(cast, pos, subject, words, seconds, travel_dir=0, zs=None, mood=None):
+def _actors(cast, pos, subject, words, seconds, travel_dir=0, zs=None, mood=None, halves=None):
     """Actors for one shot, starting at pos[cid]. Updates pos to where each one ends.
     travel_dir (+1 right / -1 left): travel shot, every actor does the subject's walk/run in place at z zs[cid].
-    mood: the line's mood (line_moods), else the shot's own words decide."""
+    mood: the line's mood (line_moods), else the shot's own words decide. halves: cast id -> half width (_free)."""
     action = next((ACTIONS[w] for w in words if w in ACTIONS), "talk")
     expression = mood or next((EXPRESSIONS[w] for w in words if w in EXPRESSIONS), "neutral")
     if travel_dir:
@@ -494,7 +503,9 @@ def _actors(cast, pos, subject, words, seconds, travel_dir=0, zs=None, mood=None
         move = None
         if action in MOVE_SPEED:
             d = next((DIRECTIONS[w] for w in words if w in DIRECTIONS), 1 if x <= 0 else -1)  # else to centre
-            move = fit_move(x, d, action, seconds, [pos[c] for c in cast if c != cid])
+            hw = halves or {}
+            move = fit_move(x, d, action, seconds, [(pos[c], hw.get(c, HUMAN_HALF)) for c in cast if c != cid],
+                            h=hw.get(cid, HUMAN_HALF))
         if move:
             act, d, dist = move
             pos[cid] = round(x + d * dist, 3)
@@ -521,7 +532,8 @@ def _group_move(xs: list[float], role: str, seconds: float) -> float:
     return 0.0
 
 
-def _apply_do(clauses, line, cast, pos, actors, vehicles, seconds, fallen, handless=None, actions=None) -> list[Actor]:
+def _apply_do(clauses, line, cast, pos, actors, vehicles, seconds, fallen, handless=None, actions=None,
+              halves=None) -> list[Actor]:
     """@do for one shot: the named actors get the given action (others keep the planner's choice); "car: broken"
     stops the car on stage. pos is updated to where everyone ends. fallen: (line, cast id) already collapsed or
     gave on this line: a collapse or a give happens once, in the line's first shot; later shots lie / carry on.
@@ -589,7 +601,9 @@ def _apply_do(clauses, line, cast, pos, actors, vehicles, seconds, fallen, handl
                 if c.action in MOVE_SPEED or (custom and custom.move):
                     d = toward or (1 if x <= 0 else -1)
                     speeds = (abs(custom.move), *custom_speeds(custom.move)) if custom else None
-                    move = fit_move(x, d, c.action, seconds, [pos[o] for o in cast if o != cid], speeds)
+                    hw = halves or {}
+                    move = fit_move(x, d, c.action, seconds, [(pos[o], hw.get(o, HUMAN_HALF)) for o in cast if o != cid],
+                                    speeds, hw.get(cid, HUMAN_HALF))
                     if move and toward and (move[1] != toward or (x + move[1] * move[2] - pos[c.target]) * toward > 0):
                         move = None  # aimed: never away from the target or past it; plays in place facing it
                     if move:
@@ -613,6 +627,32 @@ def _apply_do(clauses, line, cast, pos, actors, vehicles, seconds, fallen, handl
                                 else ACTION_FACE.get(action, "neutral"),  # a mood word in the line wins
                                 prop=c.prop if action == "eat" else None)
     return [by[a.cast_id] for a in actors]
+
+
+def _seat_riders(actors, rides, pos, subject=None, action=None) -> list[Actor]:
+    """@ride: each rider (rides: rider -> mount, both on stage) sits on its mount: the mount's spot (the engine draws
+    it wherever the mount goes), facing the mount's side, mount set; RIDE_ACTIONS only, else idle. subject / action:
+    the shot's subject and its keyword action (planner shots): a mounted subject gets the action (talk by default)
+    unless it is a move, and its mount stands still unless it moves."""
+    by = {a.cast_id: a for a in actors}
+    for r, m in rides.items():
+        h = by[m]
+        if h.facing == "camera":  # a mounted pair is seen side on
+            h.facing = "right"
+        a = by.get(r) or Actor(cast_id=r, action="idle", start_pos=h.start_pos, facing="right", expression="neutral")
+        if r == subject:
+            a.expression = h.expression
+            act = action or "talk"
+            if act in RIDE_ACTIONS:
+                a.action = act
+            if h.action not in MOVE_SPEED:
+                h.action, h.expression, h.prop = "idle", "neutral", None
+        if a.action not in RIDE_ACTIONS:
+            a.action = "idle"
+        a.start_pos, a.end_pos, a.target, a.prop, a.mount = h.start_pos, None, None, None, m
+        a.facing = "left" if h.facing == "left" else "right"
+        by[r], pos[r] = a, pos[m]
+    return [by[a.cast_id] for a in actors] + [by[r] for r in rides if r not in {a.cast_id for a in actors}]
 
 
 def dog_variant(seed: int, dog_id: str) -> str:
@@ -687,16 +727,19 @@ def _car_move(mode, park, actors, subject, seconds, seed) -> Vehicle:
 
 
 def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, props=BUILTIN_PROPS,
-         outdoor=OUTDOOR_SETS, bodies=BUILTIN_CREATURES, actions=(), weather_of=None, wardrobe=None) -> StoryModel:
+         outdoor=OUTDOOR_SETS, bodies=BUILTIN_CREATURES, actions=(), weather_of=None, wardrobe=None,
+         widths=None) -> StoryModel:
     """bodies: creature id -> (rig, has a stump), io.creature_bodies (built-ins + library/creatures.json).
     actions: the library's custom actions (io.custom_actions), which @do may ask for. weather_of: custom set id ->
-    its default_weather (io.set_weather)"""
+    its default_weather (io.set_weather). widths: creature id -> half width in world units (io.creature_halves; none:
+    every body spaces like a stickman)"""
     if not series.cast:
         raise StageError("series.json has no cast: add some with cast-add")
     ids = [c.id for c in series.cast]
     handless = {c.id: f"a {bodies[c.body][0]}" for c in series.cast
                 if c.body in bodies and bodies[c.body][0] not in HAND_RIGS}
     by_id = {c.id: c for c in series.cast}
+    halves = {c.id: max(HUMAN_HALF, (widths or {}).get(c.body, 0.0)) for c in series.cast}
     words, tags = tag_words(md, ids, ids[:DEFAULT_CAST_SIZE], props, {c.id: list(c.looks) for c in series.cast}, actions,
                             weather_of, wardrobe, creature_wardrobe(series.cast, bodies), handless)
     heard = [w.text for w in phrases.words]
@@ -746,6 +789,7 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
     car_mode, car_left, park = "off", False, None  # park: (x, facing) where an arrived car stands
     prev_cast, travel_run = (), None  # travel_run: first shot id of the current run of travel shots on one set
     pos: dict[str, float] = {}  # where each actor stands now; reset on a set change
+    prev_rides: dict[str, str] = {}  # @ride pairs on stage in the last shot's phrase
     fallen: set = set()  # (@do line, cast id) that already collapsed
     for i, p in enumerate(phrases.phrases):
         t = tags[p.word_start]
@@ -762,16 +806,25 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
                 park = None
         if mode == "ride" and len(cast) > CAR_SEATS:
             raise StageError(f"@car ride: {len(cast)} riders in @cast, the car seats {CAR_SEATS}")
-        home, placed = spread(cast), []
+        # @ride: a rider whose mount is on stage with it is part of the mount's spot (one wider actor); in the car
+        # (@car ride) everyone is seated instead
+        rides = {r: m for r, m in t.rides.items() if r in cast and m in cast} if mode != "ride" else {}
+        spacers = tuple(c for c in cast if c not in rides)
+        home, placed = spread(spacers), []
         # actors on stage last shot stay put; newcomers (start, set change, @cast change) and returners take the
-        # free spot nearest their even-spread one, MIN_GAP from everyone already placed
+        # free spot nearest their even-spread one, clear of everyone already placed (_free: by body width)
         try:
-            for cid in sorted(cast, key=lambda c: c not in prev_cast or c not in pos):
-                if cid not in pos or cid not in prev_cast or not _free(pos[cid], placed):
-                    pos[cid] = place(home[cid], placed)
-                placed.append(pos[cid])
+            # a rider who just got off steps down last, beside its mount (the mount keeps its spot)
+            off = {r for r, m in prev_rides.items() if r not in rides and r in pos}
+            for cid in sorted(spacers, key=lambda c: (c in off, c not in prev_cast or c not in pos)):
+                if cid in off or cid not in pos or cid not in prev_cast or not _free(pos[cid], placed, halves[cid]):
+                    pos[cid] = place(pos[cid] if cid in off else home[cid], placed, halves[cid])
+                placed.append((pos[cid], halves[cid]))
         except StageError:  # where earlier moves left people splits the free room into gaps too small for a
             pos.update(home)  # newcomer: everyone takes their even-spread spot (fits up to MAX_ON_STAGE)
+        for r, m in rides.items():
+            pos[r] = pos[m]
+        prev_rides = rides
         if back and not back_pos:
             back_pos = back_spots(back, [pos[c] for c in cast])
         prev_cast = cast
@@ -828,7 +881,9 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
                                     end_pos=(0.0, 0.0) if travel else None, facing=facing, riders=list(cast),
                                     variant=car_variant(seed, "car1"))]
             else:
-                actors = _actors(cast, pos, subject, pw, seconds, tdir, zs, mood)
+                # a mounted subject: the mount does the moving, the rider the talking / gesturing (_seat_riders)
+                actors = _actors(spacers, pos, rides.get(subject, subject), pw, seconds, tdir, zs, mood, halves)
+                actors = _seat_riders(actors, rides, pos, subject, action)
                 if car_here:
                     v = _car_move(car_mode, park, actors, subject, seconds, seed)
                     vehicles = [v]
@@ -840,7 +895,9 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
                     elif v.action == "leave":
                         car_left, park = True, None
                 if do:
-                    actors = _apply_do(do[1], do[0], cast, pos, actors, vehicles, seconds, fallen, handless, actions)
+                    actors = _apply_do(do[1], do[0], spacers, pos, actors, vehicles, seconds, fallen, handless, actions,
+                                       halves)
+                    actors = _seat_riders(actors, rides, pos)
                     if any(ac.action == "give" for ac in actors):  # a hand-over needs both people in frame: wide
                         angle = "wide" if prev_angle != "wide" else "medium"  # fits everyone; medium: the pair (engine)
                     for v in vehicles:
@@ -936,7 +993,7 @@ def run(part_dir: Path) -> None:
         raise StageError(f"cast body: {'; '.join(problems)}")
     story = plan(story_md.read_text(encoding="utf-8"), phrases, series, int(part_dir.name.split("-")[1]),
                  prop_kinds(library), outdoor_sets(library), creature_bodies(library), custom_actions(library),
-                 set_weather(library), wardrobe_slots(library))
+                 set_weather(library), wardrobe_slots(library), creature_halves(library))
     if unknown := sorted({s.set for s in story.shots} - set(set_kinds(library))):  # the engine would throw mid-render
         raise StageError(f"unknown set: {', '.join(unknown)} (built in: {', '.join(BUILTIN_SETS)}, or add it on the "
                          f"dashboard's Sets page)")

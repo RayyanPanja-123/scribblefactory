@@ -46,6 +46,8 @@ class Actor(Strict):
                                                                             "none: the look's own")
     faces: list[FaceChange] = Field(default=[], description="face changes inside the shot, in frame order: expression "
                                                             "until the first, then each from its frame")
+    mount: str | None = Field(default=None, description="@ride: the actor (a creature in this shot) this one rides; it "
+                                                        "is drawn in the saddle and goes where its mount goes")
 
 
 class Travel(Strict):

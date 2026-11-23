@@ -116,6 +116,7 @@ const quad = (a, c, b, n = 10) => Array.from({ length: n + 1 }, (_, i) => {
 // built-in knee bends (degrees): the swinging leg of a gait folds (the standing one stays straight, so the hips
 // don't bob), knees give in a buckle (stagger dip, collapse), a cheer crouches between hops, a fright flinches
 const GAIT_KNEE = { walk: 40, run: 85, stagger: 30, carry: 30, support: 30, supported: 25 };
+const STRADDLE = { thigh: 45, knee: 50 }; // riding: degrees the thigh reaches forward, the knee folds the shin back
 const BUCKLE_KNEE = 45, CHEER_CROUCH = 30, FLINCH = { react: 14, gasp: 8 }, PEDAL_KNEE = [30, 35];
 function builtinKnees(o, act, s, buckle) {
   const c = Math.cos(TAU * (o.phase || 0)), k = [0, 0];
@@ -146,13 +147,15 @@ export function skeleton(o) {
   const swing = run ? 34 : act === "carried" ? 30 : LOOSE.has(act) ? 18 : 24;
   const A = moving ? deg(swing) * s : deg(IDLE_LEG), B = deg(BUCKLE) * Math.min(1, (o.buckle || 0) + st.buckle);
   const C = o.custom; // a custom action's pose (actions.js customPose): degrees, + toward +x
-  const legA = C ? C.legs.map(deg) : [-A - B, A + B];
+  // straddle (riding a creature, creatures.js): thighs forward, shins hang back down; one leg (the far one is hidden)
+  const legA = o.straddle ? [deg(STRADDLE.thigh), deg(STRADDLE.thigh)] : C ? C.legs.map(deg) : [-A - B, A + B];
   if (C) lean = deg(C.lean);
   lean += deg(o.shift || 0); // idle weight shift (main.js, style.js idle): a slow sway about the feet
   // knees: thigh and shin are half a leg each. Side on, the shin folds back (toward -x) by the knee bend; facing the
   // camera the knees bend outward (the thighs splay by half the bend, the shins fold back in: a front-view squat).
   // The leg that reaches lowest stands on FEET_Y (a straight leg: LEG * cos, as before).
-  const kneeA = C ? (C.knees ?? [0, 0]).map(deg) : builtinKnees(o, act, s, B / deg(BUCKLE)), bent = kneeA.some((v) => v);
+  const kneeA = o.straddle ? [deg(STRADDLE.knee), deg(STRADDLE.knee)] : C ? (C.knees ?? [0, 0]).map(deg)
+    : builtinKnees(o, act, s, B / deg(BUCKLE)), bent = kneeA.some((v) => v);
   const fold = o.facing === "camera" ? [1, -1] : [-1, -1]; // which way each shin turns from its thigh
   if (o.facing === "camera") for (const i of [0, 1]) legA[i] -= (fold[i] * kneeA[i]) / 2;
   const shinA = (i) => legA[i] + fold[i] * kneeA[i];
@@ -164,6 +167,7 @@ export function skeleton(o) {
   const hinge = C ? Math.min(1, Math.max(...kneeA) / deg(30)) : 0;
   const legs = [[-18, 0], [18, 1]].map(([dx, i]) => [[CW / 2 + dx, hipY],
     at(at([CW / 2 + dx, hipBase], legA[i], LEG / 2), shinA(i), LEG / 2)]);
+  if (o.straddle) { legs[0] = legs[1]; knees[0] = knees[1]; } // the far leg is behind the mount: both draw as the near one
   // body: breathing scales its height from the hips up
   const ry = S.ry * (1 + BREATH * (o.breath || 0)), cy = hipY + HIP_OVERLAP - ry, top = cy - ry;
 

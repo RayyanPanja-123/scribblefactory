@@ -46,6 +46,12 @@ describe('storyPaint', () => {
       expect(KINDS.hold.build(KINDS.hold.parse(arg)!)).toBe(arg)
   })
 
+  it('@ride: rider and mount (or none) round-trip', () => {
+    for (const arg of ['charro: charro-horse', 'charro: none'])
+      expect(KINDS.ride.build(KINDS.ride.parse(arg)!)).toBe(arg)
+    expect(KINDS.ride.parse('charro: big horse')).toBeNull()
+  })
+
   it('puts a new row in reading order', () => {
     const ctx: Ctx = { sets: ['street'], actions: ['talk'], props: [], sounds: [], cast: [{ id: 'ava', name: 'Ava', looks: [] }] }
     const b = { rows: [{ name: 'do', arg: 'ava: talk' }], text: 'Hi.', twist: false }

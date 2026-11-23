@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import get_args
 
 from .schemas import (ACTIONS, BUILTIN_CREATURES, BUILTIN_SETS, BUILTIN_WARDROBE, ActionLibrary, BuiltinProp,
-                      CreatureLibrary, CustomAction, CustomCreature, CustomProp, CustomSet, PartModel, PropLibrary,
+                      JOINT_OF, CreatureLibrary, CustomAction, CustomCreature, CustomProp, CustomSet, PartModel, PropLibrary,
                       SeriesModel, SetLibrary, WardrobeItem, WardrobeLibrary, WorldObject, WorldObjectLibrary, worn)
 
 # User-owned files a save must never write to.
@@ -182,6 +182,32 @@ def load_creatures(library) -> CreatureLibrary:
 def creature_bodies(library) -> dict[str, tuple[str, bool]]:
     """every creature a cast member can be: id -> (rig, has a stump); built-ins first, then library/creatures.json"""
     return {**BUILTIN_CREATURES, **{c.id: (c.rig, bool(c.parts.get("stump"))) for c in load_creatures(library).creatures}}
+
+
+PX_WORLD = 1.6 / 1024  # world units per card canvas px (engine main.js CARD_H / CH)
+# engine/page/creatures.js measure(def).half * PX_WORLD for the built-in creatures: half their width in world units
+BUILTIN_CREATURE_HALF = {"chicken": 0.325, "cat": 0.339, "horse": 0.723, "monkey": 0.25, "snake": 0.602}
+
+
+def creature_halves(library) -> dict[str, float]:
+    """creature id -> half its width in world units (its widest reach from the centre line, any part), for stage
+    spacing; humanoids are left out (the stickman's width)"""
+    out = dict(BUILTIN_CREATURE_HALF)
+    for c in load_creatures(library).creatures:
+        if c.rig == "humanoid":
+            continue
+        reach = 0.0
+        for part, shapes in c.parts.items():
+            jx = 0.0 if part == "body" else c.joints.get(JOINT_OF[part], (0.0, 0.0))[0]
+            for s in shapes:
+                if s.shape in ("circle", "ellipse"):
+                    m = max(s.r or 0, s.ry or 0)
+                    xs = [s.pts[0][0] - m, s.pts[0][0] + m]
+                else:
+                    xs = [q[0] for q in s.pts]
+                reach = max(reach, *(abs(x + jx) for x in xs))
+        out[c.id] = round(reach * PX_WORLD, 3)
+    return out
 
 
 def cast_body_problems(cast, library, extra_wardrobe=()) -> list[str]:

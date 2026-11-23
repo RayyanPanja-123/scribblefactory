@@ -176,7 +176,7 @@ def _check_travel(s, seconds, err, outdoor=OUTDOOR_SETS) -> None:
                 err(s.id, "travel_actors", f"{a.cast_id} {a.action}: nobody walks or runs in a car travel shot")
         return
     for a in s.actors:
-        if a.action not in MOVING and a.action not in GROUPS:
+        if a.action not in MOVING and a.action not in GROUPS and not a.mount:  # a rider goes with its mount
             err(s.id, "travel_actors", f"{a.cast_id} {a.action}: every actor in a travel shot must walk, run, stagger "
                                        f"or be carried / supported along")
     facings = {a.facing for a in s.actors}
@@ -202,6 +202,10 @@ def _check_partners(s, err) -> None:
     """targets and props: give <-> receive pairs, carry / support groups around a carried / supported actor"""
     on = {a.cast_id: a for a in s.actors}
     for a in s.actors:
+        if a.mount and (a.mount == a.cast_id or a.mount not in on or on[a.mount].mount
+                        or sum(b.mount == a.mount for b in s.actors) > 1):
+            err(s.id, "mount", f"{a.cast_id} rides {a.mount}: it must be another actor in the shot, not riding "
+                               "itself, with no other rider")
         want = PARTNER.get(a.action)
         if want:
             t = on.get(a.target)

@@ -14,7 +14,7 @@
 import { Pen } from "./borrowed.js";
 import { lookup } from "./library.js";
 import { rng } from "./rng.js";
-import { CH, FEET_Y, drawProp, jitter, paintVolume, wobble } from "./stickman.js";
+import { CH, CW, FEET_Y, drawProp, drawStickman, jitter, paintVolume, skeleton, wobble } from "./stickman.js";
 import { INK, STYLE } from "./style.js";
 import { layerFill, layerPoints, wearing } from "./wardrobe.js";
 
@@ -33,6 +33,10 @@ const MOVING = new Set(["walk", "run", "stagger", "carry", "support", "supported
 const SEAT_LINE = 338;   // seated in a car: the body's lowest point is lifted to this height (clears the side panel)
 const FAR = { dx: -14, shade: "brightness(0.8)" }; // far limbs: a little behind and darker
 const FACE = { eye: 10, mouth: 18 };
+/** a rider (@ride): its hip sits this far (px) below the mount's back anchor (into the saddle / onto the back); room:
+ *  px of headroom a ridden card adds above the plain creature card (main.js) */
+export const RIDE = { sink: 14, room: 420 };
+let riderCv = null; // scratch canvas for the rider's stickman
 
 // ---- built-in creatures (same format as library/creatures.json; keep ids equal to pipeline BUILTIN_CREATURES) ----
 const L = (pts, fill, width) => ({ shape: "line", pts, fill, width });
@@ -312,12 +316,15 @@ const along = (q, n, u0 = 0.15, u1 = 1) => Array.from({ length: n }, (_, i) => {
 /** o: drawStickman options (top.color = $main, top.accent_color = $accent, else the creature's accent), plus
  *  headless. Uses action, phase, t, boil, breath, mouth, lid, facing, seated, buckle, stagger, mood, wave, pointK,
  *  eat, reach, props (biped hands), flame (low | high, else none), flame_color and the CREATURE_SLOTS wardrobe
- *  (headwear, face, accessory, back: custom items on creatureAnchors); ignores the rest of the costume. */
+ *  (headwear, face, accessory, back: custom items on creatureAnchors); ignores the rest of the costume. rider:
+ *  drawStickman options of a cast member riding it (@ride), room: px of headroom on top for the rider (the canvas
+ *  is CRW x CH + room). */
 export function drawCreature(canvas, def, o) {
   const g = canvas.getContext("2d");
   g.setTransform(1, 0, 0, 1, 0, 0);
-  g.clearRect(0, 0, CRW, CH);
+  g.clearRect(0, 0, CRW, CH + (o.room || 0));
   if (o.facing === "left") g.setTransform(-1, 0, 0, 1, CRW, 0);
+  if (o.room) g.translate(0, o.room); // a ridden card: headroom on top, the ground stays FEET_Y below it
   const m = measure(def), k = creaturePose(def.rig, o, m.leg), parts = def.parts, J = def.joints;
   if (o.seated) g.translate(0, Math.min(0, -SEAT_LINE - m.bottom));
   const p = new Pen(g, INK), boil = rng(o.seed, "boil", o.boil), cos = rng(o.seed, "costume", o.boil);
@@ -381,6 +388,15 @@ export function drawCreature(canvas, def, o) {
   if (parts.arm) drawArm(0, 0);
   if (!o.headless && def.face) face(parts.head ? at("head", k.head) : body);
   if (W.length) wear(false);
+  // rider (@ride; o.rider: drawStickman options): straddling the back, over the body and saddle, moving with the
+  // gait. Drawn facing right on its own card (this card mirrors for "left"), hip on the back anchor.
+  if (o.rider) {
+    const seat = body(creatureAnchors(def).back[0][1].map((v, i) => v + (i ? RIDE.sink : 0)));
+    const opts = { ...o.rider, facing: "right", mirrored: o.facing === "left", straddle: true };
+    riderCv = riderCv || Object.assign(canvas.ownerDocument.createElement("canvas"), { width: CW, height: CH });
+    drawStickman(riderCv, opts);
+    g.drawImage(riderCv, seat[0] - CW / 2, seat[1] - skeleton(opts).hipY);
+  }
 
   function drawArm(i, dx) {
     const T = at("arm", k.arms[i], dx);

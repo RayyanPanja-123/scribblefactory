@@ -22,13 +22,14 @@ from .io import (CREATURE_HINT, cast_body_problems, creature_bodies, creature_wa
 from .schemas import HAND_RIGS
 from .stages.finish import MAX_RUNTIME_S, MIN_RUNTIME_S
 from .stages.prep import (DO_CAR, FX_LIGHTNING, FX_MODES, MAX_LIGHTNING, TWIST_PREFIX, clean_markdown, parse_do,
-                          parse_face, parse_hold, parse_lightning, parse_look, parse_weather, strip_directives)
+                          parse_face, parse_hold, parse_lightning, parse_look, parse_ride, parse_weather, ride,
+                          strip_directives, RIDE_ACTIONS)
 from .stages.runner import StageError
 from .stages.shots import (ACTION_FACE, CAR_MODES, CAR_SEATS, DEFAULT_CAST_SIZE, EXPRESSIONS, MAX_CAST, MAX_DOGS, MAX_ON_STAGE,
                            MAX_RUNNERS, parse_crowd, parse_crowd_look, parse_crowd_weapon, token)
 from .validate import END_SCREEN_S, TAIL_S
 
-DIRECTIVES = ("set", "cast", "dogs", "car", "fx", "do", "look", "hold", "crowd", "crowd-look", "crowd-weapon", "runners", "weather", "sfx", "face", "background-music")
+DIRECTIVES = ("set", "cast", "dogs", "car", "fx", "do", "look", "hold", "ride", "crowd", "crowd-look", "crowd-weapon", "runners", "weather", "sfx", "face", "background-music")
 LINE_PREFIX = re.compile(r"^story\.md line [0-9]+: ")
 FALLBACK_WPS = 2.6  # words per second before any part has been finished
 # a first line that opens on a date or backstory instead of the hook
@@ -166,6 +167,7 @@ def check_story(part_dir: Path) -> dict:
     sounds = sfx_lib.by_id(library)
     cast, car, pending_do, pending_strike, strikes = tuple(ids[:DEFAULT_CAST_SIZE]), "off", None, None, 0
     pending_sfx, n_sfx, pending_face = [], 0, None
+    rides, ride_warned = {}, set()  # @ride: rider -> mount (kept across @set); warnings already given (no repeats)
     first_seen: dict[str, int] = {}  # cast id -> first line it is on stage
     for no, line in enumerate(md.replace("\r\n", "\n").split("\n"), 1):
         s = line.strip()
@@ -238,6 +240,8 @@ def check_story(part_dir: Path) -> dict:
                     parse_look(arg, no, {c.id: list(c.looks) for c in series.cast}, creatures)
                 elif name == "hold":
                     parse_hold(arg, no, ids, props, handless)
+                elif name == "ride":
+                    rides = ride(rides, *parse_ride(arg, no, ids, creatures), no)
                 elif name == "do":
                     clauses = parse_do(arg, no, ids, props, actions)
                     if pending_do:
@@ -252,7 +256,22 @@ def check_story(part_dir: Path) -> dict:
             first_seen.setdefault(cid, no)
         if car == "ride" and len(cast) > CAR_SEATS:
             bad(no, f"@car ride: {len(cast)} riders in @cast ({', '.join(cast)}), the car seats {CAR_SEATS}")
+        for r, m in rides.items():  # each warning once per rider and kind
+            if r in cast and car == "ride" and (r, "car") not in ride_warned:
+                ride_warned.add((r, "car"))
+                warnings.append({"line": no, "message": f"{r} rides {m} but @car ride seats everyone in the car: "
+                                                        f"{r} sits in the car, not on {m} (\"@ride {r}: none\" first)"})
+            elif r in cast and m not in cast and (r, "off") not in ride_warned:
+                ride_warned.add((r, "off"))
+                warnings.append({"line": no, "message": f"{r} rides {m}, which is not on stage here (@cast "
+                                                        f"{', '.join(cast)}): {r} stands on foot"})
         if pending_do:
+            for c in pending_do[1]:
+                for w in c.who:
+                    if rides.get(w) in cast and w in cast and c.action not in RIDE_ACTIONS:
+                        warnings.append({"line": pending_do[0], "message": f"@do {w}: {c.action}, but {w} rides "
+                                         f"{rides[w]}: in the saddle only {', '.join(RIDE_ACTIONS)} (it stays idle; "
+                                         f"move the mount instead, or \"@ride {w}: none\" first)"})
             _check_do(*pending_do, cast, car, bad)
             pending_do = None
         pending_sfx, pending_face = [], None
@@ -311,7 +330,7 @@ def check_story(part_dir: Path) -> dict:
             "words": len(words), "seconds": seconds, "wps": round(wps, 2)}
 
 
-STAGING = ("do", "look", "hold", "face", "fx", "crowd", "dogs", "runners", "car", "weather", "sfx")
+STAGING = ("do", "look", "hold", "ride", "face", "fx", "crowd", "dogs", "runners", "car", "weather", "sfx")
 MIN_STAGING = 10  # directives besides @set and @cast (docs/ai/script.md, Directives)
 
 
