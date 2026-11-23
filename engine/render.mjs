@@ -19,6 +19,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import readline from "node:readline";
 import { parseArgs } from "node:util";
@@ -58,12 +59,23 @@ const readJson = (f) => {
   if (!fs.existsSync(f)) throw new Error(`${f} not found`);
   return JSON.parse(fs.readFileSync(f, "utf8"));
 };
-/** every custom item of the library (library/<kind>.json, none yet: []), handed to the page once (library.js) */
-const loadLibrary = (library) => Object.fromEntries(["props", "sets", "objects", "creatures", "actions", "wardrobe"].map((k) => {
-  const f = path.join(library, `${k}.json`);
-  if (!fs.existsSync(f) && k === "wardrobe") return [k, readJson(WARDROBE_SEED)[k]]; // the starter wardrobe (io.py)
-  return [k, fs.existsSync(f) ? readJson(f)[k] : []];
-}));
+/** every custom item of the library (the database's catalog_item rows, pipeline/scribble/db.py; none yet: []), handed
+ * to the page once (library.js). A library without a database (engine tests) still reads library/<kind>.json. */
+const loadLibrary = (library) => {
+  const dbFile = path.join(library, "database", "scribble.db");
+  const db = fs.existsSync(dbFile) ? new DatabaseSync(dbFile, { readOnly: true }) : null;
+  const rows = db?.prepare("SELECT data FROM catalog_item WHERE kind = ? ORDER BY id");
+  try {
+    return Object.fromEntries(["props", "sets", "objects", "creatures", "actions", "wardrobe"].map((k) => {
+      const f = path.join(library, `${k}.json`);
+      const items = rows ? rows.all(k).map((r) => JSON.parse(r.data)) : fs.existsSync(f) ? readJson(f)[k] : [];
+      if (!items.length && k === "wardrobe") return [k, readJson(WARDROBE_SEED)[k]]; // the starter wardrobe (io.py)
+      return [k, items];
+    }));
+  } finally {
+    db?.close();
+  }
+};
 
 function writeFileAtomic(file, data) {
   fs.mkdirSync(path.dirname(file), { recursive: true });

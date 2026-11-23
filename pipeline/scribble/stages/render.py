@@ -25,7 +25,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from .. import settings
-from ..io import LIBRARY_FILES, WARDROBE_SEED, atomic_write_bytes, atomic_write_json, load_part
+from ..io import LIBRARY_FILES, WARDROBE_SEED, atomic_write_bytes, atomic_write_json, catalog_bytes, load_part
 from ..schemas import SeriesModel, StoryModel
 from .runner import StageError
 from .validate import load_model
@@ -78,20 +78,21 @@ def chunk_ranges(total: int, size: int = CHUNK) -> list[tuple[int, int]]:
 
 
 def frames_hash(part_dir: Path) -> str:
-    """sha256 over story.json, phrases.json, series.json, every library file (props, sets, creatures, actions) and the
-    engine page code: anything that changes pixels."""
+    """sha256 over story.json, phrases.json, series.json, every library catalog (as its old file's bytes,
+    io.catalog_bytes) and the engine page code: anything that changes pixels."""
     h = hashlib.sha256()
+    lib = part_dir.parent.parent
     for f in [part_dir / "story.json", part_dir / "phrases.json", part_dir.parent / "series.json",
-              *(part_dir.parent.parent / f for f in LIBRARY_FILES), *PAGE_FILES]:
-        h.update(f.name.encode() + b"\0" + (pixel_bytes(f) if f.exists() else b"<missing>") + b"\0")
+              *(lib / f for f in LIBRARY_FILES), *PAGE_FILES]:
+        data = catalog_bytes(lib, f.name) if f.parent == lib else f.read_bytes() if f.exists() else None
+        h.update(f.name.encode() + b"\0" + (pixel_bytes(f.name, data) if data is not None else b"<missing>") + b"\0")
     return h.hexdigest()
 
 
-def pixel_bytes(f: Path) -> bytes:
-    """the file's bytes as far as pixels go: a library file's "use_for" notes (for the story AI) are left out, so
-    editing a note never re-renders. A file without notes hashes as its raw bytes, so older chunks stay valid."""
-    data = f.read_bytes()
-    if f.name not in LIBRARY_FILES or b'"use_for"' not in data:
+def pixel_bytes(name: str, data: bytes) -> bytes:
+    """a file's bytes as far as pixels go: a library catalog's "use_for" notes (for the story AI) are left out, so
+    editing a note never re-renders. A catalog without notes hashes as its raw bytes, so older chunks stay valid."""
+    if name not in LIBRARY_FILES or b'"use_for"' not in data:
         return data
     strip = lambda v: ({k: strip(x) for k, x in v.items() if k != "use_for"} if isinstance(v, dict)  # noqa: E731
                        else [strip(x) for x in v] if isinstance(v, list) else v)

@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from pipeline.scribble import package
+from pipeline.scribble import db, package
 from pipeline.scribble.io import (WARDROBE_SEED, cast_wardrobe_problems, delete_wardrobe_item, load_series, load_wardrobe,
                                   save_series, save_wardrobe_item, wardrobe_slots)
 from pipeline.scribble.schemas import (BUILTIN_WARDROBE, DRAW_ORDER, WARDROBE_SLOTS, CastMember, SeriesModel, WardrobeItem,
@@ -121,8 +121,8 @@ def series_with(tmp_path, cast):
 def test_save_clears_wearers_approval_and_delete_is_blocked_while_worn(tmp_path):
     item = WardrobeItem.model_validate(ITEM)
     assert save_wardrobe_item(tmp_path, item) == []
-    ids = [w.id for w in load_wardrobe(tmp_path).wardrobe]  # the first save writes the seed into the library's own file
-    assert ids[-1] == "plume_helm" and "crown" in ids and (tmp_path / "wardrobe.json").exists()
+    ids = [w.id for w in load_wardrobe(tmp_path).wardrobe]  # the first save writes the seed into the library's catalog
+    assert ids[-1] == "plume_helm" and "crown" in ids and [w["id"] for w in db.get_catalog(tmp_path, "wardrobe")] == ids
     f = series_with(tmp_path, [{"id": "nero", "name": "Nero", "eyes": "dots", "top": {"color": "#f3efe2"},
                                 "looks": {"war": {"headwear": "plume_helm"}}, "approved_at": T}])
     assert save_wardrobe_item(tmp_path, item) == []  # unchanged: approvals stay

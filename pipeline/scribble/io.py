@@ -1,4 +1,4 @@
-"""Load/save series.json, part.json, library/props.json and library/sets.json. Writes are atomic; saves never drop an existing approval."""
+"""Load/save series.json, part.json and the shared catalogs (database: db.py). Writes are atomic; saves never drop an existing approval."""
 
 import hashlib
 import json
@@ -10,15 +10,18 @@ from pathlib import Path
 
 from typing import get_args
 
+from . import db
 from .schemas import (ACTIONS, BUILTIN_CREATURES, BUILTIN_SETS, BUILTIN_WARDROBE, ActionLibrary, BuiltinProp,
                       JOINT_OF, CreatureLibrary, CustomAction, CustomCreature, CustomProp, CustomSet, PartModel, PropLibrary,
                       SeriesModel, SetLibrary, WardrobeItem, WardrobeLibrary, WorldObject, WorldObjectLibrary, worn)
 
 # User-owned files a save must never write to.
 PROTECTED = {"story.md", "voice.mp3"}
-# The library's custom items, one file per kind (engine/page/library.js KINDS): every stage that reads one, and the
-# render hash, depends on all of them, so a new kind of custom item is one entry here.
+# The library's custom items, one catalog per kind (db.CATALOG_KINDS, engine/page/library.js KINDS), still named by
+# their old file: every stage that reads one, and the render hash, depends on all of them (catalog_bytes).
 LIBRARY_FILES = ["props.json", "sets.json", "objects.json", "creatures.json", "actions.json", "wardrobe.json"]
+LIBRARY_MODELS = {"props": PropLibrary, "sets": SetLibrary, "objects": WorldObjectLibrary, "creatures": CreatureLibrary,
+                  "actions": ActionLibrary, "wardrobe": WardrobeLibrary}
 REPLACE_RETRIES = 5
 
 
@@ -84,26 +87,44 @@ def cast_render_current(series_dir, c) -> bool:
     return f["sheet"].is_file() and f["key"].is_file() and f["key"].read_text().strip() == cast_key(c)
 
 
-# ---- the six shared catalogs (props, creatures, wardrobe, actions, sets, objects): one library/<kind>.json each ----
+# ---- the six shared catalogs (props, creatures, wardrobe, actions, sets, objects): catalog_item rows (db.py) ----
 
 def _load_library(library, file: str, model, seed: Path | None = None):
-    """library/<file>; none yet: the seed when there is one, else an empty catalog"""
-    f = Path(library) / file
-    src = f if f.exists() else seed
-    return model.model_validate_json(src.read_bytes()) if src else model()
+    """the catalog <file> names (props.json: props); no items: the seed when there is one, else an empty catalog"""
+    # ponytail: no items reads as "never written", so deleting every wardrobe item brings the starter set back
+    kind = file.removesuffix(".json")
+    items = db.get_catalog(library, kind)
+    if not items and seed:
+        return model.model_validate_json(seed.read_bytes())
+    return model.model_validate({kind: items})
+
+
+def _write_library(library, lib, field: str) -> None:
+    db.put_catalogs(library, {field: [x.model_dump(mode="json") for x in getattr(lib, field)]})
+
+
+def catalog_bytes(library, file: str) -> bytes | None:
+    """the catalog as its old library/<file> held it, byte for byte (None: no items, as a missing file was), so the
+    stage and frame hashes over it stay what they were before the database"""
+    kind = file.removesuffix(".json")
+    items = db.get_catalog(library, kind)
+    if not items:
+        return None
+    version = LIBRARY_MODELS[kind].model_fields["schema_version"].default  # the rows are model dumps already
+    return (json.dumps({"schema_version": version, kind: items}, indent=2, ensure_ascii=False) + "\n").encode()
 
 
 def _put(library, file: str, lib, field: str, item):
-    """add or replace item (same id) in lib.<field> and write library/<file>; returns the item it replaced, or None"""
+    """add or replace item (same id) in lib.<field> and save the catalog; returns the item it replaced, or None"""
     items = getattr(lib, field)
     old = next((x for x in items if x.id == item.id), None)
     setattr(lib, field, [item if x.id == item.id else x for x in items] if old is not None else [*items, item])
-    atomic_write_json(Path(library) / file, lib.model_dump(mode="json"))
+    _write_library(library, lib, field)
     return old
 
 
 def _remove(library, file: str, lib, field: str, item_id: str, *blockers) -> None:
-    """remove item_id from lib.<field> and write library/<file>. KeyError: it is not there. blockers: (verb, users)
+    """remove item_id from lib.<field> and save the catalog. KeyError: it is not there. blockers: (verb, users)
     pairs, users() a list of names, tried in order: the first with any refuses (ValueError "<id> is still <verb> ...")"""
     items = getattr(lib, field)
     if not any(x.id == item_id for x in items):
@@ -112,7 +133,7 @@ def _remove(library, file: str, lib, field: str, item_id: str, *blockers) -> Non
         if found := users():
             raise ValueError(f"{item_id} is still {verb} " + ", ".join(found))
     setattr(lib, field, [x for x in items if x.id != item_id])
-    atomic_write_json(Path(library) / file, lib.model_dump(mode="json"))
+    _write_library(library, lib, field)
 
 
 def _cast_with(library, wants) -> list[tuple[Path, str]]:

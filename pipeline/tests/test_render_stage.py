@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from pipeline.scribble.cli import main
+from pipeline.scribble import db
 from pipeline.scribble.io import load_part
 from pipeline.scribble.stages import render
 from pipeline.scribble.stages.runner import StageError
@@ -124,11 +125,11 @@ def test_full_render_writes_chunks_frames_and_preview(part, capsys):
     assert (c1["first"], c1["last"], c1["count"], c1["renderer"]) == (150, 179, 30, GPU)
     assert c1["inputs_hash"] == render.frames_hash(part)
     before = render.frames_hash(part)
-    for f in ("sets.json", "actions.json"):  # every library file changes pixels: editing one re-renders
-        (part.parent.parent / f).write_text("{}", encoding="utf-8")
+    for kind in ("sets", "actions"):  # every library catalog changes pixels: editing one re-renders
+        db.put_catalogs(part.parent.parent, {kind: [{"id": "x"}]})
         assert render.frames_hash(part) != before
         before = render.frames_hash(part)
-        (part.parent.parent / f).unlink()
+        db.put_catalogs(part.parent.parent, {kind: []})
     assert (part / "preview.mp4").read_bytes() == b"mp4"
     out = capsys.readouterr().out
     assert "chunk 1/2 done" in out and "chunk 2/2 done" in out and "fps overall" in out
@@ -432,14 +433,9 @@ def test_workers_default_from_settings_and_flag_wins(part, capsys):
 def test_use_for_notes_never_change_the_frames_hash(tmp_path):
     import json as _json
     from pipeline.scribble.stages.render import pixel_bytes
-    f = tmp_path / "props.json"
     raw = _json.dumps({"props": [{"id": "staff", "name": "Staff", "shapes": []}]}).encode()
-    f.write_bytes(raw)
-    assert pixel_bytes(f) == raw  # no notes: the raw bytes, so frames rendered before notes existed stay valid
-    noted = lambda note: _json.dumps({"props": [{"id": "staff", "name": "Staff", "use_for": note, "shapes": []}]})  # noqa: E731
-    f.write_text(noted("a wizard's staff"))
-    a = pixel_bytes(f)
-    f.write_text(noted("any magic moment"))
-    assert pixel_bytes(f) == a
-    f.write_text(noted("any magic moment").replace('"shapes": []', '"shapes": [1]'))
-    assert pixel_bytes(f) != a  # the drawing itself still counts
+    assert pixel_bytes("props.json", raw) == raw  # no notes: the raw bytes, so frames rendered before notes stay valid
+    noted = lambda note: _json.dumps({"props": [{"id": "staff", "name": "Staff", "use_for": note, "shapes": []}]}).encode()  # noqa: E731
+    a = pixel_bytes("props.json", noted("a wizard's staff"))
+    assert pixel_bytes("props.json", noted("any magic moment")) == a
+    assert pixel_bytes("props.json", noted("any magic moment").replace(b'"shapes": []', b'"shapes": [1]')) != a  # the drawing counts

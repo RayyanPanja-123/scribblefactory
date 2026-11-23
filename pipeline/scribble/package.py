@@ -14,6 +14,7 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
+from . import db
 from .io import (atomic_write_json, cast_wardrobe_problems, creature_bodies, load_actions, load_creatures,
                  load_props, load_sets, load_wardrobe, prop_kinds, save_part, save_series, set_kinds, wardrobe_slots)
 from .schemas import (ACTIONS, ActionLibrary, CastMember, CreatureLibrary, CustomAction, CustomCreature, CustomProp,
@@ -330,7 +331,7 @@ def stage(result: dict, library: Path, root: Path, approved: bool = False) -> No
 
 def import_package(text: str, library) -> dict:
     """parse, then write everything or nothing: the series folder is built aside and renamed in last; the library's
-    item files are put back as they were if anything fails. Raises PackageError when the package has errors."""
+    catalogs are put back as they were if anything fails. Raises PackageError when the package has errors."""
     library = Path(library)
     result = parse(text, library)
     if not result["ok"]:
@@ -338,19 +339,14 @@ def import_package(text: str, library) -> dict:
     library.mkdir(parents=True, exist_ok=True)
     tmp = library / f".import-{secrets.token_hex(4)}"
     tmp.mkdir()
-    files = [f"{field}.json" for _m, _load, field, _lib in ASSETS.values()]  # what stage() writes (no objects.json)
-    old = {f: (library / f).read_bytes() if (library / f).is_file() else None for f in files}
+    fields = [field for _m, _load, field, _lib in ASSETS.values()]  # the catalogs stage() writes (no objects)
+    old = {field: db.get_catalog(library, field) for field in fields}
     try:
         stage(result, library, tmp)
-        for f in files:
-            os.replace(tmp / f, library / f)
+        db.put_catalogs(library, {field: json.loads((tmp / f"{field}.json").read_bytes())[field] for field in fields})
         os.replace(tmp / result["series"]["slug"], library / result["series"]["slug"])
     except BaseException:
-        for f, data in old.items():
-            if data is None:
-                (library / f).unlink(missing_ok=True)
-            else:
-                (library / f).write_bytes(data)
+        db.put_catalogs(library, old)
         raise
     finally:
         shutil.rmtree(tmp, ignore_errors=True)

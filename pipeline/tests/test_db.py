@@ -26,3 +26,21 @@ def test_settings_put_drop_and_jobs_save(tmp_path):
     db.save_jobs(tmp_path, [job, {**job, "id": 2}])
     db.save_jobs(tmp_path, [{**job, "status": "done"}])  # the table becomes exactly the list
     assert [(j["id"], j["status"]) for j in db.load_jobs(tmp_path)] == [(1, "done")]
+
+
+def test_catalogs_import_keep_order_and_hash_as_the_old_file(tmp_path):
+    from pipeline.scribble import io
+    old = (json.dumps({"schema_version": 1, "props": [{"id": "b", "name": "B", "shapes": []},
+                                                     {"id": "a", "name": "A", "shapes": []}]}, indent=2) + "\n").encode()
+    (tmp_path / "props.json").write_bytes(old)
+    assert [x["id"] for x in db.get_catalog(tmp_path, "props")] == ["b", "a"]  # imported, list order kept
+    assert (tmp_path / "props.json.imported").exists() and io.catalog_bytes(tmp_path, "props.json") == old
+    assert io.catalog_bytes(tmp_path, "sets.json") is None  # no items: hashes as a missing file did
+    db.put_catalogs(tmp_path, {"props": [{"id": "a"}], "sets": [{"id": "s"}]})
+    assert [x["id"] for x in db.get_catalog(tmp_path, "props")] == ["a"] and db.get_catalog(tmp_path, "sets") == [{"id": "s"}]
+
+
+def test_reading_an_empty_library_creates_nothing(tmp_path):
+    lib = tmp_path / "nowhere"
+    assert db.get_settings(lib) == {} and db.load_jobs(lib) == [] and db.get_catalog(lib, "props") == []
+    assert not lib.exists()

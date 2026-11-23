@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from pipeline.scribble import package
+from pipeline.scribble import db, package
 from pipeline.scribble.cli import main as cli
 from pipeline.scribble.io import load_props, load_series, load_sets, save_prop
 from pipeline.scribble.schemas import CustomProp
@@ -140,13 +140,12 @@ def test_import_is_atomic(lib, monkeypatch):
             raise OSError("disk full")
         real(a, b)
     save_prop(lib, CustomProp.model_validate({**PROP, "id": "old"}))
-    before = (lib / "props.json").read_bytes()
+    before = db.get_catalog(lib, "props")
     monkeypatch.setattr(package.os, "replace", boom)
     with pytest.raises(OSError):
         package.import_package(pkg(), lib)
-    assert (lib / "props.json").read_bytes() == before
-    assert not (lib / "sets.json").exists()
-    assert sorted(p.name for p in lib.iterdir()) == ["props.json"]
+    assert db.get_catalog(lib, "props") == before and db.get_catalog(lib, "sets") == []  # catalogs put back
+    assert sorted(p.name for p in lib.iterdir()) == ["database"]
 
 
 def test_doc_example_is_valid(lib):

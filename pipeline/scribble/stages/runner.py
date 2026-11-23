@@ -6,7 +6,7 @@ import os
 import traceback
 from pathlib import Path
 
-from ..io import load_part, save_part
+from ..io import LIBRARY_FILES, catalog_bytes, load_part, save_part
 from ..schemas import utcnow
 
 
@@ -26,6 +26,8 @@ def inputs_hash(part_dir: Path, inputs, extra=None) -> str:
         if f.is_dir():  # a directory input: the names and bytes of the files directly inside it
             for x in sorted(x for x in f.iterdir() if x.is_file()):
                 h.update(x.name.encode() + b"\0" + x.read_bytes() + b"\0")
+        elif name.startswith("../../") and f.name in LIBRARY_FILES:  # a catalog: its old file's bytes, from the database
+            h.update(catalog_bytes(f.parent, f.name) or b"<missing>")
         else:
             h.update(f.read_bytes() if f.exists() else b"<missing>")
         h.update(b"\0")

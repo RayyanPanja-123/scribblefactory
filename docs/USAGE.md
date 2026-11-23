@@ -18,7 +18,7 @@ bash scripts/serve.sh      # http://127.0.0.1:8765
 2. Custom props (anything beyond clipboard, stopwatch, bottle, syringe, apple, medal): **Props** page.
    Custom sets (places beyond the seven built in, e.g. a kitchen or a beach): **Sets** page. A set is a floor, a back
    wall or sky, and simple pieces (boxes, cylinders, balls, mounds) with a live preview; *Build with AI* drafts one.
-   Saved in library/sets.json, shared by every series; stories use it by id (`@set kitchen`).
+   Saved in the library database (library/database/scribble.db), shared by every series; stories use it by id (`@set kitchen`).
 3. **Cast**: the series page shows one card per character (its idle pose). *Render* draws that character in every
    pose (`cli cast-sheet <slug> <id>`; no id: everyone); click the picture to check them all, then *Approve*
    (`cli approve-cast <slug> <id>`). *Edit* opens the character page (props, wardrobe, body, live preview). A new look
@@ -148,7 +148,7 @@ A later re-render needs the frames again (it re-renders them all).
 - A part: part page → Disk → **Delete part** (`cli delete-part <slug> <part> --yes`; without `--yes` it only
   lists what would go). Its whole folder goes: story.md, voice.mp3, videos, frames. Other parts keep their numbers.
 - A series: series page → **Delete series** (`cli delete-series <slug> --yes`). Every part, the cast and its sheet.
-  Custom props (library/props.json) and sets (library/sets.json) are kept.
+  Custom props and sets (the library database) are kept.
 - Both are refused while a job is queued or running on it. Neither can be undone.
 
 ## When something goes wrong

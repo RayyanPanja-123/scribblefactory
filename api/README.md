@@ -24,7 +24,7 @@ Each route module has its own `router`, and `main.py` includes them before the w
 - Jobs: `POST /api/jobs {slug, part, steps}` with steps like `"run --stage audio"`, `"render-stills"`,
   `"test-render"`, `"render"`, `"cast-sheet"`. One worker thread runs them in order as CLI subprocesses and
   stops at the first failure. `GET /api/jobs`, `DELETE /api/jobs/{id}` (cancel, kills the process tree).
-  Jobs persist to `library/.jobs.json`: on start, queued jobs resume and a job left running fails
+  Jobs persist to the `job` table of `library/database/scribble.db` (`pipeline/scribble/db.py`): on start, queued jobs resume and a job left running fails
   ("interrupted by restart"; its orphaned process is stopped).
 - On start the API also marks every stage stuck at `running` with no live process as failed ("interrupted") and
   stops leftover render workers of stale render locks.
