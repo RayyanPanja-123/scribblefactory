@@ -589,7 +589,7 @@ function drawShot(shot, n) {
     ...measure(shot.actors.filter((a) => !seated.has(a.cast_id)).map(place)) };
 }
 
-/** fog layers: a hatched band plane per layer, behind the cast, drifting slowly (and with a travel shot's scroll) */
+/** fog layers: a soft drift plane per layer, behind the cast, drifting slowly (and with a travel shot's scroll) */
 function drawFog(layers, t, shift) {
   layers.filter((l) => fogAlpha(l.weather)).forEach((l, i) => {
     if (!fogTex) {

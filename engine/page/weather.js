@@ -1,4 +1,4 @@
-// Weather in ink (story @weather, @fx lightning): rain streaks, scribble snowflakes, wind lines, hatched fog bands,
+// Weather in ink (story @weather, @fx lightning): rain streaks, scribble snowflakes, wind lines, soft fog drifts,
 // a storm tint with mild ambient flashes, and one-shot lightning bolts. Deterministic: every particle is a pure
 // function of (seed, index, time) from a fixed, capped pool, so a test render of frame n matches the final one.
 // The stroke math is pure (node tests import it); paint() and fogCanvas() need a 2D canvas.
@@ -214,23 +214,31 @@ export function paint(g, { layers, seed, t, n, w, h, strikes = [], target = null
   return { flash: f, strike: hit ? hit.index : null };
 }
 
-/** hatched fog bands on a transparent canvas, tiling left-right (the engine scrolls it slowly) */
+/** soft fog drifts on a transparent canvas, tiling left-right (the engine scrolls it slowly): many faint
+ * radial puffs that fade to nothing, so no band has an edge. Puffs are drawn wrapped (x - W, x, x + W): seamless */
 export function fogCanvas(seed, size = 512) {
   const c = document.createElement("canvas");
   c.width = 2 * size; c.height = size;
   const g = c.getContext("2d"), R = rng(seed, "fog"), W = c.width;
-  g.lineCap = "round";
-  for (const [cy, half] of [[0.22, 0.09], [0.5, 0.11], [0.77, 0.1]]) { // bands clear of the edges: no flat cut
-    const ph = R() * 6.28, edge = (x, s) => size * (cy + s * half + 0.05 * Math.sin((x / W) * 4 * Math.PI + ph * s));
-    g.fillStyle = "rgba(238,235,228,0.5)";
-    g.beginPath();
-    for (let x = 0; x <= W; x += 16) g.lineTo(x, edge(x, -1));
-    for (let x = W; x >= 0; x -= 16) g.lineTo(x, edge(x, 1));
-    g.closePath(); g.fill();
-    g.strokeStyle = "rgba(110,106,98,0.42)"; g.lineWidth = 3;
-    for (let x = 10; x < W - 40; x += 22 + R() * 26) { // loose diagonal hatch ticks, seeded, never a regular grid
-      const top = edge(x, -1), bot = edge(x, 1), y = top + (bot - top) * (0.2 + 0.5 * R()), len = (bot - top) * (0.25 + 0.3 * R());
-      g.beginPath(); g.moveTo(x, y + len); g.lineTo(x + len * (0.5 + 0.3 * R()), y); g.stroke();
+  for (const [cy, half] of [[0.25, 0.1], [0.5, 0.13], [0.75, 0.1]]) { // drifts clear of top / bottom: no flat cut
+    const ph = R() * 6.28;
+    for (let k = 0; k < 46; k++) {
+      const x = R() * W, r = size * half * (1.2 + 1.3 * R());
+      const y = size * (cy + half * (R() - 0.5) + 0.04 * Math.sin((x / W) * 4 * Math.PI + ph));
+      const ry = Math.min(r * 0.45, y - 2, size - y - 2); // flattened, and never past the canvas edge
+      if (ry <= 0) continue;
+      const a = 0.05 + 0.07 * R();
+      for (const dx of [-W, 0, W]) {
+        g.save();
+        g.translate(x + dx, y); g.scale(1, ry / r); // an ellipse: a circle squashed
+        const grad = g.createRadialGradient(0, 0, 0, 0, 0, r);
+        grad.addColorStop(0, `rgba(236,234,230,${a})`);
+        grad.addColorStop(0.5, `rgba(236,234,230,${a * 0.6})`);
+        grad.addColorStop(1, "rgba(236,234,230,0)");
+        g.fillStyle = grad;
+        g.fillRect(-r, -r, 2 * r, 2 * r);
+        g.restore();
+      }
     }
   }
   return c;
