@@ -4,12 +4,11 @@
 import { Pen, ellPts } from "./borrowed.js";
 import { lookup } from "./library.js";
 import { rng } from "./rng.js";
-import { STYLE } from "./style.js";
+import { INK, STYLE } from "./style.js";
 import { BUILTIN_WARDROBE, HEAD_ANCHORS, layerFill, layerPoints, slotValue, wearing } from "./wardrobe.js";
 
 export const CW = 1024, CH = 1024, FEET_Y = 1000;
 export const BODY_W = 512; // the figure's own width on the card: framing and set-prop hiding measure this, not CW
-const INK = "#1c1a1a";
 export const HEAD_R = 150;
 const HEAD_SQUASH = 0.97; // head height / width
 const LEG = 220;         // leg length; hip height follows the leg angle, so feet stay planted
@@ -686,7 +685,7 @@ function face(p, boil, o, fx, hy, look) {
       p.dot(x + 6 * look, ey + 12, w("pupil") * 0.85);                                  // pupil under the lid
       p.stroke(jitter([[x - 32, ey - 2], [x, ey + 1], [x + 32, ey + 4]], boil, 1.5), w("eye") * 1.6); // heavy lid
     } else if (kind === "half") {
-      p.poly(ellPts(x + 4 * look, ey, 15, 13, 0, 180, 0, 12), "#1c1a1a", 0);           // pupil under the lid
+      p.poly(ellPts(x + 4 * look, ey, 15, 13, 0, 180, 0, 12), INK, 0);           // pupil under the lid
       p.stroke(jitter([[x - 28, ey], [x + 28, ey]], boil, 1.5), w("eye"));             // lid line
     } else {
       const r = big ? 36 : 30;
@@ -705,7 +704,7 @@ function face(p, boil, o, fx, hy, look) {
   // small mouth line; talking opens it
   const mx = fx + 4 * look, my = hy + 74;
   if ((o.mouth || 0) > 0.05) {
-    p.poly(ellPts(mx, my, 20, 4 + 18 * o.mouth, 0, 360, 0, 20), "#1c1a1a", 0);
+    p.poly(ellPts(mx, my, 20, 4 + 18 * o.mouth, 0, 360, 0, 20), INK, 0);
     return;
   }
   const M = {
@@ -719,7 +718,7 @@ function face(p, boil, o, fx, hy, look) {
     dead: [[mx - 24, my + 2], [mx - 12, my - 4], [mx, my + 2], [mx + 12, my - 4], [mx + 24, my + 2]], // slack wavy line
     worried: [[mx - 22, my + 5], [mx, my - 4], [mx + 22, my + 5]],
   };
-  if (expr === "exhausted") p.poly(ellPts(mx, my + 2, 11, 9, 0, 360, 0, 16), "#1c1a1a", 0); // small open mouth
+  if (expr === "exhausted") p.poly(ellPts(mx, my + 2, 11, 9, 0, 360, 0, 16), INK, 0); // small open mouth
   else if (expr === "surprised") p.poly(ellPts(mx, my, 12, 15, 0, 360, 0, 20), null, w("mouth") * 0.9);
   else p.stroke(jitter(M[expr] || M.neutral, boil, 1.2), w("mouth"));
 }

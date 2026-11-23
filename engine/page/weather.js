@@ -3,9 +3,8 @@
 // function of (seed, index, time) from a fixed, capped pool, so a test render of frame n matches the final one.
 // The stroke math is pure (node tests import it); paint() and fogCanvas() need a 2D canvas.
 import { rng } from "./rng.js";
-import { STYLE } from "./style.js";
+import { INK, STYLE } from "./style.js";
 
-export const INK = "#1c1a1a";
 export const FADE_FRAMES = 15;      // 0.5 s cross-fade when the weather changes mid-scene (a set change wipes instead)
 export const BOLT_FRAMES = 4;       // a strike's bolt shows this many frames ...
 const FLASH = [0.32, 0.14];  // ... and the screen flashes white this much on its first frames (storm; else x0.7)

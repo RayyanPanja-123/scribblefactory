@@ -5,6 +5,7 @@ import { Pen, ellPts } from "./borrowed.js";
 import { rng } from "./rng.js";
 import { CH, CW, drawStickman, hipPx, jitter, wobble } from "./stickman.js";
 import { CRW, drawCreature } from "./creatures.js";
+import { INK } from "./style.js";
 
 export const VW = 1024, VH = 640, CAR_GROUND = 620;
 export const CAR_CARD_W = 2.8;                    // world units across the card
@@ -16,7 +17,7 @@ const SEAT_Y = 410;                               // seated hip height
 export const DRIVER_X = 570, RIDER_X = [380, 280, 180]; // seat x (canvas px), riders front to back
 const RIDER_SCALE = PX / (CH / 1.6);              // stickman canvas -> car canvas (same world scale as actors)
 const BOUNCE = { px: 3, every: 0.7 };            // body bobs 3 px per 0.7 world units driven
-const INK = "#1c1a1a", LEATHER = "#4a2e1c", BRASS = "#c9a227", DUST = "#d9c7a0", SMOKE = "#9a9a9a";
+const LEATHER = "#4a2e1c", BRASS = "#c9a227", DUST = "#d9c7a0", SMOKE = "#9a9a9a";
 // broken: grey marker puffs rise from the bonnet on a loop (seeded phase), the car shakes a little
 export const BROKEN = { puffs: 3, rise: 1.6, height: 190, x: 760, y: 352, shake: [2.2, 1.4] };
 export const CAR_COLOURS = { red: "#c0392b", green: "#2e7d4f", navy: "#2c3e72", yellow: "#e2b33c" };

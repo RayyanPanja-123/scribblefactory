@@ -7,12 +7,11 @@ import * as THREE from "three";
 import { cloudCanvas } from "./borrowed.js";
 import { lookup } from "./library.js";
 import { rng } from "./rng.js";
-import { STYLE } from "./style.js";
+import { INK, STYLE } from "./style.js";
 
 export const SETS = ["room", "office", "street", "dirt_road", "countryside", "orchard", "stadium"];
 /** prop-placement variants per set (main.js picks one per run of shots); sets not listed have one */
 export const VARIANTS = { dirt_road: 3, countryside: 3, orchard: 3, stadium: 3 };
-const INK = 0x1c1a1a;
 const STAGE = { x: 2.2, behind: -1.0, front: 0.6 };
 const H_PX = 1920; // frame height: the outline width is set in screen px of the final frame
 
@@ -162,7 +161,7 @@ const lines = (dir, n, col, w) => (g, s) => {
 };
 /** poster: coloured sheet with one bold seeded shape and a caption bar */
 const poster = (ink) => (g, s, R) => {
-  g.fillStyle = ink; g.strokeStyle = "#1c1a1a"; g.lineWidth = 8;
+  g.fillStyle = ink; g.strokeStyle = INK; g.lineWidth = 8;
   const x = s * (0.3 + R() * 0.4), y = s * (0.3 + R() * 0.3), r = s * (0.15 + R() * 0.1);
   g.beginPath();
   if (R() < 0.5) g.arc(x, y, r, 0, Math.PI * 2); else g.rect(x - r, y - r, 2 * r, 2 * r);
@@ -183,7 +182,7 @@ const grass = (col, n = 160, len = 14) => (g, s, R) => {
 const crowd = (aspect) => (g, s, R) => {
   const cols = ["#e63946", "#457b9d", "#f4a261", "#2a9d8f", "#e9c46a", "#8338ec", "#ffffff", "#264653"];
   const per = 6, w = s / per, k = Math.min(aspect, 1 / (0.9 * 0.45 * per / 6)); // keep two rows inside the tile
-  g.strokeStyle = "#1c1a1a"; g.lineWidth = 3;
+  g.strokeStyle = INK; g.lineWidth = 3;
   for (const [row, y0] of [[0, 0.55], [1, 0.97]]) {
     for (let i = 0; i < per; i++) {
       const cx = (i + 0.5 + (row ? 0.5 : 0) + (R() - 0.5) * 0.3) * w, y = s * (y0 - R() * 0.06), r = w * 0.36;
@@ -518,13 +517,13 @@ const facadeTile = (wall, shutter) => (g, s) => {
   const x0 = s * 0.27, x1 = s * 0.73, y0 = s * 0.2, y1 = s * 0.78, k = new THREE.Color(wall);
   g.fillStyle = k.clone().multiplyScalar(0.82).getStyle(); g.fillRect(x0 - 8, y0 - 16, x1 - x0 + 16, 12); // lintel
   if (shutter) {
-    g.fillStyle = shutter; g.strokeStyle = "#1c1a1a"; g.lineWidth = 3;
+    g.fillStyle = shutter; g.strokeStyle = INK; g.lineWidth = 3;
     for (const sx of [x0 - 30, x1 + 4]) { g.fillRect(sx, y0, 26, y1 - y0); g.strokeRect(sx, y0, 26, y1 - y0); }
   }
   g.fillStyle = "#7fbbe6"; g.fillRect(x0, y0, x1 - x0, y1 - y0);
   g.fillStyle = "rgba(255,255,255,0.35)"; // sheen: a pale diagonal band across the upper glass
   g.beginPath(); g.moveTo(x0, y0 + 30); g.lineTo(x0 + 40, y0); g.lineTo(x0 + 70, y0); g.lineTo(x0, y0 + 70); g.fill();
-  g.strokeStyle = "#1c1a1a"; g.lineWidth = 3;
+  g.strokeStyle = INK; g.lineWidth = 3;
   g.beginPath(); g.moveTo((x0 + x1) / 2, y0); g.lineTo((x0 + x1) / 2, y1); g.moveTo(x0, y0 + (y1 - y0) * 0.45);
   g.lineTo(x1, y0 + (y1 - y0) * 0.45); g.stroke();
   g.lineWidth = 4; g.strokeRect(x0, y0, x1 - x0, y1 - y0);
@@ -547,7 +546,7 @@ const spriteMat = (map, opts = {}) => new THREE.MeshBasicMaterial({ map, transpa
 function bunting(b, x0, x1, top, sag, z, R) {
   const cols = ["#e63946", "#f4c430", "#2a9d8f", "#ffffff", "#457b9d"];
   const mats = cols.map((c) => spriteMat(sprite(64, 80, (g, w, h) => {
-    g.fillStyle = c; g.strokeStyle = "#1c1a1a"; g.lineWidth = 5; g.lineJoin = "round";
+    g.fillStyle = c; g.strokeStyle = INK; g.lineWidth = 5; g.lineJoin = "round";
     g.beginPath(); g.moveTo(4, 4); g.lineTo(w - 4, 4); g.lineTo(w / 2, h - 5); g.closePath(); g.fill(); g.stroke();
   }), { alphaTest: 0.5, depthWrite: true, transparent: false, side: THREE.DoubleSide }));
   const n = Math.round((x1 - x0) / 0.5), y = (x) => top - sag * (1 - ((2 * (x - x0)) / (x1 - x0) - 1) ** 2);
@@ -586,7 +585,7 @@ function smoke(b, chimney, R) {
 /** a few ink "v" birds crossing over the street at height y, flapping (the drawing flips through edge-on) */
 function birds(b, R, y, z) {
   const map = sprite(128, 64, (g) => {
-    g.strokeStyle = "#1c1a1a"; g.lineWidth = 7; g.lineCap = "round";
+    g.strokeStyle = INK; g.lineWidth = 7; g.lineCap = "round";
     g.beginPath(); g.moveTo(8, 18); g.quadraticCurveTo(36, 10, 64, 40); g.quadraticCurveTo(92, 10, 120, 18); g.stroke();
   });
   for (let i = 0; i < 3; i++) {

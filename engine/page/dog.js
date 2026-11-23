@@ -4,11 +4,12 @@
 import { Pen, ellPts } from "./borrowed.js";
 import { rng } from "./rng.js";
 import { jitter, wobble } from "./stickman.js";
+import { INK } from "./style.js";
 
 export const DW = 640, DH = 448, DOG_FEET = 428;
 export const DOG_STRIDE = 1.2; // world units per gallop cycle: legs follow distance travelled, never time
 export const BARK = { every: 9, open: 5, count: 3 }; // a burst of 3 yaps, 9 frames apart, mouth open 5 frames each
-const INK = "#1c1a1a", TONGUE = "#ee6f80";
+const TONGUE = "#ee6f80";
 const TAU = Math.PI * 2, deg = (d) => (d * Math.PI) / 180;
 const LEG = 118, GALLOP = 38, WAG_HZ = 2.2;
 // body, ear (and patch) colours per variant

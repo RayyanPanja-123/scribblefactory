@@ -15,7 +15,7 @@ const growRect = (r, k) => { const mx = (r[2] - r[0]) * k, my = (r[3] - r[1]) * 
 import { rng, setVariant } from "./rng.js";
 import { SETS, VARIANTS, buildSet, loopExcess, scrollSet, setInk, setKind } from "./world.js";
 import { fadePlan, fogAlpha, fogCanvas, layersAt, paint, paintBack, strikeAt } from "./weather.js";
-import { STYLE, usePreset } from "./style.js";
+import { INK, STYLE, usePreset } from "./style.js";
 
 const FPS = 30;
 let W = 1080, H = 1920; // the frame: story.width x story.height (setup); cast sheets stay 1080x1920
@@ -38,7 +38,7 @@ const DRIVER = { outfit_color: "#8a8a8a", eyes: "dots" }; // generic extra, not 
 const DOG_CARD_W = 1.3, DOG_CARD_H = DOG_CARD_W * (DH / DW), DOG_SHADOW = { w: 0.9, d: 0.26 };
 // set change: a marker stroke sweeps left to right over the last HALF frames of the old shot and the first HALF of
 // the new one, revealing the new set. band = stroke width px, tilt = how far the bottom trails the top px.
-const WIPE = { half: 5, band: 110, tilt: 260, color: "#f2c14e", streak: "#d99a2b", ink: "#1c1a1a" };
+const WIPE = { half: 5, band: 110, tilt: 260, color: "#f2c14e", streak: "#d99a2b", ink: INK };
 
 // base framing per angle, relative to the subject at (sx, 0, 0): camera offset, look point, fov, how much x follows.
 // wide frames every actor on stage instead (see shotCamera).

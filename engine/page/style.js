@@ -1,12 +1,15 @@
 // The art style's tunable numbers, all in one place (docs/style.md). Pure data: page code and Node tests import it.
 // Change a value here and re-render; nothing else needs touching. Colours are CSS strings.
+// the one ink colour: every outline, pupil and mouth, the sets' hulls, the wipe's edge
+export const INK = "#1c1a1a";
+
 export const STYLE = {
   // rain and storm: two layers. back sits behind the cast (thin, faint, light, slow, drawn at half resolution so it
   // softens); front is drawn over everything but sparse, and skips any drop that would cross a face.
   // count: drops per intensity [light, medium, heavy]; storm multiplies both layers by storm.density.
   rain: {
     back: { count: [90, 160, 250], width: 2, alpha: 0.48, color: "#56606e", speed: 1.15, len: 0.8, scale: 0.5 },
-    front: { count: [6, 10, 16], width: 4.5, alpha: 0.85, color: "#f4f7fb", edge: "#1c1a1a", edgeAlpha: 0.35,
+    front: { count: [6, 10, 16], width: 4.5, alpha: 0.85, color: "#f4f7fb", edge: INK, edgeAlpha: 0.35,
       speed: [1.7, 2.6], len: [0.8, 1.9] },
     storm: { density: 1.35, slant: 0.5, len: 80, speed: 2.4 }, // speed: frame heights per second
     slant: 0.22, len: 44, lenPerLevel: 14, speed: 1.7,

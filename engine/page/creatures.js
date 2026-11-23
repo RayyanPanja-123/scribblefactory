@@ -15,10 +15,10 @@ import { Pen } from "./borrowed.js";
 import { lookup } from "./library.js";
 import { rng } from "./rng.js";
 import { CH, FEET_Y, drawProp, jitter, paintVolume, wobble } from "./stickman.js";
-import { STYLE } from "./style.js";
+import { INK, STYLE } from "./style.js";
 
 export const CRW = 1024, GX = CRW / 2;
-const INK = "#1c1a1a", TAU = Math.PI * 2, deg = (d) => (d * Math.PI) / 180;
+const TAU = Math.PI * 2, deg = (d) => (d * Math.PI) / 180;
 export const RIGS = { // part -> required (keep equal to pipeline schemas RIG_PARTS)
   humanoid: { parts: {}, hands: true }, // a stickman with a build: drawStickman, not drawCreature
   bird: { parts: { body: true, head: true, wing: true, leg: true, tail: false, stump: false }, hands: false },
