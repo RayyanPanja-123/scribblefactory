@@ -73,7 +73,7 @@ async function remove(o: { id: string; name: string }) {
       <LibraryCard v-for="o in g.items" :key="o.id" :name="o.name" :code="o.id" :tag="isBuiltin(o.id) ? 'built in' : 'custom'"
         :note="isBuiltin(o.id) ? builtinNote(o.id as BuiltinProp) : undefined" :users="holders[o.id] ?? []" used-by="held by"
         unused="nobody holds one yet" :icon="Backpack" :edit-to="isBuiltin(o.id) ? undefined : `/props/${o.id}`"
-        :deletable="!isBuiltin(o.id) && !holders[o.id]?.length" readonly="hand-drawn: read only" @delete="remove(o)">
+        :deletable="!isBuiltin(o.id) && !holders[o.id]?.length" readonly="hand-drawn: read only" :json="custom.find((c) => c.id === o.id)" @delete="remove(o)">
         <template #preview><PropPreview :kind="o.id" :custom="custom" :label="`Stickman holding ${o.name}`" class="h-full w-full" /></template>
       </LibraryCard>
     </LibrarySection>

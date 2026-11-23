@@ -65,7 +65,7 @@ async function remove(s: { id: string; name: string }) {
     <LibrarySection v-for="g in groups" :id="g.kind" :key="g.kind" :title="g.title" :count="g.items.length" :note="g.note">
       <LibraryCard v-for="s in g.items" :key="s.id" :name="s.name" :code="`@set ${s.id}`" :tag="s.builtin ? 'built in' : 'custom'"
         :note="s.builtin ? builtinNote(s.id) : undefined" :edit-to="s.builtin ? undefined : `/sets/${s.id}`" :deletable="!s.builtin"
-        readonly="built in: read only" @delete="remove(s)">
+        readonly="built in: read only" :json="custom.find((c) => c.id === s.id)" @delete="remove(s)">
         <template #preview>
           <button v-if="shown.has(s.id)" type="button" class="block h-full w-full" :aria-label="`Large view of ${s.name}`" title="Large view" @click="big = s">
             <SetPreview :id="s.id" :custom="custom" :label="`The ${s.name} set, wide shot`" class="h-full w-full" />

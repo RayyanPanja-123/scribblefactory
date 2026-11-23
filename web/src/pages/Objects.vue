@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { shortName } from '../lib/aiName'
-import { Plus, Sparkles, Trash2 } from 'lucide-vue-next'
+import { Braces, Plus, Sparkles, Trash2 } from 'lucide-vue-next'
 import { computed, reactive, ref } from 'vue'
 import { api } from '../api/client'
 import ErrorCard from '../components/ErrorCard.vue'
-import { act, confirm } from '../composables/feedback'
+import { act, confirm, copyJson } from '../composables/feedback'
 import { useApi } from '../composables/useApi'
 import { CAPABILITIES, CARRY_MODES, CATEGORIES, PIECES, type Capability, type ObjectPiece, type WorldObject } from '../lib/objects'
 import AiGenerateModal from '../components/AiGenerateModal.vue'
@@ -53,6 +53,7 @@ const num = 'inset mt-1 block h-9 w-full rounded-md px-2 text-sm text-ink outlin
         <div class="grid size-16 shrink-0 place-items-center rounded-md bg-well text-3xl" aria-hidden="true">{{ o.category === 'vehicle' ? '🚚' : o.category === 'container' ? '🛢️' : '◼' }}</div>
         <div class="min-w-0"><h3 class="font-display text-lg font-semibold">{{ o.name }}</h3><p class="text-xs text-muted"><code>{{ o.id }}</code> · {{ o.category }} · {{ o.capabilities.join(', ') || 'static' }}</p></div>
         <button class="btn btn-secondary ml-auto" @click.stop="edit(o)">Edit</button>
+        <button type="button" class="btn btn-secondary" :aria-label="`Copy ${o.name} JSON`" title="Copy JSON" @click.stop="copyJson(o, o.name)"><Braces :size="16" aria-hidden="true" /> JSON</button>
       </div>
     </section>
     <form class="raised space-y-5 p-5" @submit.prevent="save">

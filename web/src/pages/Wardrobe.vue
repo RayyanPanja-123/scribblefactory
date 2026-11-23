@@ -58,7 +58,7 @@ async function remove(o: { id: string; name: string }) {
     <LibrarySection v-for="g in bySlot" :id="g.slot" :key="g.slot" :title="SLOT_LABEL[g.slot]" :count="g.items.length">
       <LibraryCard v-for="o in g.items" :key="o.id" :name="o.name" :code="o.id" :tag="o.builtin ? 'built in' : 'custom'"
         :users="worn[o.id]" used-by="worn by" unused="nobody wears it" :icon="Shirt" :edit-to="o.builtin ? undefined : `/wardrobe/${o.id}`"
-        :deletable="!o.builtin && !worn[o.id]?.length" readonly="hand-drawn: read only" @delete="remove(o)">
+        :deletable="!o.builtin && !worn[o.id]?.length" readonly="hand-drawn: read only" :json="custom.find((c) => c.id === o.id)" @delete="remove(o)">
         <template #preview><WardrobePreview :id="o.id" :slot="o.slot" :custom="custom" :color="colorOf(o.id)" :label="`Stickman wearing ${o.name}`" class="h-full w-full" /></template>
       </LibraryCard>
     </LibrarySection>

@@ -12,6 +12,12 @@ export function toast(text: string, kind: ToastKind = 'info') {
 }
 export const dismiss = (id: number) => (toasts.value = toasts.value.filter((t) => t.id !== id))
 
+/** a library item's JSON to the clipboard (pastes back through Generate with AI → Paste JSON directly) */
+export async function copyJson(item: unknown, name: string) {
+  try { await navigator.clipboard.writeText(JSON.stringify(item, null, 2)); toast(`${name} JSON copied`, 'ok') }
+  catch { toast('Could not copy to the clipboard', 'error') }
+}
+
 /** Run an action: toast its result, or the API's message verbatim (409s explain themselves). */
 export async function act<T>(fn: () => Promise<T>, ok: string): Promise<T | undefined> {
   try {

@@ -81,7 +81,7 @@ async function remove(o: { id: string; name: string }) {
       :empty="`No ${g.rig} bodies yet.`">
       <LibraryCard v-for="c in g.items" :key="c.id" tall :name="c.name" :code="c.id" :tag="tagOf(c.id)"
         :class="{ 'border-ink!': open === c.id }"
-        :users="users[c.id] ?? []" unused="no cast member yet" :icon="PawPrint"
+        :users="users[c.id] ?? []" unused="no cast member yet" :icon="PawPrint" :json="c"
         :edit-to="isBuiltinCreature(c.id) ? `/creatures/new?from=${c.id}` : `/creatures/${c.id}`" :edit-label="isBuiltinCreature(c.id) ? 'Copy' : 'Edit'"
         :deletable="!isBuiltinCreature(c.id) && !users[c.id]?.length" @delete="remove(c)">
         <template #preview>

@@ -58,7 +58,7 @@ async function remove(a: { id: string; name: string }) {
     </LibrarySection>
     <LibrarySection id="custom" title="Custom" :count="custom.length" empty="No custom actions yet: make a salute, a bow or a dance with New action.">
       <LibraryCard v-for="a in custom" :key="a.id" :name="a.name" :code="`@do <cast>: ${a.id}`" tag="custom"
-        :note="`${a.duration} s · ${a.loop ? 'loops' : 'plays once'} · ${a.keys.length} keys`" :edit-to="`/actions/${a.id}`" deletable @delete="remove(a)">
+        :note="`${a.duration} s · ${a.loop ? 'loops' : 'plays once'} · ${a.keys.length} keys`" :edit-to="`/actions/${a.id}`" deletable :json="a" @delete="remove(a)">
         <template #preview><ActionPreview :action="a" :label="`Stickman playing ${a.name}`" class="h-full w-full" /></template>
       </LibraryCard>
     </LibrarySection>

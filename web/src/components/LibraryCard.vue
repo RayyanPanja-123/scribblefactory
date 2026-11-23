@@ -1,14 +1,16 @@
 <script setup lang="ts">
 // One library item as every library page lists it: the engine's own drawing, name, id (as a story or cast writes
 // it), who uses it, and Edit / Delete for custom items (built-ins are read only, or copyable).
-import { Trash2 } from 'lucide-vue-next'
+import { Braces, Trash2 } from 'lucide-vue-next'
 import type { Component } from 'vue'
+import { copyJson } from '../composables/feedback'
 
 // tall: the drawing sits on top, full width and large (galleries where the drawing is the point)
 defineProps<{
   name: string; code: string; tag: string; note?: string; tall?: boolean
   users?: { slug: string; name: string; detail?: string }[]; usedBy?: string; unused?: string; icon?: Component
   editTo?: string; editLabel?: string; deletable?: boolean; readonly?: string
+  json?: unknown // the item as stored: shows Copy JSON
 }>()
 defineEmits<{ delete: [] }>()
 </script>
@@ -28,11 +30,12 @@ defineEmits<{ delete: [] }>()
         </p>
         <p v-else class="flex items-center gap-1 text-xs text-muted"><component :is="icon" v-if="icon" :size="12" aria-hidden="true" /> {{ unused ?? 'nobody uses it' }}</p>
       </template>
-      <div v-if="editTo || deletable" class="flex flex-wrap gap-2 pt-1">
+      <p v-if="!editTo && !deletable && readonly" class="text-xs text-muted">{{ readonly }}</p>
+      <div v-if="editTo || deletable || json" class="flex flex-wrap gap-2 pt-1">
         <RouterLink v-if="editTo" :to="editTo" class="btn btn-secondary">{{ editLabel ?? 'Edit' }}</RouterLink>
+        <button v-if="json" type="button" class="btn btn-secondary" :aria-label="`Copy ${name} JSON`" title="Copy JSON" @click="copyJson(json, name)"><Braces :size="16" aria-hidden="true" /> JSON</button>
         <button v-if="deletable" type="button" class="btn btn-secondary text-red-ink" :aria-label="`Delete ${name}`" @click="$emit('delete')"><Trash2 :size="16" aria-hidden="true" /></button>
       </div>
-      <p v-else-if="readonly" class="text-xs text-muted">{{ readonly }}</p>
     </div>
   </li>
 </template>
