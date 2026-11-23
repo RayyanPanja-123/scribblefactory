@@ -12,12 +12,12 @@ A registry entry whose file is missing is a warning, never a crash: that sound i
 import json
 import re
 import shutil
-import subprocess
 from pathlib import Path
 from typing import Annotated, Literal
 
 from pydantic import Field, field_validator
 
+from . import ff
 from .io import atomic_write_json
 from .schemas import Strict
 from .stages.prep import TWIST_PREFIX, clean_markdown
@@ -205,14 +205,10 @@ BETRAYAL = re.compile(r"\b(impostor|imposter|traitor|spy|fake|secretly|liar|lied
 
 def clip_seconds(library, entry) -> float:
     f = sfx_dir(library) / entry.file
-    if not f.is_file():
+    if not f.is_file() or not shutil.which("ffprobe"):
         return GUESS_S
-    r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(f)],
-                       capture_output=True, text=True) if shutil.which("ffprobe") else None
-    try:
-        return float(r.stdout.strip())
-    except (AttributeError, ValueError):
-        return GUESS_S
+    seconds = ff.duration(f)
+    return GUESS_S if seconds is None else seconds
 
 
 def suggest(md: str, entries: dict, times: dict[int, tuple[float, float]], first_part: bool = False, rejected=(),
@@ -345,9 +341,7 @@ def stem(part_dir: Path, voice):
     out = part_dir / "audio" / ".sfx-stem.tmp.wav"
     out.parent.mkdir(exist_ok=True)
     try:
-        r = subprocess.run(mix_cmd(cs, voice_f, out), capture_output=True, text=True)
-        if r.returncode != 0:
-            raise StageError(f"ffmpeg sfx mix failed: {r.stderr.strip()[-300:]}")
+        ff.run(*mix_cmd(cs, voice_f, out), text=True, fail="ffmpeg sfx mix failed")
         from .stages.audio import decode
         x = decode(out)[:len(voice)]
     finally:

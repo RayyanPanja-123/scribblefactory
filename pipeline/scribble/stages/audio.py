@@ -9,13 +9,13 @@ music.wav and sfx.wav are deterministic from story.json (seed, cues, shots) and 
 import io
 import json
 import re
-import shutil
 import subprocess
 import wave
 from pathlib import Path
 
 import numpy as np
 
+from .. import ff
 from .. import sfx as sfx_lib
 from .. import background_music
 from ..io import atomic_write_bytes, replace_file
@@ -207,12 +207,7 @@ def render_sfx(story: StoryModel, n: int) -> np.ndarray:
 # --- files and ffmpeg ---
 
 def _ffmpeg(*args, data: bytes | None = None) -> subprocess.CompletedProcess:
-    if not shutil.which("ffmpeg"):
-        raise StageError("ffmpeg not found on PATH")
-    r = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", *args], input=data, capture_output=True)
-    if r.returncode != 0:
-        raise StageError(f"ffmpeg failed: {r.stderr.decode(errors='replace').strip()[-300:]}")
-    return r
+    return ff.run("ffmpeg", "-hide_banner", "-nostats", *args, data=data, fail="ffmpeg failed")
 
 
 def decode(path: Path) -> np.ndarray:

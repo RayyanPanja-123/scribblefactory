@@ -1,10 +1,9 @@
 """import_check: prove voice.mp3 plays, report silences and duration mismatch. Read-only."""
 
 import re
-import shutil
-import subprocess
 from pathlib import Path
 
+from .. import ff
 from .prep import estimate_seconds
 from .runner import StageError
 
@@ -16,24 +15,16 @@ MAX_INTERNAL_SILENCE = 2.0
 MAX_ESTIMATE_DIFF = 0.40
 
 
-def _run(*cmd) -> subprocess.CompletedProcess:
-    if not shutil.which(cmd[0]):
-        raise StageError(f"{cmd[0]} not found on PATH")
-    return subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
-
-
 def probe_duration(path: Path) -> float:
-    r = _run("ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path))
-    try:
-        return float(r.stdout.strip())
-    except ValueError:
-        raise StageError(f"ffprobe could not read voice.mp3: {r.stderr.strip() or 'no duration'}")
+    if (seconds := ff.duration(path)) is None:
+        raise StageError("ffprobe could not read voice.mp3: no duration")
+    return seconds
 
 
 def silences(path: Path, duration: float, min_len: float = MAX_EDGE_SILENCE) -> list[tuple[float, float]]:
     """(start, end) of each silence of at least min_len seconds."""
-    r = _run("ffmpeg", "-hide_banner", "-nostats", "-i", str(path),
-             "-af", f"silencedetect=noise={SILENCE_DB}dB:d={min_len}", "-f", "null", "-")
+    r = ff.run("ffmpeg", "-hide_banner", "-nostats", "-i", path,
+               "-af", f"silencedetect=noise={SILENCE_DB}dB:d={min_len}", "-f", "null", "-", text=True)
     starts = [float(x) for x in re.findall(r"silence_start: (-?[\d.]+)", r.stderr)]
     ends = [float(x) for x in re.findall(r"silence_end: (-?[\d.]+)", r.stderr)]
     ends += [duration] * (len(starts) - len(ends))  # silence running to EOF may have no end line
@@ -48,7 +39,7 @@ def run(part_dir: Path) -> None:
     if duration <= 0:
         raise StageError("voice.mp3 has zero duration")
 
-    r = _run("ffmpeg", "-v", "error", "-xerror", "-i", str(voice), "-f", "null", "-")
+    r = ff.run("ffmpeg", "-v", "error", "-xerror", "-i", voice, "-f", "null", "-", text=True)
     if r.returncode != 0 or r.stderr.strip():
         raise StageError(f"voice.mp3 does not decode cleanly: {r.stderr.strip()[:300] or f'exit {r.returncode}'}")
     print(f"duration: {duration:.1f} s")

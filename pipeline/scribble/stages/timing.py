@@ -5,11 +5,10 @@ cut out (voice.mp3 is protected, never rewritten), and phrases.json is timed on 
 """
 
 import re
-import shutil
-import subprocess
 from difflib import SequenceMatcher
 from pathlib import Path
 
+from .. import ff
 from ..io import atomic_write_json
 from ..schemas import PhrasesModel
 from .import_check import silences
@@ -43,13 +42,9 @@ def transcribe(voice: Path) -> tuple[list[tuple[str, float, float]], float]:
     """Return ([(word, start, end)], duration). Decodes with ffmpeg, never downloads a model."""
     if not (MODEL_DIR / "model.bin").exists():
         raise StageError(f"whisper model missing in {MODEL_DIR}: run setup.sh")
-    if not shutil.which("ffmpeg"):
-        raise StageError("ffmpeg not found on PATH")
     # Decode ourselves: faster-whisper's PyAV decoder breaks with newer PyAV versions.
-    r = subprocess.run(["ffmpeg", "-v", "error", "-i", str(voice), "-f", "f32le", "-ac", "1",
-                        "-ar", str(SAMPLE_RATE), "-"], capture_output=True)
-    if r.returncode != 0:
-        raise StageError(f"ffmpeg could not decode voice.mp3: {r.stderr.decode(errors='replace').strip()[:300]}")
+    r = ff.run("ffmpeg", "-v", "error", "-i", voice, "-f", "f32le", "-ac", "1", "-ar", SAMPLE_RATE, "-",
+               fail="ffmpeg could not decode voice.mp3")
     import numpy as np  # heavy imports only when the stage actually runs
     from faster_whisper import WhisperModel
 
@@ -217,11 +212,12 @@ def tighten(voice: Path, out: Path, cuts: list[tuple[float, float]]) -> None:
     keep = "+".join(f"between(t,{a},{b})" for a, b in cuts)
     af = ["-af", f"aselect='not({keep})',asetpts=N/SR/TB"] if cuts else []
     tmp = out.with_name(f".{out.name}.tmp.wav")
-    r = subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(voice), *af, "-ar", "48000", "-ac", "2",
-                        "-c:a", "pcm_s16le", str(tmp)], capture_output=True)
-    if r.returncode != 0:
+    try:
+        ff.run("ffmpeg", "-v", "error", "-y", "-i", voice, *af, "-ar", "48000", "-ac", "2", "-c:a", "pcm_s16le", tmp,
+               fail=f"ffmpeg could not write {out.name}")
+    except StageError:
         tmp.unlink(missing_ok=True)
-        raise StageError(f"ffmpeg could not write {out.name}: {r.stderr.decode(errors='replace').strip()[:300]}")
+        raise
     tmp.replace(out)
 
 

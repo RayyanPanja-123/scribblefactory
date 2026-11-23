@@ -14,10 +14,10 @@ import json
 import math
 import random
 import re
-import shutil
 import subprocess
 from pathlib import Path
 
+from .. import ff
 from .. import settings
 from ..io import atomic_write_json, atomic_write_text, load_part, replace_file
 from ..schemas import PhrasesModel, SeriesModel, StoryModel
@@ -371,13 +371,7 @@ def end_card_png(text: str, socials: dict, out: Path, size: tuple[int, int] = (1
 # ---------------- ffmpeg ----------------
 
 def _ffmpeg(*args) -> subprocess.CompletedProcess:
-    if not shutil.which("ffmpeg"):
-        raise StageError("ffmpeg not found on PATH")
-    r = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", *map(str, args)],
-                       capture_output=True, text=True, encoding="utf-8", errors="replace")
-    if r.returncode != 0:
-        raise StageError(f"ffmpeg failed: {r.stderr.strip()[-400:]}")
-    return r
+    return ff.run("ffmpeg", "-hide_banner", "-nostats", *args, text=True, fail="ffmpeg failed")
 
 
 def has_libass() -> bool:
@@ -421,9 +415,8 @@ def encode(part_dir: Path, frames: int, captions: Path | None, card: Path | None
 # ---------------- QA ----------------
 
 def probe(path: Path) -> dict:
-    r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
-                        "stream=width,height,r_frame_rate,nb_frames:format=duration", "-of", "default=nw=1",
-                        str(path)], capture_output=True, text=True)
+    r = ff.run("ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+               "stream=width,height,r_frame_rate,nb_frames:format=duration", "-of", "default=nw=1", path, text=True)
     return dict(line.split("=", 1) for line in r.stdout.split() if "=" in line)
 
 
