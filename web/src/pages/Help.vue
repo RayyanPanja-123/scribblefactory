@@ -81,7 +81,8 @@ const DIRECTIVES: Directive[] = [
       'One rider per creature. Get off (none) before riding another. @car ride seats everyone in the car instead.'],
     example: '@ride charro: charro-horse' },
   { id: 'face', syntax: '@face <cast>: <expression>', what: 'Sets someone’s face for the next spoken line only.',
-    rules: ['Faces: neutral, happy, sad, angry, surprised, sleepy, cheeky, exhausted, worried, dead.',
+    rules: ['Faces: neutral, happy, sad, angry, surprised, sleepy, cheeky, exhausted, worried, dead, '
+      + 'smug, proud, love, excited, relieved, laughing, wink, furious, annoyed, disgusted, crying, scared, embarrassed, jealous, guilty, confused, thinking, suspicious, shocked, deadpan, bored, facepalm_ready, dizzy, drunk, knocked_out, evil, crazy, blank, sick.',
       'Often you don’t need it: feeling words in the line (angry, laughed, sobbed, gasped…) change the face by themselves, right on that word.',
       'Use @face when the line has no feeling word but the moment does.'],
     example: '@face caligula: angry\nCaligula stomped his little boots.' },

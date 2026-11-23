@@ -21,5 +21,6 @@
   `saddle`), fitted roughly to their head and body; no top, legwear, footwear, hair, facial hair or built-in hat.
 - Creatures only (not humanoids): `"flame"` (`off low high`: fire on the mane, tail and hooves, eyes glowing) and
   `"flame_color"` (hex, the outer flame; unset is fire). Both work in looks: `"looks": { "blazing": { "flame": "high" } }`.
-- Optional: `"default_expression"` (`neutral happy cheer sad angry surprised sleepy cheeky exhausted worried dead`), `"eyes"` (`dots`,
+- Optional: `"default_expression"` (`neutral happy cheer sad angry surprised sleepy cheeky exhausted worried dead
+  smug proud love excited relieved laughing wink furious annoyed disgusted crying scared embarrassed jealous guilty confused thinking suspicious shocked deadpan bored facepalm_ready dizzy drunk knocked_out evil crazy blank sick`), `"eyes"` (`dots`,
   `half_closed`).

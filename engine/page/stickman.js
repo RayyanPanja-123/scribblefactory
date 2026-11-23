@@ -84,6 +84,14 @@ const BROWS = {
   exhausted: [16, 0, 2],                // droopy: outer ends sag
   worried: [4, -12, 5],                 // inner ends lift: anxious brow
   dead: [6, 6, 0],                      // flat, slack
+  smug: [[2, 2, 4], [-14, -12, 12]], proud: [-4, -4, 10], love: [-6, -8, 12], excited: [-12, -14, 14],
+  relieved: [6, -2, 6], laughing: [-8, -10, 12], wink: [[-6, -8, 12], [4, 6, 6]],
+  furious: [-14, 24, -2], annoyed: [[0, 0, 6], [2, 12, 0]], disgusted: [-4, 14, 2], crying: [10, -16, 4],
+  scared: [-6, -18, 8], embarrassed: [4, -8, 6], jealous: [-4, 10, 2], guilty: [8, -14, 4],
+  confused: [[-14, -12, 12], [6, 8, 2]], thinking: [[-4, -6, 10], [-12, -14, 12]], suspicious: [0, 10, 0],
+  shocked: [-14, -14, 14], deadpan: [0, 0, 0], bored: [6, 6, 2], facepalm_ready: [10, -6, 3],
+  dizzy: [0, 0, 8], drunk: [[6, 4, 6], [-8, -6, 10]], knocked_out: [6, 6, 2], evil: [-16, 22, -4],
+  crazy: [[-16, -14, 16], [8, 14, 0]], blank: [0, 0, 4], sick: [12, -6, 3],
 };
 
 /** closed wobbly loop: stable per-character lumps (shape) + small per-boil jitter (boil) */
@@ -372,7 +380,7 @@ export function drawStickman(canvas, o) {
   headSpace(g, hx, hy, S.head, o.tilt);
   const headPts = wobble(hx, hy, HEAD_R, HEAD_R * HEAD_SQUASH, rng(o.seed, "head"), boil);
   const headW = 14 + boil() * 1.5;
-  p.poly(headPts, S.b.head_color, 0);
+  p.poly(headPts, o.expression === "sick" ? "#b8dca0" : S.b.head_color, 0); // sick: green tint
   p.path(headPts, true); paintVolume(g, headPts, light, STYLE.figure);
   p.poly(headPts, null, headW);
   face(p, boil, o, hx + 26 * look, hy, look);
@@ -664,53 +672,98 @@ function headwear(p, cos, hw, headPts, hx, hy, look, accent) {
   }
 }
 
+// eye kind per expression, one for both eyes or [left, right]; the rest use the cast's own eye style
+const EYES = {
+  dead: "x", surprised: "wide", sleepy: "half", exhausted: "heavy",
+  smug: "half", proud: "half", love: "heart", excited: "huge", relieved: "closed", laughing: "squeeze",
+  wink: ["round", "closed"], furious: "small", annoyed: "half", disgusted: "squint", crying: "round", scared: "tiny",
+  embarrassed: "away", jealous: "side", guilty: "down", thinking: "up", suspicious: "squint", shocked: "tiny",
+  deadpan: "dot", bored: "half", facepalm_ready: "closed", dizzy: "spiral", drunk: ["half", "drunk"],
+  knocked_out: "squeeze", evil: "small", crazy: ["pin", "bulge"], blank: "empty", sick: "heavy",
+};
+// open eyes: [radius, pupil scale, pupil dx, pupil dy] (dx is toward the way the face looks)
+const ROUND = { round: [30, 1, 0, 0], wide: [36, 0.75, 0, 0], huge: [42, 1.25, 0, 4], tiny: [38, 0.35, 0, 0],
+  small: [28, 0.8, 0, 2], away: [30, 1, -14, 10], down: [30, 1, 0, 14], up: [30, 1, 8, -16], empty: [32, 0, 0, 0],
+  pin: [34, 0.35, 0, 0], bulge: [38, 1.5, 0, 0], drunk: [30, 1, -10, 10] };
+const NO_BLINK = new Set(["x", "heart", "spiral", "squeeze", "dot", "closed"]);
+const BIG_BROWS = new Set(["surprised", "excited", "scared", "shocked", "crazy"]);
+const LOW_BROWS = new Set(["sleepy", "exhausted", "bored", "sick", "drunk", "annoyed", "deadpan", "knocked_out"]);
+const wave = (cx, cy, half, amp, waves = 2, n = 16) => Array.from({ length: n + 1 }, (_, i) => {
+  const t = i / n; return [cx - half + 2 * half * t, cy + amp * Math.sin(t * waves * TAU)];
+});
+const heart = (x, y, s) => Array.from({ length: 33 }, (_, i) => {
+  const t = (i / 32) * TAU;
+  return [x + (s * Math.sin(t) ** 3), y - (s * (13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t))) / 16];
+});
+
 function face(p, boil, o, fx, hy, look) {
   const w = (k) => Math.min(FACE[k][0] * FACE_MAX, Math.max(FACE[k][0], FACE[k][1] / (o.px || 1)));
   const ex = [fx - 50, fx + 50], ey = hy - 8;
   const expr = o.expression || "neutral";
-  const big = expr === "surprised" || o.action === "react" || (o.action === "collapse" && (o.buckle || 0) > 0.3);
-  // expression overrides the base eye style; blinks win over everything
-  const kind = expr === "dead" ? "x"                      // X eyes; a dead face never blinks
-    : o.lid >= 1 ? "closed" : o.lid === 0.5 ? "half"
-    : expr === "surprised" ? "round"                      // wide open, small pupils, for every character
-    : expr === "sleepy" ? "half"                          // flat lids
-    : expr === "exhausted" ? "heavy"                      // lids drooping low over the pupils
-    : (expr === "happy" || expr === "cheer") && o.eyes === "half_closed" ? "arc" // soft upward arcs; dot eyes keep their dots
-    : o.eyes === "half_closed" ? "half" : "round";
-  for (const x of ex) {
+  const big = BIG_BROWS.has(expr) || o.action === "react" || (o.action === "collapse" && (o.buckle || 0) > 0.3);
+  const E = EYES[expr];
+  const base = (expr === "happy" || expr === "cheer") && o.eyes === "half_closed" ? "arc" // soft upward arcs
+    : o.eyes === "half_closed" ? "half" : big ? "wide" : "round";
+  ex.forEach((x, i) => {
+    const want = (Array.isArray(E) ? E[i] : E) || base;
+    // blinks win, except on drawn-shut or symbol eyes (a dead face never blinks)
+    const kind = NO_BLINK.has(want) ? want : o.lid >= 1 ? "closed" : o.lid === 0.5 ? "half" : want;
+    const side = i ? 1 : -1;
     if (kind === "x") {                                                                  // dead: a cross per eye
       for (const s of [-1, 1]) p.stroke(jitter([[x - 24, ey - 24 * s], [x + 24, ey + 24 * s]], boil, 1.5), w("eye") * 1.4);
     } else if (kind === "closed") {
-      p.stroke(jitter(ellPts(x, ey - 6, 26, 10, 20, 160, 0, 12), boil, 1.5), w("eye"));  // blink: closed
+      p.stroke(jitter(ellPts(x, ey - 6, 26, 10, 20, 160, 0, 12), boil, 1.5), w("eye"));  // closed: a lid curve
     } else if (kind === "arc") {
       p.stroke(jitter(ellPts(x, ey + 10, 26, 18, 200, 340, 0, 12), boil, 1.5), w("eye")); // happy: upward arc
+    } else if (kind === "squeeze") {                                                     // > <, pointing in
+      p.stroke(jitter([[x + side * 20, ey - 18], [x - side * 16, ey], [x + side * 20, ey + 18]], boil, 1.5), w("eye"));
+    } else if (kind === "heart") {
+      p.poly(heart(x, ey + 2, 34), "#e0245e", w("eyeRim"));
+    } else if (kind === "spiral") {
+      p.stroke(Array.from({ length: 40 }, (_, k) => {
+        const a = (k / 39) * 3 * TAU * side, r = 4 + 24 * (k / 39);
+        return [x + r * Math.cos(a), ey + r * Math.sin(a)];
+      }), w("eye") * 0.8);
+    } else if (kind === "dot") {
+      p.dot(x, ey, w("pupil") * 0.8);
+    } else if (kind === "squint") {                                                      // narrow slit, pupil between
+      p.dot(x + 6 * look, ey, w("pupil") * 0.7);
+      p.stroke(jitter([[x - 28, ey - 8], [x + 28, ey - 10]], boil, 1.5), w("eye"));
+      p.stroke(jitter([[x - 24, ey + 10], [x + 24, ey + 8]], boil, 1.5), w("eye") * 0.8);
     } else if (kind === "heavy") {
       p.poly(ellPts(x, ey, 29, 27, -8, 188, 0, 16), "#ffffff", w("eyeRim"));        // lower half of the eye
       p.dot(x + 6 * look, ey + 12, w("pupil") * 0.85);                                  // pupil under the lid
       p.stroke(jitter([[x - 32, ey - 2], [x, ey + 1], [x + 32, ey + 4]], boil, 1.5), w("eye") * 1.6); // heavy lid
-    } else if (kind === "half") {
-      p.poly(ellPts(x + 4 * look, ey, 15, 13, 0, 180, 0, 12), INK, 0);           // pupil under the lid
+    } else if (kind === "half" || kind === "side") {
+      const dx = kind === "side" ? 16 * (look || 1) : 4 * look;                         // side-eye: hard to one side
+      p.poly(ellPts(x + dx, ey, 15, 13, 0, 180, 0, 12), INK, 0);                 // pupil under the lid
       p.stroke(jitter([[x - 28, ey], [x + 28, ey]], boil, 1.5), w("eye"));             // lid line
     } else {
-      const r = big ? 36 : 30;
+      const [r, ps, dx, dy] = ROUND[kind] || ROUND.round, dir = look || 1;
       p.poly(ellPts(x, ey, r, r, 0, 360, 0, 28), "#ffffff", w("eyeRim"));
-      p.dot(x + 8 * look + 10 * (o.gaze || 0), ey + 2, w("pupil") * (big ? 0.75 : 1)); // gaze: a glance sideways
+      if (ps) p.dot(x + 8 * look + dx * dir + 10 * (o.gaze || 0), ey + 2 + dy, w("pupil") * ps); // gaze: a glance
     }
-  }
-  // bold curved brows
+  });
+  // bold curved brows (none on a blank face)
   const B = BROWS[expr] || BROWS.neutral, sides = Array.isArray(B[0]) ? B : [B, B];
-  const by = ey - (big ? 64 : expr === "sleepy" || expr === "exhausted" ? 44 : 54);
-  for (const [x, side, [outer, inner, arch]] of [[ex[0], -1, sides[0]], [ex[1], 1, sides[1]]]) {
+  const by = ey - (big ? 64 : LOW_BROWS.has(expr) ? 44 : 54);
+  if (expr !== "blank") for (const [x, side, [outer, inner, arch]] of [[ex[0], -1, sides[0]], [ex[1], 1, sides[1]]]) {
     const o0 = [x + side * 34, by + outer], i0 = [x - side * 30, by + inner];
     const c = [(o0[0] + i0[0]) / 2, Math.min(o0[1], i0[1]) - arch * 2];
     p.stroke(jitter(quad(o0, c, i0), boil, 1.2), w("brow"));
   }
+  // extras: tear drops, blush lines, a scrunched nose
+  if (expr === "crying") for (const x of ex) p.poly([[x, ey + 36], ...ellPts(x, ey + 58, 10, 10, -20, 200, 0, 12)], "#5aa9e6", 3);
+  if (expr === "embarrassed") for (const x of ex) for (const d of [-14, 0, 14]) p.stroke([[x + d - 6, ey + 48], [x + d + 6, ey + 36]], 5, "#e0607e");
+  if (expr === "disgusted") for (const d of [-10, 10]) p.stroke(jitter([[fx + d - 8, ey + 32], [fx + d, ey + 24], [fx + d + 8, ey + 32]], boil, 1), w("mouth") * 0.6);
+  if (expr === "blank") return;
   // small mouth line; talking opens it
   const mx = fx + 4 * look, my = hy + 74;
   if ((o.mouth || 0) > 0.05) {
     p.poly(ellPts(mx, my, 20, 4 + 18 * o.mouth, 0, 360, 0, 20), INK, 0);
     return;
   }
+  const soft = ellPts(mx, my - 10, 22, 12, 25, 155, 0, 12);
   const M = {
     neutral: [[mx - 22, my], [mx + 22, my]],
     happy: ellPts(mx, my - 14, 28, 18, 25, 155, 0, 12),
@@ -721,8 +774,41 @@ function face(p, boil, o, fx, hy, look) {
     cheeky: quad([mx - 22, my + 2], [mx + 2, my + 14], [mx + 28, my - 12]), // lopsided grin
     dead: [[mx - 24, my + 2], [mx - 12, my - 4], [mx, my + 2], [mx + 12, my - 4], [mx + 24, my + 2]], // slack wavy line
     worried: [[mx - 22, my + 5], [mx, my - 4], [mx + 22, my + 5]],
+    smug: quad([mx - 20, my + 2], [mx + 4, my + 6], [mx + 24, my - 10]),                // closed-lip smirk
+    proud: soft, love: soft, wink: soft,
+    annoyed: [[mx - 20, my + 2], [mx + 20, my - 2]], suspicious: [[mx - 16, my], [mx + 16, my]],
+    deadpan: [[mx - 26, my], [mx + 26, my]], bored: [[mx - 18, my + 2], [mx + 18, my + 2]],
+    knocked_out: [[mx - 22, my], [mx + 22, my]],
+    disgusted: wave(mx, my, 24, 4), crying: wave(mx, my + 4, 22, 5), sick: wave(mx, my, 22, 4),
+    embarrassed: wave(mx, my, 14, 3, 1.5), confused: wave(mx, my, 22, 6, 1.5),
+    scared: [[mx - 24, my + 4], [mx - 12, my - 6], [mx, my + 4], [mx + 12, my - 6], [mx + 24, my + 4]], // jagged
+    jealous: ellPts(mx, my + 10, 14, 8, 205, 335, 0, 10), guilty: ellPts(mx, my + 10, 16, 7, 205, 335, 0, 10),
+    facepalm_ready: ellPts(mx, my + 12, 22, 10, 205, 335, 0, 12),                       // tired frown
+    thinking: [[mx + 6, my + 2], [mx + 26, my - 4]],                                     // pushed to one side
+    drunk: ellPts(mx + 4, my - 16, 34, 22, 20, 160, 10, 12),                             // tilted goofy grin
+  };
+  const thin = w("mouth") * 0.4;
+  const grin = (hw, top, bot, cols, rows) => {                                           // white grin, tooth grid
+    p.poly(ellPts(mx, top, hw, bot - top, 0, 180, 0, 16), "#ffffff", w("mouth") * 0.8);
+    for (let c = 1; c < cols; c++) { const x = mx - hw + (2 * hw * c) / cols; p.stroke([[x, top], [x, top + (bot - top) * 0.7]], thin); }
+    if (rows > 1) p.stroke([[mx - hw * 0.8, top + (bot - top) * 0.4], [mx + hw * 0.8, top + (bot - top) * 0.4]], thin);
   };
   if (expr === "exhausted") p.poly(ellPts(mx, my + 2, 11, 9, 0, 360, 0, 16), INK, 0); // small open mouth
   else if (expr === "surprised") p.poly(ellPts(mx, my, 12, 15, 0, 360, 0, 20), null, w("mouth") * 0.9);
-  else p.stroke(jitter(M[expr] || M.neutral, boil, 1.2), w("mouth"));
+  else if (expr === "relieved") p.poly(ellPts(mx, my, 7, 7, 0, 360, 0, 12), null, w("mouth") * 0.8);  // small exhale
+  else if (expr === "shocked") p.poly(ellPts(mx, my + 6, 18, 28, 0, 360, 0, 20), INK, 0);             // huge open mouth
+  else if (expr === "excited" || expr === "laughing") {                                               // wide open grin
+    const r = expr === "laughing" ? 44 : 38;
+    p.poly(ellPts(mx, my - 14, r, r * 0.9, 0, 180, 0, 16), INK, 0);
+    p.poly(ellPts(mx, my - 14 + r * 0.85, r * 0.45, r * 0.3, 180, 360, 0, 10), "#e05a6a", 0);        // tongue
+  } else if (expr === "furious") {                                                                  // gritted teeth
+    p.poly([[mx - 26, my - 10], [mx + 26, my - 10], [mx + 26, my + 10], [mx - 26, my + 10]], "#ffffff", w("mouth") * 0.8);
+    p.stroke([[mx - 24, my], [mx + 24, my]], thin);
+    for (const d of [-13, 0, 13]) p.stroke([[mx + d, my - 10], [mx + d, my + 10]], thin);
+  } else if (expr === "evil") grin(38, my - 18, my + 10, 6, 1);                                     // wide grin
+  else if (expr === "crazy") grin(34, my - 16, my + 16, 5, 2);                                      // big teeth
+  else {
+    p.stroke(jitter(M[expr] || M.neutral, boil, 1.2), w("mouth"));
+    if (expr === "knocked_out") p.poly(ellPts(mx + 8, my + 2, 10, 14, 0, 180, 0, 10), "#e05a6a", w("mouth") * 0.6); // tongue out
+  }
 }

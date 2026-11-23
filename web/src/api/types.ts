@@ -1075,7 +1075,7 @@ export interface components {
             accessory?: components["schemas"]["WardrobeSlot"][] | null;
             back?: components["schemas"]["WardrobeSlot"] | null;
             /** Default Expression */
-            default_expression?: ("neutral" | "happy" | "cheer" | "sad" | "angry" | "surprised" | "sleepy" | "cheeky" | "exhausted" | "worried" | "dead") | null;
+            default_expression?: ("neutral" | "happy" | "cheer" | "sad" | "angry" | "surprised" | "sleepy" | "cheeky" | "exhausted" | "worried" | "dead" | "smug" | "proud" | "love" | "excited" | "relieved" | "laughing" | "wink" | "furious" | "annoyed" | "disgusted" | "crying" | "scared" | "embarrassed" | "jealous" | "guilty" | "confused" | "thinking" | "suspicious" | "shocked" | "deadpan" | "bored" | "facepalm_ready" | "dizzy" | "drunk" | "knocked_out" | "evil" | "crazy" | "blank" | "sick") | null;
             /** Eyes */
             eyes?: ("dots" | "half_closed") | null;
             /** Face */
@@ -1129,7 +1129,7 @@ export interface components {
              * @default neutral
              * @enum {string}
              */
-            default_expression: "neutral" | "happy" | "cheer" | "sad" | "angry" | "surprised" | "sleepy" | "cheeky" | "exhausted" | "worried" | "dead";
+            default_expression: "neutral" | "happy" | "cheer" | "sad" | "angry" | "surprised" | "sleepy" | "cheeky" | "exhausted" | "worried" | "dead" | "smug" | "proud" | "love" | "excited" | "relieved" | "laughing" | "wink" | "furious" | "annoyed" | "disgusted" | "crying" | "scared" | "embarrassed" | "jealous" | "guilty" | "confused" | "thinking" | "suspicious" | "shocked" | "deadpan" | "bored" | "facepalm_ready" | "dizzy" | "drunk" | "knocked_out" | "evil" | "crazy" | "blank" | "sick";
             /**
              * Eyes
              * @enum {string}
@@ -2563,6 +2563,13 @@ export interface components {
              */
             notes: string;
             /**
+             * Pronunciations
+             * @default {}
+             */
+            pronunciations: {
+                [key: string]: string;
+            };
+            /**
              * Provider
              * @default freetts.ai
              */
@@ -2687,7 +2694,7 @@ export interface components {
              * When
              * @description only with these expressions (blush: happy)
              */
-            when?: ("neutral" | "happy" | "cheer" | "sad" | "angry" | "surprised" | "sleepy" | "cheeky" | "exhausted" | "worried" | "dead")[] | null;
+            when?: ("neutral" | "happy" | "cheer" | "sad" | "angry" | "surprised" | "sleepy" | "cheeky" | "exhausted" | "worried" | "dead" | "smug" | "proud" | "love" | "excited" | "relieved" | "laughing" | "wink" | "furious" | "annoyed" | "disgusted" | "crying" | "scared" | "embarrassed" | "jealous" | "guilty" | "confused" | "thinking" | "suspicious" | "shocked" | "deadpan" | "bored" | "facepalm_ready" | "dizzy" | "drunk" | "knocked_out" | "evil" | "crazy" | "blank" | "sick")[] | null;
             /**
              * Width
              * @description outline / line width; 0: no outline

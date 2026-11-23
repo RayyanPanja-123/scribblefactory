@@ -110,7 +110,8 @@ fit the story's period or design.
   `lie`, `collapse`, `eat [prop]`, `give <prop> <target>`, `carry <target>`, `support <target>`, `car: broken`, and
   custom actions. Several clauses may be comma-separated. A later `@do` before the narration line replaces the earlier one.
 - `@face <cast>: <expression>`: sets a face for the next line: `neutral`, `happy`, `cheer`, `sad`, `angry`, `surprised`, `sleepy`,
-  `cheeky`, `exhausted`, `worried`, or `dead`. `dead` draws X eyes. Use it for a reaction that narration words do not make
+  `cheeky`, `exhausted`, `worried`, `dead`, `smug`, `proud`, `love`, `excited`, `relieved`, `laughing`, `wink`, `furious`, `annoyed`, `disgusted`, `crying`, `scared`, `embarrassed`, `jealous`, `guilty`, `confused`, `thinking`, `suspicious`, `shocked`, `deadpan`, `bored`, `facepalm_ready`, `dizzy`, `drunk`, `knocked_out`, `evil`, `crazy`, `blank`, or `sick`.
+  `dead` draws X eyes. Use it for a reaction that narration words do not make
   clear; narration mood words can also change faces during the line.
 - `@fx drop | shake | pop`: animates the next line's caption. Use `shake` for impact, `pop` for a reveal, and `drop` for
   a dramatic entrance or punchline. Use sparingly.

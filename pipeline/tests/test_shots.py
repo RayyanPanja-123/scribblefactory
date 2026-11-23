@@ -835,6 +835,6 @@ def test_face_directive_wins_for_its_line_only():
 
 def test_face_directive_errors():
     with pytest.raises(StageError, match=r"line 4: @face: expected"):
-        plan("# T\n\n@cast bob, amy\n@face bob: furious\nBob sat.\n")
+        plan("# T\n\n@cast bob, amy\n@face bob: grumpy\nBob sat.\n")
     with pytest.raises(StageError, match=r"line 4: @face: unknown cast id 'zed'"):
         plan("# T\n\n@cast bob, amy\n@face zed: sad\nBob sat.\n")
