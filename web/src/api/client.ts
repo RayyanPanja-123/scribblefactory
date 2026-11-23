@@ -13,6 +13,7 @@ export type SeriesDetail = S['SeriesDetail']
 export type SeriesModel = S['SeriesModel']
 export type PartSummary = S['PartSummary']
 export type PartDetail = S['PartDetail']
+export type StoredFile = S['StoredFile']
 export type PartModel = S['PartModel']
 export type CastMember = S['CastMember']
 export type Job = S['Job']
@@ -68,6 +69,7 @@ export const media = (slug: string, rel: string) => `/api/media/${e(slug)}/${rel
 
 export const api = {
   overview: () => call<Overview>('GET', '/api/overview'),
+  storage: () => call<StoredFile[]>('GET', '/api/storage'),
   series: () => call<SeriesCard[]>('GET', '/api/series'),
   notifications: () => call<Notification[]>('GET', '/api/notifications'),
   seriesDetail: (slug: string) => call<SeriesDetail>('GET', `/api/series/${e(slug)}`),
