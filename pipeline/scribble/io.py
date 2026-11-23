@@ -64,7 +64,8 @@ def adopt(series_dir) -> None:
     library, slug = series_where(d)
     if f.is_file():
         text = f.read_text(encoding="utf-8")
-        db.put_series(library, {**SeriesModel.model_validate_json(text).model_dump(mode="json"), "slug": slug}, file_text=text)
+        s = SeriesModel.model_validate_json(text)
+        db.put_series(library, {**s.model_dump(mode="json"), "slug": slug}, cast_uses(s), file_text=text)
         db.retire(f)
     if db.get_series(library, slug) is None:
         return  # parts without their series: left for when it is there
@@ -204,9 +205,20 @@ def _remove(library, file: str, lib, field: str, item_id: str, *blockers) -> Non
     _write_library(library, lib, field)
 
 
-def _cast_with(library, wants) -> list[tuple[Path, str]]:
-    """(series.json, cast id) for every cast member, in every series of the library, that wants(member)"""
-    return [(f, c.id) for f in (d / SERIES_FILE for d in series_dirs(library)) for c in load_series(f).cast if wants(c)]
+def cast_uses(series: SeriesModel) -> dict[str, list[tuple[str, str]]]:
+    """cast id -> the library items it uses: ("props", kind) held, ("wardrobe", id) worn in any look, ("creatures",
+    body). Stored with the cast (db.cast_uses), so "who uses this item" is one query."""
+    return {c.id: [*(("props", p.kind) for p in c.props), *(("wardrobe", wid) for _, wid in c.wardrobe()),
+                   ("creatures", c.body)] for c in series.cast}
+
+
+def _cast_using(library, kind: str, item_id: str) -> list[tuple[Path, str]]:
+    """(series.json, cast id) for every cast member, in every series of the library, using this item"""
+    dirs = series_dirs(library)  # also imports a series.json dropped into a series folder
+    if db.uses_missing(library):  # a library from before cast_uses: filled once (not re-saved: hashes stay)
+        for d in dirs:
+            db.put_uses(library, d.name, cast_uses(load_series(d / SERIES_FILE)))
+    return [(storage_root(library) / slug / SERIES_FILE, cid) for slug, cid in db.cast_users(library, kind, item_id)]
 
 
 def _cast_names(pairs) -> list[str]:
@@ -244,7 +256,7 @@ def unknown_cast_props(cast, library) -> list[str]:
 
 def prop_holders(library, kind: str) -> list[tuple[Path, str]]:
     """(series.json, cast id) for every cast member, in every series of the library, holding a prop of this kind"""
-    return _cast_with(library, lambda c: any(p.kind == kind for p in c.props))
+    return _cast_using(library, "props", kind)
 
 
 def save_prop(library, prop: CustomProp) -> list[str]:
@@ -369,7 +381,7 @@ def wardrobe_slots(library) -> dict[str, str]:
 
 def wardrobe_wearers(library, item_id: str) -> list[tuple[Path, str]]:
     """(series.json, cast id) for every cast member, in every series of the library, wearing this item in any look"""
-    return _cast_with(library, lambda c: any(wid == item_id for _, wid in c.wardrobe()))
+    return _cast_using(library, "wardrobe", item_id)
 
 
 def _clear_approvals(pairs) -> list[str]:
@@ -406,7 +418,7 @@ def delete_wardrobe_item(library, item_id: str) -> None:
 
 def creature_users(library, creature_id: str) -> list[tuple[Path, str]]:
     """(series.json, cast id) for every cast member, in every series of the library, with this body"""
-    return _cast_with(library, lambda c: c.body == creature_id)
+    return _cast_using(library, "creatures", creature_id)
 
 
 def save_creature(library, creature: CustomCreature) -> list[str]:
@@ -579,7 +591,7 @@ def write_series(path, model: SeriesModel) -> None:
     """store the series as it is: approvals cleared on purpose stay cleared (save_series keeps every approval)"""
     d = Path(path).parent
     library, slug = series_where(d)
-    db.put_series(library, {**model.model_dump(mode="json"), "slug": slug})
+    db.put_series(library, {**model.model_dump(mode="json"), "slug": slug}, cast_uses(model))
 
 
 def save_series(path, model: SeriesModel) -> None:

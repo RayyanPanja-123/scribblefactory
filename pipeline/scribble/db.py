@@ -303,9 +303,25 @@ def get_series(library, slug: str) -> dict | None:
         return {**{k: getattr(s, k) for k in SERIES_COLUMNS}, **s.data, "parts": list(parts), "cast": list(cast)}
 
 
-def put_series(library, d: dict, file_text: str | None = None) -> None:
-    """add or replace the series d["slug"] (a SeriesModel dump) and its whole cast. Its parts are rows of their own
-    and stay: d["parts"] is not stored."""
+class CastUse(SQLModel, table=True):
+    """a library item a cast member uses (io.cast_uses): kind props (held), wardrobe (worn in any look) or creatures
+    (its body). No link to catalog_item: built-in items (crown, horse...) are not rows there."""
+    __tablename__ = "cast_uses"
+    cast_member: int = Field(foreign_key="cast_member.id", ondelete="CASCADE", primary_key=True)
+    kind: str = Field(primary_key=True)
+    item_id: str = Field(primary_key=True)
+
+
+def _put_uses(db: Session, series_id: int, uses: dict[str, list[tuple[str, str]]]) -> None:
+    ids = {cid: i for cid, i in db.exec(select(CastMember.cast_id, CastMember.id).where(CastMember.series_id == series_id))}
+    db.exec(delete(CastUse).where(CastUse.cast_member.in_(list(ids.values()))))
+    db.add_all(CastUse(cast_member=ids[cid], kind=k, item_id=i) for cid, pairs in uses.items() if cid in ids
+               for k, i in set(pairs))
+
+
+def put_series(library, d: dict, uses: dict[str, list[tuple[str, str]]], file_text: str | None = None) -> None:
+    """add or replace the series d["slug"] (a SeriesModel dump), its whole cast and what each member uses (cast id ->
+    (kind, item id) pairs). Its parts are rows of their own and stay: d["parts"] is not stored."""
     with Session(engine(library)) as db:
         s = _series_row(db, d["slug"]) or Series(slug=d["slug"], title="", status="", created_at="", data={})
         s.title, s.status, s.created_at = d["title"], d["status"], d["created_at"]
@@ -316,7 +332,36 @@ def put_series(library, d: dict, file_text: str | None = None) -> None:
         db.exec(delete(CastMember).where(CastMember.series_id == s.id))
         db.add_all(CastMember(series_id=s.id, cast_id=c["id"], name=c["name"], approved_at=c.get("approved_at"), data=c)
                    for c in d["cast"])
+        db.flush()
+        _put_uses(db, s.id, uses)
         db.commit()
+
+
+def put_uses(library, slug: str, uses: dict[str, list[tuple[str, str]]]) -> None:
+    """what each cast member of the series uses, alone (the series row, and its kept file text, untouched)"""
+    with Session(engine(library)) as db:
+        if s := _series_row(db, slug):
+            _put_uses(db, s.id, uses)
+            db.commit()
+
+
+def uses_missing(library) -> bool:
+    """cast members but no uses: the table was never filled (every member uses at least its body)"""
+    if not _has_data(library):
+        return False
+    with Session(engine(library)) as db:
+        return db.exec(select(CastMember.id).limit(1)).first() is not None and db.exec(select(CastUse.kind).limit(1)).first() is None
+
+
+def cast_users(library, kind: str, item_id: str) -> list[tuple[str, str]]:
+    """(series slug, cast id) of every cast member using this item, by slug, then cast order"""
+    if not _has_data(library):
+        return []
+    with Session(engine(library)) as db:
+        return list(db.exec(select(Series.slug, CastMember.cast_id).join(CastMember, CastMember.series_id == Series.id)
+                            .join(CastUse, CastUse.cast_member == CastMember.id)
+                            .where(CastUse.kind == kind, CastUse.item_id == item_id)
+                            .order_by(Series.slug, CastMember.id)).all())
 
 
 def series_file_text(library, slug: str) -> str | None:
