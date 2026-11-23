@@ -10,6 +10,11 @@ FastAPI backend for the web view. Localhost only, no auth. Run from the repo roo
 Library: `$SCRIBBLE_LIBRARY`, else `./library` (same as the CLI). CORS allows only the Vite dev server
 (`http://localhost:5173`). Schema: `docs/openapi.json`, regenerate with `python -m api.main` (a test fails when it drifts).
 
+Files: `main.py` (the app, startup, series/part reads and actions, story packages), `core.py` (library paths, part
+and series JSON), `models.py` (response models), `jobs.py` (the job queue), `catalogs.py` (props, creatures,
+wardrobe, actions, sets, objects), `sounds.py`, `settings_routes.py`, `captions.py` (Gemini) and `events.py` (SSE).
+Each route module has its own `router`, and `main.py` includes them before the web app's catch-all route.
+
 - Reads: `/api/health`, `/api/overview`, `/api/series`, `/api/series/{slug}`, `/api/series/{slug}/parts/{part}`,
   `/api/series/{slug}/parts/{part}/check-story` (same checks as the `check-story` CLI command),
   `/api/media/{slug}/{path}` (mp4/png/jpg/mp3/md/json inside the series folder, Range requests for seeking).

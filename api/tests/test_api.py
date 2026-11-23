@@ -8,6 +8,7 @@ import sys
 import threading
 import time
 import urllib.error
+import urllib.request
 
 import httpx2 as httpx
 import pytest
@@ -15,6 +16,7 @@ import uvicorn
 from fastapi.testclient import TestClient
 
 import api.main as m
+from api import jobs, settings_routes
 from pipeline.scribble.cli import main as cli
 from pipeline.scribble.io import load_part, save_part
 from pipeline.scribble.stages import render as render_stage
@@ -68,7 +70,7 @@ def wait_job(client, job_id, timeout=30):
 
 def fake_steps(monkeypatch, scripts: dict):
     """step text -> python -c script, in place of the CLI"""
-    monkeypatch.setattr(m, "step_argv", lambda slug, part, step: [PY, "-c", scripts[step]])
+    monkeypatch.setattr(jobs, "step_argv", lambda slug, part, step: [PY, "-c", scripts[step]])
 
 
 # ---------------- reads ----------------
@@ -376,9 +378,9 @@ def test_job_steps_validated(client):
     for steps in (["rm -rf /"], ["run --stage nope"], [], ["render --bogus"]):
         r = client.post("/api/jobs", json={"slug": "demo", "part": "part-01", "steps": steps})
         assert r.status_code == 409, steps
-    assert m.step_argv("demo", "part-01", "run --stage prep")[-5:-1] == ["demo", "part-01", "--stage", "prep"]
-    assert "part-01" not in m.step_argv("demo", "part-01", "cast-sheet")
-    assert m.step_argv("demo", "part-01", "cast-sheet bob")[-2] == "bob"  # one member
+    assert jobs.step_argv("demo", "part-01", "run --stage prep")[-5:-1] == ["demo", "part-01", "--stage", "prep"]
+    assert "part-01" not in jobs.step_argv("demo", "part-01", "cast-sheet")
+    assert jobs.step_argv("demo", "part-01", "cast-sheet bob")[-2] == "bob"  # one member
 
 
 def test_jobs_fifo_and_output(client, monkeypatch, lib):
@@ -635,8 +637,8 @@ def test_job_history_cleanup(client, lib):
     mk = lambda i, status, finished: {"id": i, "tag": f"D{i:03d}", "slug": "demo", "part": "part-01", "steps": ["render-stills"], "argv": [],
                                       "current_step": None, "status": status, "queued_at": "2026-01-01T00:00:00Z",
                                       "started_at": None, "finished_at": finished, "returncode": 0, "output": []}
-    with m._cv:
-        m.JOBS[:] = [mk(1, "done", "2026-01-05T10:00:00Z"), mk(2, "failed", "2026-02-05T10:00:00Z"),
+    with jobs._cv:
+        jobs.JOBS[:] = [mk(1, "done", "2026-01-05T10:00:00Z"), mk(2, "failed", "2026-02-05T10:00:00Z"),
                      mk(3, "cancelled", "2026-03-05T10:00:00Z"), mk(4, "queued", None)]
     try:
         r = client.post("/api/jobs/cleanup", json={"before": "2026-02-05"})
@@ -644,8 +646,8 @@ def test_job_history_cleanup(client, lib):
         assert [j["id"] for j in client.post("/api/jobs/cleanup", json={}).json()] == [4]  # all history; queued stays
         assert client.post("/api/jobs/cleanup", json={"before": "05.02.2026"}).status_code == 422
     finally:
-        with m._cv:
-            m.JOBS.clear()  # the fake queued job must not block later tests
+        with jobs._cv:
+            jobs.JOBS.clear()  # the fake queued job must not block later tests
 
 
 DOG = {"id": "dog", "name": "Dog", "rig": "quadruped",
@@ -692,17 +694,17 @@ def test_creatures(client, lib):
 def test_drop_old_ai_settings(tmp_path, monkeypatch):
     monkeypatch.setenv("SCRIBBLE_LIBRARY", str(tmp_path))
     f = tmp_path / "settings.json"
-    assert m.drop_ai_settings() == []  # no file: nothing to do
+    assert settings_routes.drop_ai_settings() == []  # no file: nothing to do
     f.write_text(json.dumps({"provider": "gemini", "gemini_api_key": "k", "api_key": "s", "model": "x"}), encoding="utf-8")
-    assert m.drop_ai_settings() and not f.exists()  # only provider keys: the file goes
+    assert settings_routes.drop_ai_settings() and not f.exists()  # only provider keys: the file goes
     f.write_text(json.dumps({"openrouter_api_key": "k", "other": 1}), encoding="utf-8")
-    m.drop_ai_settings()
+    settings_routes.drop_ai_settings()
     assert json.loads(f.read_text(encoding="utf-8")) == {"other": 1}  # anything else is kept
-    assert m.drop_ai_settings() == []
+    assert settings_routes.drop_ai_settings() == []
     f.write_text("{not json", encoding="utf-8")
-    assert "could not" in m.drop_ai_settings()[0]  # a broken file never stops startup
+    assert "could not" in settings_routes.drop_ai_settings()[0]  # a broken file never stops startup
     f.write_text(json.dumps({"api_key": "s", "render_workers": 4}), encoding="utf-8")
-    m.drop_ai_settings()
+    settings_routes.drop_ai_settings()
     assert json.loads(f.read_text(encoding="utf-8")) == {"render_workers": 4}  # render settings survive the cleanup
 
 
@@ -809,7 +811,7 @@ def test_captions_gemini(client, lib, monkeypatch):
         sent.update(url=req.full_url, key=req.get_header("X-goog-api-key"), body=json.loads(req.data))
         reply = {"candidates": [{"content": {"parts": [{"text": "hmm", "thought": True}, {"text": json.dumps(caps)}]}}]}
         return contextlib.nullcontext(io.BytesIO(json.dumps(reply).encode()))
-    monkeypatch.setattr(m.urllib.request, "urlopen", fake)
+    monkeypatch.setattr(urllib.request, "urlopen", fake)
     assert client.post("/api/captions", json={"prompt": "write"}).json() == caps
     assert sent["key"] == "sekret-k" and sent["url"].endswith("/gemini-flash-latest:generateContent")
     assert sent["body"]["contents"][0]["parts"][0]["text"] == "write"
@@ -824,14 +826,14 @@ def test_captions_gemini(client, lib, monkeypatch):
             raise urllib.error.HTTPError(req.full_url, 503 if len(tried) == 1 else 429, "x", {},
                                          io.BytesIO(b'{"error": {"message": "high demand"}}'))
         return fake(req, timeout)
-    monkeypatch.setattr(m.urllib.request, "urlopen", busy)
+    monkeypatch.setattr(urllib.request, "urlopen", busy)
     assert client.post("/api/captions", json={"prompt": "write"}).json() == caps
     assert tried == ["gemini-3.5-flash", "gemini-flash-latest", "gemini-3.8-flash"]
-    monkeypatch.setattr(m.urllib.request, "urlopen", lambda req, timeout: (_ for _ in ()).throw(
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout: (_ for _ in ()).throw(
         urllib.error.HTTPError(req.full_url, 503, "x", {}, io.BytesIO(b'{"error": {"message": "high demand"}}'))))
     r = client.post("/api/captions", json={"prompt": "write"})
     assert r.status_code == 502 and "every free model is busy" in r.json()["detail"]
-    monkeypatch.setattr(m.urllib.request, "urlopen", lambda req, timeout: contextlib.nullcontext(io.BytesIO(b'{"candidates": []}')))
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout: contextlib.nullcontext(io.BytesIO(b'{"candidates": []}')))
     assert client.post("/api/captions", json={"prompt": "write"}).status_code == 502
     assert not client.put("/api/settings/gemini-key", json={"key": ""}).json()["gemini_key_last4"]
     assert "gemini_key" not in json.loads((lib / "settings.json").read_text(encoding="utf-8"))
