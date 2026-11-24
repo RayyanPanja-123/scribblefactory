@@ -210,7 +210,9 @@ def plan_fx(phrases: PhrasesModel, story: StoryModel, overrides: list[str | None
         if mode:
             plan[k]["entrance"] = None if mode == "none" else "drop" if mode == "drop" else "pop"
             plan[k]["stamp"] = mode != "none"
-            if mode == "shake":
+            # with story.shakes, only the chunk the camera shakes on (the line's first) shakes; an older story.json
+            # without it: every chunk of the line, as before
+            if mode == "shake" and (not story.shakes or _frame(c["start"]) in story.shakes):
                 forced.append((_frame(c["start"]), k, FX_SHAKE_S))
             continue
         for i in range(c["first"], c["last"] + 1):

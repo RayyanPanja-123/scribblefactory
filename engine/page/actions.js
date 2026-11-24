@@ -32,6 +32,9 @@ export const EASES = {
   linear: (u) => u,
   "in-out": (u) => u * u * (3 - 2 * u),
   "back-out": (u) => 1 + (BACK + 1) * (u - 1) ** 3 + BACK * (u - 1) ** 2,
+  // S-curves for the camera (motion.js cameraProgress, fovPunch); not offered to custom actions (schema ActionKey.ease)
+  "cubic-in-out": (u) => (u < 0.5 ? 4 * u ** 3 : 1 - (2 - 2 * u) ** 3 / 2),
+  "quintic-out": (u) => 1 - (1 - u) ** 5,
 };
 const easeOf = (key) => EASES[key.ease] || EASES["in-out"];
 /** a custom action (schema CustomAction) at ts seconds into its shot: { arms [[upper, bend] x2], legs [l, r], knees [l, r], lean },

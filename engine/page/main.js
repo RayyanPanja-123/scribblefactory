@@ -6,7 +6,7 @@ import { BODY_W, CH, CW, FEET_Y, FIGURE_PX, HAT_TOP, HEAD_R, drawStickman, figur
 import { CRW, RIDE, creature, creatureAnchors, drawCreature, measure as creatureSize } from "./creatures.js";
 import { lookup, setLibrary } from "./library.js";
 import { DH, DOG_FEET, DW, barkAmount, drawDog, gallopPhase } from "./dog.js";
-import { cameraProgress, gestureAmount, idleLife, lookTarget, gesturePlan, mouthCurve, mouthCycles, pointAmount, stressBob, waveAmount } from "./motion.js";
+import { cameraProgress, fovPunch, noise1, shakeTriggers, trauma, gestureAmount, idleLife, lookTarget, gesturePlan, mouthCurve, mouthCycles, pointAmount, stressBob, waveAmount } from "./motion.js";
 import { BUILTIN_ACTIONS, CARRIED_LIFT, HELD_Z, HOLD_GAP, LIE, collapseAt, customPose, eatAt, gaitPhase, giveAt, handOf, heldPlace,
   propsByShot, sideToward, staggerAt, withProp, zzzAt } from "./actions.js";
 import { CAR_CARD_W, CAR_GROUND, DRIVER_X, RIDER_X, VH, VW, carEase, carSpeedShare, drawCar, seatOffset } from "./car.js";
@@ -16,6 +16,7 @@ import { rng, setVariant } from "./rng.js";
 import { SETS, VARIANTS, buildSet, loopExcess, scrollSet, setInk, setKind } from "./world.js";
 import { fadePlan, fogAlpha, fogCanvas, layersAt, paint, paintBack, strikeAt } from "./weather.js";
 import { INK, STYLE, usePreset } from "./style.js";
+import { FG_KINDS, foregroundCanvas } from "./foreground.js";
 
 const FPS = 30;
 let W = 1080, H = 1920; // the frame: story.width x story.height (setup); cast sheets stay 1080x1920
@@ -271,7 +272,7 @@ function rimLight(cv, px) {
 
 /** xs: x of every actor at the start and end of the shot. Wide centres on all of them and backs off until the
  *  whole cast fits for the entire shot, including where the move ends (push-in reach, truck shift). */
-function shotCamera(shot, sx, xs, u, drop = 0) {
+function shotCamera(shot, sx, xs, u, drop = 0, punch = 0) {
   const A = ANGLES[shot.camera.angle] || ANGLES.medium;
   let pos, look;
   // chase (travel shot with dogs): every angle fits actors + pack like wide, at the angle's own camera height
@@ -307,14 +308,96 @@ function shotCamera(shot, sx, xs, u, drop = 0) {
     case "crane_up": pos[1] += M.crane * k; look[1] += 0.31 * M.crane * k; break;
     case "crane_down": pos[1] = Math.max(0.2, pos[1] - M.crane * k); look[1] -= 0.25 * M.crane * k; break;
   }
-  camera.fov = A.fov;
   camera.position.set(...pos);
   camera.up.set(0, 1, 0);
   camera.lookAt(...look);
   // a twist shot's roll; else the optional slight seeded horizon tilt (style.js camera.tilt degrees, capped at 2)
   const tilt = Math.min(2, C.tilt) * (2 * rng(data.story.seed, shot.id, "tilt")() - 1);
   camera.rotateZ(rad(shot.camera.roll_deg ? shot.camera.roll_deg * glide(u / 0.4) : tilt));
+  setFov(A.fov + punch);
+}
+
+/** fov in degrees; the projection is rebuilt only when it changes (frameSize rebuilds it for a new aspect) */
+function setFov(f) {
+  if (camera.fov === f) return;
+  camera.fov = f;
   camera.updateProjectionMatrix();
+}
+
+let shakes = []; // shake triggers of the part (motion.js shakeTriggers), built in setup
+/** per-frame camera life over shotCamera's framing (style.js camera.life): drift scaled by the angle plus trauma
+ *  shake, both in the camera's own axes. A pure function of frame n: every chunk, still and the final video agree.
+ *  Returns the trauma 0..1. */
+function cameraLife(shot, n) {
+  const L = STYLE.camera.life, D = L.drift, K = L.shake, t = n / FPS, seed = data.story.seed;
+  const d = D.scale[shot.camera.angle] ?? 1, tr = trauma(t, shakes, K.decay), k = tr * tr;
+  const wob = (ch, unit) => d * D[unit] * noise1(t * D.hz, seed, "drift", ch) + k * K[unit] * noise1(t * K.hz, seed, "shake", ch);
+  camera.translateX(wob("x", "pos"));
+  camera.translateY(wob("y", "pos"));
+  camera.rotateX(rad(wob("pitch", "rot")));
+  camera.rotateY(rad(wob("yaw", "rot")));
+  camera.rotateZ(rad(wob("roll", "rot")));
+  return tr;
+}
+
+// foreground silhouette (foreground.js): one plane, placed per shot in world space, over the cast (no depth test)
+const fgTex = new Map(), fgByShot = new Map();
+const fgMesh = Object.assign(new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({
+  transparent: true, depthTest: false, depthWrite: false, fog: false, side: THREE.DoubleSide })), { renderOrder: 2, frustumCulled: false });
+
+/** per shot, once: the foreground silhouette { kind, side, pos, quat, w, h } or null. The set decides (seeded) whether
+ *  it has one and which; the shot picks the side. Placed from the mid-move camera in the outer `edge` band, top
+ *  down to above the captions, `depth` of the way to the subject, so the move gives it parallax. Dropped for the shot
+ *  when, at the move's start, middle or end, its inner edge would leave the band (pushed out of frame, or far into it), into the caption zone, or over the
+ *  head of the subject or anyone talking. Never in travel shots (the world scrolls past). */
+function foregroundFor(shot, subject, camAt, placeAt2) {
+  if (fgByShot.has(shot.id)) return fgByShot.get(shot.id);
+  const F = STYLE.camera.life.foreground, seed = data.story.seed, R = rng(seed, shot.set, "fg");
+  const kinds = FG_KINDS[setKind(shot.set)], kind = R() < F.chance ? kinds[Math.floor(R() * kinds.length)] : null;
+  let fg = null;
+  if (kind && subject && !shot.travel) {
+    const side = rng(seed, shot.id, "fg")() < 0.5 ? -1 : 1, capY = 1 - 2 * (F.captionTop[H] ?? 0.6); // NDC y
+    camAt(1);
+    const end = camera.position.clone();
+    camAt(0.5); // placed from the middle of the move: the parallax drifts it half as far either way
+    camera.updateMatrixWorld();
+    // depth share of the way to the subject from the camera's nearest point (a push-in must not fly through it)
+    const ahead = Math.max(0, end.sub(camera.position).dot(camera.getWorldDirection(new THREE.Vector3())));
+    const [sx, sz] = placeAt2(subject, 0.5), far = camera.position.distanceTo(new THREE.Vector3(sx, 1, sz));
+    const d = ahead + F.depth * Math.max(0.3, far - ahead);
+    const hh = d * Math.tan(rad(camera.fov / 2)), hw = hh * (W / H), x0 = 1 - 2 * F.edge, x1 = 1.08, y0 = capY + 0.1, y1 = 1.08;
+    const at = (x, y) => camera.localToWorld(new THREE.Vector3(side * x * hw, y * hh, -d));
+    const corners = [at(x0, y0), at(x1, y0), at(x0, y1), at(x1, y1)];
+    fg = { kind, side, pos: at((x0 + x1) / 2, (y0 + y1) / 2), quat: camera.quaternion.clone(), w: (x1 - x0) * hw, h: (y1 - y0) * hh };
+    const heads = shot.actors.filter((a) => a === subject || a.action === "talk");
+    for (const u of [0, 0.5, 1]) {
+      camAt(u);
+      camera.updateMatrixWorld();
+      const r = rect(corners), inner = side > 0 ? r[0] : -r[2];
+      const faces = heads.map((a) => growRect(headRect(...placeAt2(a, u)), 0.25));
+      if (inner < 1 - 2.5 * F.edge || inner > 1 - F.edge || r[1] < capY || faces.some((f) => overlap(r, f))) { fg = null; break; }
+    }
+  }
+  fgByShot.set(shot.id, fg);
+  return fg;
+}
+
+/** add the shot's foreground silhouette to the scene (its texture drawn once per set and kind) */
+function drawForeground(shot, fg) {
+  if (!fg) return;
+  const key = `${shot.set}:${fg.kind}`;
+  if (!fgTex.has(key)) {
+    const tex = new THREE.CanvasTexture(foregroundCanvas(fg.kind, rng(data.story.seed, key, "draw"), STYLE.camera.life.foreground.blur));
+    tex.colorSpace = THREE.SRGBColorSpace;
+    fgTex.set(key, tex);
+  }
+  const m = fgMesh.material;
+  if (m.map !== fgTex.get(key)) { m.map = fgTex.get(key); m.needsUpdate = true; }
+  m.opacity = STYLE.camera.life.foreground.alpha;
+  fgMesh.position.copy(fg.pos);
+  fgMesh.quaternion.copy(fg.quat);
+  fgMesh.scale.set(fg.side * fg.w, fg.h, 1);
+  scene.add(fgMesh);
 }
 
 /** the shot's set group (its prop variant is fixed for the whole run of shots on that set) in a fresh scene */
@@ -346,7 +429,10 @@ function frameSize(w, h) {
 window.setup = (d) => {
   usePreset(d.series?.style?.preset); // first: a bad preset name fails the job before anything is built
   frameSize(d.story.width ?? 1080, d.story.height ?? 1920);
-  data = d; hiddenByShot.clear(); variantByShot.clear(); extrasByShot.clear();
+  data = d; hiddenByShot.clear(); variantByShot.clear(); extrasByShot.clear(); fgByShot.clear();
+  for (const t of fgTex.values()) t.dispose();
+  fgTex.clear();
+  shakes = shakeTriggers(d.story);
   fadeByShot = fadePlan(d.story.shots || []);
   fogTex?.dispose(); fogTex = null;
   setLibrary(d); // library/{props,sets,creatures,actions}.json: every custom item, one registry (library.js)
@@ -509,7 +595,10 @@ function drawShot(shot, n) {
     drop(shot.start_frame + uu * (shot.end_frame - shot.start_frame - 1)));
   const placeAt2 = (a, uu) => seated.get(a.cast_id) || heldPlace(a, shot.actors, placeAt, uu) || placeAt(a, uu);
   const extraShift = extrasFor(shot, camAt, placeAt2);
-  shotCamera(shot, subject ? focusX(place) : 0, span, u, drop(kf));
+  const fg = foregroundFor(shot, subject, camAt, placeAt2);
+  // the frame's camera: framing, fov punch, then drift and shake (the probes above use the framing alone)
+  shotCamera(shot, subject ? focusX(place) : 0, span, u, drop(kf), fovPunch(shot, (kf - shot.start_frame) / FPS));
+  const shake = cameraLife(shot, n);
   const gestures = [], riders = new Map(); // riders: cast id -> drawStickman options, drawn inside the car card
   const ridden = new Map(); // @ride: mount cast id -> its rider's drawStickman options, drawn on the mount's card
   const standing = shot.actors.filter((b) => !seated.has(b.cast_id) && !["lie", "collapse", "carried"].includes(b.action));
@@ -577,6 +666,7 @@ function drawShot(shot, n) {
   drawAnimals(shot, animals, n, kf, u);
   const extras = drawExtras(shot, n, kf, u, extraShift);
   const cars = drawVehicles(shot, vehicles, riders, n, u);
+  drawForeground(shot, fg);
   const layers = layersAt(shot, fadeByShot.get(shot.id), n);
   drawFog(layers, t, shift);
   drawBackWeather(layers, t);
@@ -585,7 +675,7 @@ function drawShot(shot, n) {
   grade();
   const travel = shot.travel ? { travel: `${shot.travel.speed} u/s ${dir < 0 ? "left" : "right"}, shift ${shift.toFixed(2)}`
     + `, loop excess ${(({ excess, row }) => `${excess.toFixed(3)} (row z ${row})`)(loopExcess(group, shift))}` } : {};
-  return { angle: shot.camera.angle, hidden: hidden.size, gestures, dogs: animals.length, ...extras, ...cars, ...travel, ...weather,
+  return { angle: shot.camera.angle, trauma: +shake.toFixed(4), fov: +camera.fov.toFixed(3), fg: fg?.kind ?? null, hidden: hidden.size, gestures, dogs: animals.length, ...extras, ...cars, ...travel, ...weather,
     ...measure(shot.actors.filter((a) => !seated.has(a.cast_id)).map(place)) };
 }
 

@@ -113,6 +113,7 @@ export function waveAmount(ts) {
 // Camera timing (style.js camera): every move eases in and out; a reaction close-up holds still first so the reaction
 // lands before the camera creeps.
 import { STYLE } from "./style.js";
+import { COLLAPSE_S, EASES } from "./actions.js";
 const REACTIONS = new Set(["react", "gasp"]);
 /** true for a close-up whose shot shows a reaction (an actor reacting or gasping, or a surprised face) */
 export const isReactionClose = (shot) => shot.camera.angle === "close"
@@ -121,7 +122,50 @@ export const isReactionClose = (shot) => shot.camera.angle === "close"
 export function cameraProgress(shot, u) {
   const secs = (shot.end_frame - shot.start_frame) / 30, hold = isReactionClose(shot) ? Math.min(STYLE.camera.reactionHold, secs / 2) : 0;
   const v = hold ? Math.max(0, (u * secs - hold) / (secs - hold)) : u;
-  return STYLE.camera.ease ? glide(v) : Math.min(1, Math.max(0, v));
+  if (!STYLE.camera.ease) return Math.min(1, Math.max(0, v));
+  if (STYLE.camera.life.legacyEase) return glide(v);
+  return EASES[isFastPush(shot) ? "quintic-out" : "cubic-in-out"](Math.min(1, Math.max(0, v)));
+}
+
+/** a push-in fast enough to punch: speed >= life.punch.fastSpeed, or the twist's push */
+export const isFastPush = (shot) => shot.camera.move === "push_in"
+  && (!!shot.twist || shot.camera.speed >= STYLE.camera.life.punch.fastSpeed);
+
+/** smooth 1D value noise, -1..1: seeded values on the integers (rng over keys + i), smoothstep between. Pure in x. */
+export function noise1(x, ...keys) {
+  const i = Math.floor(x), f = x - i, s = f * f * (3 - 2 * f);
+  const a = 2 * rng(...keys, i)() - 1, b = 2 * rng(...keys, i + 1)() - 1;
+  return a + (b - a) * s;
+}
+
+/** 0..1 camera trauma at t s: each trigger { t0, strength } falls off linearly over decay s; summed, then clamped */
+export function trauma(t, triggers, decay) {
+  let s = 0;
+  for (const g of triggers) if (t >= g.t0) s += g.strength * Math.max(0, 1 - (t - g.t0) / decay);
+  return Math.min(1, s);
+}
+
+/** shake triggers of a story.json: [{ t0 s, strength, kind }]. twist: its low_hit cue (finish shakes the captions
+ *  there too); collapse: the moment the body lands; lightning: each strike; fx: story.shakes (@fx shake). */
+export function shakeTriggers(story) {
+  const S = STYLE.camera.life.shake.strength, out = [], at = (frame, kind) => out.push({ t0: frame / 30, strength: S[kind], kind });
+  for (const sh of story.shots || []) {
+    if (sh.twist) at((story.cues || []).find((c) => c.kind === "low_hit" && c.frame >= sh.start_frame && c.frame < sh.end_frame)?.frame ?? sh.start_frame, "twist");
+    if (sh.actors?.some((a) => a.action === "collapse")) at(sh.start_frame + COLLAPSE_S * 30, "collapse");
+  }
+  for (const l of story.lightning || []) at(l.frame, "lightning");
+  for (const f of story.shakes || []) at(f, "fx");
+  return out;
+}
+
+/** fov degrees over the angle's own at shot-local ts: the punch keys of a fast push (cubic in-out between), else 0 */
+export function fovPunch(shot, ts) {
+  const P = STYLE.camera.life.punch, k = P.keys;
+  if (!isFastPush(shot) || P.skip.includes(shot.camera.angle)) return 0;
+  const i = k.findIndex(([t]) => t > ts);
+  if (i <= 0) return i === 0 ? k[0][1] : k.at(-1)[1];
+  const [t0, a] = k[i - 1], [t1, b] = k[i];
+  return a + (b - a) * EASES["cubic-in-out"]((ts - t0) / (t1 - t0));
 }
 
 // Idle life (style.js idle): standing actors (idle, talk) breathe with a small bob and shift their weight slowly; each

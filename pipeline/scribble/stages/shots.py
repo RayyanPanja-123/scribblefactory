@@ -151,6 +151,7 @@ class Tag(NamedTuple):
     face: "dict | None"
     bg_music: "tuple | None"
     rides: dict = {}  # @ride: {rider cast id: mount cast id}, kept across @set changes until "@ride <rider>: none"
+    shake: bool = False  # @fx shake: the first word of the line after it (camera shake, story.shakes)
 
 
 def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILTIN_PROPS, looks_of=None, actions=(),
@@ -167,7 +168,7 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
     set_, cast, twist_next, dogs, car, do = DEFAULT_SET, tuple(default_cast), False, 0, "off", None
     bg_music = None
     crowd, crowd_wardrobe, runners, looks, strike, face = {}, {}, 0, {}, None, None
-    holds, rides = {}, {}
+    holds, rides, shake_next = {}, {}, False
     weather_of = weather_of or {}
     weather = weather_of.get(set_)
     looks_of = looks_of if looks_of is not None else {c: [] for c in cast_ids}
@@ -180,8 +181,8 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
                             crowd={k: dict(v) for k, v in crowd.items()},
                             crowd_wardrobe={k: dict(v) for k, v in crowd_wardrobe.items()}, runners=runners,
                             looks=dict(looks), holds={k: dict(v) for k, v in holds.items()}, weather=weather, strike=strike, face=face, bg_music=bg_music,
-                            rides=dict(rides)))
-            twist_next, strike = False, None
+                            rides=dict(rides), shake=shake_next))
+            twist_next, strike, shake_next = False, None, False
         elif m[1] == "!":
             twist_next = True
         elif m[1] == "/":
@@ -214,7 +215,7 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
             elif name == "car" and arg in CAR_MODES:
                 car = arg
             elif name == "fx" and arg in FX_MODES:
-                pass  # caption effect: finish reads it
+                shake_next = arg == "shake"  # caption effect (finish); a shake also shakes the camera (engine)
             elif name == "fx" and arg.split()[:1] == [FX_LIGHTNING]:
                 strike = (line, parse_lightning(arg, line, cast_ids, props))
             elif name == "do":
@@ -947,6 +948,8 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
             prev_angle, prev_set = angle, set_
     lightning = [strike(shots, line, target, min(round(phrases.words[w].start * FPS), total - 1), series)
                  for w, (line, target) in ((w, t.strike) for w, t in enumerate(tags) if t.strike)]
+    # @fx shake: the frame finish shows the line's first caption chunk on (finish._frame), so captions and camera hit together
+    shakes = [min(math.ceil(phrases.words[w].start * FPS - 1e-6), total - 1) for w, t in enumerate(tags) if t.shake]
     # Add one cue at each narration line where the selected track changes. The audio stage stretches/loops it.
     previous = None
     for i, p in enumerate(phrases.phrases):
@@ -957,7 +960,8 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
                             volume=selected[1] if selected else None))
             previous = selected
     width, height = FRAME_SIZE[series.style.aspect]
-    return StoryModel(width=width, height=height, duration_frames=total, seed=seed, shots=shots, cues=cues, end_card=end_card, lightning=lightning)
+    return StoryModel(width=width, height=height, duration_frames=total, seed=seed, shots=shots, cues=cues, end_card=end_card, lightning=lightning,
+                      shakes=shakes)
 
 
 def strike(shots: list[Shot], line: int, target: str | None, frame: int, series: SeriesModel) -> Strike:

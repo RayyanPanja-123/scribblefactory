@@ -271,7 +271,8 @@ async function renderJobs(opened, a) {
       + (fi?.extrasDropped != null ? ` [extras dropped: ${fi.extrasDropped}]` : "")
       + (fi?.extrasOut ? ` [extras OUT OF FRAME: ${fi.extrasOut}]` : "")
       + (fi?.weather && fi.weather !== "clear" ? ` [weather ${fi.weather}]` : "")
-      + (fi?.strike != null ? ` [lightning ${fi.strike}]` : "") + (fi?.flash ? ` [flash ${fi.flash}]` : "");
+      + (fi?.strike != null ? ` [lightning ${fi.strike}]` : "") + (fi?.flash ? ` [flash ${fi.flash}]` : "")
+      + (fi?.trauma ? ` [shake ${fi.trauma} fov ${fi.fov}]` : "") + (fi?.fg ? ` [foreground ${fi.fg}]` : "");
     console.log(`${j.label}: ${times.at(-1).toFixed(0)} ms -> ${j.file}${note}${gest}${wipe}`);
   }
   if (opened.getError()) throw opened.getError();

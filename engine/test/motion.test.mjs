@@ -160,3 +160,30 @@ test("idle life: seeded, standing actions only; looks at the addressed, else the
   assert.equal(lookTarget(C, [A, B, C]), A);     // whom it addresses wins
   assert.equal(lookTarget(A, [A, { cast_id: "d", action: "idle" }, C]), null); // nobody talking, three people
 });
+
+test("camera life: seeded continuous noise, clamped trauma, shake triggers, fov punch on fast pushes only", async () => {
+  const { noise1, trauma, shakeTriggers, fovPunch, cameraProgress } = await import("../page/motion.js");
+  const { STYLE } = await import("../page/style.js");
+  for (let x = 0; x < 5; x += 0.01) {
+    assert.equal(noise1(x, 7, "a"), noise1(x, 7, "a")); // pure
+    assert.ok(Math.abs(noise1(x, 7, "a")) <= 1);
+    assert.ok(Math.abs(noise1(x + 0.01, 7, "a") - noise1(x, 7, "a")) < 0.05, "continuous");
+  }
+  const g = [{ t0: 1, strength: 0.7 }, { t0: 1.1, strength: 0.8 }];
+  assert.equal(trauma(0.99, g, 0.6), 0);
+  assert.equal(trauma(1.1, g, 0.6), 1, "summed then clamped");
+  assert.ok(trauma(1.5, g, 0.6) < trauma(1.3, g, 0.6) && trauma(1.8, g, 0.6) === 0, "decays to 0");
+  const shot = (o) => ({ id: "s01", start_frame: 30, end_frame: 90, actors: [], camera: { angle: "medium", move: "push_in", speed: 0.9 }, ...o });
+  const T = shakeTriggers({ shots: [shot({ twist: true, actors: [{ action: "collapse" }] })], cues: [{ kind: "low_hit", frame: 30 }],
+    lightning: [{ frame: 60 }], shakes: [75] });
+  assert.deepEqual(T.map((x) => [x.kind, +x.t0.toFixed(3), x.strength]), [["twist", 1, 1], ["collapse", 1.6, 0.7], ["lightning", 2, 0.6], ["fx", 2.5, 0.8]]);
+  assert.deepEqual(shakeTriggers({ shots: [shot()] }), [], "an old story.json: no fields, no shake");
+  const peak = STYLE.camera.life.punch.keys[1];
+  assert.equal(fovPunch(shot(), peak[0]), peak[1]);
+  assert.equal(fovPunch(shot(), 5), 0, "settles back to the base fov");
+  for (const angle of ["wide", "over_shoulder"]) assert.equal(fovPunch(shot({ camera: { angle, move: "push_in", speed: 0.9 } }), peak[0]), 0);
+  assert.equal(fovPunch(shot({ camera: { angle: "close", move: "push_in", speed: 0.3 } }), peak[0]), 0, "slow push: no punch");
+  assert.ok(cameraProgress(shot(), 0.2) > 0.5, "fast push: quintic out front-loads the move");
+  STYLE.camera.life.legacyEase = true;
+  try { assert.ok(Math.abs(cameraProgress(shot(), 0.2) - 0.05792) < 1e-4, "legacy: smootherstep"); } finally { STYLE.camera.life.legacyEase = false; }
+});

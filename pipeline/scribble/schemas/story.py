@@ -139,6 +139,8 @@ class StoryModel(Strict):
     shots: list[Shot]
     cues: list[Cue] = []
     lightning: list[Strike] = Field(default=[], max_length=3, description="@fx lightning strikes, by frame")
+    shakes: list[int] = Field(default=[], description="@fx shake: frames the camera (engine) and the captions (finish) "
+                                                      "shake on; older story.json files have none")
     end_card: EndCard | None = Field(default=None, description="every part's closing screen (older story.json files "
                                                                "may have none)")
 

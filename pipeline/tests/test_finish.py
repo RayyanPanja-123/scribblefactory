@@ -398,3 +398,17 @@ def test_runtime_warning_only_outside_30_to_35_s():
     assert r["runtime"] == {"seconds": 38.0, "words": 90, "speech_seconds": 35.0}
     assert r["warnings"] == ["runtime 38.0 s is 3.0 s over 35 s (90 words): cut about 8 words"]
     assert runtime(26.0, 60, 23.0)["warnings"] == ["runtime 26.0 s is 4.0 s under 30 s (60 words): add about 11 words"]
+
+
+def test_fx_shake_syncs_with_story_shakes():
+    """@fx shake: shots writes the frame of the line's first word to story.shakes (the camera shakes there); finish
+    shakes that caption chunk on the same frame. An older story.json without shakes keeps the old caption shake."""
+    md = "# T\n\n@set office\nOld John Smith ran far, then he stopped.\n@fx shake\nReally?\nYes... the end.\n"
+    ov = finish.fx_overrides(md, 12)
+    words, tags = shots.tag_words(md, ["bob"], ["bob"])
+    assert [w for w, t in zip(words, tags) if t.shake] == ["Really?"]
+    f = finish._frame(finish.chunks(phrases())[3]["start"])
+    synced = finish.plan_fx(phrases(), plain_story(shakes=[f]), ov)
+    assert [s["start"] for p in synced for s in p["shakes"]] == [f]
+    old = finish.plan_fx(phrases(), plain_story(), ov)
+    assert [s["start"] for p in old for s in p["shakes"]] == [f]

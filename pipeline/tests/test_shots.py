@@ -839,3 +839,10 @@ def test_face_directive_errors():
         plan("# T\n\n@cast bob, amy\n@face bob: grumpy\nBob sat.\n")
     with pytest.raises(StageError, match=r"line 4: @face: unknown cast id 'zed'"):
         plan("# T\n\n@cast bob, amy\n@face zed: sad\nBob sat.\n")
+
+
+def test_fx_shake_lands_in_story_shakes():
+    story, ph = plan("# T\n\nBob sat down.\n@fx shake\nThe floor broke.\n")
+    w = ph.words[3]  # "The"
+    assert w.text == "The" and story.shakes == [math.ceil(w.start * 30 - 1e-6)]
+    assert plan("# T\n\nBob sat down.\n")[0].shakes == []
