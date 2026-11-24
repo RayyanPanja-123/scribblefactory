@@ -103,6 +103,7 @@ ITEM_SPOT = {"far-left": -1.0, "left": -0.5, "center": 0.0, "right": 0.5, "far-r
 # inside ITEM_BOUNDS; an item's half width is ITEM_FILL of its card's (drawings don't fill their card)
 ITEM_BODY, ITEM_FILL, ITEM_BOUNDS = 0.25, 0.8, (-3.0, 3.0)
 PUSH_D = 0.6               # push: the item slides this far away from the pusher over the shot
+FLY_SPEED = {"slow": 2.0, None: 4.0, "fast": 8.0}  # @do <item>: fly left [slow | fast]: top speed, units/s
 # approach: pickup / open / close / push / sit / enter from further than REACH_TOL past arm's reach walks there first,
 # at walk speed, in at most APPROACH_SHARE of the line (else as far as the fastest walk gets: a check-story warning)
 APPROACH = {"pickup", "open", "close", "push", "sit", "enter"}
@@ -172,6 +173,7 @@ class Tag(NamedTuple):
     shake: bool = False  # @fx shake: the first word of the line after it (camera shake, story.shakes)
     cam: "tuple | None" = None  # @cam: (story.md line, prep.parse_cam parts) for the words of the line after it
     items: dict = {}  # @item: {tag: prep.ItemOp (op "place", state updated by "@item <tag>: state <s>")}, per set
+    line: int = 0  # the story.md line the word is on
 
 
 def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILTIN_PROPS, looks_of=None, actions=(),
@@ -206,6 +208,12 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
             twist_next, strike, shake_next = False, None, False
         elif m[1] == "!":
             twist_next = True
+        elif m[1].startswith("L"):  # the end of a text line: its words get its story.md line
+            no = int(m[1][1:])
+            for k in range(len(tags) - 1, -1, -1):
+                if tags[k].line:
+                    break
+                tags[k] = tags[k]._replace(line=no)
         elif m[1] == "/":
             do = face = cam = None  # the @do / @face / @cam line is over
         else:
@@ -240,8 +248,16 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
             elif name == "fx" and arg.split()[:1] == [FX_LIGHTNING]:
                 strike = (line, parse_lightning(arg, line, cast_ids, props))
             elif name == "do":
-                do = (line, tuple(parse_do(arg, line, cast_ids, props, actions)))
-                for c in do[1]:
+                new = tuple(parse_do(arg, line, cast_ids, props, actions))
+                if do is not None:  # another @do before the same narration line: both apply (different targets)
+                    seen = {w for c in do[1] for w in c.who}
+                    if dup := next((w for c in new for w in c.who if w in seen), None):
+                        raise StageError(f"story.md line {line}: @do: two @do for {dup} on one line (put both in one "
+                                         f"@do, or move one to its own line)")
+                    do = (do[0], do[1] + new)
+                else:
+                    do = (line, new)
+                for c in new:
                     g = c.who[0] if c.action in ITEM_MOVES else c.target if c.action in ITEM_ACTIONS else None
                     if g is not None and g not in items:
                         raise StageError(f"story.md line {line}: @do: {g} is not an item on stage (place it "
@@ -542,10 +558,11 @@ def punct_faces(md: str, words: list[str], tags) -> list[str | None]:
     return out
 
 
-def _actors(cast, pos, subject, words, seconds, travel_dir=0, zs=None, mood=None, halves=None):
+def _actors(cast, pos, subject, words, seconds, travel_dir=0, zs=None, mood=None, halves=None, dirs=None, line=0):
     """Actors for one shot, starting at pos[cid]. Updates pos to where each one ends.
     travel_dir (+1 right / -1 left): travel shot, every actor does the subject's walk/run in place at z zs[cid].
-    mood: the line's mood (line_moods), else the shot's own words decide. halves: cast id -> half width (_free)."""
+    mood: the line's mood (line_moods), else the shot's own words decide. halves: cast id -> half width (_free).
+    dirs: (story.md line, cast id) -> walk direction, kept: a walk over several shots of one line never turns back."""
     action = next((ACTIONS[w] for w in words if w in ACTIONS), "talk")
     expression = mood or next((EXPRESSIONS[w] for w in words if w in EXPRESSIONS), "neutral")
     if travel_dir:
@@ -562,10 +579,17 @@ def _actors(cast, pos, subject, words, seconds, travel_dir=0, zs=None, mood=None
             continue
         move = None
         if action in MOVE_SPEED:
-            d = next((DIRECTIONS[w] for w in words if w in DIRECTIONS), 1 if x <= 0 else -1)  # else to centre
+            key = (line, cid) if dirs is not None and line else None
+            d = dirs[key] if key in (dirs or {}) else next((DIRECTIONS[w] for w in words if w in DIRECTIONS),
+                                                            1 if x <= 0 else -1)  # else to centre
             hw = halves or {}
             move = fit_move(x, d, action, seconds, [(pos[c], hw.get(c, HUMAN_HALF)) for c in cast if c != cid],
                             h=hw.get(cid, HUMAN_HALF))
+            if key is not None:
+                if key in dirs and move and move[1] != dirs[key]:
+                    move = None  # the line's walk ran out of room that way: it stops, it doesn't turn back
+                elif key not in dirs and move:
+                    dirs[key] = move[1]
         if move:
             act, d, dist = move
             pos[cid] = round(x + d * dist, 3)
@@ -593,7 +617,7 @@ def _group_move(xs: list[float], role: str, seconds: float) -> float:
 
 
 def _apply_do(clauses, line, cast, pos, actors, vehicles, seconds, fallen, handless=None, actions=None,
-              halves=None) -> list[Actor]:
+              halves=None, dirs=None) -> list[Actor]:
     """@do for one shot: the named actors get the given action (others keep the planner's choice); "car: broken"
     stops the car on stage. pos is updated to where everyone ends. fallen: (line, cast id) already collapsed or
     gave on this line: a collapse or a give happens once, in the line's first shot; later shots lie / carry on.
@@ -660,13 +684,19 @@ def _apply_do(clauses, line, cast, pos, actors, vehicles, seconds, fallen, handl
                 x, old = pos[cid], by[cid]
                 toward = (1 if pos[c.target] >= x else -1) if c.target and c.action not in ITEM_ACTIONS else 0  # a custom action's target
                 if c.action in MOVE_SPEED or (custom and custom.move):
-                    d = toward or (1 if x <= 0 else -1)
+                    key = ("do", line, cid) if dirs is not None else None
+                    d = toward or (dirs[key] if key in (dirs or {}) else 1 if x <= 0 else -1)
                     speeds = (abs(custom.move), *custom_speeds(custom.move)) if custom else None
                     hw = halves or {}
                     move = fit_move(x, d, c.action, seconds, [(pos[o], hw.get(o, HUMAN_HALF)) for o in cast if o != cid],
                                     speeds, hw.get(cid, HUMAN_HALF))
                     if move and toward and (move[1] != toward or (x + move[1] * move[2] - pos[c.target]) * toward > 0):
                         move = None  # aimed: never away from the target or past it; plays in place facing it
+                    if key is not None and not toward:  # the line's later shots walk on the same way, never back
+                        if key in dirs and move and move[1] != dirs[key]:
+                            move = None
+                        elif key not in dirs and move:
+                            dirs[key] = move[1]
                     if move:
                         act, dd, dist = move
                         pos[cid] = round(x + dd * dist, 3)
@@ -862,6 +892,8 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
     prev_rides: dict[str, str] = {}  # @ride pairs on stage in the last shot's phrase
     fallen: set = set()  # (@do line, cast id) that already collapsed
     stage = ItemStage(objects)  # @item cards: where they stand, who holds or sits in them; reset by a set change
+    walk_dir: dict = {}  # (story.md line, cast id) -> the way a walk on that line goes: its shots never turn back
+    walk_note: set = set()  # story.md lines already noted for a keyword walk
     for i, p in enumerate(phrases.phrases):
         t = tags[p.word_start]
         set_, cast, dogs, mode, do, crowd, crowd_wardrobe, runners, looks, holds, weather, face = (
@@ -911,6 +943,8 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
         mentioned = next((names[w] for w in pw if names.get(w) in cast), None)
         subject = mentioned or (subject if subject in cast else cast[0])
         action = next((ACTIONS[w] for w in pw if w in ACTIONS), None)
+        if action and (subject in stage.sitting or subject in inside):
+            action = None  # seated on or inside an item: a walk word in the line moves nobody
         mood = moods[p.word_start] if p.word_start < len(moods) else None
         expression = mood or next((EXPRESSIONS[w] for w in pw if w in EXPRESSIONS), None) or (
             puncts[p.word_start] if p.word_start < len(puncts) else None) or "neutral"
@@ -966,7 +1000,8 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
                                     variant=car_variant(seed, "car1"))]
             else:
                 # a mounted subject: the mount does the moving, the rider the talking / gesturing (_seat_riders)
-                actors = _actors(spacers, pos, rides.get(subject, subject), pw, seconds, tdir, zs, mood, halves)
+                actors = _actors(spacers, pos, rides.get(subject, subject), pw, seconds, tdir, zs, mood, halves,
+                                 walk_dir, tags[p.word_start].line)
                 actors = _seat_riders(actors, rides, pos, subject, action)
                 if car_here:
                     v = _car_move(car_mode, park, actors, subject, seconds, seed)
@@ -981,7 +1016,7 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
                 actors = stage.seat(actors, inside, t.items, do, pos, placed, sitters)
                 if do:
                     actors = _apply_do(do[1], do[0], spacers + tuple(inside) + tuple(sitters), pos, actors, vehicles, seconds, fallen,
-                                       handless, actions, halves)
+                                       handless, actions, halves, walk_dir)
                     actors = _seat_riders(actors, rides, pos)
                     if any(ac.action == "give" for ac in actors):  # a hand-over needs both people in frame: wide
                         angle = "wide" if prev_angle != "wide" else "medium"  # fits everyone; medium: the pair (engine)
@@ -1034,6 +1069,14 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
                 if "dutch" in c:  # replaces a twist's roll
                     roll, cam_extra["dutch_deg"] = 0.0, c["dutch"]
                 cam_extra.update(shake=bool(c.get("shake")), forced=True)
+            line_no = tags[p.word_start].line
+            moved = next((ac for ac in actors if ac.cast_id == subject and ac.action in MOVE_SPEED), None)
+            if notes is not None and action in MOVE_SPEED and line_no not in walk_note and (travel or moved) and not (
+                    do and subject in {w for c in do[1] for w in c.who}):
+                word = next(w for w in heard[p.word_start:p.word_end + 1] if ACTIONS.get(token(w)) == action)
+                walk_note.add(line_no)
+                notes.append((line_no, f"'{word.strip('.,!?;:')}' starts a {'travel shot' if travel else action} for "
+                                       f"{subject}; add @do {subject}: idle to stop it"))
             shots.append(Shot(id=sid, start_frame=s0, end_frame=s1, set=set_,
                               phrase_range=(i, i), camera=Camera(angle=angle, move=move, speed=speed, roll_deg=roll, **cam_extra),
                               actors=actors, animals=animals, vehicles=vehicles, extras=extras, twist=is_twist,
@@ -1298,7 +1341,12 @@ class ItemStage:
                 way = 1 if move.target == "right" else -1
                 if (do[0], tag) not in self.paths:
                     to = way * P["reach"]
-                    self.paths[(do[0], tag)] = (x if (to - x) * way > P["reach"] / 2 else -to, to)
+                    a = x if (to - x) * way > P["reach"] / 2 else -to
+                    room = FLY_SPEED[move.prop] * (span[do[0]][1] - span[do[0]][0]) / FPS  # as far as it may fly
+                    if abs(to - a) > room:  # too fast for the line: the visible middle of the path, at the top speed
+                        a, to = (round(-way * room / 2, 3), round(way * room / 2, 3)) if a == -way * P["reach"] \
+                            else (a, round(a + way * room, 3))
+                    self.paths[(do[0], tag)] = (a, to)
                     self.at[tag] = (to, "right" if way > 0 else "left", op)
                 a, b = self.paths[(do[0], tag)]
                 L0, L1 = span[do[0]]

@@ -98,7 +98,8 @@ def test_problems_with_line_numbers(tmp_path, capsys):
     assert (6, "unknown directive @sett") in got
     assert (7, "unknown cast id zed") in got
     assert (8, "unknown set 'moon'") in got
-    assert (9, "@do is replaced by the @do on line 10 before any text line uses it") in got
+    # lines 9 and 10 (give medal amy, amy: wave) both apply to the next line: amy can't take the medal and wave
+    assert (9, "@do: amy is the target of give and has its own action too") in got
     assert (12, "@do: fred is not on stage on this line") in got
     assert (14, "@do: unknown action 'dance'") in got
     assert (18, "@do: not while @car ride, except \"car: broken\"") in got

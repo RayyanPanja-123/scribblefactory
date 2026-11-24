@@ -51,7 +51,7 @@ QUOTES = str.maketrans({"‘": "'", "’": "'", "‚": "'", "‛": "'",
 
 TWIST_PREFIX = re.compile(r"^([ \t]*)!![ \t]+")
 MARKER = "⟦{}⟧"  # a token for the n-th @ line, "!" before a twist line, "/" after the line an @do applies to
-MARKER_RE = re.compile("^⟦([0-9]+|!|/)⟧$")
+MARKER_RE = re.compile("^⟦([0-9]+|!|/|L[0-9]+)⟧$")
 
 # @do <cast>[, <cast>]: <action> [<target>|<prop>] [, <cast>: <action> ...]
 DO_ACTIONS = actions_with("do")  # built in; plus the library's custom actions (io.custom_actions)
@@ -93,9 +93,9 @@ def parse_do(arg: str, line: int, cast_ids=None, props=BUILTIN_PROPS, actions=()
             bad('each clause needs a cast id and an action, e.g. "fred: collapse"')
         act, args = words[0], words[1:]
         if act in ITEM_MOVES:  # a World Item's path; the tag is checked against the items on stage (shots, check-story)
-            if len(who) != 1 or args not in (["left"], ["right"]):
-                bad(f'an item move takes one item and a direction, e.g. "ship: {act} left"')
-            out.append(DoClause(who, act, target=args[0]))
+            if len(who) != 1 or args[:1] not in (["left"], ["right"]) or len(args) > 2 or args[1:] not in ([], ["slow"], ["fast"]):
+                bad(f'an item move takes one item, a direction and maybe a speed, e.g. "ship: {act} left [slow | fast]"')
+            out.append(DoClause(who, act, target=args[0], prop=args[1] if len(args) == 2 else None))  # prop: the speed
             who_txt = nxt
             continue
         if act in ITEM_ACTIONS:  # an interaction with a World Item: its tag (checked against the items on stage later)
@@ -392,7 +392,8 @@ def mark_directives(md: str) -> tuple[str, list[tuple[int, str]]]:
     """Like strip_directives, but leaves a marker token where each directive was.
 
     Returns (text, [(line number, directive without the @)]). Run clean_markdown on the text: it yields the
-    same words as prep's script plus the marker tokens, and markers inside dropped blocks vanish with them.
+    same words as prep's script plus the marker tokens, and markers inside dropped blocks vanish with them. Every text
+    line ends in an "L<line number>" marker: the words before it are that story.md line's.
     """
     out, found, close = [], [], False
     for no, line in enumerate(md.replace("\r\n", "\n").split("\n"), 1):
@@ -402,6 +403,8 @@ def mark_directives(md: str) -> tuple[str, list[tuple[int, str]]]:
             close = close or line.strip()[1:].split(None, 1)[:1] in (["do"], ["face"], ["cam"])
         else:
             line = TWIST_PREFIX.sub(lambda m: m[1] + MARKER.format("!") + " ", line)
+            if line.strip():
+                line = f"{line} {MARKER.format(f'L{no}')}"
             if close and line.strip():  # an @do covers exactly the next text line
                 line, close = f"{line} {MARKER.format('/')}", False
             out.append(line)

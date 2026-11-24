@@ -122,11 +122,27 @@ def test_items_place_fly_state_remove():
 
 
 def test_fly_again_comes_back_from_the_far_side():
-    md = "# Twice\n\n@set street\n@item ship: saucer\n@do ship: fly left\nIt went left.\n@do ship: fly left\nIt went again.\n"
+    long = "It went left, slowly, over all the rooftops and chimneys of the whole sleepy old town tonight."
+    md = f"# Twice\n\n@set street\n@item ship: saucer\n@do ship: fly left\n{long}\n@do ship: fly left\n{long}\n"
     per_shot = items_of(plan(md))
     reach = shots.ITEM_PLACE["back"]["reach"]  # the saucer's own layer
-    assert per_shot[0][0][1:3] == (0.0, -reach)
-    assert per_shot[-1][0][1:3] == (reach, -reach)
+    assert per_shot[0][0][1] == 0.0 and per_shot[0][0][2] > per_shot[-1][0][2]
+    first_end = next(s[0][2] for s in per_shot if s[0][2] != per_shot[0][0][1] and s[0][2] <= -reach + 1e-9)
+    assert first_end == -reach  # a long line: off screen left
+    second = [s[0] for s in per_shot if s[0][1] > 0]
+    assert second and second[0][1] > 0  # flying left again: it comes back in from the right
+
+
+def test_fly_speed_cap_and_tokens():
+    """a short line flies the visible middle of the path at the top speed (FLY_SPEED), slow / fast scale it"""
+    for token, speed in [("", 4.0), (" slow", 2.0), (" fast", 8.0)]:
+        md = f"# F\n\n@set street\n@item ship: saucer back far-right\n@do ship: fly left{token}\nIt shot past.\n"
+        story = plan(md)
+        path = [i for s in story.shots for i in s.items if i.id == "ship" and i.end_pos]
+        frames = sum(s.end_frame - s.start_frame for s in story.shots if any(i.id == "ship" and i.end_pos for i in s.items))
+        dist = abs(path[-1].end_pos[0] - path[0].start_pos[0])
+        assert dist / (frames / 30) <= speed + 0.05
+        assert path[0].start_pos[0] < shots.ITEM_PLACE["back"]["reach"] and path[-1].end_pos[0] < path[0].start_pos[0]
 
 
 def test_items_belong_to_a_set_and_cast_do_still_applies():

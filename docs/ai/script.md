@@ -69,7 +69,8 @@
   World Item (listed as "drawn" under WORLD ITEMS) on stage until `@item <tag>: remove` or the next `@set`. The tag is
   your name for it in later lines (not a cast id). The layer defaults to the item's own; the spot defaults to center;
   the state to its first. `@item <tag>: state <state>` switches state from the next line on. `@do <tag>: fly left |
-  right` (or `drive`) carries it across the next line, off screen that way; flying the same way again brings it back
+  right [slow | fast]` (or `drive`) carries it across the next line, off screen that way, at most 4 units/s (slow 2,
+  fast 8): on a short line it crosses the middle of the view instead of rushing the whole way; flying the same way again brings it back
   in from the other side. `remove` and `state` are reserved words, never state names.
   ```
   @item ship: saucer back
@@ -179,8 +180,9 @@ fit the story's period or design.
 - `car: broken` (car on stage)
 - Custom actions, optionally aimed: `@do marcus: attack-with-spears neptune` (faces them and lunges toward them, never
   past; too close: strikes where they stand)
-- Several characters on one line: one `@do` line, comma separated: `@do fred: lie, amy: wave`. A second `@do` line
-  before the same narration line replaces the first.
+- Several characters on one line: one `@do` line, comma separated: `@do fred: lie, amy: wave`, or several `@do`
+  lines before the same narration line (`@do ship: fly left`, then `@do bob: walk`): they all apply, as long as each
+  names different characters or items. The same one in two `@do` lines is an error ("two @do for bob on one line").
 
 ### Less-obvious directive behavior
 
@@ -205,6 +207,11 @@ fit the story's period or design.
   `check-story`.
 - When there is no explicit `@do`, the planner infers actions from narration words such as `walked`, `ran`, `waved`,
   `laughed`, or `gasped`. Explicit `@do` wins over that inference; `@face` wins over the inferred face for its line.
+  A walk word (`came`, `went`, `left`, `ran`...) moves the line's subject even when the sentence is about something
+  else ("the saucer came back" walks the character last named), and outdoors it turns the shot into a travel shot.
+  check-story warns each time; `@do <cast>: idle` (or any `@do` for them) stops it. Nobody seated or inside an item
+  walks from a word.
+- A walk over several shots of one sentence keeps going the same way (it stops at the stage edge, never turns back).
 - A line that cannot fit a walking or running action may be kept in place rather than forced off the stage. Use a
   deliberate in-place action such as `react`, `angry`, `gasp`, or `cheer` when the beat must remain visible.
 

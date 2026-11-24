@@ -298,10 +298,13 @@ def test_repeated_walks_stay_inside_and_validate():
 def test_long_run_becomes_walk_and_validates():
     md = "# R\n\n@cast bob, amy\nAmy ran away. Amy ran away. Bob ran away. Amy smiled.\n"
     story, ph = plan(md)  # ~2.3 s shots: a 2.5 units/s run (5.75) can't fit on the 4-unit stage
-    acts = [next(a for a in s.actors if a.action != "idle") for s in story.shots[:3]]
+    moving = [(a, s) for s in story.shots[:3] for a in s.actors if a.action != "idle"]
+    acts = [a for a, _ in moving]
     assert acts[0].action == "walk"  # the first, longest shot (from frame 0) can't hold a run
     assert {a.action for a in acts} <= {"walk", "run"}  # shorter shots may keep a shortened run
-    for a, s in zip(acts, story.shots):
+    # one phrase over two shots: amy's run never turns back on its second shot (no room on: she stops)
+    assert next(a for a in story.shots[1].actors if a.cast_id == "amy").action == "idle"
+    for a, s in moving:
         lo, hi = {"walk": (0.6, 1.8), "run": (1.8, 4.0)}[a.action]
         speed = abs(a.end_pos[0] - a.start_pos[0]) / ((s.end_frame - s.start_frame) / 30)
         assert lo <= speed <= hi and shots.BOUNDS[0] <= a.end_pos[0] <= shots.BOUNDS[1]

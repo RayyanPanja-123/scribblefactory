@@ -280,9 +280,13 @@ def check_story(part_dir: Path) -> dict:
                         elif any(w in inside for w in c.who):
                             w = next(w for w in c.who if w in inside)
                             bad(no, f"@do: {w} is inside {inside[w]} (exit first: @do {w}: exit {inside[w]})")
-                    if pending_do:
-                        bad(pending_do[0], f"@do is replaced by the @do on line {no} before any text line uses it")
-                    pending_do = (no, clauses)
+                    if pending_do:  # several @do before one narration line all apply, each to its own target
+                        seen = {w for c in pending_do[1] for w in c.who}
+                        if dup := next((w for c in clauses for w in c.who if w in seen), None):
+                            bad(no, f"@do: two @do for {dup} on one line (put both in one @do, or move one to its own line)")
+                        pending_do = (pending_do[0], [*pending_do[1], *clauses])
+                    else:
+                        pending_do = (no, clauses)
             except StageError as e:
                 bad(no, LINE_PREFIX.sub("", str(e)))
             continue
@@ -336,8 +340,8 @@ def check_story(part_dir: Path) -> dict:
         bad(pending_cam[0], "@cam has no narration line after it")
     if cam_lines and not problems:
         warnings += _cam_repeats(part_dir, cam_lines)
-    if items_used and not problems:
-        warnings += _item_reach(part_dir)
+    if not problems:
+        warnings += _plan_notes(part_dir)
     for no in pending_sfx:
         bad(no, "@sfx has no narration line after it to play on")
 
@@ -383,9 +387,9 @@ def check_story(part_dir: Path) -> dict:
             "words": len(words), "seconds": seconds, "wps": round(wps, 2)}
 
 
-def _item_reach(part_dir: Path) -> list[dict]:
-    """warnings the planner leaves for World Item actions (an item too far to walk to in its line). Needs the shot
-    plan, so only once the part is timed; else none."""
+def _plan_notes(part_dir: Path) -> list[dict]:
+    """warnings the planner leaves: an item too far to walk to in its line, a walk word that starts a walk or a travel
+    shot. Needs the shot plan, so only once the part is timed; else none."""
     notes: list = []
     try:
         plan_part(part_dir, notes)
