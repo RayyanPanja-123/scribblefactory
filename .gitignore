@@ -12,5 +12,7 @@ frames/
 models/
 .impeccable/review/
 .impeccable/questions/
+.impeccable/critique/
+.pytest_cache/
 AGENT_CHANGES.md
 UI_UX_CHANGES.md
