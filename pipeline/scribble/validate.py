@@ -193,6 +193,13 @@ def _check_actor(sid, a, seconds, cast_ids, err, travel=None, move=0) -> None:
             err(sid, "travel_actors", f"{a.cast_id} {a.action}: a moving custom action can't play in a travel shot")
         _check_move(sid, a.cast_id, a, a.end_pos is not None, custom_speeds(move), seconds, err, None, move < 0)
         return
+    if a.approach:  # walks to a World Item over the first `approach` of the shot (facing its way), then turns to act
+        end = a.end_pos or a.start_pos
+        speed = math.dist(a.start_pos, end) / (seconds * a.approach) if seconds > 0 else 0
+        if not WALK_SPEED[0] <= speed <= WALK_SPEED[1]:
+            err(sid, "gliding", f"{a.cast_id} walks to {a.item} at {speed:.2f} units/s, must be "
+                                f"{WALK_SPEED[0]}..{WALK_SPEED[1]}")
+        return
     # a carry / support group may also stand still (no end_pos); walk, run and stagger always move
     moving = a.action in MOVING and (a.action not in HOLDING or a.end_pos is not None or travel is not None)
     _check_move(sid, a.cast_id, a, moving, SPEEDS.get(a.action, WALK_SPEED), seconds, err, travel)

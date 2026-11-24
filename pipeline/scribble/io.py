@@ -277,7 +277,8 @@ def delete_prop(library, prop_id: str) -> None:
     """remove a custom prop; refused (ValueError) while any cast member holds it or any story's @do uses it"""
     _remove(library, "props.json", load_props(library), "props", prop_id,
             ("held by", lambda: _cast_names(prop_holders(library, prop_id))),
-            ("used by @do in", lambda: prop_users(library, prop_id)))
+            ("used by @do in", lambda: prop_users(library, prop_id)),
+            ("the held prop of World Item", lambda: [o.id for o in load_objects(library).objects if o.prop == prop_id]))
 
 
 def load_creatures(library) -> CreatureLibrary:
@@ -489,7 +490,9 @@ def world_object_kinds(library) -> dict[str, WorldObject]:
 
 
 def save_object(library, obj: WorldObject) -> None:
-    """add or replace a world object"""
+    """add or replace a world object; ValueError when the prop it is held as (pickup) is no prop"""
+    if obj.prop and obj.prop not in prop_kinds(library):
+        raise ValueError(f"prop {obj.prop!r} (held after pickup) is not a prop: built in or on the Props page")
     _put(library, "objects.json", load_objects(library), "objects", obj)
 
 

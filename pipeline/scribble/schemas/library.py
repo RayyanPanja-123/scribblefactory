@@ -368,6 +368,7 @@ ACTIONS: dict[str, frozenset[str]] = {k: frozenset(v) for k, v in {
     "pickup": {"do", "hands", "item"}, "drop": {"do", "hands", "item"}, "open": {"do", "hands", "item"},
     "close": {"do", "hands", "item"}, "push": {"do", "hands", "item"}, "sit": {"do", "item"},
     "enter": {"do", "item"}, "exit": {"do", "item"},
+    "stand": {"do"},  # gets up off what it sits on (sit lasts until the sitter's next @do); else stands as it is
 }.items()}
 actions_with = lambda trait: {a for a, t in ACTIONS.items() if trait in t}  # noqa: E731
 

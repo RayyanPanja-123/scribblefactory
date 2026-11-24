@@ -1,6 +1,10 @@
 # Changelog
 
 ## Unreleased
+- World Items: a character out of reach of an item walks over first (in the first part of the line, then acts;
+  check-story warns when the line is too short for the walk). sit now lasts until the sitter's next `@do`;
+  `@do <cast>: stand` gets up. A World Item's held prop must be a real prop (saving it says so, check-story too),
+  and a prop an item is held as can't be deleted.
 - World Items (Phase B): characters use drawn items: `@do <cast>: pickup | drop | open | close | push | sit | enter |
   exit <tag>`. pickup puts the item's prop in the hand toward it (it vanishes from the stage at the hand-over) until
   drop sets it down at their feet; open / close tween the hatch mid-line; sit seats the hips on the item's seat point;

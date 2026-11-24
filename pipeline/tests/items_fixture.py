@@ -45,6 +45,23 @@ And the pod flew off with him, high over the rooftops.
 """
 
 
+# Phase B.1: Karen walks over to a bench out of reach, sits down, stays seated two more lines, then stands up
+APPROACH_STORY = """# Bench
+
+@set street
+@cast bob, amy, karen
+@item b: bench left
+Bob saw a bench by the wall.
+@cam wide
+@do karen: sit b
+Karen walked over and sat down on it with a long tired sigh of relief.
+Amy laughed at her.
+Bob laughed too.
+@do karen: stand
+Karen got up again.
+"""
+
+
 def plan(md=STORY):
     ph = phrases_for(md)
     return shots.plan(md, ph, SERIES, 1, objects=OBJECTS), ph

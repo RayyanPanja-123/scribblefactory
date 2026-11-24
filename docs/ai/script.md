@@ -79,9 +79,12 @@
   @item ship: remove
   ```
 - Using an item: `@do <cast>: <pickup | drop | open | close | push | sit | enter | exit> <tag>` (one cast member per
-  clause, the item a drawn one on stage with that capability; stage items stand within reach beside the cast).
+  clause, the item a drawn one on stage with that capability; stage items stand within reach beside the cast). A
+  character out of reach walks over first, in the first part of the line (check-story warns when the line is too
+  short for the walk: place the item closer or add a line).
   `pickup` puts it in a free hand (its prop) for the rest of the set until `drop` puts it back down at their feet;
-  one held item per character. `open` / `close` switch it mid-line. `sit` sits on it for that line. `enter` seats
+  one held item per character. `open` / `close` switch it mid-line. `sit` keeps them seated until their next `@do`
+  (`@do <cast>: stand` gets up). `enter` seats
   the character inside until `exit`: inside, they ride along when the item moves (`@do pod: fly right`) and no other
   `@do` is allowed for them.
   ```

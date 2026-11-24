@@ -9,6 +9,21 @@
           "title": "Action",
           "type": "string"
         },
+        "approach": {
+          "anyOf": [
+            {
+              "exclusiveMaximum": 1,
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "an item action after a walk to the item: the share of the shot the walk (start_pos to end_pos) takes; the action plays after",
+          "title": "Approach"
+        },
         "cast_id": {
           "title": "Cast Id",
           "type": "string"
@@ -110,7 +125,7 @@
             }
           ],
           "default": null,
-          "description": "pickup / drop / open / close / push / sit / enter / exit: the @item tag acted on (left out when none)",
+          "description": "pickup / drop / open / close / push / sit / stand / enter / exit: the @item tag acted on (left out when none)",
           "title": "Item"
         },
         "look": {

@@ -9,6 +9,7 @@ from pipeline.scribble.schemas import CustomSet, StoryModel, WorldObject, WorldO
 from pipeline.scribble.stages import shots
 from pipeline.scribble.stages.prep import parse_item
 from pipeline.scribble.stages.runner import StageError
+from pipeline.scribble.validate import validate
 from pipeline.tests.test_shots import DIRECTED, SERIES, phrases_for
 
 SAUCER = WorldObject(id="saucer", name="Saucer", category="scifi", look="card", draw="saucer", size=1.6, layer="back",
@@ -228,10 +229,91 @@ def test_push_slides_it_away():
     assert next(i for i in story.shots[-1].items if i.id == "pod").start_pos[0] == pod.end_pos[0]
 
 
-def test_sit_on_the_bench():
-    story = plan_b("# S\n\n@set street\n@cast bob\n@item b: bench\nA bench.\n@do bob: sit b\nHe sat down.\nHe stood.\n")
-    sit = next(s for s in story.shots if actor(s).action == "sit")
-    assert actor(sit).item == "b" and actor(story.shots[-1]).action != "sit"
+def test_sit_lasts_until_the_next_do_and_stand_gets_up():
+    story = plan_b("# S\n\n@set street\n@cast bob\n@item b: bench\nA bench.\n@do bob: sit b\nHe sat down.\n"
+                   "He thought.\nAnd thought.\n@do bob: stand\nHe got up.\nThen he left.\n")
+    acts = [actor(s).action for s in story.shots]
+    first, up = acts.index("sit"), acts.index("stand")
+    assert set(acts[first:up]) == {"sit"} and all(actor(s).item == "b" for s in story.shots[first:up + 1])
+    assert acts[up + 1:] and "sit" not in acts[up + 1:] and "stand" not in acts[up + 1:]
+    assert len({actor(s).start_pos for s in story.shots[first:up + 1]}) == 1  # stays where it sat down
+
+
+def test_another_do_ends_the_sit_and_stand_without_sitting_is_idle():
+    story = plan_b("# S2\n\n@set street\n@cast bob\n@item b: bench\nA bench.\n@do bob: sit b\nHe sat down.\n"
+                   "@do bob: wave\nHe waved.\n@do bob: stand\nHe stood.\n")
+    acts = [actor(s).action for s in story.shots]
+    assert "wave" in acts and "sit" not in acts[acts.index("wave"):] and "stand" not in acts
+
+
+APPROACH_MD = ("# A\n\n@set street\n@cast bob, amy, karen\n@item b: bench left\nBob saw a bench by the wall.\n"
+               "@do karen: sit b\nKaren walked over and sat down on it with a long tired sigh of relief.\nAmy laughed.\n")
+
+
+def test_approach_walk_then_act():
+    ph = phrases_for(APPROACH_MD)
+    story = shots.plan(APPROACH_MD, ph, SERIES, 1, objects=fx.OBJECTS)
+    walk = [s for s in story.shots if actor(s, "karen").action == "walk"]
+    arrive = next(s for s in story.shots if actor(s, "karen").approach)
+    a = actor(arrive, "karen")
+    assert walk and walk[0].start_frame < arrive.start_frame  # the walk starts with the line, the action after it
+    assert 0 < a.approach < 1 and a.end_pos and a.item == "b" and a.action == "sit"
+    bench = next(i for i in arrive.items if i.id == "b").start_pos[0]
+    reach = 0.5 * shots.ITEM_FILL * fx.BENCH.size * shots.ITEM_ASPECT["bench"] + shots.ITEM_BODY + 0.05
+    assert abs(abs(a.end_pos[0] - bench) - reach) < 1e-6  # arrives at arm's reach
+    line = [s for s in story.shots if s.phrase_range[0] >= walk[0].phrase_range[0] and s.phrase_range[0] <= arrive.phrase_range[0]]
+    walked = sum(s.end_frame - s.start_frame for s in walk) + a.approach * (arrive.end_frame - arrive.start_frame)
+    assert walked <= shots.APPROACH_SHARE * sum(s.end_frame - s.start_frame for s in line) + 1
+    assert not validate(story, ph, {c.id for c in SERIES.cast})
+
+
+def test_in_reach_plays_as_before():
+    """an actor already in reach gets no approach walk: no approach field, nothing new in the plan"""
+    story = plan_b(fx.STORY)
+    assert all(a.approach is None for s in story.shots for a in s.actors)
+    assert '"approach"' not in json.dumps(story.model_dump(mode="json"))
+
+
+def test_too_far_warns():
+    notes = []
+    md = "# F\n\n@set street\n@cast bob, amy, karen\n@item b: bench left\nBob saw it.\n@do karen: sit b\nSat.\n"
+    story = shots.plan(md, phrases_for(md), SERIES, 1, objects=fx.OBJECTS, notes=notes)
+    assert notes and "too far to walk to" in notes[0][1] and "place the item closer or add a line" in notes[0][1]
+    assert not validate(story, phrases_for(md), {c.id for c in SERIES.cast})  # walks as fast as a walk may, short
+    notes.clear()
+    shots.plan(APPROACH_MD, phrases_for(APPROACH_MD), SERIES, 1, objects=fx.OBJECTS, notes=notes)
+    assert not notes  # a long enough line: no warning
+
+
+def test_storycheck_reports_too_far(tmp_path):
+    from pipeline.scribble.io import save_object
+    from pipeline.scribble.storycheck import check_story
+    from pipeline.tests.test_storycheck import setup
+    part = setup(tmp_path, "@set street\n@cast bob, amy, fred\n@item b: bench left\nBob saw it.\n@do fred: sit b\nSat.\n")
+    save_object(tmp_path, fx.BENCH)
+    (part / "phrases.json").write_text(phrases_for((part / "story.md").read_text(encoding="utf-8")).model_dump_json())
+    warns = [w["message"] for w in check_story(part)["warnings"]]
+    assert any("too far to walk to" in w for w in warns), warns
+
+
+def test_item_prop_must_exist(tmp_path):
+    from pipeline.scribble.io import delete_prop, save_object, save_prop
+    with pytest.raises(ValueError, match="'glow-crystal' .* is not a prop"):
+        save_object(tmp_path, fx.CRYSTAL)  # its prop isn't in the library yet
+    save_prop(tmp_path, fx.GLOW)
+    save_object(tmp_path, fx.CRYSTAL)
+    with pytest.raises(ValueError, match="glow-crystal is still the held prop of World Item glow-crystal"):
+        delete_prop(tmp_path, "glow-crystal")
+
+
+def test_storycheck_item_prop_missing(tmp_path):
+    from pipeline.scribble import db
+    from pipeline.scribble.storycheck import check_story
+    from pipeline.tests.test_storycheck import setup
+    part = setup(tmp_path, "@set street\n@cast bob\n@item gem: glow-crystal\nA stone.\n")
+    db.put_catalogs(tmp_path, {"objects": [fx.CRYSTAL.model_dump(mode="json")]})  # saved before the check existed
+    msgs = [p["message"] for p in check_story(part)["problems"]]
+    assert any("held as prop 'glow-crystal', which is not a prop" in m for m in msgs), msgs
 
 
 def test_enter_ride_and_exit_follow_the_pod():

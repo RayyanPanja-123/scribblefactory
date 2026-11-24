@@ -24,18 +24,22 @@ export const ZZZ = { every: 3.2, show: 2.2 };             // sleeping: a rising 
 // Any other action is custom: library/actions.json keyframes (library.js), played by customPose.
 export const BUILTIN_ACTIONS = new Set(["idle", "walk", "run", "talk", "point", "react", "wave", "ride", "stagger", "lie",
   "collapse", "eat", "give", "receive", "carry", "carried", "support", "supported", "cheer", "angry", "gasp",
-  "pickup", "drop", "open", "close", "push", "sit", "enter", "exit"]);
+  "pickup", "drop", "open", "close", "push", "sit", "enter", "exit", "stand"]);
 // World Item interactions (actor.item: the @item tag): the hand reaches for this anchor of the item (schema
 // WorldObject anchors), on giveAt's timing; enter / exit reach for the handle as they step in / out
 export const ITEM_REACH = { pickup: "pickup", drop: "pickup", open: "handle", close: "handle", push: "handle",
   enter: "handle", exit: "handle" };
+// sit / stand: sitting down after an approach walk takes SIT_LAND of the rest of the shot, getting up STAND_UP of it
+export const SIT_LAND = 0.3, STAND_UP = 0.4;
+/** shot share u as an item action's own timeline: after an approach walk (actor.approach) it starts on arrival */
+export const actU = (a, u) => (a.approach ? Math.max(0, (u - a.approach) / (1 - a.approach)) : u);
 // sit: side on, thighs level, shins hanging (customPose shape; the planner turns the sitter side on). The hips go on
 // the item's seat anchor (main.js perchedAt).
 export const SIT = { arms: [[-16, 0], [16, 0]], legs: [82, 82], knees: [92, 92], lean: 0 };
 /** canvas arm side (-1 / +1) of actor a toward item `it` at the shot's start (sideToward): the hand an item is held in */
 export const itemSide = (a, it) => sideToward(a.start_pos[0], it.start_pos[0], a.facing);
 
-const REST = { arms: [[-16, 0], [16, 0]], legs: [-6, 6], knees: [0, 0], lean: 0 }; // the idle stickman, degrees (stickman.js)
+export const REST = { arms: [[-16, 0], [16, 0]], legs: [-6, 6], knees: [0, 0], lean: 0 }; // the idle stickman, degrees (stickman.js)
 // per-key easing (schema ActionKey.ease): how the pose moves INTO that key from the one before. in-out (default) is
 // the smoothstep every custom action always used; back-out overshoots a little and settles
 const BACK = 1.70158;
@@ -116,6 +120,8 @@ function blendPose(def, keys, ts) {
   return mix(a, b, easeOf(b)((u - a.t) / Math.max(1e-6, b.t - a.t)));
 }
 const lerp = (a, b, k) => a + (b - a) * k;
+/** pose a blended k of the way to pose b (customPose shape): sitting down / getting up */
+export const poseMix = (a, b, k) => mix(a, b, k);
 const mix = (a, b, k) => ({ arms: a.arms.map((arm, s) => arm.map((v, j) => lerp(v, b.arms[s][j], k))),
   legs: a.legs.map((v, s) => lerp(v, b.legs[s], k)), knees: a.knees.map((v, s) => lerp(v, b.knees[s], k)), lean: lerp(a.lean, b.lean, k) });
 

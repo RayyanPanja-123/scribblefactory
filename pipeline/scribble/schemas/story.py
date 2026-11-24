@@ -66,12 +66,15 @@ class Actor(Strict):
                                                             "until the first, then each from its frame")
     mount: str | None = Field(default=None, description="@ride: the actor (a creature in this shot) this one rides; it "
                                                         "is drawn in the saddle and goes where its mount goes")
-    item: str | None = Field(default=None, description="pickup / drop / open / close / push / sit / enter / exit: the "
-                                                       "@item tag acted on (left out when none)")
+    item: str | None = Field(default=None, description="pickup / drop / open / close / push / sit / stand / enter / "
+                                                       "exit: the @item tag acted on (left out when none)")
+    approach: float | None = Field(default=None, gt=0, lt=1, description="an item action after a walk to the item: "
+                                                                         "the share of the shot the walk (start_pos "
+                                                                         "to end_pos) takes; the action plays after")
 
     @model_serializer(mode="wrap")
     def _omit_item(self, handler):
-        return omit_defaults(handler(self), type(self), ("item",))
+        return omit_defaults(handler(self), type(self), ("item", "approach"))
 
 
 class Travel(Strict):

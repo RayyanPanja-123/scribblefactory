@@ -100,3 +100,28 @@ test("interactions: hand-over, hatch tween and a rider in a moving pod are the s
   assert.ok(!png(d("chunk"), 483).equals(png(d("chunk"), 487)), "the hatch moves through its tween");
   assert.ok(!png(d("chunk"), 599).equals(png(d("chunk"), 601)), "the pod (and its rider) move");
 });
+
+// Phase B.1 (engine/test/fixtures/approach): Karen walks to a bench out of reach (s03 114-195 only walks), arrives
+// early in s04 and eases down onto it (sit landing ~203-215), then sits on and gets up (stand, s09 from 452)
+const FIXA = fileURLToPath(new URL("./fixtures/approach", import.meta.url));
+test("approach: a mid-walk frame and the sit landing are the same alone and in a chunk", async () => {
+  const work = fs.mkdtempSync(path.join(os.tmpdir(), "scribble-approach-"));
+  temps.push(work);
+  fs.cpSync(FIXA, work, { recursive: true });
+  const p = path.join(work, "demo", "part-01"), d = (n) => path.join(p, n);
+  const R = await renderNamed({
+    a: ["--part", p, "--frames", "149-151", "--out-dir", d("chunk")],
+    b: ["--part", p, "--frames", "205-209", "--out-dir", d("chunk")],
+    warm: ["--part", p, "--frames", "460-460", "--out-dir", d("warm")],
+    warm2: ["--part", p, "--frames", "208-208", "--out-dir", d("warm")], // after other frames: a warm cache
+  });
+  for (const k of ["a", "b", "warm", "warm2"]) assert.ok(R[k].ok, `${k}: ${R[k].error}`);
+  for (const n of [150, 208]) {
+    const alone = await render("--part", p, "--frames", `${n}-${n}`, "--out-dir", d(`alone${n}`));
+    assert.equal(alone.status, 0, alone.stderr);
+    assert.ok(png(d("chunk"), n).equals(png(d(`alone${n}`), n)), `frame ${n}: chunk vs alone`);
+  }
+  assert.ok(png(d("chunk"), 208).equals(png(d("warm"), 208)), "warm cache");
+  assert.ok(!png(d("chunk"), 149).equals(png(d("chunk"), 151)), "she walks");
+  assert.ok(!png(d("chunk"), 205).equals(png(d("chunk"), 209)), "she eases down onto the bench");
+});

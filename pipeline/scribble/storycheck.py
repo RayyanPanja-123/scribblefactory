@@ -171,6 +171,7 @@ def check_story(part_dir: Path) -> dict:
     cur_set, fresh_set = None, True  # a set's first narration line opens on the establishing wide
     objects, items = world_object_kinds(library), {}  # @item: tag -> World Item id, reset by a set change
     held, inside = {}, {}  # pickup: tag -> who holds it; enter: cast id -> the tag it sits in (both reset with items)
+    items_used, prop_ids = False, set(props)
     cam_lines = []  # every @cam line, in order (each forces one shot: _cam_repeats pairs them up)
     rides, ride_warned = {}, set()  # @ride: rider -> mount (kept across @set); warnings already given (no repeats)
     first_seen: dict[str, int] = {}  # cast id -> first line it is on stage
@@ -262,7 +263,10 @@ def check_story(part_dir: Path) -> dict:
                     elif op.op == "state":
                         item_state_ok(op, no, objects, items)
                     elif op.op == "place":
-                        items[op.tag] = op.object
+                        items[op.tag], items_used = op.object, True
+                        if (o := objects.get(op.object)) and o.prop and o.prop not in prop_ids:
+                            bad(no, f"@item: {op.object} is held as prop {o.prop!r}, which is not a prop (built in or on "
+                                    "the Props page)")
                     if op.op in ("remove", "place"):  # gone (or replaced): nobody holds it or sits in it
                         held.pop(op.tag, None)
                         inside = {c: g for c, g in inside.items() if g != op.tag}
@@ -332,6 +336,8 @@ def check_story(part_dir: Path) -> dict:
         bad(pending_cam[0], "@cam has no narration line after it")
     if cam_lines and not problems:
         warnings += _cam_repeats(part_dir, cam_lines)
+    if items_used and not problems:
+        warnings += _item_reach(part_dir)
     for no in pending_sfx:
         bad(no, "@sfx has no narration line after it to play on")
 
@@ -375,6 +381,17 @@ def check_story(part_dir: Path) -> dict:
                                                   f"add about {add} words"})
     return {"ok": not problems, "problems": [tag_missing(p) for p in problems], "warnings": warnings,
             "words": len(words), "seconds": seconds, "wps": round(wps, 2)}
+
+
+def _item_reach(part_dir: Path) -> list[dict]:
+    """warnings the planner leaves for World Item actions (an item too far to walk to in its line). Needs the shot
+    plan, so only once the part is timed; else none."""
+    notes: list = []
+    try:
+        plan_part(part_dir, notes)
+    except (StageError, OSError, ValueError):
+        return []
+    return [{"line": no, "message": msg} for no, msg in notes]
 
 
 def _cam_repeats(part_dir: Path, cam_lines: list[int]) -> list[dict]:

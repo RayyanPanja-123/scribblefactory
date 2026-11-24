@@ -7,7 +7,7 @@ import { CRW, RIDE, creature, creatureAnchors, drawCreature, measure as creature
 import { lookup, setLibrary } from "./library.js";
 import { DH, DOG_FEET, DW, barkAmount, drawDog, gallopPhase } from "./dog.js";
 import { cameraProgress, isReactionClose, fovPunch, noise1, shakeTriggers, trauma, gestureAmount, idleLife, lookTarget, gesturePlan, mouthCurve, mouthCycles, pointAmount, stressBob, waveAmount } from "./motion.js";
-import { BUILTIN_ACTIONS, CARRIED_LIFT, GIVE, HELD_Z, HOLD_GAP, ITEM_REACH, LIE, SIT, collapseAt, customPose, eatAt, gaitPhase, giveAt, handOf, heldPlace, itemSide,
+import { BUILTIN_ACTIONS, CARRIED_LIFT, GIVE, HELD_Z, HOLD_GAP, ITEM_REACH, LIE, REST, SIT, SIT_LAND, STAND_UP, actU, poseMix, collapseAt, customPose, eatAt, gaitPhase, giveAt, handOf, heldPlace, itemSide,
   propsByShot, sideToward, staggerAt, withProp, zzzAt } from "./actions.js";
 import { CAR_CARD_W, CAR_GROUND, DRIVER_X, RIDER_X, VH, VW, carEase, carSpeedShare, drawCar, seatOffset } from "./car.js";
 import { HEAD_GROW, MOOD_EXPRESSION, extraLook, fitCrowd, moodAt, placeExtras } from "./extras.js";
@@ -506,8 +506,8 @@ window.setup = (d) => {
 };
 
 const placeAt = (a, u) => {
-  const e = a.end_pos || a.start_pos;
-  return [lerp(a.start_pos[0], e[0], u), lerp(a.start_pos[1], e[1], u)];
+  const e = a.end_pos || a.start_pos, k = a.approach ? Math.min(1, u / a.approach) : u; // an approach walk ends early
+  return [lerp(a.start_pos[0], e[0], k), lerp(a.start_pos[1], e[1], k)];
 };
 
 /** screen rect [x0, y0, x1, y1] (NDC) of world points */
@@ -669,7 +669,7 @@ function drawShot(shot, n) {
     if (ridden.has(a.cast_id)) o.rider = ridden.get(a.cast_id);
     const perch = F.perched.get(a.cast_id);
     if (perch?.mode === "ride") o.seated = true; // inside a World Item: a held prop comes up into view
-    if (perch?.mode === "sit") o.custom = SIT;
+    if (perch?.mode === "sit") o.custom = perch.k == null ? SIT : poseMix(REST, SIT, perch.k); // part way down / up
     if (!creatureOf(a.cast_id) && !roll.k && !o.rider && a.action !== "carried" && !perch) {
       Object.assign(o, bodyLife(shot, a, o, F));
       lives.push(`${a.cast_id} lean ${o.velLean.toFixed(2)} squash ${o.squash.toFixed(3)} lid ${o.lid}`
@@ -685,7 +685,7 @@ function drawShot(shot, n) {
     mesh.position.set(x - hx, a.action === "carried" ? CARRIED_LIFT : LIE.lift * roll.k + hop, z - hz);
     mesh.rotation.set(0, yaw, roll.sign * roll.k * Math.PI / 2);
     // on a World Item's seat: the hips on the seat point, cut at its rim when inside, drawn between its layers
-    if (perch) mesh.position.y = perch.y - (CARD_H * (FEET_Y - skeleton(figure(a.cast_id, o)).hipY)) / CH;
+    if (perch) { const y = perch.y - (CARD_H * (FEET_Y - skeleton(figure(a.cast_id, o)).hipY)) / CH; mesh.position.y = perch.k == null ? y : y * perch.k; }
     if (perch?.clip != null) clipAt(mesh.material, perch.clip);
     else if (mesh.material.clippingPlanes) mesh.material.clippingPlanes = null;
     mesh.renderOrder = perch?.mode === "ride" ? RIDER_ORDER : 1;
@@ -737,15 +737,22 @@ function perchedAt(shot, u, n, shift) {
     const def = lookup("objects", it.object), [ix, iz] = itemPlace(it, u, shift), sgn = it.facing === "left" ? -1 : 1;
     const { state } = stateAt(it, n), A = animAt(def.anims, state ?? def.states?.[0] ?? null, t, phaseOf(data.story.seed, it.id));
     const at = ([sx, sy]) => [ix + A.dx + sgn * sx, iz + 0.002, it.y + A.dy + sy];
-    const swapped = u >= GIVE.swap, of = (act) => shot.actors.filter((a) => a.action === act && a.item === it.id).map((a) => a.cast_id);
-    const inside = [...(it.riders || []), ...(swapped ? of("enter") : of("exit"))];
+    const of = (act, when) => shot.actors.filter((a) => a.action === act && a.item === it.id && when(a)).map((a) => a.cast_id);
+    const inside = [...(it.riders || []), ...of("enter", (a) => actU(a, u) >= GIVE.swap), ...of("exit", (a) => actU(a, u) < GIVE.swap)];
     inside.forEach((c, i) => {
       const seat = (def.seats || [])[i];
       if (!seat) return;
       const [x, z, y] = at(seat);
       out.set(c, { x, z, y, clip: def.clip_y != null ? it.y + A.dy + def.clip_y : null, mode: "ride" });
     });
-    for (const c of of("sit")) if (def.anchors?.seat) { const [x, z, y] = at(def.anchors.seat); out.set(c, { x, z, y, clip: null, mode: "sit" }); }
+    // sit / stand: k 1 seated .. 0 standing at its own spot; sitting down after an approach walk eases in over
+    // SIT_LAND of the rest of the shot, getting up (stand) over STAND_UP of it
+    for (const a of shot.actors.filter((b) => (b.action === "sit" || b.action === "stand") && b.item === it.id)) {
+      if (!def.anchors?.seat || (a.action === "sit" && a.approach && u < a.approach)) continue;
+      const [x, z, y] = at(def.anchors.seat), [ox, oz] = placeAt(a, u);
+      const k = a.action === "stand" ? 1 - glide(u / STAND_UP) : a.approach ? glide(actU(a, u) / SIT_LAND) : 1;
+      out.set(a.cast_id, k >= 1 ? { x, z, y, clip: null, mode: "sit" } : { x: lerp(ox, x, k), z: lerp(oz, z, k), y, clip: null, mode: "sit", k });
+    }
   }
   return out;
 }
@@ -812,13 +819,16 @@ function poseOf(F, a, px = 1) {
   const holder = shot.actors.find((h) => h.target === a.cast_id && (h.action === "carry" || h.action === "support"));
   const own = holder && (a.action === "carried" || a.action === "supported") ? ownMove(holder) : ownMove(a);
   const shotLen = (shot.end_frame - shot.start_frame) / FPS;
-  const travelled = ((shot.travel ? shot.travel.speed * shotLen : 0) + own) * u; // effective stride distance
+  // an approach walk to a World Item (actor.approach): walks until then, then acts on its own timeline (actU)
+  const walking = a.approach && u < a.approach, uMove = a.approach ? Math.min(1, u / a.approach) : u;
+  const travelled = ((shot.travel ? shot.travel.speed * shotLen : 0) + own) * uMove; // effective stride distance
   const ts = (kf - shot.start_frame) / FPS, shotSecs = (shot.end_frame - shot.start_frame) / FPS;
-  const phase = gaitPhase(a.action, travelled, ts);
+  const phase = gaitPhase(walking ? "walk" : a.action, travelled, ts);
   const plan = gesturePlan(data.story.seed, shot.id, a.cast_id, a.action, shotSecs);
   const gesture = plan ? { kind: plan.kind, k: gestureAmount(plan, ts) } : null;
   const o = {
-    boil: Math.floor(n / BOIL_FRAMES), action: a.action, facing: a.facing, t, phase, px, look: a.look,
+    boil: Math.floor(n / BOIL_FRAMES), action: walking ? "walk" : a.action, t, phase, px, look: a.look,
+    facing: walking ? ((a.end_pos || a.start_pos)[0] < a.start_pos[0] ? "left" : "right") : a.facing, // its way, then the item
     ...faceOf(a, kf),
     // a reaction close-up holds its eyes open while the reaction lands
     lid: isReactionClose(shot) && ts < STYLE.stickman.life.blink.reactionQuiet ? 0
@@ -830,7 +840,7 @@ function poseOf(F, a, px = 1) {
     wave: a.action === "wave" ? waveAmount(ts) : null,
     props: owned[a.cast_id] || castOf(a.cast_id, a.look).props,
   };
-  const roll = actionPose(shot, a, o, x, u, ts, n);
+  const roll = walking ? { k: 0, sign: a.facing === "left" ? 1 : -1 } : actionPose(shot, a, o, x, actU(a, u), ts, n);
   let turn = 0;
   if (seated.has(a.cast_id) || F.onMount(a) || F.perched.has(a.cast_id)) return { o, roll, turn, phase, gesture }; // no idle life in a seat / saddle
   // idle life (motion.js idleLife): breathing bob and weight shift; the head tilts toward whoever it looks at, and a
@@ -1139,7 +1149,7 @@ function drawItems(shot, n, u, shift) {
     const st = updateCard(c, { t: n / FPS, boil: Math.floor(n / BOIL_FRAMES), ...stateAt(it, n), facing: it.facing });
     // picked up: gone from the swap on; dropped: there from the swap on
     const by = shot.actors.find((a) => a.item === it.id && (a.action === "pickup" || a.action === "drop"));
-    c.root.visible = !by || (by.action === "pickup" ? u < GIVE.swap : u >= GIVE.swap);
+    c.root.visible = !by || (by.action === "pickup" ? actU(by, u) < GIVE.swap : actU(by, u) >= GIVE.swap);
     scene.add(c.root);
     info.push(`${it.id} ${it.object}${st ? ` ${st}` : ""} x ${c.root.position.x.toFixed(2)}`);
   }
