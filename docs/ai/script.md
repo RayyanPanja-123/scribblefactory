@@ -117,7 +117,9 @@ fit the story's period or design.
 - `@face <cast>: <expression>`: sets a face for the next line: `neutral`, `happy`, `cheer`, `sad`, `angry`, `surprised`, `sleepy`,
   `cheeky`, `exhausted`, `worried`, `dead`, `smug`, `proud`, `love`, `excited`, `relieved`, `laughing`, `wink`, `furious`, `annoyed`, `disgusted`, `crying`, `scared`, `embarrassed`, `jealous`, `guilty`, `confused`, `thinking`, `suspicious`, `shocked`, `deadpan`, `bored`, `facepalm_ready`, `dizzy`, `drunk`, `knocked_out`, `evil`, `crazy`, `blank`, or `sick`.
   `dead` draws X eyes. Use it for a reaction that narration words do not make
-  clear; narration mood words can also change faces during the line.
+  clear; narration mood words can also change faces during the line. With no `@face` and no mood word, the line's
+  punctuation picks the speaker's face: a `!!` twist line is `shocked`, a line ending in `!` is `surprised`, a line
+  ending in `?` is `confused` (a `!` or `?` mid-line does nothing). Use `@face <cast>: neutral` to keep a plain face.
 - `@fx drop | shake | pop`: animates the next line's caption. Use `shake` for impact, `pop` for a reveal, and `drop` for
   a dramatic entrance or punchline. Use sparingly.
 - `@fx lightning [cast | prop]`: creates one lightning bolt and flash beside a cast member or the holder of a prop on

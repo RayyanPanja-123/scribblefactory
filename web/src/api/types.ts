@@ -1014,6 +1014,12 @@ export interface components {
                 number
             ] | null;
             /**
+             * Snap
+             * @description arrive on this key exactly: no anticipation dip before it and no spring past it (the engine adds both to big pose changes)
+             * @default false
+             */
+            snap: boolean;
+            /**
              * T
              * @description when, as a share of the action's duration
              */

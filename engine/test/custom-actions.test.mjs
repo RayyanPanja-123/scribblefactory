@@ -16,7 +16,7 @@ test("customPose: eased between keys, rest where a key leaves a part out, once h
   assert.ok(customPose(SALUTE, 0.2).arms[1][0] < 16 + (150 - 16) * 0.2, "eased: slow start");
   assert.deepEqual(customPose(SALUTE, 9), customPose(SALUTE, 1)); // once: holds the last key
   assert.deepEqual(customPose(DANCE, 0.25), customPose(DANCE, 1.25)); // loop: period = duration
-  assert.ok(Math.abs(customPose(DANCE, 0.75).lean) < 1e-9, "loop: back toward the first key after the last");
+  assert.ok(Math.abs(customPose(DANCE, 0.75).lean) < 0.01, "loop: back toward the first key after the last (a spring's faint tail)");
   assert.ok(!BUILTIN_ACTIONS.has("salute") && BUILTIN_ACTIONS.has("wave"));
 });
 
@@ -66,4 +66,27 @@ test("ActionKey ease: in-out by default (unchanged), linear, back-out overshoots
   assert.ok(Math.abs(at("linear", 0.25) - 5) < 1e-9);
   assert.ok(Math.max(...[0.6, 0.7, 0.8, 0.9].map((u) => at("back-out", u))) > 20, "back-out overshoots");
   assert.equal(at("back-out", 1), 20);                                     // and settles on the key
+});
+
+test("customPose spring: a big change dips first and overshoots after, scaled by size; snap, small and crowded keys get none", async () => {
+  const { STYLE } = await import("../page/style.js");
+  const P = STYLE.stickman.life.spring, d = 1.2, up = (o = {}) => ({ id: "x", name: "X", duration: d, loop: false,
+    keys: [{ t: 0 }, { t: 0.5, arms: [[-16, 0], [150, 40]], ...o }] }); // holds the raised arm after 0.6 s
+  const arm = (def, f) => customPose(def, f / 30).arms[1][0];
+  assert.ok(arm(up(), 2) < 16, "anticipation: the arm dips the other way first");
+  assert.ok(arm(up(), 20) > 150, "overshoot past the key");
+  assert.ok(Math.abs(arm(up(), 18 + P.settle) - 150) < 1e-6 || arm(up(), 18 + P.settle) < 150, "settled by `settle` frames");
+  assert.equal(arm(up({ snap: true }), 20), 150, "snap: lands exactly");
+  assert.equal(arm(up({ snap: true }), 2) >= 16, true, "snap: no dip");
+  const small = { ...up(), keys: [{ t: 0 }, { t: 0.5, arms: [[-16, 0], [26, 0]] }] }; // a 10 degree change
+  assert.equal(arm(small, 20), 26, "a small change gets none");
+  const fast = { id: "w", name: "W", duration: 0.4, loop: true, keys: [{ t: 0, arms: [[-16, 0], [100, 50]] }, { t: 0.5, arms: [[-16, 0], [100, -10]] }] };
+  for (let f = 0; f < 24; f++) { // 6-frame keys: the next change starts before a spring could settle
+    const b = customPose(fast, f / 30).arms[1][1];
+    assert.ok(b <= 50 + 1e-9 && b >= -10 - 0.12 * 60 - 1e-9, `fast loop: no overshoot past its keys (frame ${f}: ${b})`);
+  }
+  const limit = { ...up(), keys: [{ t: 0 }, { t: 0.5, legs: [-90, 90] }] };
+  for (let f = 0; f < 40; f++) assert.ok(Math.abs(customPose(limit, f / 30).legs[1]) <= 90, "clamped to the leg range");
+  const off = { ...P }; Object.assign(P, { antic: 0, over: 0 });
+  try { assert.equal(arm(up(), 20), 150, "knobs at 0: off"); } finally { Object.assign(P, off); }
 });

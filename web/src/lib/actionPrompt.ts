@@ -7,12 +7,12 @@ import { slugify } from './slug'
 
 const EXAMPLES: CustomAction[] = [
   { id: 'salute', name: 'Salute', duration: 1.4, loop: false, keys: [
-    { t: 0, lean: 0, ease: 'in-out' },
-    { t: 0.5, arms: [[-16, 0], [150, 70]], lean: 2, ease: 'back-out' },
+    { t: 0, lean: 0, ease: 'in-out', snap: false },
+    { t: 0.5, arms: [[-16, 0], [150, 70]], lean: 2, ease: 'back-out', snap: false },
   ], facing: 'camera', move: 0 },
   { id: 'dance', name: 'Dance', duration: 1, loop: true, keys: [
-    { t: 0, arms: [[-120, -40], [60, 30]], legs: [-20, 6], lean: -8, ease: 'in-out' },
-    { t: 0.5, arms: [[-60, -30], [120, 40]], legs: [-6, 20], lean: 8, ease: 'in-out' },
+    { t: 0, arms: [[-120, -40], [60, 30]], legs: [-20, 6], lean: -8, ease: 'in-out', snap: false },
+    { t: 0.5, arms: [[-60, -30], [120, 40]], legs: [-6, 20], lean: 8, ease: 'in-out', snap: false },
   ], facing: 'camera', move: 0 },
 ]
 
@@ -128,7 +128,7 @@ export function importAction(text: string): { action?: CustomAction; error?: str
     if (k.knees != null && !pair(k.knees, 0, 170)) return bad('"knees" must be [left, right], each 0..170.')
     if (k.lean != null && !num(k.lean, -60, 60)) return bad('"lean" must be a number from -60 to 60.')
     const ease = (['in-out', 'linear', 'back-out'] as const).find((e) => e === k.ease) ?? 'in-out' // unknown: the default
-    keys.push({ t: k.t as number, arms: (k.arms ?? null) as never, legs: (k.legs ?? null) as never, knees: (k.knees ?? null) as never, lean: (k.lean as number) ?? 0, ease })
+    keys.push({ t: k.t as number, arms: (k.arms ?? null) as never, legs: (k.legs ?? null) as never, knees: (k.knees ?? null) as never, lean: (k.lean as number) ?? 0, ease, snap: k.snap === true })
   }
   const name = typeof a.name === 'string' && a.name.trim() ? a.name.trim().slice(0, 40) : 'New action'
   const duration = num(a.duration, 0.2, 10) ? a.duration! : 1.5

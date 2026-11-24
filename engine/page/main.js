@@ -2,11 +2,11 @@
 // render.mjs calls setup(data) once, then renderFrame(n) or renderCast(pose) per image (PNG data URL back).
 import * as THREE from "three";
 import { dolly, glide } from "./borrowed.js";
-import { BODY_W, CH, CW, FEET_Y, FIGURE_PX, HAT_TOP, HEAD_R, drawStickman, figurePx, hipPx, skeleton } from "./stickman.js";
+import { BODY_W, CH, CW, FEET_Y, FIGURE_PX, HAT_TOP, HEAD_R, drawStickman, figurePx, hipPx, skeleton, smearsOf } from "./stickman.js";
 import { CRW, RIDE, creature, creatureAnchors, drawCreature, measure as creatureSize } from "./creatures.js";
 import { lookup, setLibrary } from "./library.js";
 import { DH, DOG_FEET, DW, barkAmount, drawDog, gallopPhase } from "./dog.js";
-import { cameraProgress, fovPunch, noise1, shakeTriggers, trauma, gestureAmount, idleLife, lookTarget, gesturePlan, mouthCurve, mouthCycles, pointAmount, stressBob, waveAmount } from "./motion.js";
+import { cameraProgress, isReactionClose, fovPunch, noise1, shakeTriggers, trauma, gestureAmount, idleLife, lookTarget, gesturePlan, mouthCurve, mouthCycles, pointAmount, stressBob, waveAmount } from "./motion.js";
 import { BUILTIN_ACTIONS, CARRIED_LIFT, HELD_Z, HOLD_GAP, LIE, collapseAt, customPose, eatAt, gaitPhase, giveAt, handOf, heldPlace,
   propsByShot, sideToward, staggerAt, withProp, zzzAt } from "./actions.js";
 import { CAR_CARD_W, CAR_GROUND, DRIVER_X, RIDER_X, VH, VW, carEase, carSpeedShare, drawCar, seatOffset } from "./car.js";
@@ -24,7 +24,7 @@ const CARD_H = 1.6, CARD_W = CARD_H * (CW / CH); // the whole canvas, held props
 const BODY_CARD_W = CARD_H * (BODY_W / CH);       // just the figure: what framing and set-prop hiding measure
 const FIG_H = (CARD_H * FIGURE_PX) / CH; // tallest standing figure in world units, from stickman.js
 const BOIL_FRAMES = 4;                 // marker jitter changes every 4 frames (7.5 fps "boil")
-const LID = [0.5, 1, 1, 0.5];          // 4-frame blink: half, shut, shut, half
+const LID = [0.5, 1, 0.5];             // 3-frame blink: half, shut, half
 const rad = (d) => (d * Math.PI) / 180;
 const lerp = (a, b, u) => a + (b - a) * u;
 
@@ -196,14 +196,33 @@ const castOf = (id, look) => {
 const expressionOf = (id, e, look) => (!e || e === "neutral" ? castOf(id, look).default_expression : e);
 /** an actor's face at frame n: its expression, or the last of its in-shot face changes (faces) reached by then */
 const faceAt = (a, n) => (a.faces || []).reduce((e, f) => (f.frame <= n ? f.expression : e), a.expression);
+/** drawStickman face options at shot frame kf: the expression, and while a change inside the shot eases in
+ *  (style.js stickman.life.faceEase frames) the one before it and how far along (faceFrom, faceK 0..1) */
+function faceOf(a, kf) {
+  const E = STYLE.stickman.life.faceEase, fs = (a.faces || []).filter((f) => f.frame <= kf), ch = fs.at(-1);
+  const expression = expressionOf(a.cast_id, faceAt(a, kf), a.look);
+  if (!ch || !E || kf - ch.frame + 1 >= E) return { expression };
+  const before = fs.length > 1 ? fs.at(-2).expression : a.expression;
+  return { expression, faceFrom: expressionOf(a.cast_id, before, a.look), faceK: (kf - ch.frame + 1) / E };
+}
 const charSeed = (id) => `${data.series.slug}:${id}`; // same look in every part and on the cast sheet
 
-function lidAt(f, key) {
-  const R = rng(key, "blink");
-  let s = -Math.floor(60 * R());
+/** eyelid 0 | 0.5 | 1 at frame f (style.js stickman.life.blink): seeded gaps per key. turn [i, N]: named cast member i
+ *  of N starts blinks only in its own blink.slot-frame slots (slot index mod N = i), so no two ever blink together;
+ *  extras pass none (a seeded phase is enough at their size). */
+function lidAt(f, key, turn = null) {
+  const B = STYLE.stickman.life.blink, R = rng(key, "blink");
+  if (!B.gap[1]) return 0;
+  const gap = () => Math.max(LID.length, Math.round(FPS * (B.gap[0] + R() * (B.gap[1] - B.gap[0]))));
+  const align = (s) => { // the first of this member's slot starts at or after s
+    if (!turn || turn[1] < 2 || !B.slot) return s;
+    const q = Math.ceil(s / B.slot);
+    return (q + ((((turn[0] - q) % turn[1]) + turn[1]) % turn[1])) * B.slot;
+  };
+  let s = align(-Math.floor(FPS * B.gap[1] * R()));
   while (s <= f) {
-    if (f - s < 4) return LID[f - s];
-    s += 15 + Math.floor(55 * R()); // next blink 0.5-2.3 s later
+    if (f - s < LID.length) return LID[f - s];
+    s = align(s + gap());
   }
   return 0;
 }
@@ -592,6 +611,7 @@ function drawShot(shot, n) {
   // the frame's camera: framing, fov punch, then drift and shake (the probes above use the framing alone)
   shotCamera(shot, subject ? focusX(place) : 0, span, u, drop(kf), fovPunch(shot, (kf - shot.start_frame) / FPS));
   const shake = cameraLife(shot, n);
+  const lives = [];
   const gestures = [], riders = new Map(); // riders: cast id -> drawStickman options, drawn inside the car card
   const ridden = new Map(); // @ride: mount cast id -> its rider's drawStickman options, drawn on the mount's card
   for (const a of [...shot.actors].sort((p, q) => F.onMount(q) - F.onMount(p))) { // riders first: their mounts carry them
@@ -603,6 +623,11 @@ function drawShot(shot, n) {
     if (seated.has(a.cast_id)) { riders.set(a.cast_id, figure(a.cast_id, o)); continue; }
     if (F.onMount(a)) { ridden.set(a.mount, figure(a.cast_id, o)); continue; }
     if (ridden.has(a.cast_id)) o.rider = ridden.get(a.cast_id);
+    if (!creatureOf(a.cast_id) && !roll.k && !o.rider && a.action !== "carried") {
+      Object.assign(o, bodyLife(shot, a, o, F));
+      lives.push(`${a.cast_id} lean ${o.velLean.toFixed(2)} squash ${o.squash.toFixed(3)} lid ${o.lid}`
+        + `${o.faceK ? ` face ${o.faceFrom}->${o.expression} ${o.faceK}` : ""}${o.prev ? ` smears ${smearsOf(skeleton(figure(a.cast_id, o)), o.prev.k, o).length}` : ""}`);
+    }
     const mesh = drawCard(a.cast_id, o, outdoor && STYLE.light.outdoor), yaw = Math.atan2(camera.position.x - x, camera.position.z - z) + turn;
     // lying (lie, the end of a collapse): the card rolls 90 degrees about the feet in its own plane and lifts so the
     // body rests on the floor; carried: lifted clear of the ground
@@ -632,7 +657,7 @@ function drawShot(shot, n) {
   grade();
   const travel = shot.travel ? { travel: `${shot.travel.speed} u/s ${dir < 0 ? "left" : "right"}, shift ${shift.toFixed(2)}`
     + `, loop excess ${(({ excess, row }) => `${excess.toFixed(3)} (row z ${row})`)(loopExcess(group, shift))}` } : {};
-  return { angle: shot.camera.angle, trauma: +shake.toFixed(4), fov: +camera.fov.toFixed(3), fg: fg?.kind ?? null, hidden: hidden.size, gestures, dogs: animals.length, ...extras, ...cars, ...travel, ...weather,
+  return { life: lives, angle: shot.camera.angle, trauma: +shake.toFixed(4), fov: +camera.fov.toFixed(3), fg: fg?.kind ?? null, hidden: hidden.size, gestures, dogs: animals.length, ...extras, ...cars, ...travel, ...weather,
     ...measure(shot.actors.filter((a) => !seated.has(a.cast_id)).map(place)) };
 }
 
@@ -655,6 +680,38 @@ function shotFrame(shot, n) {
 
 const ownMove = (a) => (a.end_pos ? Math.hypot(a.end_pos[0] - a.start_pos[0], a.end_pos[1] - a.start_pos[1]) : 0);
 
+/** a standing stickman's motion life at frame F (shotFrame) from its poses at neighbouring frames of the same shot:
+ *  { velLean degrees, squash (height share), prev: { facing, k: skeleton } for smears }. Speeds are backward
+ *  differences, except on the shot's first frame (a cut: nothing before it), which looks one frame ahead; samples
+ *  never leave the shot. style.js stickman.life; pure (poses recomputed, never kept from an earlier frame). */
+function bodyLife(shot, a, o, F) {
+  const L = STYLE.stickman.life, id = a.cast_id, sgn = a.facing === "left" ? -1 : 1;
+  const s0 = shot.start_frame, s1 = shot.end_frame - 1, m = F.kf, cache = new Map([[m, { F, o }]]);
+  const at = (f) => { // the pose and frame context at shot frame f
+    f = Math.min(Math.max(f, s0), s1);
+    if (!cache.has(f)) { const Ff = shotFrame(shot, f); cache.set(f, { F: Ff, o: poseOf(Ff, a).o }); }
+    return cache.get(f);
+  };
+  const [p, q] = m > s0 ? [m - 1, m] : [m, m + 1]; // the speed's two frames
+  // lean: world speed (own move; a travel shot's scroll is a steady speed)
+  const v = (at(q).F.place(a)[0] - at(p).F.place(a)[0]) * FPS + (shot.travel ? sgn * shot.travel.speed : 0);
+  const velLean = Math.min(L.lean.max, Math.max(-L.lean.max, L.lean.perSpeed * v * sgn));
+  // squash: hip height px plus a cheer's hop; stress bobs, breathing and a gait's stride bounce (phase 0) left out:
+  // only real rises, falls and landings count. Acceleration over three frames ending at m, or the shot's first three.
+  const hop = (pp) => (pp.mood ? MOOD_HOP * pp.mood.bounce : 0) * (CH / CARD_H);
+  const h = (f) => { const pp = at(f).o; return FEET_Y - skeleton(figure(id, { ...pp, bob: 0, breath: 0, phase: 0 })).hipY + hop(pp); };
+  const lo = Math.max(s0, m - 2), v0 = h(q) - h(p), acc = h(lo + 2) - 2 * h(lo + 1) + h(lo), Q = L.squash;
+  let squash = 1;
+  if (Q.max && Math.max(Math.abs(v0), Math.abs(acc)) >= Q.min) {
+    const stretch = Q.gain * (hop(o) > 0 ? Math.abs(v0) : v0), squeeze = Q.accel * Math.max(0, acc);
+    const room = (FEET_Y - 8) / figurePx(bodyOf(id).build) - 1; // the head stays on the card
+    squash = 1 + Math.min(Math.min(Q.max, room), Math.max(-Q.max, stretch - squeeze));
+  }
+  // smears trail where a hand / foot came from: none on the shot's first frame
+  const prev = m > s0 ? at(m - 1).o : null;
+  return { velLean, squash, prev: prev ? { facing: prev.facing, k: skeleton(figure(id, prev)) } : null };
+}
+
 /** actor a's drawStickman options at shot frame F (shotFrame): { o, roll, turn (card yaw extra), phase, gesture }.
  *  Pure function of the frame: the same F and actor give the same pose, so a pose a frame earlier is poseOf at n - 1.
  *  px: screen px per card canvas px (face stroke widths only). */
@@ -670,9 +727,12 @@ function poseOf(F, a, px = 1) {
   const plan = gesturePlan(data.story.seed, shot.id, a.cast_id, a.action, shotSecs);
   const gesture = plan ? { kind: plan.kind, k: gestureAmount(plan, ts) } : null;
   const o = {
-    boil: Math.floor(n / BOIL_FRAMES), action: a.action, expression: expressionOf(a.cast_id, faceAt(a, kf), a.look), facing: a.facing, t, phase, px, look: a.look,
-    lid: lidAt(n, key),
-    breath: Math.sin((2 * Math.PI * t) / 3.4 + 2 * Math.PI * rng(key, "breath")()),
+    boil: Math.floor(n / BOIL_FRAMES), action: a.action, facing: a.facing, t, phase, px, look: a.look,
+    ...faceOf(a, kf),
+    // a reaction close-up holds its eyes open while the reaction lands
+    lid: isReactionClose(shot) && ts < STYLE.stickman.life.blink.reactionQuiet ? 0
+      : lidAt(n, key, [data.series.cast.findIndex((c) => c.id === a.cast_id), data.series.cast.length]),
+    breath: (Hz => (Hz ? Math.sin(2 * Math.PI * Hz * t + 2 * Math.PI * rng(key, "breath")()) : 0))(STYLE.stickman.life.breath.hz),
     mouth: a.action === "talk" && n === kf ? mouth[n] : 0, // shut while drawn outside its shot (wipe)
     bob: a.action === "talk" && !seated.has(a.cast_id) ? stressBob(t, shotWords(shot)) : 0,
     gesture, pointK: a.action === "point" ? pointAmount(ts) : 1,

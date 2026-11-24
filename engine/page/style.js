@@ -77,6 +77,33 @@ export const STYLE = {
   // or being addressed; turn / gaze: two named characters facing the camera angle their cards this many degrees toward
   // each other and glance that way (pupil shift share)
   idle: { bob: 0.35, shift: 1.3, shiftPeriod: 4.5, headTilt: 6, turn: 22, gaze: 0.8 },
+  // stickman life (main.js + stickman.js + actions.js), each a pure function of the frame: a "previous frame" value
+  // is the pose recomputed a frame earlier (clamped to the shot's first frame). Any knob at 0 turns its effect off.
+  // Cast sheets never get any of it (no previous frame, breath 0, lid 0).
+  // lean: degrees of torso lean per world unit/s of travel (own move + a travel shot's scroll), clamped to max.
+  // squash: hip height (bobs and breathing left out) per frame: stretch = gain x |speed| (signed: a crouch squashes
+  // unless airborne), squash = accel x upward acceleration (a landing); under `min` px/frame (speed and accel) none;
+  // max: largest change of height (width is 1/height); the head never leaves the card.
+  // smear: hands and feet moving more than min card px per frame (relative to the body) leave a tapered ink smear;
+  // run: gaits (short, faint), gesture: everything else; max = longest smear px; width = px at the hand.
+  // breath: chest rise rate (hz) and extra shoulder lift px at full breath.
+  // blink: gap s between blinks [min, max]; slot: frames per blink slot (named cast take turns, so they never blink
+  // together); reactionQuiet: s a reaction close-up holds its eyes open.
+  // faceEase: frames a face change inside a shot eases over.
+  // spring (custom actions): a pose change of `min`..`full` degrees gets 0..1 of an anticipation dip (antic share of
+  // the change, over anticFrames) and an overshoot (over share, settling over `settle` frames); less room before the
+  // next key shrinks it.
+  stickman: {
+    life: {
+      lean: { perSpeed: 2.5, max: 8 },
+      squash: { gain: 0.006, accel: 0.012, min: 4, max: 0.1 },
+      smear: { min: 48, width: 14, run: { max: 60, alpha: 0.3 }, gesture: { max: 150, alpha: 0.55 } },
+      breath: { hz: 0.25, shoulder: 1.5 },
+      blink: { gap: [2, 5], slot: 6, reactionQuiet: 0.5 },
+      faceEase: 4,
+      spring: { min: 15, full: 60, antic: 0.12, anticFrames: 4, over: 0.15, settle: 8 },
+    },
+  },
   // painted creatures (creatures.js, not humanoids): inside every filled shape at least minSize card px wide or tall,
   // a soft lit spot toward the key light (screen right; x / y its centre as a share of the shape's box from the middle /
   // top, r radius share of the larger side) and light.shadow pooling from `shade.from` (share down the box) to the

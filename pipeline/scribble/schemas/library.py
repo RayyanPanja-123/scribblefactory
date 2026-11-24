@@ -266,6 +266,8 @@ class ActionKey(Strict):
     ease: Literal["linear", "in-out", "back-out"] = Field(
         default="in-out", description="how the pose moves into this key from the one before: in-out (eases both ends), "
                                       "linear (steady), back-out (overshoots a little, then settles)")
+    snap: bool = Field(default=False, description="arrive on this key exactly: no anticipation dip before it and no "
+                                                  "spring past it (the engine adds both to big pose changes)")
 
     @model_validator(mode="after")
     def _ranges(self):

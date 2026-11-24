@@ -483,6 +483,26 @@ def line_moods(md: str, words: list[str]) -> list[str | None]:
     return out
 
 
+PUNCT_FACES = {"twist": "shocked", "!": "surprised", "?": "confused"}  # a line's face when nothing else sets one
+
+
+def punct_faces(md: str, words: list[str], tags) -> list[str | None]:
+    """per script word: the face its line's punctuation gives (PUNCT_FACES): a twist line (!!) shocked, a line ending
+    in "!" surprised, in "?" confused (a "!" or "?" mid-line counts for nothing). Only for a line nothing else gives a
+    face (no @face, mood word or face keyword: plan decides). All None when story.md and the words disagree."""
+    from ..sfx import line_words
+    out = [None] * len(words)
+    spans = line_words(md)
+    if sum(b - a + 1 for a, b in spans.values()) != len(words):
+        return out
+    for a, b in spans.values():
+        end = words[b].rstrip("\"')]}*_”’")
+        face = (PUNCT_FACES["twist"] if tags[a].twist else PUNCT_FACES["!"] if end.endswith("!")
+                else PUNCT_FACES["?"] if end.endswith("?") else None)
+        out[a:b + 1] = [face] * (b - a + 1)
+    return out
+
+
 def _actors(cast, pos, subject, words, seconds, travel_dir=0, zs=None, mood=None, halves=None):
     """Actors for one shot, starting at pos[cid]. Updates pos to where each one ends.
     travel_dir (+1 right / -1 left): travel shot, every actor does the subject's walk/run in place at z zs[cid].
@@ -747,6 +767,7 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
                             weather_of, wardrobe, creature_wardrobe(series.cast, bodies), handless)
     heard = [w.text for w in phrases.words]
     moods = line_moods(md, words)
+    puncts = punct_faces(md, words, tags)
     if words != heard:
         i = next((i for i, (a, b) in enumerate(zip(words, heard)) if a != b), min(len(words), len(heard)))
         at = lambda ws: repr(ws[i]) if i < len(ws) else "(end)"
@@ -837,7 +858,9 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
         subject = mentioned or (subject if subject in cast else cast[0])
         action = next((ACTIONS[w] for w in pw if w in ACTIONS), None)
         mood = moods[p.word_start] if p.word_start < len(moods) else None
-        expression = mood or next((EXPRESSIONS[w] for w in pw if w in EXPRESSIONS), "neutral")
+        expression = mood or next((EXPRESSIONS[w] for w in pw if w in EXPRESSIONS), None) or (
+            puncts[p.word_start] if p.word_start < len(puncts) else None) or "neutral"
+        mood = mood or (expression if expression != "neutral" else None)  # _actors gives the subject this face
         a, b = starts[i], ends[i]
         parts = math.ceil((b - a) / MAX_SHOT_FRAMES)
         for k in range(parts):

@@ -313,7 +313,7 @@ describe('action prompt', () => {
     const { action } = importAction('Sure!\n```json\n{"id": "Deep Bow", "name": "Bow", "duration": 2, "loop": false, "keys": [{"t": 0.6, "lean": 25}, {"t": 0}]}\n```')
     expect(action).toMatchObject({ id: 'deep-bow', duration: 2, loop: false })
     expect(action?.keys.map((k) => k.t)).toEqual([0, 0.6])
-    expect(action?.keys[0]).toEqual({ t: 0, arms: null, legs: null, knees: null, lean: 0, ease: 'in-out' })
+    expect(action?.keys[0]).toEqual({ t: 0, arms: null, legs: null, knees: null, lean: 0, ease: 'in-out', snap: false })
     expect(importAction('{"actions": [{"name": "Clap", "keys": [{"t": 0}]}]}').action).toMatchObject({ id: 'clap', loop: true, duration: 1.5 })
     expect(importAction('{"keys": [{"t": 0, "legs": [-100, 6]}]}').error).toMatch(/Key #1: "legs"/)
     expect(importAction('{"keys": [{"t": 0, "legs": [0, 90], "knees": [90, 200]}]}').error).toMatch(/Key #1: "knees"/)

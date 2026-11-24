@@ -159,6 +159,7 @@ export function skeleton(o) {
   const legA = o.straddle ? [deg(STRADDLE.thigh), deg(STRADDLE.thigh)] : C ? C.legs.map(deg) : [-A - B, A + B];
   if (C) lean = deg(C.lean);
   lean += deg(o.shift || 0); // idle weight shift (main.js, style.js idle): a slow sway about the feet
+  lean += deg(o.velLean || 0); // leaning into the motion (main.js, style.js stickman.life.lean)
   // knees: thigh and shin are half a leg each. Side on, the shin folds back (toward -x) by the knee bend; facing the
   // camera the knees bend outward (the thighs splay by half the bend, the shins fold back in: a front-view squat).
   // The leg that reaches lowest stands on FEET_Y (a straight leg: LEG * cos, as before).
@@ -241,7 +242,7 @@ export function skeleton(o) {
   if (o.seated) for (const pr of o.props || []) {
     if (pr.hand === "left") { aL = -HOLD[0]; bendL = -HOLD[1]; } else if (o.action !== "wave") { aR = HOLD[0]; bendR = HOLD[1]; }
   }
-  const sh = top + 58 - lift;
+  const sh = top + 58 - lift - STYLE.stickman.life.breath.shoulder * (o.breath || 0); // shoulders rise with a breath
   const arms = [[[CW / 2 - S.sh, sh], aL, bendL], [[CW / 2 + S.sh, sh], aR, bendR]].map(([shp, a, bend]) => {
     const elbow = at(shp, a, ARM * 0.52);
     return [shp, elbow, at(elbow, a + bend, ARM * 0.48)];
@@ -324,13 +325,20 @@ export function drawStickman(canvas, o) {
   // a build taller than the card shrinks to fit; whole-figure lean, both about the feet
   // with bent knees (a kneel, a squat) the lean bends at the hips instead (hinge 0..1 blends it in as the knees
   // bend): the legs tip about the feet by the rest, the upper body by the hinge share about the hips
-  const hipBend = k.lean * (k.hinge || 0);
-  g.translate(CW / 2, FEET_Y); if (fit !== 1) g.scale(fit, fit); g.rotate(k.lean - hipBend); g.translate(-CW / 2, -FEET_Y);
+  // squash and stretch (o.squash: height share, main.js): height about the feet along the leaning body; the width
+  // (1 / height, same volume) leaves the legs out, so the feet never slide
+  const hipBend = k.lean * (k.hinge || 0), sq = o.squash && o.squash !== 1 ? o.squash : 0;
+  g.translate(CW / 2, FEET_Y); if (fit !== 1) g.scale(fit, fit); g.rotate(k.lean - hipBend); if (sq) g.scale(1, sq);
+  g.translate(-CW / 2, -FEET_Y);
+  const legSpace = sq && g.getTransform();
   if (hipBend) { g.translate(CW / 2, k.hipY); g.rotate(hipBend); g.translate(-CW / 2, -k.hipY); }
-  const planted = (draw) => { // draw the legs (and what is worn on them) without the hip bend
+  if (sq) { g.translate(CW / 2, 0); g.scale(1 / sq, 1); g.translate(-CW / 2, 0); }
+  const planted = (draw) => { // draw the legs (and what is worn on them) without the hip bend (or the squash's width)
+    if (legSpace) { g.save(); g.setTransform(legSpace); draw(); g.restore(); return; }
     if (!hipBend) return draw();
     g.save(); g.translate(CW / 2, k.hipY); g.rotate(-hipBend); g.translate(-CW / 2, -k.hipY); draw(); g.restore();
   };
+  const smears = o.prev && o.prev.facing === o.facing ? smearsOf(k, o.prev.k, o) : [];
 
   if (W.length) { // "behind" layers (long hair, capes, the back of a hood) go under everything
     wear((_, L) => L.behind && !head(L));
@@ -340,6 +348,7 @@ export function drawStickman(canvas, o) {
   }
   const lw = builtin("legwear", o.legwear);
   planted(() => {
+    for (const sm of smears) if (sm.foot) drawSmear(p, g, sm, boil);
     k.legs.forEach(([hip, foot], i) => p.stroke(jitter(k.knees ? [hip, k.knees[i], foot] : [hip, foot], boil), 10));
     if (lw) legwear(p, cos, lw, k.legs, k.knees);
     if (W.length) wear((slot, L) => !L.behind && !head(L) && lower(slot));
@@ -371,6 +380,7 @@ export function drawStickman(canvas, o) {
     if (pr) drawProp(p, cos, pr, hand, k.fore[i], i ? 1 : -1);
     p.dot(hand[0], hand[1], 15);
   };
+  for (const sm of smears) if (!sm.foot) drawSmear(p, g, sm, boil);
   k.arms.forEach((a, i) => { if (!k.late.includes(i)) drawArm(a, i, true); });
 
   // head last: wobbly white circle, thick outline, sits on the body (raised arms go behind it)
@@ -395,6 +405,45 @@ export function drawStickman(canvas, o) {
   }
   for (const i of k.late) drawArm(k.arms[i], i); // eating / gasping: the hands come up in front of the face
   if (o.zzz != null) zzz(p, g, boil, o, hx, hy);
+}
+
+/** smears (style.js stickman.life.smear) for hands and feet that moved more than `min` card px since the previous
+ *  frame's skeleton pk (both relative to the body: same canvas space). The path runs along the arc about the shoulder
+ *  / hip from the old spot to the new one, cut to the newest `max` px. Gaits (run, walk) use the short faint caps. */
+export function smearsOf(k, pk, o) {
+  const M = STYLE.stickman.life.smear, C = GAITS.has(o.action) ? M.run : M.gesture, out = [];
+  if (!M.min || !C.max || !C.alpha) return out;
+  const ends = [...k.arms.map((a, i) => [a[0], pk.arms[i][0], a[2], pk.arms[i][2], false]),
+    ...k.legs.map((l, i) => [l[0], pk.legs[i][0], l[1], pk.legs[i][1], true])];
+  for (const [piv, ppiv, cur, old, foot] of ends) {
+    if (Math.hypot(cur[0] - old[0], cur[1] - old[1]) < M.min) continue;
+    const a0 = Math.atan2(old[1] - ppiv[1], old[0] - ppiv[0]), a1 = Math.atan2(cur[1] - piv[1], cur[0] - piv[0]);
+    const r0 = Math.hypot(old[0] - ppiv[0], old[1] - ppiv[1]), r1 = Math.hypot(cur[0] - piv[0], cur[1] - piv[1]);
+    const da = wrap(a1 - a0), pts = [];
+    for (let i = 0; i <= 12; i++) { // old -> new along the arc
+      const f = i / 12, a = a0 + da * f, r = r0 + (r1 - r0) * f, c = [ppiv[0] + (piv[0] - ppiv[0]) * f, ppiv[1] + (piv[1] - ppiv[1]) * f];
+      pts.push([c[0] + r * Math.cos(a), c[1] + r * Math.sin(a)]);
+    }
+    let len = 0, from = pts.length - 1; // keep only the newest C.max px
+    while (from > 0 && len + Math.hypot(pts[from][0] - pts[from - 1][0], pts[from][1] - pts[from - 1][1]) <= C.max) {
+      len += Math.hypot(pts[from][0] - pts[from - 1][0], pts[from][1] - pts[from - 1][1]); from--;
+    }
+    if (from < pts.length - 1) out.push({ pts: pts.slice(from), alpha: C.alpha, width: M.width, foot });
+  }
+  return out;
+}
+
+/** a smear: an ink wedge, thin at the old end, `width` px at the hand / foot, boiling like the limbs */
+function drawSmear(p, g, sm, boil) {
+  const pts = jitter(sm.pts, boil, 1.5), n = pts.length - 1, L = [], R = [];
+  pts.forEach(([x, y], i) => {
+    const [ax, ay] = pts[Math.max(0, i - 1)], [bx, by] = pts[Math.min(n, i + 1)], len = Math.hypot(bx - ax, by - ay) || 1;
+    const w = (sm.width * i) / n, nx = -(by - ay) / len * w, ny = (bx - ax) / len * w;
+    L.push([x + nx, y + ny]); R.push([x - nx, y - ny]);
+  });
+  g.save(); g.globalAlpha = sm.alpha;
+  p.poly([...L, ...R.reverse()], INK, 0);
+  g.restore();
 }
 
 /** painted volume inside the closed shape `pts` whose path is current (S: STYLE.figure / STYLE.creature, null = flat):
@@ -699,13 +748,22 @@ const heart = (x, y, s) => Array.from({ length: 33 }, (_, i) => {
 function face(p, boil, o, fx, hy, look) {
   const w = (k) => Math.min(FACE[k][0] * FACE_MAX, Math.max(FACE[k][0], FACE[k][1] / (o.px || 1)));
   const ex = [fx - 50, fx + 50], ey = hy - 8;
-  const expr = o.expression || "neutral";
-  const big = BIG_BROWS.has(expr) || o.action === "react" || (o.action === "collapse" && (o.buckle || 0) > 0.3);
-  const E = EYES[expr];
-  const base = (expr === "happy" || expr === "cheer") && o.eyes === "half_closed" ? "arc" // soft upward arcs
-    : o.eyes === "half_closed" ? "half" : big ? "wide" : "round";
+  // a face change easing in (o.faceFrom -> o.expression, o.faceK 0..1, main.js): brows and open eyes blend, other
+  // eyes swap behind a half lid, the mouth switches half way
+  const to = o.expression || "neutral", from = o.faceK < 1 && o.faceFrom ? o.faceFrom : to, fk = from === to ? 1 : o.faceK;
+  const expr = fk < 0.5 ? from : to;
+  const bigOf = (e) => BIG_BROWS.has(e) || o.action === "react" || (o.action === "collapse" && (o.buckle || 0) > 0.3);
+  const big = bigOf(expr);
+  const wantOf = (e, i) => {
+    const E = EYES[e], base = (e === "happy" || e === "cheer") && o.eyes === "half_closed" ? "arc" // soft upward arcs
+      : o.eyes === "half_closed" ? "half" : bigOf(e) ? "wide" : "round";
+    return (Array.isArray(E) ? E[i] : E) || base;
+  };
   ex.forEach((x, i) => {
-    const want = (Array.isArray(E) ? E[i] : E) || base;
+    const wa = wantOf(from, i), wb = wantOf(to, i), blend = fk < 1 && wa !== wb;
+    const round = blend && ROUND[wa] && ROUND[wb], swap = blend && !round;
+    let want = fk < 0.5 ? wa : wb;
+    if (swap && fk > 0.2 && fk < 0.8 && !NO_BLINK.has(wa) && !NO_BLINK.has(wb)) want = "half"; // the swap hides here
     // blinks win, except on drawn-shut or symbol eyes (a dead face never blinks)
     const kind = NO_BLINK.has(want) ? want : o.lid >= 1 ? "closed" : o.lid === 0.5 ? "half" : want;
     const side = i ? 1 : -1;
@@ -739,14 +797,16 @@ function face(p, boil, o, fx, hy, look) {
       p.poly(ellPts(x + dx, ey, 15, 13, 0, 180, 0, 12), INK, 0);                 // pupil under the lid
       p.stroke(jitter([[x - 28, ey], [x + 28, ey]], boil, 1.5), w("eye"));             // lid line
     } else {
-      const [r, ps, dx, dy] = ROUND[kind] || ROUND.round, dir = look || 1;
+      const [r, ps, dx, dy] = round && kind !== "half" ? ROUND[wa].map((v, j) => v + (ROUND[wb][j] - v) * fk) : ROUND[kind] || ROUND.round, dir = look || 1;
       p.poly(ellPts(x, ey, r, r, 0, 360, 0, 28), "#ffffff", w("eyeRim"));
       if (ps) p.dot(x + 8 * look + dx * dir + 10 * (o.gaze || 0), ey + 2 + dy, w("pupil") * ps); // gaze: a glance
     }
   });
   // bold curved brows (none on a blank face)
-  const B = BROWS[expr] || BROWS.neutral, sides = Array.isArray(B[0]) ? B : [B, B];
-  const by = ey - (big ? 64 : LOW_BROWS.has(expr) ? 44 : 54);
+  const browsOf = (e) => { const B = BROWS[e] || BROWS.neutral; return Array.isArray(B[0]) ? B : [B, B]; };
+  const byOf = (e) => ey - (bigOf(e) ? 64 : LOW_BROWS.has(e) ? 44 : 54);
+  const [ba, bb] = [browsOf(from), browsOf(to)], sides = fk < 1 ? ba.map((s, j) => s.map((v, q) => v + (bb[j][q] - v) * fk)) : bb;
+  const by = fk < 1 ? byOf(from) + (byOf(to) - byOf(from)) * fk : byOf(to);
   if (expr !== "blank") for (const [x, side, [outer, inner, arch]] of [[ex[0], -1, sides[0]], [ex[1], 1, sides[1]]]) {
     const o0 = [x + side * 34, by + outer], i0 = [x - side * 30, by + inner];
     const c = [(o0[0] + i0[0]) / 2, Math.min(o0[1], i0[1]) - arch * 2];

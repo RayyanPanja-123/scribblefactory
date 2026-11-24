@@ -2,6 +2,7 @@
 // randomness outside rng(), so Node tests import this file directly (like motion.js). Drawing is in stickman.js.
 import { glide } from "./borrowed.js";
 import { rng } from "./rng.js";
+import { STYLE } from "./style.js";
 
 const TAU = Math.PI * 2;
 const clamp = (v, lo = -1, hi = 1) => Math.min(hi, Math.max(lo, v));
@@ -41,9 +42,59 @@ const easeOf = (key) => EASES[key.ease] || EASES["in-out"];
  *  degrees from straight down, + toward +x. Eased between the keys; a key leaving a part out holds it at rest. A
  *  looping action wraps from its last key back to its first; a once action holds its last key. */
 export function customPose(def, ts) {
-  const d = def.duration, u = def.loop ? (((ts % d) + d) % d) / d : Math.min(1, Math.max(0, ts / d));
   const keys = def.keys.map((k) => ({ t: k.t, arms: k.arms ?? REST.arms, legs: k.legs ?? REST.legs, knees: k.knees ?? REST.knees, lean: k.lean ?? 0,
-    ease: k.ease }));
+    ease: k.ease, snap: !!k.snap }));
+  const base = blendPose(def, keys, ts), off = springOffset(def, keys, ts);
+  if (!off) return base;
+  const v = flat(base).map((x, i) => Math.min(LIMITS[i][1], Math.max(LIMITS[i][0], x + off[i])));
+  return { arms: [[v[0], v[1]], [v[2], v[3]]], legs: [v[4], v[5]], knees: [v[6], v[7]], lean: v[8] };
+}
+
+// a pose as 9 numbers (arms, legs, knees, lean) and each one's range (schema ActionKey): an overshoot never bends past it
+const flat = (k) => [...k.arms.flat(), ...k.legs, ...k.knees, k.lean];
+const LIMITS = [[-180, 180], [-180, 180], [-180, 180], [-180, 180], [-90, 90], [-90, 90], [0, 170], [0, 170], [-60, 60]];
+
+/** anticipation + overshoot (style.js stickman.life.spring) on top of the eased blend at ts s, per pose number, or
+ *  null when there is none. Each key change of `min`..`full` degrees (its largest joint change) dips the other way
+ *  for anticFrames as it starts and springs past the key as it lands (one overshoot, settled in `settle` frames),
+ *  both scaled 0..1 by its size; a move quicker than a settle gets no dip, and no spring when the next change
+ *  starts before it settles (full from 1.5 settles)
+ *  (fast keys, quick loops: no rubbery wobble). A key with snap: true, or eased back-out (its own overshoot), gets
+ *  neither. A looping action wraps (its last key springs into the first). Pure in ts. */
+function springOffset(def, keys, ts) {
+  const P = STYLE.stickman.life.spring, d = def.duration, n = keys.length;
+  if (!(P.antic || P.over) || n < 2) return null;
+  const moves = [];
+  for (let j = 1; j < n + (def.loop ? 1 : 0); j++) { // key j-1 -> key j (the loop's last: key n-1 -> key 0 a cycle on)
+    const a = keys[j - 1], b = keys[j % n];
+    moves.push({ start: a.t * d, end: (b.t + (j === n ? 1 : 0)) * d, a, b });
+  }
+  moves.forEach((m, i) => { const nx = moves[i + 1] ?? (def.loop ? moves[0] : null); m.room = nx ? (nx.end - nx.start) : Infinity; });
+  const tc = def.loop ? ((ts % d) + d) % d : ts, out = new Array(9).fill(0), S = P.settle / 30;
+  let any = false;
+  for (const m of moves) {
+    if (m.b.snap || m.b.ease === "back-out") continue;
+    const delta = flat(m.b).map((v, i) => v - flat(m.a)[i]), size = Math.max(...delta.map(Math.abs));
+    const k = Math.min(1, Math.max(0, (size - P.min) / Math.max(1e-6, P.full - P.min)));
+    if (!k) continue;
+    // fast keys (waves, quick loops): a move shorter than a settle gets no wind-up, and no spring when the next one
+    // starts before it could settle; both full from 1.5 settles
+    const fit = (len) => (S > 0 ? Math.min(1, Math.max(0, (len - S) / (S / 2))) : 1);
+    const A = Math.min(P.anticFrames / 30, (m.end - m.start) / 2), quick = fit(m.end - m.start), room = fit(m.room);
+    for (const shift of def.loop ? [0, d] : [0]) {
+      const tau = tc + shift - m.start, after = tc + shift - m.end;
+      let w = 0;
+      if (A > 0 && tau >= 0 && tau < A) w -= P.antic * quick * Math.sin((Math.PI * tau) / A);
+      if (S > 0 && after >= 0 && after < S) w += P.over * room * Math.exp((-4 * after) / S) * Math.sin((2 * Math.PI * after) / S);
+      if (w) { any = true; delta.forEach((v, i) => { out[i] += v * k * w; }); }
+    }
+  }
+  return any ? out : null;
+}
+
+/** the eased blend between keys at ts s (no spring) */
+function blendPose(def, keys, ts) {
+  const d = def.duration, u = def.loop ? (((ts % d) + d) % d) / d : Math.min(1, Math.max(0, ts / d));
   let i = keys.findIndex((k) => k.t > u);
   if (i === -1) { // past the last key: loop back to the first, or hold
     if (!def.loop || keys.length === 1) return keys[keys.length - 1];

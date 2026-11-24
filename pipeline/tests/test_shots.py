@@ -846,3 +846,13 @@ def test_fx_shake_lands_in_story_shakes():
     w = ph.words[3]  # "The"
     assert w.text == "The" and story.shakes == [math.ceil(w.start * 30 - 1e-6)]
     assert plan("# T\n\nBob sat down.\n")[0].shakes == []
+
+
+def test_punctuation_faces_only_when_nothing_else_sets_one():
+    md = ("# T\n\n@cast bob, amy\nDid Bob do that?\nYes! Bob sat down.\nBob fell over!\n!! Bob was a spy.\n"
+          "@face bob: smug\nBob knew it!\nBob grinned at it?\n")
+    story, ph = plan(md)
+    faces = [next(a.expression for a in s.actors if a.cast_id == "bob") for s in story.shots]
+    # ? confused; a mid-line ! nothing (two phrases, one line ending in "."); line-end ! surprised; !! shocked;
+    # @face beats the !; a mood word beats the ?
+    assert faces == ["confused", "neutral", "neutral", "surprised", "shocked", "smug", "happy"]
