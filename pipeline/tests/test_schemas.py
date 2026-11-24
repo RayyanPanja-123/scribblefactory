@@ -219,7 +219,7 @@ def test_cast_v2_rules():
                                                          default_expression="cheer")]))
     for bad in [{"props": [{"kind": "Big Sword"}]}, {"props": [{"kind": "apple", "hand": "left"}] * 2},
                 {"props": [{"kind": "none", "hand": "left"}]},
-                {"default_expression": "smug"}, {"top": {"color": "#123456", "number": "1234"}},
+                {"default_expression": "grumpy"}, {"top": {"color": "#123456", "number": "1234"}},  # smug is a face now: not bad
                 {"top": {"color": "#123456", "style": "Big Cape"}}]:
         with pytest.raises(ValidationError):
             SeriesModel.model_validate(series_data(cast=[member(**bad)]))

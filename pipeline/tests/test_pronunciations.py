@@ -1,9 +1,9 @@
 import pytest
 from pydantic import ValidationError
 
-from scribble.schemas.series import Voice
-from scribble.stages.prep import respell
-from scribble.stages.timing import caption_words
+from pipeline.scribble.schemas.series import Voice
+from pipeline.scribble.stages.prep import respell
+from pipeline.scribble.stages.timing import caption_words
 
 SAY = {"Negro": "Neh-groh"}
 
