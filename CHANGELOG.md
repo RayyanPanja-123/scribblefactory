@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+- Library: custom actions saved before keyframe `snap` existed no longer change bytes when saved again (`snap` is
+  left out while false).
 - World Items (Phase A): the World Objects page is now **World Items**. Besides built items (3D pieces in a set), an
   item can be **drawn**: an ink card from a built-in drawing (`planet`, `saucer`) or its own shapes, on a layer
   (`sky`, `back`, `mid`, `stage`), with states and looping animations (rotate, sway, bob, drift, pulse, blink, flow),

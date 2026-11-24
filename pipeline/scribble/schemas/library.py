@@ -359,6 +359,10 @@ class ActionKey(Strict):
     snap: bool = Field(default=False, description="arrive on this key exactly: no anticipation dip before it and no "
                                                   "spring past it (the engine adds both to big pose changes)")
 
+    @model_serializer(mode="wrap")
+    def _omit_snap(self, handler):  # keys saved before snap existed keep their bytes on a re-save
+        return omit_defaults(handler(self), type(self), ("snap",))
+
     @model_validator(mode="after")
     def _ranges(self):
         if self.arms and any(not -180 <= v <= 180 for arm in self.arms for v in arm):

@@ -160,3 +160,12 @@ def test_storycheck_items(tmp_path):
     assert any("plane is not an item on stage" in m for m in msgs)
     assert any("set pieces" in m for m in msgs)
     assert not any("ship is not an item" in m for m in msgs)
+
+
+def test_action_keys_without_snap_round_trip():
+    """custom actions saved before ActionKey.snap existed dump back to the same row; snap true is kept"""
+    from pipeline.scribble.schemas import CustomAction
+    row = {"id": "bow", "name": "Bow", "use_for": None, "duration": 1.0, "loop": True, "facing": "camera", "move": 0.0,
+           "keys": [{"t": 0.0, "arms": None, "legs": None, "knees": None, "lean": 0.0, "ease": "in-out"},
+                    {"t": 1.0, "arms": None, "legs": None, "knees": None, "lean": 30.0, "ease": "in-out", "snap": True}]}
+    assert CustomAction.model_validate(row).model_dump(mode="json") == row
