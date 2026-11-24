@@ -7,14 +7,14 @@ import { CRW, RIDE, creature, creatureAnchors, drawCreature, measure as creature
 import { lookup, setLibrary } from "./library.js";
 import { DH, DOG_FEET, DW, barkAmount, drawDog, gallopPhase } from "./dog.js";
 import { cameraProgress, isReactionClose, fovPunch, noise1, shakeTriggers, trauma, gestureAmount, idleLife, lookTarget, gesturePlan, mouthCurve, mouthCycles, pointAmount, stressBob, waveAmount } from "./motion.js";
-import { BUILTIN_ACTIONS, CARRIED_LIFT, HELD_Z, HOLD_GAP, LIE, collapseAt, customPose, eatAt, gaitPhase, giveAt, handOf, heldPlace,
+import { BUILTIN_ACTIONS, CARRIED_LIFT, GIVE, HELD_Z, HOLD_GAP, ITEM_REACH, LIE, SIT, collapseAt, customPose, eatAt, gaitPhase, giveAt, handOf, heldPlace, itemSide,
   propsByShot, sideToward, staggerAt, withProp, zzzAt } from "./actions.js";
 import { CAR_CARD_W, CAR_GROUND, DRIVER_X, RIDER_X, VH, VW, carEase, carSpeedShare, drawCar, seatOffset } from "./car.js";
 import { HEAD_GROW, MOOD_EXPRESSION, extraLook, fitCrowd, moodAt, placeExtras } from "./extras.js";
 const growRect = (r, k) => { const mx = (r[2] - r[0]) * k, my = (r[3] - r[1]) * k; return [r[0] - mx, r[1] - my, r[2] + mx, r[3] + my]; };
 import { rng, setVariant } from "./rng.js";
 import { SETS, VARIANTS, buildSet, loopExcess, parallaxOf, scrollSet, setInk, setKind } from "./world.js";
-import { BOIL_FRAMES, itemCard, itemStats, updateCard } from "./items.js";
+import { BOIL_FRAMES, RIDER_ORDER, animAt, cardHalf, itemCard, itemStats, phaseOf, stateAt, updateCard } from "./items.js";
 import { fadePlan, fogAlpha, fogCanvas, layersAt, paint, paintBack, strikeAt } from "./weather.js";
 import { INK, STYLE, usePreset } from "./style.js";
 import { FG_KINDS, foregroundCanvas } from "./foreground.js";
@@ -57,6 +57,7 @@ const ANGLES = {
 const canvas = document.getElementById("c");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
 renderer.setPixelRatio(1);
+renderer.localClippingEnabled = true; // riders inside a World Item are cut at its rim (a material with no planes: unchanged)
 renderer.setSize(W, H, false);
 const camera = new THREE.PerspectiveCamera(45, W / H, 0.05, 100);
 const CARD_GEO = new THREE.PlaneGeometry(CARD_W, CARD_H).translate(0, CARD_H / 2 - CARD_H * (1 - FEET_Y / CH), 0);
@@ -493,7 +494,8 @@ window.setup = (d) => {
   fogTex?.dispose(); fogTex = null;
   setLibrary(d); // library/{props,sets,creatures,actions}.json: every custom item, one registry (library.js)
   ownedProps = propsByShot(d.story.shots || [], Object.fromEntries((d.series.cast || []).map((c) => [c.id, castOf(c.id).props])),
-    (id, look) => castOf(id, look).props);
+    (id, look) => castOf(id, look).props,
+    (it) => lookup("objects", it.object).prop ?? null);
   mouth = d.phrases ? mouthCurve(mouthCycles(d.phrases.words, d.phrases.phrases), d.story.duration_frames) : mouth;
   for (const k of Object.keys(sets)) delete sets[k];
   let runStart = null; // variant = hash(set, first shot id of the run): props never jump between cuts on one set
@@ -623,10 +625,14 @@ function drawShot(shot, n) {
       : [v.start_pos[0], (v.end_pos || v.start_pos)[0]];
     for (const x of xs) span.push(x - CAR_HALF, x + CAR_HALF);
   }
+  for (const it of shot.items || []) { // stage items (a pod, a bench) are framed with the cast, all of them
+    if (it.layer !== "stage" || it.end_pos) continue; // a flying one leaves: the camera never backs off to follow it
+    const h = cardHalf(lookup("objects", it.object));
+    span.push(it.start_pos[0] - h, it.start_pos[0] + h);
+  }
   // travel shot: the world scrolls against the car's (else the actors') facing at travel.speed; props wrap around
   // the band and the near ones are hidden (not hidden-behind-subject: everything moves, so that choice would be stale)
-  const dir = shot.travel ? ((vehicles[0] || shot.actors[0])?.facing === "left" ? -1 : 1) : 0;
-  const shift = shot.travel ? -dir * shot.travel.speed * ((kf - shot.start_frame) / FPS) : 0;
+  const { dir, shift } = travelOf(shot, kf);
   const travelHidden = scrollSet(group, shift, !!shot.travel);
   for (const f of group.userData.anims) f(t, n); // ambient life (world.js Builder.anim): smoke, pennants, birds, clouds, set items
   // a give / receive is framed on the pair's midpoint, so neither the giver nor the receiver is cut off
@@ -661,7 +667,10 @@ function drawShot(shot, n) {
     if (seated.has(a.cast_id)) { riders.set(a.cast_id, figure(a.cast_id, o)); continue; }
     if (F.onMount(a)) { ridden.set(a.mount, figure(a.cast_id, o)); continue; }
     if (ridden.has(a.cast_id)) o.rider = ridden.get(a.cast_id);
-    if (!creatureOf(a.cast_id) && !roll.k && !o.rider && a.action !== "carried") {
+    const perch = F.perched.get(a.cast_id);
+    if (perch?.mode === "ride") o.seated = true; // inside a World Item: a held prop comes up into view
+    if (perch?.mode === "sit") o.custom = SIT;
+    if (!creatureOf(a.cast_id) && !roll.k && !o.rider && a.action !== "carried" && !perch) {
       Object.assign(o, bodyLife(shot, a, o, F));
       lives.push(`${a.cast_id} lean ${o.velLean.toFixed(2)} squash ${o.squash.toFixed(3)} lid ${o.lid}`
         + `${o.faceK ? ` face ${o.faceFrom}->${o.expression} ${o.faceK}` : ""}${o.prev ? ` smears ${smearsOf(skeleton(figure(a.cast_id, o)), o.prev.k, o).length}` : ""}`);
@@ -675,13 +684,19 @@ function drawShot(shot, n) {
     const hop = o.mood ? MOOD_HOP * o.mood.bounce : 0; // cheering bounces
     mesh.position.set(x - hx, a.action === "carried" ? CARRIED_LIFT : LIE.lift * roll.k + hop, z - hz);
     mesh.rotation.set(0, yaw, roll.sign * roll.k * Math.PI / 2);
+    // on a World Item's seat: the hips on the seat point, cut at its rim when inside, drawn between its layers
+    if (perch) mesh.position.y = perch.y - (CARD_H * (FEET_Y - skeleton(figure(a.cast_id, o)).hipY)) / CH;
+    if (perch?.clip != null) clipAt(mesh.material, perch.clip);
+    else if (mesh.material.clippingPlanes) mesh.material.clippingPlanes = null;
+    mesh.renderOrder = perch?.mode === "ride" ? RIDER_ORDER : 1;
     // contact shadow: follows the feet, a little wider when the stride lowers the body; under a lying body it
     // stretches along it
     const { shadow } = cards[a.cast_id], k = 1 + SHADOW.bounce * Math.abs(Math.sin(2 * Math.PI * phase));
     shadow.position.set(x, SHADOW.y, z);
     shadow.scale.set(SHADOW.w * k * (1 + 1.3 * roll.k) * (a.action === "carried" ? 0.7 : 1), 1, SHADOW.d * k);
-    scene.add(mesh, shadow);
-    if ((water || wet) && !roll.k && a.action !== "carried") drawWater(cards[a.cast_id], x, z, yaw, t, key, water);
+    scene.add(mesh);
+    if (perch?.mode !== "ride") scene.add(shadow); // inside: the item's own shadow
+    if ((water || wet) && !roll.k && a.action !== "carried" && !perch) drawWater(cards[a.cast_id], x, z, yaw, t, key, water);
   }
   drawAnimals(shot, animals, n, kf, u);
   const extras = drawExtras(shot, n, kf, u, extraShift);
@@ -700,6 +715,41 @@ function drawShot(shot, n) {
     ...measure(shot.actors.filter((a) => !seated.has(a.cast_id)).map(place)) };
 }
 
+/** travel shot: the world scrolls against the car's (else the actors') facing at travel.speed; shift at held frame kf */
+function travelOf(shot, kf) {
+  const dir = shot.travel ? (((shot.vehicles || [])[0] || shot.actors[0])?.facing === "left" ? -1 : 1) : 0;
+  return { dir, shift: shot.travel ? -dir * shot.travel.speed * ((kf - shot.start_frame) / FPS) : 0 };
+}
+
+/** a story item's [x, z] at shot fraction u (its path, plus a travel shot's scroll by its depth's parallax) */
+function itemPlace(it, u, shift) {
+  const e = it.end_pos || it.start_pos;
+  return [lerp(it.start_pos[0], e[0], u) + shift * parallaxOf(it.start_pos[1]), lerp(it.start_pos[1], e[1], u)];
+}
+
+/** who sits in or on a World Item at frame n: cast id -> { x, z, y: hip height, clip: world y below which it is
+ *  hidden (inside: the item's clip_y) or null, mode "ride" | "sit" }. Riders take the item's seats in order (riders
+ *  for the whole shot, then whoever enters, after the swap); exiters are inside until the swap. A seat follows its
+ *  item's path and animation every frame. */
+function perchedAt(shot, u, n, shift) {
+  const out = new Map(), t = n / FPS;
+  for (const it of shot.items || []) {
+    const def = lookup("objects", it.object), [ix, iz] = itemPlace(it, u, shift), sgn = it.facing === "left" ? -1 : 1;
+    const { state } = stateAt(it, n), A = animAt(def.anims, state ?? def.states?.[0] ?? null, t, phaseOf(data.story.seed, it.id));
+    const at = ([sx, sy]) => [ix + A.dx + sgn * sx, iz + 0.002, it.y + A.dy + sy];
+    const swapped = u >= GIVE.swap, of = (act) => shot.actors.filter((a) => a.action === act && a.item === it.id).map((a) => a.cast_id);
+    const inside = [...(it.riders || []), ...(swapped ? of("enter") : of("exit"))];
+    inside.forEach((c, i) => {
+      const seat = (def.seats || [])[i];
+      if (!seat) return;
+      const [x, z, y] = at(seat);
+      out.set(c, { x, z, y, clip: def.clip_y != null ? it.y + A.dy + def.clip_y : null, mode: "ride" });
+    });
+    for (const c of of("sit")) if (def.anchors?.seat) { const [x, z, y] = at(def.anchors.seat); out.set(c, { x, z, y, clip: null, mode: "sit" }); }
+  }
+  return out;
+}
+
 /** per-frame context of a shot at frame n (shot motion held at its edges, like drawShot): what every actor's pose
  *  reads. Pure: no drawing, no camera. */
 function shotFrame(shot, n) {
@@ -711,8 +761,10 @@ function shotFrame(shot, n) {
     const [cx, cz] = carAt(v, u), sgn = v.facing === "left" ? -1 : 1;
     v.riders.forEach((r, i) => seated.set(r, [cx + sgn * seatOffset(RIDER_X[i]), cz]));
   }
-  const place = (a) => seated.get(a.cast_id) || heldPlace(a, shot.actors, placeAt, u) || placeAt(a, u);
-  return { shot, n, kf, u, t: n / FPS, seated, place, owned: ownedProps.get(shot.id) || {},
+  const perched = shot.items?.length ? perchedAt(shot, u, n, travelOf(shot, kf).shift) : new Map();
+  const perch = (a) => (p => p && [p.x, p.z])(perched.get(a.cast_id));
+  const place = (a) => seated.get(a.cast_id) || perch(a) || heldPlace(a, shot.actors, placeAt, u) || placeAt(a, u);
+  return { shot, n, kf, u, t: n / FPS, seated, perched, place, owned: ownedProps.get(shot.id) || {},
     standing: shot.actors.filter((b) => !seated.has(b.cast_id) && !["lie", "collapse", "carried"].includes(b.action)),
     onMount: (a) => a.mount && shot.actors.some((b) => b.cast_id === a.mount) }; // falsy, not false: the riders-first sort relies on it
 }
@@ -780,7 +832,7 @@ function poseOf(F, a, px = 1) {
   };
   const roll = actionPose(shot, a, o, x, u, ts, n);
   let turn = 0;
-  if (seated.has(a.cast_id) || F.onMount(a)) return { o, roll, turn, phase, gesture }; // no idle life in a seat / saddle
+  if (seated.has(a.cast_id) || F.onMount(a) || F.perched.has(a.cast_id)) return { o, roll, turn, phase, gesture }; // no idle life in a seat / saddle
   // idle life (motion.js idleLife): breathing bob and weight shift; the head tilts toward whoever it looks at, and a
   // camera-facing two-hander angles toward the other one (card turn + a glance)
   const life = !roll.k && idleLife(key, t, o.action, o.breath);
@@ -876,6 +928,17 @@ function actionPose(shot, a, o, x, u, ts, n) {
   if (a.action === "supported") {
     const h = shot.actors.find((b) => b.action === "support" && b.target === a.cast_id);
     if (h) o.reach = { side: sideToward(x, partnerX(h), a.facing), k: 1 };
+  }
+  const it = a.item && ITEM_REACH[a.action] && (shot.items || []).find((i) => i.id === a.item);
+  if (it) { // reach for the item's anchor; pickup / drop swap its prop at giveAt's swap
+    const def = lookup("objects", it.object), [ix] = itemPlace(it, u, 0), sgn = it.facing === "left" ? -1 : 1;
+    const [ax, ay] = def.anchors?.[ITEM_REACH[a.action]] ?? [0, (def.size || 1) * 0.5];
+    const side = itemSide(a, it), g = giveAt(u), px = CH / CARD_H, dx = Math.abs(ix + sgn * ax - x);
+    const reach = a.action === "exit" ? 1 - g.reach : a.action === "enter" ? Math.min(g.reach, u < GIVE.swap ? 1 : 0) : g.reach;
+    o.reachTo = { side, target: [CW / 2 + side * dx * px, FEET_Y - (it.y + ay) * px], k: reach };
+    const kind = def.prop, hand = handOf(side), after = u >= GIVE.swap;
+    if (kind && a.action === "pickup" && after) o.props = withProp(o.props, kind, hand);
+    if (kind && a.action === "drop") o.props = after ? o.props.filter((p) => p.kind !== kind) : withProp(o.props, kind, hand);
   }
   if (a.action === "eat") {
     const props = o.props.some((p) => p.kind === a.prop) ? o.props : withProp(o.props, a.prop || "apple", "right");
@@ -1067,17 +1130,26 @@ function drawVehicles(shot, vehicles, riders, n, u) {
 function drawItems(shot, n, u, shift) {
   const info = [];
   for (const it of shot.items || []) {
-    const key = `${it.id}:${it.object}:${it.layer}`, e = it.end_pos || it.start_pos;
+    const key = `${it.id}:${it.object}:${it.layer}`;
     if (!itemCards.has(key)) itemCards.set(key, itemCard(lookup("objects", it.object), { tag: it.id, seed: data.story.seed, layer: it.layer }));
-    const c = itemCards.get(key), x = lerp(it.start_pos[0], e[0], u) + shift * parallaxOf(it.start_pos[1]), z = lerp(it.start_pos[1], e[1], u);
+    const c = itemCards.get(key), [x, z] = itemPlace(it, u, shift);
     c.y = it.y;
     c.root.position.set(x, it.y, z);
     c.root.rotation.set(0, Math.atan2(camera.position.x - x, camera.position.z - z), 0);
-    const st = updateCard(c, { t: n / FPS, boil: Math.floor(n / BOIL_FRAMES), state: it.state, facing: it.facing });
+    const st = updateCard(c, { t: n / FPS, boil: Math.floor(n / BOIL_FRAMES), ...stateAt(it, n), facing: it.facing });
+    // picked up: gone from the swap on; dropped: there from the swap on
+    const by = shot.actors.find((a) => a.item === it.id && (a.action === "pickup" || a.action === "drop"));
+    c.root.visible = !by || (by.action === "pickup" ? u < GIVE.swap : u >= GIVE.swap);
     scene.add(c.root);
     info.push(`${it.id} ${it.object}${st ? ` ${st}` : ""} x ${c.root.position.x.toFixed(2)}`);
   }
   return info.length ? { items: info.join("; ") } : {};
+}
+
+/** cut material m below world height y (a rider inside an item); the plane is reused frame to frame */
+function clipAt(m, y) {
+  m.clippingPlanes ??= [new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)];
+  m.clippingPlanes[0].constant = -y;
 }
 
 /** World Item texture cache counters (items.js itemStats); reset: start counting again (render.mjs, per chunk) */

@@ -2856,10 +2856,20 @@ export interface components {
          *     (a built-in drawer, or shapes) on a camera-facing card that can animate, fly a path and change state.
          */
         WorldObject: {
+            /**
+             * Anchors
+             * @description handle: what open / close / push reach for; seat: where sit puts the hips; pickup: what pickup reaches for
+             */
+            anchors?: {
+                [key: string]: [
+                    number,
+                    number
+                ];
+            };
             /** Anims */
             anims?: components["schemas"]["ItemAnim"][];
             /** Capabilities */
-            capabilities?: ("move" | "carry" | "enter" | "ride" | "open" | "close" | "break" | "steal" | "remove")[];
+            capabilities?: ("move" | "carry" | "enter" | "ride" | "open" | "close" | "break" | "steal" | "remove" | "sit" | "push")[];
             /**
              * Carry Mode
              * @default none
@@ -2873,10 +2883,15 @@ export interface components {
              */
             category: "vehicle" | "container" | "furniture" | "equipment" | "debris" | "sky" | "env" | "scifi" | "other";
             /**
+             * Clip Y
+             * @description enter: riders are drawn only above this height (the panel line): their legs are inside
+             */
+            clip_y?: number | null;
+            /**
              * Draw
              * @description card: a built-in drawing; none: its shapes
              */
-            draw?: ("planet" | "saucer") | null;
+            draw?: ("planet" | "saucer" | "pod" | "bench" | "crystal") | null;
             /** Id */
             id: string;
             /**
@@ -2895,6 +2910,19 @@ export interface components {
             name: string;
             /** Pieces */
             pieces?: components["schemas"]["SetPiece"][];
+            /**
+             * Prop
+             * @description carry: the prop (built-in or library/props.json) held after pickup
+             */
+            prop?: string | null;
+            /**
+             * Seats
+             * @description enter: where riders sit (hips), front to back
+             */
+            seats?: [
+                number,
+                number
+            ][];
             /**
              * Shapes
              * @description card without draw: ink shapes, canvas px around the base point (x -512..512, y up is negative: -1000..24), drawn in order

@@ -1,0 +1,1 @@
+{"schema_version": 1, "props": [{"id": "glow-crystal", "name": "Glow crystal", "use_for": null, "shapes": [{"shape": "poly", "pts": [[-14.0, 0.0], [-8.0, -46.0], [0.0, -70.0], [8.0, -46.0], [14.0, 0.0]], "r": null, "fill": "#7cf2ff", "width": 6.0}], "angle": 0.0, "grip": null}]}

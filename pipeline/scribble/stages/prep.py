@@ -30,7 +30,7 @@ from typing import NamedTuple, get_args
 
 from ..io import (CREATURE_HINT, CREATURE_SLOTS, LIBRARY_FILES, atomic_write_text, custom_actions, library_of, load_series, series_exists,
                   prop_kinds)
-from ..schemas import (ITEM_KEYWORDS, BuiltinProp, CamAngle, CamMove, Expression, Intensity, ItemLayer, Weather, WeatherKind,
+from ..schemas import (ITEM_ACTIONS, ITEM_KEYWORDS, BuiltinProp, CamAngle, CamMove, Expression, Intensity, ItemLayer, Weather, WeatherKind,
                        actions_with)
 from .runner import StageError
 
@@ -95,6 +95,19 @@ def parse_do(arg: str, line: int, cast_ids=None, props=BUILTIN_PROPS, actions=()
         if act in ITEM_MOVES:  # a World Item's path; the tag is checked against the items on stage (shots, check-story)
             if len(who) != 1 or args not in (["left"], ["right"]):
                 bad(f'an item move takes one item and a direction, e.g. "ship: {act} left"')
+            out.append(DoClause(who, act, target=args[0]))
+            who_txt = nxt
+            continue
+        if act in ITEM_ACTIONS:  # an interaction with a World Item: its tag (checked against the items on stage later)
+            if len(args) != 1:
+                bad(f'{act} takes one item, e.g. "{act} crystal" (the @item tag)')
+            if cast_ids is not None and (bad_who := [w for w in who if w not in cast_ids]):
+                bad(f"unknown cast id {bad_who[0]!r} (series cast: {', '.join(cast_ids)}; add with cast-add)")
+            if len(who) != 1:
+                bad(f"{act}: one cast member at a time")
+            if who[0] in seen:
+                bad(f"{who[0]} is given two actions")
+            seen.add(who[0])
             out.append(DoClause(who, act, target=args[0]))
             who_txt = nxt
             continue

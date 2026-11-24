@@ -169,3 +169,141 @@ def test_action_keys_without_snap_round_trip():
            "keys": [{"t": 0.0, "arms": None, "legs": None, "knees": None, "lean": 0.0, "ease": "in-out"},
                     {"t": 1.0, "arms": None, "legs": None, "knees": None, "lean": 30.0, "ease": "in-out", "snap": True}]}
     assert CustomAction.model_validate(row).model_dump(mode="json") == row
+
+
+# --- Phase B: interactions (fixtures: pipeline/tests/items_fixture.py, not library items) ---
+
+from pipeline.tests import items_fixture as fx  # noqa: E402
+
+
+def plan_b(md):
+    return shots.plan(md, phrases_for(md), SERIES, 1, objects=fx.OBJECTS)
+
+
+def actor(shot, cid="bob"):
+    return next(a for a in shot.actors if a.cast_id == cid)
+
+
+def test_pickup_holds_the_item_from_the_next_shot():
+    story = plan_b("# P\n\n@set street\n@cast bob\n@item gem: glow-crystal\nA stone.\n@do bob: pickup gem\nHe took it.\nThen he left.\n")
+    take = next(s for s in story.shots if actor(s).action == "pickup")
+    assert actor(take).item == "gem" and [i.id for i in take.items] == ["gem"]
+    gem = take.items[0]
+    assert actor(take).facing == ("right" if gem.start_pos[0] > actor(take).start_pos[0] else "left")
+    after = story.shots[story.shots.index(take) + 1:]
+    assert after and all(not s.items for s in after)  # held: off the stage
+    StoryModel.model_validate(story.model_dump(mode="json"))
+
+
+def test_drop_puts_it_back_beside_the_dropper():
+    story = plan_b("# D\n\n@set street\n@cast bob\n@item gem: glow-crystal\nA stone.\n@do bob: pickup gem\nHe took it.\n"
+                   "@do bob: drop gem\nHe put it down.\nDone.\n")
+    drop = next(s for s in story.shots if actor(s).action == "drop")
+    gx, bx = drop.items[0].start_pos[0], actor(drop).start_pos[0]
+    assert abs(gx - bx) >= shots.ITEM_BODY  # beside the feet, not inside the body
+    assert story.shots[-1].items[0].start_pos[0] == gx  # and it stays there
+
+
+def test_open_switches_state_mid_shot_and_keeps_it():
+    story = plan_b("# O\n\n@set street\n@cast bob\n@item pod: escape-pod\nA pod.\n@do bob: open pod\nHe opened it.\nInside it was dark.\n")
+    op = next(s for s in story.shots if actor(s).action == "open")
+    pod = next(i for i in op.items if i.id == "pod")
+    assert pod.state == "closed" and pod.switch.to == "open" and op.start_frame < pod.switch.frame < op.end_frame
+    assert next(i for i in story.shots[-1].items if i.id == "pod").state == "open"
+
+
+def test_close_after_open():
+    story = plan_b("# C\n\n@set street\n@cast bob\n@item pod: escape-pod\nA pod.\n@do bob: open pod\nOpen.\n@do bob: close pod\nShut.\nDone.\n")
+    assert next(i for i in story.shots[-1].items if i.id == "pod").state == "closed"
+
+
+def test_push_slides_it_away():
+    obj = {**fx.OBJECTS, "escape-pod": fx.POD.model_copy(update={"capabilities": [*fx.POD.capabilities, "push"]})}
+    md = "# Pu\n\n@set street\n@cast bob\n@item pod: escape-pod\nA pod.\n@do bob: push pod\nHe pushed it.\nIt stayed.\n"
+    story = shots.plan(md, phrases_for(md), SERIES, 1, objects=obj)
+    sh = next(s for s in story.shots if actor(s).action == "push")
+    pod = next(i for i in sh.items if i.id == "pod")
+    assert pod.end_pos and abs(abs(pod.end_pos[0] - pod.start_pos[0]) - shots.PUSH_D) < 1e-9
+    assert (pod.end_pos[0] - pod.start_pos[0]) * (pod.start_pos[0] - actor(sh).start_pos[0]) > 0  # away from bob
+    assert next(i for i in story.shots[-1].items if i.id == "pod").start_pos[0] == pod.end_pos[0]
+
+
+def test_sit_on_the_bench():
+    story = plan_b("# S\n\n@set street\n@cast bob\n@item b: bench\nA bench.\n@do bob: sit b\nHe sat down.\nHe stood.\n")
+    sit = next(s for s in story.shots if actor(s).action == "sit")
+    assert actor(sit).item == "b" and actor(story.shots[-1]).action != "sit"
+
+
+def test_enter_ride_and_exit_follow_the_pod():
+    story = plan_b("# E\n\n@set street\n@cast bob\n@item pod: escape-pod\nA pod.\n@do bob: enter pod\nIn he went.\n"
+                   "@do pod: fly right\nOff it flew, far away over the hills.\n@do bob: exit pod\nOut he came.\nDone.\n")
+    rides = [s for s in story.shots if actor(s).action == "ride"]
+    assert rides and all(next(i for i in s.items if i.id == "pod").riders == ["bob"] for s in rides)
+    assert any(next(i for i in s.items if i.id == "pod").end_pos for s in rides)  # seated while the pod flies
+    assert any(actor(s).action == "exit" for s in story.shots)
+    assert not next(i for i in story.shots[-1].items if i.id == "pod").riders and actor(story.shots[-1]).action != "ride"
+
+
+def test_stage_items_never_overlap_actors():
+    story = plan_b("# Sp\n\n@set street\n@cast bob, amy, karen\n@item b: bench\n@item pod: escape-pod\nThree people and things.\n"
+                   "Amy talked.\nKaren talked.\n")
+    for s in story.shots:
+        for it in s.items:
+            o = fx.OBJECTS[it.object]
+            half = 0.5 * shots.ITEM_FILL * o.size * shots.ITEM_ASPECT[o.draw]
+            for a in s.actors:
+                assert abs(it.start_pos[0] - a.start_pos[0]) >= half + shots.ITEM_BODY - 1e-9, (s.id, it.id, a.cast_id)
+
+
+@pytest.mark.parametrize("md, msg", [
+    ("@item gem: glow-crystal\n@do bob: open gem\nHi.\n", "open capability"),
+    ("@item gem: glow-crystal\n@do bob: drop gem\nHi.\n", "doesn't hold"),
+    ("@item pod: escape-pod\n@do bob: exit pod\nHi.\n", "is not inside"),
+    ("@item gem: glow-crystal\n@item g2: glow-crystal\n@do bob: pickup gem\nOne.\n@do bob: pickup g2\nTwo.\n", "already holds gem"),
+    ("@item pod: escape-pod\n@do bob: enter pod\nIn.\n@do bob: wave\nHi.\n", "inside pod"),
+    ("@do bob: pickup gem\nHi.\n", "not an item on stage"),
+])
+def test_interaction_errors(md, msg):
+    with pytest.raises(StageError, match=msg):
+        plan_b("# E\n\n@set street\n@cast bob\n" + md)
+
+
+def test_storycheck_interactions(tmp_path):
+    from pipeline.scribble.io import save_object, save_prop
+    from pipeline.scribble.storycheck import check_story
+    from pipeline.tests.test_storycheck import setup
+    part = setup(tmp_path, "@set street\n@cast bob\n@item gem: glow-crystal\n@item pod: escape-pod\n@do bob: pickup gem\nOne.\n"
+                           "@do bob: pickup gem\nTwo.\n@do bob: open gem\nThree.\n@do bob: exit pod\nFour.\n@do bob: enter pod\nFive.\n"
+                           "@do bob: wave\nSix.\n")
+    save_prop(tmp_path, fx.GLOW)
+    for o in fx.OBJECTS.values():
+        save_object(tmp_path, o)
+    msgs = [p["message"] for p in check_story(part)["problems"]]
+    for want in ("bob already holds gem", "open capability", "bob is not inside pod", "bob is inside pod (exit first"):
+        assert any(want in m for m in msgs), (want, msgs)
+
+
+def test_delete_guard_names_the_stories(tmp_path):
+    from pipeline.scribble.io import delete_object, save_object
+    from pipeline.tests.test_storycheck import setup
+    setup(tmp_path, "@set street\n@cast bob\n@item ship: saucer back\nBob looked up.\n")
+    save_object(tmp_path, SAUCER)
+    save_object(tmp_path, PLANET)
+    with pytest.raises(ValueError, match=r"saucer is still used by demo/part-01"):
+        delete_object(tmp_path, "saucer")
+    delete_object(tmp_path, "ringed-planet")  # unused: goes
+
+
+def test_package_carries_world_items(tmp_path):
+    from pipeline.scribble.io import save_object
+    from pipeline.scribble.package import parse
+    save_object(tmp_path, SAUCER)  # taken: the package's saucer is renamed, and its @item line follows
+    text = "\n".join(["<<<SCRIBBLE_PACKAGE v1>>>", "<<<META>>>", '{"series_title": "Ufo", "parts": 1}',
+                      "<<<PROPS>>>", "[]", "<<<SETS>>>", "[]", "<<<CREATURES>>>", "[]", "<<<ACTIONS>>>", "[]",
+                      "<<<WARDROBE>>>", "[]", "<<<OBJECTS>>>", json.dumps([SAUCER.model_dump(mode="json")]),
+                      "<<<CAST>>>", '[{"id": "bob", "name": "Bob", "color": "#3a7bd5"}]',
+                      "<<<PART 1>>>", "<<<SCRIPT>>>", "# Ufo\n\n@set street\n@cast bob\n@item ship: saucer back\nBob looked up.",
+                      "<<<VOICE>>>", "Bob looked up.", "<<<END>>>"])
+    r = parse(text, tmp_path)
+    assert [o.id for o in r["assets"]["OBJECTS"]] == ["saucer-2"] and r["renames"]["OBJECTS"] == {"saucer": "saucer-2"}
+    assert "@item ship: saucer-2 back" in r["parts"][0]["story"]

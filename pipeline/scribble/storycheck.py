@@ -20,7 +20,7 @@ from . import sfx as sfx_lib
 from . import background_music
 from .io import (CREATURE_HINT, all_parts, library_of, part_id_of, storage_root, cast_body_problems, creature_bodies, creature_wardrobe, custom_actions, load_series,
                  prop_kinds, set_kinds, unknown_cast_props, wardrobe_slots, world_object_kinds)
-from .schemas import HAND_RIGS
+from .schemas import HAND_RIGS, ITEM_ACTIONS, actions_with
 from .stages.finish import MAX_RUNTIME_S, MIN_RUNTIME_S
 from .stages.prep import (DO_CAR, ITEM_MOVES, item_state_ok, parse_item, FX_LIGHTNING, FX_MODES, MAX_LIGHTNING, TWIST_PREFIX, clean_markdown, parse_do,
                           parse_cam, parse_face, parse_hold, parse_lightning, parse_look, parse_ride, parse_weather, ride,
@@ -170,6 +170,7 @@ def check_story(part_dir: Path) -> dict:
     pending_sfx, n_sfx, pending_face, pending_cam = [], 0, None, None
     cur_set, fresh_set = None, True  # a set's first narration line opens on the establishing wide
     objects, items = world_object_kinds(library), {}  # @item: tag -> World Item id, reset by a set change
+    held, inside = {}, {}  # pickup: tag -> who holds it; enter: cast id -> the tag it sits in (both reset with items)
     cam_lines = []  # every @cam line, in order (each forces one shot: _cam_repeats pairs them up)
     rides, ride_warned = {}, set()  # @ride: rider -> mount (kept across @set); warnings already given (no repeats)
     first_seen: dict[str, int] = {}  # cast id -> first line it is on stage
@@ -185,7 +186,7 @@ def check_story(part_dir: Path) -> dict:
                     if arg not in sets:
                         bad(no, f"unknown set {arg!r} (sets: {', '.join(sets)})")
                     elif arg != cur_set:
-                        cur_set, fresh_set, items = arg, True, {}
+                        cur_set, fresh_set, items, held, inside = arg, True, {}, {}, {}
                 elif name == "cast":
                     new = tuple(x.strip() for x in arg.split(",") if x.strip())
                     unknown = [x for x in new if x not in ids]
@@ -262,11 +263,19 @@ def check_story(part_dir: Path) -> dict:
                         item_state_ok(op, no, objects, items)
                     elif op.op == "place":
                         items[op.tag] = op.object
+                    if op.op in ("remove", "place"):  # gone (or replaced): nobody holds it or sits in it
+                        held.pop(op.tag, None)
+                        inside = {c: g for c, g in inside.items() if g != op.tag}
                 elif name == "do":
                     clauses = parse_do(arg, no, ids, props, actions)
                     for c in clauses:
                         if c.action in ITEM_MOVES and c.who[0] not in items:
                             bad(no, f"@do: {c.who[0]} is not an item on stage (place it first: @item {c.who[0]}: <item>)")
+                        elif c.action in ITEM_ACTIONS:
+                            _check_item_do(no, c, items, objects, held, inside, handless, bad)
+                        elif any(w in inside for w in c.who):
+                            w = next(w for w in c.who if w in inside)
+                            bad(no, f"@do: {w} is inside {inside[w]} (exit first: @do {w}: exit {inside[w]})")
                     if pending_do:
                         bad(pending_do[0], f"@do is replaced by the @do on line {no} before any text line uses it")
                     pending_do = (no, clauses)
@@ -474,11 +483,50 @@ def _check_do(line: int, clauses, cast: tuple, car: str, bad) -> None:
         if car == "ride":
             bad(line, "@do: not while @car ride, except \"car: broken\" (the cast is seated in the car)")
             return
-        for w in c.who + ((c.target,) if c.target else ()):
+        for w in c.who + ((c.target,) if c.target and c.action not in ITEM_ACTIONS else ()):  # an item tag: checked at its @do
             if w not in cast:
                 bad(line, f"@do: {w} is not on stage on this line (@cast {', '.join(cast)})")
         if c.target in named:
             bad(line, f"@do: {c.target} is the target of {c.action} and has its own action too")
+
+
+def _check_item_do(no: int, c, items: dict, objects: dict, held: dict, inside: dict, handless: dict, bad) -> None:
+    """an item action (@do <cast>: <action> <tag>): the tag is on stage, its item can do it, the cast member has hands
+    and a free one, holds what it drops, is inside what it exits; then the effect (held / inside) for later lines"""
+    who, g = c.who[0], c.target
+    if g not in items:
+        bad(no, f"@do: {g} is not an item on stage (place it first: @item {g}: <item>)")
+        return
+    o, cap = objects.get(items[g]), ITEM_ACTIONS[c.action]
+    if o is not None and cap not in o.capabilities:
+        bad(no, f"@do: {items[g]} can't be used to {c.action} (give it the {cap} capability on the World Items page)")
+    if c.action in actions_with("hands") and who in handless:
+        bad(no, f"@do: {who} is {handless[who]} (no hands) and cannot {c.action}")
+    if who in inside and c.action != "exit":
+        bad(no, f"@do: {who} is inside {inside[who]} (exit first: @do {who}: exit {inside[who]})")
+    if c.action == "pickup":
+        if (mine := next((h for h, w in held.items() if w == who), None)) is not None:
+            bad(no, f"@do: {who} already holds {mine} (drop it first: @do {who}: drop {mine})")
+        elif g in held:
+            bad(no, f"@do: {g} is already held by {held[g]}")
+        else:
+            held[g] = who
+    elif c.action == "drop":
+        if held.get(g) != who:
+            bad(no, f"@do: {who} doesn't hold {g} (pick it up first)")
+        held.pop(g, None)
+    elif c.action == "enter":
+        seats = len(o.seats) if o is not None else 1
+        if who in inside:
+            pass  # reported above
+        elif sum(v == g for v in inside.values()) >= seats:
+            bad(no, f"@do: {g} is full ({seats} seat{'s' * (seats != 1)})")
+        else:
+            inside[who] = g
+    elif c.action == "exit":
+        if inside.get(who) != g:
+            bad(no, f"@do: {who} is not inside {g}")
+        inside.pop(who, None)
 
 
 def report(result: dict) -> str:

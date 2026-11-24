@@ -118,7 +118,8 @@ class SetPiece(Strict):
 
 
 WorldObjectCategory = Literal["vehicle", "container", "furniture", "equipment", "debris", "sky", "env", "scifi", "other"]
-WorldObjectCapability = Literal["move", "carry", "enter", "ride", "open", "close", "break", "steal", "remove"]
+WorldObjectCapability = Literal["move", "carry", "enter", "ride", "open", "close", "break", "steal", "remove", "sit",
+                                "push"]
 WorldObjectCarryMode = Literal["none", "one-hand", "two-hand", "vehicle"]
 
 # --- World Items: a world object drawn as a 2D ink card (look "card") instead of 3D pieces ---
@@ -126,7 +127,13 @@ ItemLook = Literal["pieces", "card"]
 # sky: far behind everything (no haze, barely moves in travel shots); back: distant, hazed; mid: scenery behind the
 # stage; stage: beside the actors. Keep equal to engine/page/items.js LAYERS and stages/shots.py ITEM_LAYERS.
 ItemLayer = Literal["sky", "back", "mid", "stage"]
-ItemDrawer = Literal["planet", "saucer"]  # built-in drawings (engine/page/items.js DRAWERS)
+ItemDrawer = Literal["planet", "saucer", "pod", "bench", "crystal"]  # built-in drawings (engine/page/items.js DRAWERS)
+# card width / height per drawing (engine items.js DRAWERS aspect; own shapes: 1): the planner spaces stage items by it
+ITEM_ASPECT = {"planet": 1.6, "saucer": 2.2, "pod": 1.3, "bench": 2.0, "crystal": 0.6}
+ItemAnchor = Literal["handle", "seat", "pickup"]
+# @do <cast>: <action> <item tag>: the capability the item needs for each item action
+ITEM_ACTIONS = {"pickup": "carry", "drop": "carry", "open": "open", "close": "close", "push": "push", "sit": "sit",
+                "enter": "enter", "exit": "enter"}
 ITEM_KEYWORDS = ("remove", "state")  # @item <tag>: remove | state <s>: never a state name
 
 
@@ -181,10 +188,22 @@ class WorldObject(Strict):
     layer: ItemLayer = "mid"
     states: list[Slug] = Field(default_factory=list, max_length=8, description="the first is the default state")
     anims: list[ItemAnim] = Field(default_factory=list, max_length=6)
+    # interactions (Phase B): points in world units from the card's base point, x toward its front (mirrored when
+    # it faces left), y up
+    anchors: dict[ItemAnchor, Point] = Field(default_factory=dict, description="handle: what open / close / push "
+                                                                                 "reach for; seat: where sit puts the "
+                                                                                 "hips; pickup: what pickup reaches for")
+    seats: list[Point] = Field(default_factory=list, max_length=4, description="enter: where riders sit (hips), "
+                                                                               "front to back")
+    clip_y: float | None = Field(default=None, description="enter: riders are drawn only above this height (the "
+                                                           "panel line): their legs are inside")
+    prop: Slug | None = Field(default=None, description="carry: the prop (built-in or library/props.json) held after "
+                                                        "pickup")
 
     @model_serializer(mode="wrap")
     def _omit_item_defaults(self, handler):
-        return omit_defaults(handler(self), type(self), ("look", "draw", "shapes", "size", "layer", "states", "anims"))
+        return omit_defaults(handler(self), type(self), ("look", "draw", "shapes", "size", "layer", "states", "anims",
+                                                         "anchors", "seats", "clip_y", "prop"))
 
     @model_validator(mode="after")
     def _capabilities(self):
@@ -215,6 +234,17 @@ class WorldObject(Strict):
         for s in self.shapes:
             if bad := sorted(set(s.when or []) - set(self.states)):
                 raise ValueError(f"shape: unknown state {', '.join(bad)}")
+        if self.look == "pieces" and (self.anchors or self.seats or self.clip_y is not None or self.prop):
+            raise ValueError("anchors, seats, clip_y and prop are for a card (look: card)")
+        caps = set(self.capabilities)
+        if self.look == "card":  # what each interaction needs to play
+            need = {"carry": (self.prop, "a prop (what the hand holds)"), "enter": (self.seats, "seats"),
+                    "sit": ("seat" in self.anchors, "a seat anchor"),
+                    "open": ({"open", "closed"} <= set(self.states), 'the states "open" and "closed"'),
+                    "close": ({"open", "closed"} <= set(self.states), 'the states "open" and "closed"')}
+            for cap, (ok, what) in need.items():
+                if cap in caps and not ok:
+                    raise ValueError(f"{cap}: a card that can {cap} needs {what}")
         return self
 
 
@@ -334,6 +364,10 @@ ACTIONS: dict[str, frozenset[str]] = {k: frozenset(v) for k, v in {
     "carry": {"do", "hands", "partner", "moving"}, "carried": {"partner"},
     "support": {"do", "hands", "partner", "moving"}, "supported": {"partner"},
     "cheer": {"do", "mood"}, "angry": {"do", "mood"}, "gasp": {"do", "mood"},
+    # World Item interactions: @do <cast>: <action> <item tag> (ITEM_ACTIONS: the capability each needs)
+    "pickup": {"do", "hands", "item"}, "drop": {"do", "hands", "item"}, "open": {"do", "hands", "item"},
+    "close": {"do", "hands", "item"}, "push": {"do", "hands", "item"}, "sit": {"do", "item"},
+    "enter": {"do", "item"}, "exit": {"do", "item"},
 }.items()}
 actions_with = lambda trait: {a for a, t in ACTIONS.items() if trait in t}  # noqa: E731
 

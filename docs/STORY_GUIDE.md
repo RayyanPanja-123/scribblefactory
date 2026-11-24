@@ -49,6 +49,8 @@
 []
 <<<WARDROBE>>>
 []
+<<<OBJECTS>>>
+[]
 <<<CAST>>>
 [{"id": "ava", "name": "Ava", "color": "#3b6ea5"}]
 <<<PART 1>>>

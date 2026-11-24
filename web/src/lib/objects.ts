@@ -1,6 +1,6 @@
 export type ObjectCategory = 'vehicle' | 'container' | 'furniture' | 'equipment' | 'debris' | 'sky' | 'env' | 'scifi' | 'other'
 export type CarryMode = 'none' | 'one-hand' | 'two-hand' | 'vehicle'
-export type Capability = 'move' | 'carry' | 'enter' | 'ride' | 'open' | 'close' | 'break' | 'steal' | 'remove'
+export type Capability = 'move' | 'carry' | 'enter' | 'ride' | 'open' | 'close' | 'break' | 'steal' | 'remove' | 'sit' | 'push'
 export type ObjectPiece = { shape: 'box' | 'cyl' | 'ball' | 'mound'; at: number[]; size: number[]; color: string; backdrop?: boolean; outline?: boolean }
 export type ItemLayer = 'sky' | 'back' | 'mid' | 'stage'
 export type AnimKind = 'rotate' | 'sway' | 'bob' | 'drift' | 'pulse' | 'blink' | 'flow'
@@ -9,11 +9,12 @@ export type ItemAnim = { kind: AnimKind; amp?: number; hz?: number; when?: strin
 export type WorldObject = {
   id: string; name: string; category: ObjectCategory; capabilities: Capability[]; carry_mode: CarryMode; pieces: ObjectPiece[]
   look?: 'pieces' | 'card'; draw?: string | null; shapes?: unknown[]; size?: number; layer?: ItemLayer; states?: string[]; anims?: ItemAnim[]
+  anchors?: Partial<Record<'handle' | 'seat' | 'pickup', number[]>>; seats?: number[][]; clip_y?: number | null; prop?: string | null
 }
 export type ObjectCatalog = { objects: WorldObject[] }
 
 export const CATEGORIES: ObjectCategory[] = ['vehicle', 'container', 'furniture', 'equipment', 'debris', 'sky', 'env', 'scifi', 'other']
-export const DRAWINGS = ['planet', 'saucer'] // engine/page/items.js DRAWERS
+export const DRAWINGS = ['planet', 'saucer', 'pod', 'bench', 'crystal'] // engine/page/items.js DRAWERS
 export const LAYERS: ItemLayer[] = ['sky', 'back', 'mid', 'stage']
 export const RESERVED_STATES = ['remove', 'state'] // @item <tag>: remove | state <s>
 /** what amp means per animation kind (pipeline schemas ItemAnim) */
@@ -30,7 +31,8 @@ export const ANIMS: Record<AnimKind, { amp: string; hz: boolean; start: ItemAnim
 export const blankObject = (look: 'pieces' | 'card' = 'pieces'): WorldObject => look === 'card'
   ? { id: '', name: '', category: 'other', capabilities: [], carry_mode: 'none', pieces: [], look: 'card', draw: 'saucer', size: 1.6, layer: 'back', states: [], anims: [] }
   : { id: '', name: '', category: 'other', capabilities: [], carry_mode: 'none', pieces: [] }
-export const CAPABILITIES: Capability[] = ['move', 'carry', 'enter', 'ride', 'open', 'close', 'break', 'steal', 'remove']
+export const CAPABILITIES: Capability[] = ['move', 'carry', 'enter', 'ride', 'open', 'close', 'break', 'steal', 'remove', 'sit', 'push']
+export const ANCHORS = ['handle', 'seat', 'pickup'] as const // what open/close/push, sit and pickup reach for (world units from the base)
 export const CARRY_MODES: CarryMode[] = ['none', 'one-hand', 'two-hand', 'vehicle']
 export const PIECES: Record<ObjectPiece['shape'], { label: string; size: string[]; start: ObjectPiece }> = {
   box: { label: 'Box', size: ['width', 'height', 'depth'], start: { shape: 'box', at: [0, .5, 0], size: [1, 1, 1], color: '#8a5a32' } },

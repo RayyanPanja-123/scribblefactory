@@ -23,7 +23,17 @@ export const ZZZ = { every: 3.2, show: 2.2 };             // sleeping: a rising 
 // every built-in actor action: code in stickman.js / creatures.js / main.js (pipeline schemas ACTIONS: keep equal).
 // Any other action is custom: library/actions.json keyframes (library.js), played by customPose.
 export const BUILTIN_ACTIONS = new Set(["idle", "walk", "run", "talk", "point", "react", "wave", "ride", "stagger", "lie",
-  "collapse", "eat", "give", "receive", "carry", "carried", "support", "supported", "cheer", "angry", "gasp"]);
+  "collapse", "eat", "give", "receive", "carry", "carried", "support", "supported", "cheer", "angry", "gasp",
+  "pickup", "drop", "open", "close", "push", "sit", "enter", "exit"]);
+// World Item interactions (actor.item: the @item tag): the hand reaches for this anchor of the item (schema
+// WorldObject anchors), on giveAt's timing; enter / exit reach for the handle as they step in / out
+export const ITEM_REACH = { pickup: "pickup", drop: "pickup", open: "handle", close: "handle", push: "handle",
+  enter: "handle", exit: "handle" };
+// sit: side on, thighs level, shins hanging (customPose shape; the planner turns the sitter side on). The hips go on
+// the item's seat anchor (main.js perchedAt).
+export const SIT = { arms: [[-16, 0], [16, 0]], legs: [82, 82], knees: [92, 92], lean: 0 };
+/** canvas arm side (-1 / +1) of actor a toward item `it` at the shot's start (sideToward): the hand an item is held in */
+export const itemSide = (a, it) => sideToward(a.start_pos[0], it.start_pos[0], a.facing);
 
 const REST = { arms: [[-16, 0], [16, 0]], legs: [-6, 6], knees: [0, 0], lean: 0 }; // the idle stickman, degrees (stickman.js)
 // per-key easing (schema ActionKey.ease): how the pose moves INTO that key from the one before. in-out (default) is
@@ -160,8 +170,8 @@ export const handOf = (side) => (side > 0 ? "right" : "left");
 /** who holds which prop at the START of every shot: cast props, then each give hands its prop on for the following
  *  shots of the same run of one set (a set change resets to the cast props). With lookProps(id, look), an actor whose
  *  @look changes takes that look's props; an actor's own props (@hold) win over the look's. Map shot id ->
- *  { cast id: props } */
-export function propsByShot(shots, castProps, lookProps = null) {
+ *  { cast id: props }. itemProp(story item) -> the prop a World Item is held as after pickup (or null) */
+export function propsByShot(shots, castProps, lookProps = null, itemProp = null) {
   const copy = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, v.map((p) => ({ ...p }))]));
   const out = new Map(), looks = {}, NONE = "[null,null]";
   let cur = null, set = null;
@@ -175,6 +185,12 @@ export function propsByShot(shots, castProps, lookProps = null) {
       cur[a.cast_id] = (a.props ?? (lookProps ? lookProps(a.cast_id, a.look) : castProps[a.cast_id] ?? [])).map((p) => ({ ...p }));
     }
     out.set(s.id, copy(cur));
+    for (const a of s.actors) { // pickup puts the item's prop in the hand toward it; drop takes it away
+      const it = a.item && itemProp && (a.action === "pickup" || a.action === "drop") && (s.items || []).find((i) => i.id === a.item);
+      const kind = it && itemProp(it);
+      if (kind && a.action === "pickup") cur[a.cast_id] = withProp(cur[a.cast_id] || [], kind, handOf(itemSide(a, it)));
+      if (kind && a.action === "drop") cur[a.cast_id] = (cur[a.cast_id] || []).filter((p) => p.kind !== kind);
+    }
     for (const a of s.actors) {
       if (a.action !== "give" || !a.prop || !a.target) continue;
       cur[a.cast_id] = (cur[a.cast_id] || []).filter((p) => p.kind !== a.prop);

@@ -493,9 +493,20 @@ def save_object(library, obj: WorldObject) -> None:
     _put(library, "objects.json", load_objects(library), "objects", obj)
 
 
+def object_users(library, object_id: str) -> list[str]:
+    """"<slug>/<part id>" for every story.md with an "@item <tag>: <object_id> ..." line, and "set <id>" for every
+    custom set placing it"""
+    def places(line: str) -> bool:
+        head, sep, rest = line.partition(":")
+        return line.startswith("@item ") and bool(sep) and rest.split()[:1] == [object_id]
+    return _stories_with(library, places) + [f"set {s.id}" for s in load_sets(library).sets
+                                             if any(i.object == object_id for i in s.objects)]
+
+
 def delete_object(library, object_id: str) -> None:
-    """remove a world object"""
-    _remove(library, "objects.json", load_objects(library), "objects", object_id)
+    """remove a World Item; refused (ValueError) while any story's @item or any set places it"""
+    _remove(library, "objects.json", load_objects(library), "objects", object_id,
+            ("used by", lambda: object_users(library, object_id)))
 
 
 def set_kinds(library) -> dict[str, str]:

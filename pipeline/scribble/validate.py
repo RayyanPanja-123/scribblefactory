@@ -275,7 +275,7 @@ def _check_vehicles(s, seconds, cast_ids, err) -> None:
     ids = [v.id for v in s.vehicles]
     if len(set(ids)) != len(ids):
         err(s.id, "vehicle_id", f"vehicle ids repeat: {ids}")
-    riders = [r for v in s.vehicles for r in v.riders]
+    riders = [r for v in s.vehicles for r in v.riders] + [r for it in s.items for r in it.riders]
     if len(set(riders)) != len(riders):
         err(s.id, "riders", f"a cast member rides in two seats: {riders}")
     for v in s.vehicles:
@@ -310,7 +310,11 @@ def _check_vehicles(s, seconds, cast_ids, err) -> None:
                                            f"{speed:.2f} units/s, must be {lo}..{hi}")
     for a in s.actors:
         if a.action == "ride" and a.cast_id not in riders:
-            err(s.id, "riders", f"{a.cast_id} rides but no vehicle lists it")
+            err(s.id, "riders", f"{a.cast_id} rides but no vehicle or item lists it")
+    items = {it.id for it in s.items}
+    for a in s.actors:
+        if a.item is not None and a.item not in items:
+            err(s.id, "item", f"{a.cast_id} {a.action}s {a.item}, which is not an item in this shot")
 
 
 def _check_extras(s, seconds, err) -> None:

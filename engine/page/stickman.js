@@ -271,6 +271,14 @@ export function skeleton(o) {
     if (i) { aR = ua; bendR = ub; } else { aL = ua; bendL = ub; }
     if (o.eat.k > 0.2) late.push(i);
   }
+  // reaching for a World Item (main.js: its anchor as a card point, o.reachTo { side, target, k }): two-joint reach
+  if (o.reachTo && o.reachTo.k > 0) {
+    const { side, target, k } = o.reachTo, i = side > 0 ? 1 : 0, [up, bend] = reachFor(arms[i][0], target, side, ARM);
+    const a0 = i ? aR : aL, b0 = i ? bendR : bendL, ua = a0 + wrap(up - a0) * k, ub = b0 + wrap(bend - b0) * k;
+    const elbow = at(arms[i][0], ua, ARM * 0.52);
+    arms[i] = [arms[i][0], elbow, at(elbow, ua + ub, ARM * 0.48)];
+    if (i) { aR = ua; bendR = ub; } else { aL = ua; bendL = ub; }
+  }
   return { lean, hinge, legs, knees, hipY, cy, ry, top, arms, fore: [aL + bendL, aR + bendR], head, late, size: S };
 }
 

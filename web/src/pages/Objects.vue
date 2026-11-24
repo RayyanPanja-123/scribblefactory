@@ -7,7 +7,7 @@ import ErrorCard from '../components/ErrorCard.vue'
 import ItemPreview from '../components/ItemPreview.vue'
 import { act, confirm, copyJson } from '../composables/feedback'
 import { useApi } from '../composables/useApi'
-import { ANIMS, CAPABILITIES, CARRY_MODES, CATEGORIES, DRAWINGS, LAYERS, PIECES, RESERVED_STATES, blankObject, type AnimKind, type ObjectPiece, type WorldObject } from '../lib/objects'
+import { ANCHORS, ANIMS, CAPABILITIES, CARRY_MODES, CATEGORIES, DRAWINGS, LAYERS, PIECES, RESERVED_STATES, blankObject, type AnimKind, type ObjectPiece, type WorldObject } from '../lib/objects'
 import AiGenerateModal from '../components/AiGenerateModal.vue'
 import { buildObjectPrompt, importObject } from '../lib/objectPrompt'
 
@@ -102,6 +102,28 @@ const num = 'inset mt-1 block h-9 w-full rounded-md px-2 text-sm text-ink outlin
             <label v-if="states.length > 1" class="col-span-4 text-xs font-semibold text-muted">Only in states <span class="font-normal">(empty: always)</span><select v-model="a.when" multiple :class="`${field} h-auto py-1`"><option v-for="s in states" :key="s" :value="s">{{ s }}</option></select></label>
           </div>
           <div class="flex flex-wrap gap-2"><button v-for="(_, k) in ANIMS" :key="k" type="button" class="btn btn-secondary" @click="addAnim(k)"><Plus :size="15" /> {{ k }}</button></div>
+        </fieldset>
+        <fieldset class="space-y-3"><legend class="mb-2 font-display text-lg font-semibold">Interactions</legend>
+          <div class="grid grid-cols-3 gap-2 text-xs"><label v-for="x in CAPABILITIES" :key="x" class="flex items-center gap-2"><input v-model="form.capabilities" type="checkbox" :value="x" />{{ x }}</label></div>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <label class="text-xs font-semibold text-muted">Carry mode<select v-model="form.carry_mode" :class="field"><option v-for="x in CARRY_MODES" :key="x">{{ x }}</option></select></label>
+            <label class="text-xs font-semibold text-muted">Held as prop <span class="font-normal">(pickup)</span><input v-model.trim="form.prop" :class="field" placeholder="a prop id" @change="form.prop ||= null" /></label>
+          </div>
+          <p class="text-xs text-muted">Points are world units from the item's base: x toward its front, y up.</p>
+          <div v-for="a in ANCHORS" :key="a" class="grid grid-cols-[6rem_1fr_1fr_auto] items-end gap-2">
+            <span class="pb-2 text-xs font-semibold text-muted">{{ a }}</span>
+            <template v-if="form.anchors?.[a]"><input v-for="j in [0, 1]" :key="j" v-model.number="form.anchors[a]![j]" type="number" step="any" :aria-label="`${a} ${j ? 'y' : 'x'}`" :class="num" /><button type="button" class="btn btn-secondary" :aria-label="`Remove the ${a} point`" @click="delete form.anchors![a]"><Trash2 :size="16" /></button></template>
+            <button v-else type="button" class="btn btn-secondary col-span-3" @click="(form.anchors ??= {})[a] = [0, (form.size ?? 1) / 2]"><Plus :size="15" /> {{ a }} point</button>
+          </div>
+          <div class="grid grid-cols-[6rem_1fr_1fr_auto] items-end gap-2" v-for="(s, i) in form.seats ?? []" :key="`seat${i}`">
+            <span class="pb-2 text-xs font-semibold text-muted">seat {{ i + 1 }}</span>
+            <input v-for="j in [0, 1]" :key="j" v-model.number="s[j]" type="number" step="any" :aria-label="`seat ${i + 1} ${j ? 'y' : 'x'}`" :class="num" />
+            <button type="button" class="btn btn-secondary" :aria-label="`Remove seat ${i + 1}`" @click="form.seats!.splice(i, 1)"><Trash2 :size="16" /></button>
+          </div>
+          <div class="flex flex-wrap items-end gap-3">
+            <button v-if="(form.seats?.length ?? 0) < 4" type="button" class="btn btn-secondary" @click="(form.seats ??= []).push([0, (form.size ?? 1) * 0.4])"><Plus :size="15" /> Seat (enter)</button>
+            <label class="w-48 text-xs font-semibold text-muted">Rim height <span class="font-normal">(riders hidden below)</span><input :value="form.clip_y ?? ''" type="number" step="any" :class="num" @input="form.clip_y = ($event.target as HTMLInputElement).value === '' ? null : Number(($event.target as HTMLInputElement).value)" /></label>
+          </div>
         </fieldset>
       </template>
       <template v-else>

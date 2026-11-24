@@ -66,6 +66,12 @@ class Actor(Strict):
                                                             "until the first, then each from its frame")
     mount: str | None = Field(default=None, description="@ride: the actor (a creature in this shot) this one rides; it "
                                                         "is drawn in the saddle and goes where its mount goes")
+    item: str | None = Field(default=None, description="pickup / drop / open / close / push / sit / enter / exit: the "
+                                                       "@item tag acted on (left out when none)")
+
+    @model_serializer(mode="wrap")
+    def _omit_item(self, handler):
+        return omit_defaults(handler(self), type(self), ("item",))
 
 
 class Travel(Strict):
@@ -106,6 +112,21 @@ class ShotItem(Strict):
     y: float = Field(description="height of its base (a sky / back card: its middle) in world units")
     facing: Literal["left", "right"] = "right"
     state: Slug | None = Field(default=None, description="none: the item's first state")
+    switch: "ItemSwitch | None" = Field(default=None, description="open / close: the state it turns to, and when")
+    riders: list[str] = Field(default=[], description="cast ids seated inside it (enter) for the whole shot, its "
+                                                      "seats in order")
+
+    @model_serializer(mode="wrap")
+    def _omit_defaults(self, handler):
+        return omit_defaults(handler(self), type(self), ("switch", "riders"))
+
+
+class ItemSwitch(Strict):
+    frame: int = Field(ge=0, description="the state flips here (a short tween either side)")
+    to: Slug
+
+
+ShotItem.model_rebuild()
 
 
 class Extra(Strict):

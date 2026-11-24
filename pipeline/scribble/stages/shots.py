@@ -18,9 +18,9 @@ from ..io import (LIBRARY_FILES, atomic_write_json, library_of, load_part, load_
                   outdoor_sets,
                   prop_kinds, set_kinds, set_weather, wardrobe_slots,
                   unknown_cast_props, world_object_kinds)
-from ..schemas import (FRAME_SIZE, BUILTIN_CREATURES, BUILTIN_SETS, BUILTIN_WARDROBE, HAND_RIGS, Prop, Top, Headwear, Legwear,
+from ..schemas import (ITEM_ACTIONS, ITEM_ASPECT, FRAME_SIZE, BUILTIN_CREATURES, BUILTIN_SETS, BUILTIN_WARDROBE, HAND_RIGS, Prop, Top, Headwear, Legwear,
                        actions_with, Actor, FaceChange, Animal, Camera, Cue, EndCard, Extra, PhrasesModel, SeriesModel,
-                       Shot, ShotItem, StoryModel, Strike, Travel, Vehicle)
+                       ItemSwitch, Shot, ShotItem, StoryModel, Strike, Travel, Vehicle)
 from ..validate import (CAR_SPEED, CROWD_Z, DOG_RUN_SPEED, MAX_SHOT_FRAMES, MOODS, OUTDOOR_SETS, SPEEDS,
                         custom_speeds, end_frame, validate)
 from .prep import (BUILTIN_PROPS, DO_CAR, ITEM_MOVES, item_state_ok, parse_item, parse_cam, FX_LIGHTNING, FX_MODES, MARKER_RE, clean_markdown, mark_directives, parse_do,
@@ -99,6 +99,10 @@ ITEM_PLACE = {"sky": {"z": -60.0, "y": 18.0, "far": 8.0, "reach": 40.0},  # y: c
               "mid": {"z": -3.0, "y": 0.0, "far": 4.0, "reach": 12.0},
               "stage": {"z": -0.6, "y": 0.0, "far": 3.0, "reach": 9.0}}
 ITEM_SPOT = {"far-left": -1.0, "left": -0.5, "center": 0.0, "right": 0.5, "far-right": 1.0}
+# stage items (and dropped ones) stand beside an actor: a body's drawn half width (closer than MIN_GAP: within reach),
+# inside ITEM_BOUNDS; an item's half width is ITEM_FILL of its card's (drawings don't fill their card)
+ITEM_BODY, ITEM_FILL, ITEM_BOUNDS = 0.25, 0.8, (-3.0, 3.0)
+PUSH_D = 0.6               # push: the item slides this far away from the pusher over the shot
 
 # Lexicons match lowercase words with punctuation and a trailing 's stripped. First match in the phrase wins.
 ACTIONS = {
@@ -233,9 +237,10 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
             elif name == "do":
                 do = (line, tuple(parse_do(arg, line, cast_ids, props, actions)))
                 for c in do[1]:
-                    if c.action in ITEM_MOVES and c.who[0] not in items:
-                        raise StageError(f"story.md line {line}: @do: {c.who[0]} is not an item on stage (place it "
-                                         f"first: @item {c.who[0]}: <item>)")
+                    g = c.who[0] if c.action in ITEM_MOVES else c.target if c.action in ITEM_ACTIONS else None
+                    if g is not None and g not in items:
+                        raise StageError(f"story.md line {line}: @do: {g} is not an item on stage (place it "
+                                         f"first: @item {g}: <item>)")
             elif name == "item":
                 op = parse_item(arg, line, objects, cast_ids)
                 if op.op == "remove":
@@ -451,7 +456,8 @@ def _free(x: float, others, h: float = HUMAN_HALF) -> bool:
     """x inside the bounds and clear of others: each an x (a stickman) or (x, half width); two bodies stay MIN_GAP
     apart, wider ones (a horse) their half widths apart, so a stage of stickmen spaces exactly as before"""
     return BOUNDS[0] <= x <= BOUNDS[1] and all(
-        abs(x - ox) >= max(MIN_GAP, h + oh) - 1e-9 for ox, oh in (o if isinstance(o, tuple) else (o, HUMAN_HALF) for o in others))
+        abs(x - o[0]) >= (o[1] + o[2] if len(o) == 3 else max(MIN_GAP, h + o[1])) - 1e-9
+        for o in (o if isinstance(o, tuple) else (o, HUMAN_HALF) for o in others))  # (x, half, body): a stage item
 
 
 def place(want: float, others, h: float = HUMAN_HALF) -> float:
@@ -600,10 +606,11 @@ def _apply_do(clauses, line, cast, pos, actors, vehicles, seconds, fallen, handl
             for v in vehicles:
                 v.action, v.start_pos, v.end_pos = "broken", v.end_pos or v.start_pos, None  # stops where it stands
             continue
-        for w in c.who + ((c.target,) if c.target else ()):
+        on_item = c.action in ITEM_ACTIONS  # its target is an @item tag (ItemStage checks it)
+        for w in c.who + ((c.target,) if c.target and not on_item else ()):
             if w not in by:
                 bad(f"{w} is not on stage on this line (@cast {', '.join(cast)})")
-        if c.target in named:
+        if c.target in named and not on_item:
             bad(f"{c.target} is the target of {c.action} and has its own action too")
         if c.action in NEEDS_HANDS:
             hands = c.who + ((c.target,) if c.action == "give" else ())
@@ -646,7 +653,7 @@ def _apply_do(clauses, line, cast, pos, actors, vehicles, seconds, fallen, handl
             custom = (actions or {}).get(c.action)  # a library action (CustomAction), else None
             for cid in c.who:
                 x, old = pos[cid], by[cid]
-                toward = (1 if pos[c.target] >= x else -1) if c.target else 0  # a custom action's target
+                toward = (1 if pos[c.target] >= x else -1) if c.target and c.action not in ITEM_ACTIONS else 0  # a custom action's target
                 if c.action in MOVE_SPEED or (custom and custom.move):
                     d = toward or (1 if x <= 0 else -1)
                     speeds = (abs(custom.move), *custom_speeds(custom.move)) if custom else None
@@ -674,7 +681,7 @@ def _apply_do(clauses, line, cast, pos, actors, vehicles, seconds, fallen, handl
                 by[cid] = Actor(cast_id=cid, action=action, start_pos=(x, 0.0), facing=facing,
                                 expression=old.expression if old.expression != "neutral"
                                 else ACTION_FACE.get(action, "neutral"),  # a mood word in the line wins
-                                prop=c.prop if action == "eat" else None)
+                                prop=c.prop if action == "eat" else None, item=c.target if action in ITEM_ACTIONS else None)
     return [by[a.cast_id] for a in actors]
 
 
@@ -848,8 +855,7 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
     pos: dict[str, float] = {}  # where each actor stands now; reset on a set change
     prev_rides: dict[str, str] = {}  # @ride pairs on stage in the last shot's phrase
     fallen: set = set()  # (@do line, cast id) that already collapsed
-    item_at: dict = {}  # @item tag -> (x it stands at, facing, the place op that put it there); reset by a set change
-    item_paths: dict = {}  # (@do line, tag) -> (x from, x to): an item's path across that line
+    stage = ItemStage(objects)  # @item cards: where they stand, who holds or sits in them; reset by a set change
     for i, p in enumerate(phrases.phrases):
         t = tags[p.word_start]
         set_, cast, dogs, mode, do, crowd, crowd_wardrobe, runners, looks, holds, weather, face = (
@@ -858,7 +864,8 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
             scene_key, back_pos = (set_, cast), {}
         cast, back = rows[i]  # from here on, cast is the front row
         if set_ != prev_set:
-            pos, park, item_at = {}, None, {}
+            pos, park = {}, None
+            stage.reset()
         moves = [c for c in do[1] if c.action in ITEM_MOVES] if do else []
         if moves:  # item paths are the items' own; the cast's @do is what is left of the line
             rest = tuple(c for c in do[1] if c.action not in ITEM_MOVES)
@@ -872,8 +879,9 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
         # @ride: a rider whose mount is on stage with it is part of the mount's spot (one wider actor); in the car
         # (@car ride) everyone is seated instead
         rides = {r: m for r, m in t.rides.items() if r in cast and m in cast} if mode != "ride" else {}
-        spacers = tuple(c for c in cast if c not in rides)
-        home, placed = spread(spacers), []
+        inside = stage.riders_on(t.items, cast)  # cast inside an item (enter): seated there, not spaced on stage
+        spacers = tuple(c for c in cast if c not in rides and c not in inside)
+        home, placed = spread(spacers), stage.obstacles(t.items)
         # actors on stage last shot stay put; newcomers (start, set change, @cast change) and returners take the
         # free spot nearest their even-spread one, clear of everyone already placed (_free: by body width)
         try:
@@ -963,9 +971,10 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
                             subj.action = "react"  # the subject reacts to the car pulling up
                     elif v.action == "leave":
                         car_left, park = True, None
+                actors = stage.seat(actors, inside, t.items, do, pos, placed)
                 if do:
-                    actors = _apply_do(do[1], do[0], spacers, pos, actors, vehicles, seconds, fallen, handless, actions,
-                                       halves)
+                    actors = _apply_do(do[1], do[0], spacers + tuple(inside), pos, actors, vehicles, seconds, fallen,
+                                       handless, actions, halves)
                     actors = _seat_riders(actors, rides, pos)
                     if any(ac.action == "give" for ac in actors):  # a hand-over needs both people in frame: wide
                         angle = "wide" if prev_angle != "wide" else "medium"  # fits everyone; medium: the pair (engine)
@@ -1022,7 +1031,7 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
                               phrase_range=(i, i), camera=Camera(angle=angle, move=move, speed=speed, roll_deg=roll, **cam_extra),
                               actors=actors, animals=animals, vehicles=vehicles, extras=extras, twist=is_twist,
                               travel=Travel(speed=tspeed) if travel else None, weather=weather,
-                              items=_items(t.items, objects, item_at, item_paths, moves, t.do, do_span, s0, s1)))
+                              items=stage.shot(t.items, actors, subject, moves, t.do, do_span, s0, s1)))
             prev_angle, prev_set = angle, set_
     lightning = [strike(shots, line, target, min(round(phrases.words[w].start * FPS), total - 1), series)
                  for w, (line, target) in ((w, t.strike) for w, t in enumerate(tags) if t.strike)]
@@ -1042,34 +1051,193 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
                       shakes=shakes)
 
 
-def _items(items: dict, objects, at: dict, paths: dict, moves, do, span: dict, s0: int, s1: int) -> list[ShotItem]:
-    """the @item cards of one shot [s0, s1). at: tag -> (x, facing, place op), updated; paths: (line, tag) -> (x from,
-    x to), filled on a line's first shot. A fly / drive goes from where the item stands to off screen that way, or
-    from the far side when it already stands off screen that way; it spreads over the whole line, so the line's shots
-    join up."""
-    out = []
-    for tag, op in items.items():
-        o = (objects or {}).get(op.object)
-        layer = op.layer or (o.layer if o is not None else "mid")
-        P = ITEM_PLACE[layer]
-        if tag not in at or at[tag][2]._replace(state=None) != op._replace(state=None):  # newly placed or moved
-            at[tag] = (round(ITEM_SPOT[op.spot] * P["far"], 3), "right", op)
-        x, facing, _ = at[tag]
-        x0 = x1 = x
-        move = next((c for c in moves if c.who[0] == tag), None)
-        if move:
-            way = 1 if move.target == "right" else -1
-            if (do[0], tag) not in paths:
-                to = way * P["reach"]
-                paths[(do[0], tag)] = (x if (to - x) * way > P["reach"] / 2 else -to, to)
-                at[tag] = (to, "right" if way > 0 else "left", op)
-            a, b = paths[(do[0], tag)]
-            L0, L1 = span[do[0]]
-            x0, x1 = (round(a + (b - a) * (f - L0) / (L1 - L0), 3) for f in (s0, s1))
-            facing = "right" if way > 0 else "left"
-        out.append(ShotItem(id=tag, object=op.object, layer=layer, start_pos=(x0, P["z"]),
-                            end_pos=(x1, P["z"]) if x1 != x0 else None, y=P["y"], facing=facing, state=op.state))
-    return out
+class ItemStage:
+    """@item cards over a run of one set: where each stands (at: tag -> (x, facing, the place op that put it
+    there)), fly paths per line, who holds one (pickup) or sits inside one (enter), states an open / close set.
+    shot() builds a shot's ShotItems and plays the item actions of its actors."""
+
+    def __init__(self, objects):
+        self.objects = objects or {}
+        self.reset()
+
+    def reset(self):
+        self.at, self.paths, self.held, self.inside, self.state = {}, {}, {}, {}, {}
+        self.done: set = set()  # (@do line, cast id): its item action already happened (the line's first shot)
+
+    def _def(self, op):
+        return self.objects.get(op.object)
+
+    def _layer(self, op):
+        o = self._def(op)
+        return op.layer or (o.layer if o is not None else "mid")
+
+    def half(self, op) -> float:
+        """half the item's drawn width (world units)"""
+        o = self._def(op)
+        return 0.5 * ITEM_FILL * (o.size if o else 1.0) * (ITEM_ASPECT.get(o.draw, 1.0) if o and o.draw else 1.0)
+
+    def obstacles(self, items: dict) -> list[tuple]:
+        """the stage items standing now, as _free obstacles (x, half, body): actors keep clear of them"""
+        return [(self.at[g][0], self.half(op), ITEM_BODY) for g, op in items.items()
+                if g in self.at and g not in self.held and self._layer(op) == "stage"]
+
+    def riders_on(self, items: dict, cast) -> dict:
+        """cast id -> tag of everyone inside an item still on stage, with the rider on stage (others step out)"""
+        self.inside = {c: g for c, g in self.inside.items() if g in items and c in cast}
+        return dict(self.inside)
+
+    def seat(self, actors, inside: dict, items: dict, do, pos: dict, placed) -> list:
+        """riders inside items join the shot (action ride, at the item); their @do may only be exit, which needs a
+        spot beside the item to step out to"""
+        out = list(actors)
+        for c, g in inside.items():
+            if do and any(c in cl.who and not (cl.action == "exit" and cl.target == g) for cl in do[1]):
+                raise StageError(f"story.md line {do[0]}: @do: {c} is inside {g} (exit first: @do {c}: exit {g})")
+            x, facing, op = self.at[g]
+            pos[c] = self._beside(x, 0.0, [p[0] for p in placed], items, 1 if facing == "right" else -1, exclude=g)
+            out.append(Actor(cast_id=c, action="ride", start_pos=(x, ITEM_PLACE[self._layer(op)]["z"]), facing=facing,
+                             expression="neutral"))
+        return out
+
+    def _beside(self, sx: float, half: float, actor_xs, items: dict, prefer: int, exclude=None) -> float:
+        """x beside sx (an actor, or an item for one stepping out) with room for half, clear of the actors and the
+        other stage items, inside ITEM_BOUNDS: the preferred side first, then the other, then the nearest free x"""
+        others = [(self.at[g][0], self.half(op)) for g, op in items.items()
+                  if g in self.at and g != exclude and g not in self.held and self._layer(op) == "stage"]
+        ok = lambda x: (ITEM_BOUNDS[0] <= x <= ITEM_BOUNDS[1]  # noqa: E731
+                        and all(abs(x - a) >= half + ITEM_BODY - 1e-9 for a in actor_xs)
+                        and all(abs(x - ox) >= half + oh - 1e-9 for ox, oh in others))
+        d = half + ITEM_BODY + 0.05
+        for x in (round(sx + prefer * d, 3), round(sx - prefer * d, 3)):
+            if ok(x):
+                return x
+        for k in range(1, 61):
+            for x in (round(sx + prefer * (d + k / 10), 3), round(sx - prefer * (d + k / 10), 3)):
+                if ok(x):
+                    return x
+        return round(sx + prefer * d, 3)
+
+    def _act(self, ac, line: int, first: bool, items: dict, actors, s0: int, s1: int):
+        """one actor's item action in this shot: checks, the effect (once per line), and the action it plays here"""
+        g, act = ac.item, ac.action
+        def bad(msg):
+            raise StageError(f"story.md line {line}: @do: {msg}")
+        if g not in items:
+            bad(f"{g} is not an item on stage")
+        op, o = items[g], self._def(items[g])
+        if o is not None and ITEM_ACTIONS[act] not in o.capabilities:
+            bad(f"{op.object} can't be used to {act} (it needs the {ITEM_ACTIONS[act]} capability)")
+        x = self.at[g][0] if g in self.at else 0.0
+        ax = ac.start_pos[0]
+        if act != "exit":
+            ac.facing = "right" if x >= ax else "left"  # toward the item
+        effect = None
+        if first:
+            holder = self.held.get(g)
+            if act == "pickup":
+                if holder is not None:
+                    bad(f"{g} is already held by {holder}")
+                if mine := next((h for h, c in self.held.items() if c == ac.cast_id), None):
+                    bad(f"{ac.cast_id} already holds {mine} (drop it first)")
+                if o is not None and not o.prop:
+                    bad(f"{op.object} has no prop to hold")
+            elif act == "drop" and holder != ac.cast_id:
+                bad(f"{ac.cast_id} doesn't hold {g}")
+            elif act == "enter":
+                if ac.cast_id in self.inside:
+                    bad(f"{ac.cast_id} is already inside {self.inside[ac.cast_id]}")
+                if o is not None and sum(v == g for v in self.inside.values()) >= len(o.seats):
+                    bad(f"{g} is full ({len(o.seats)} seats)")
+            elif act == "exit" and self.inside.get(ac.cast_id) != g:
+                bad(f"{ac.cast_id} is not inside {g}")
+            elif act in ("open", "close"):
+                to = "open" if act == "open" else "closed"
+                self.state[g] = (to, op.state)  # kept until an "@item <tag>: state" line changes it again
+                effect = ItemSwitch(frame=(s0 + s1) // 2, to=to)
+            elif act == "push":
+                way = 1 if x >= ax else -1
+                self.paths[("push", line, g)] = (x, round(x + way * PUSH_D, 3))
+            self.done.add((line, ac.cast_id))
+            return act, effect
+        return {"pickup": "idle", "drop": "idle", "open": "idle", "close": "idle", "push": "idle",
+                "enter": "ride", "exit": "idle"}.get(act, act), None
+
+    def shot(self, items: dict, actors, subject, moves, do, span: dict, s0: int, s1: int) -> list[ShotItem]:
+        """the @item cards of one shot [s0, s1), after playing its actors' item actions. A fly / drive goes from where
+        the item stands to off screen that way, or from the far side when it already stands off screen that way; it
+        spreads over the whole line, so the line's shots join up. A new stage item stands beside the subject."""
+        line = do[0] if do else None
+        switches, after = {}, []
+        for ac in actors:
+            if ac.item is None or ac.action not in ITEM_ACTIONS:
+                continue
+            first = (line, ac.cast_id) not in self.done
+            ac.action, sw = self._act(ac, line, first, items, actors, s0, s1)
+            if sw:
+                switches[ac.item] = sw
+            if first:
+                after.append((ac.action, ac.cast_id, ac.item))
+            if ac.action == "ride":  # a later shot of the enter line: already inside
+                x, facing, op = self.at[ac.item]
+                ac.start_pos, ac.facing = (x, ITEM_PLACE[self._layer(op)]["z"]), facing
+            if ac.action in ("idle", "ride"):  # done: holding it, or seated inside it (ShotItem riders)
+                ac.item = None
+        for act, c, g in after:  # drop: back on stage at the dropper's feet, before this shot's cards are built
+            if act == "drop":
+                del self.held[g]
+                ax = next(a.start_pos[0] for a in actors if a.cast_id == c)
+                facing = next(a.facing for a in actors if a.cast_id == c)
+                xs = [a.start_pos[0] for a in actors if a.cast_id != c]
+                self.at[g] = (self._beside(ax, self.half(items[g]), xs, items, 1 if facing == "right" else -1, exclude=g),
+                              self.at.get(g, (0, "right", items[g]))[1], items[g])
+        sx = next((a.start_pos[0] for a in actors if a.cast_id == subject), 0.0)
+        actor_xs = [x for a in actors if a.action != "ride" for x in (a.start_pos[0], (a.end_pos or a.start_pos)[0])]
+        out = []
+        for tag, op in items.items():
+            if tag in self.held:
+                continue
+            layer = self._layer(op)
+            P = ITEM_PLACE[layer]
+            if tag not in self.at or self.at[tag][2]._replace(state=None) != op._replace(state=None):  # newly placed
+                x = round(ITEM_SPOT[op.spot] * P["far"], 3)
+                if layer == "stage":
+                    prefer = -1 if "left" in op.spot else 1 if "right" in op.spot else (1 if sx <= 0 else -1)
+                    x = self._beside(sx, self.half(op), actor_xs, items, prefer, exclude=tag)
+                self.at[tag] = (x, "right", op)
+                self.state.pop(tag, None)
+            x, facing, _ = self.at[tag]
+            x0 = x1 = x
+            move = next((c for c in moves if c.who[0] == tag), None)
+            if move:
+                way = 1 if move.target == "right" else -1
+                if (do[0], tag) not in self.paths:
+                    to = way * P["reach"]
+                    self.paths[(do[0], tag)] = (x if (to - x) * way > P["reach"] / 2 else -to, to)
+                    self.at[tag] = (to, "right" if way > 0 else "left", op)
+                a, b = self.paths[(do[0], tag)]
+                L0, L1 = span[do[0]]
+                x0, x1 = (round(a + (b - a) * (f - L0) / (L1 - L0), 3) for f in (s0, s1))
+                facing = "right" if way > 0 else "left"
+            elif ("push", line, tag) in self.paths and (line, "pushed", tag) not in self.done:
+                x0, x1 = self.paths[("push", line, tag)]  # the push shot: it slides; later shots: where it stopped
+                self.at[tag] = (x1, facing, op)
+                self.done.add((line, "pushed", tag))
+            over = self.state.get(tag)
+            state = over[0] if over and over[1] == op.state else op.state  # an @item state line wins again
+            sw = switches.get(tag)
+            if sw:  # an open / close shot starts in the other state
+                state = "closed" if sw.to == "open" else "open"
+            out.append(ShotItem(id=tag, object=op.object, layer=layer, start_pos=(x0, P["z"]),
+                                end_pos=(x1, P["z"]) if x1 != x0 else None, y=P["y"], facing=facing, state=state,
+                                switch=sw, riders=[c for c, g in self.inside.items() if g == tag]))
+        for act, c, g in after:  # from the next shot on: held, inside, stepped out
+            if act == "pickup":
+                self.held[g] = c
+            elif act == "enter":
+                self.inside[c] = g
+            elif act == "exit":
+                self.inside.pop(c, None)
+        return out
 
 
 def strike(shots: list[Shot], line: int, target: str | None, frame: int, series: SeriesModel) -> Strike:

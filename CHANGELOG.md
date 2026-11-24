@@ -1,6 +1,15 @@
 # Changelog
 
 ## Unreleased
+- World Items (Phase B): characters use drawn items: `@do <cast>: pickup | drop | open | close | push | sit | enter |
+  exit <tag>`. pickup puts the item's prop in the hand toward it (it vanishes from the stage at the hand-over) until
+  drop sets it down at their feet; open / close tween the hatch mid-line; sit seats the hips on the item's seat point;
+  enter seats the character inside (cut at the item's rim) and they ride along wherever it flies, until exit. Hands
+  reach for the item's handle / pickup point. Stage items stand within reach beside the cast and actors keep clear
+  of them; wide shots frame them. Items get capabilities sit and push, anchors, seats, a rim height and a held prop
+  (World Items page: Interactions). check-story checks each use (capability, hands, already holding, inside).
+  Story packages carry an OBJECTS section, and a World Item a story or set still uses can't be deleted (the
+  message names them). New built-in drawings: pod, bench, crystal.
 - Library: custom actions saved before keyframe `snap` existed no longer change bytes when saved again (`snap` is
   left out while false).
 - World Items (Phase A): the World Objects page is now **World Items**. Besides built items (3D pieces in a set), an

@@ -24,6 +24,8 @@ Plain text. Each marker is **alone on its own line**, in exactly this order:
 [ <new action>, ... ]        [] when there are none
 <<<WARDROBE>>>
 [ <new wardrobe item>, ... ] [] when there are none
+<<<OBJECTS>>>
+[ <new World Item>, ... ]    [] when there are none
 <<<CAST>>>
 [ <cast entry>, ... ]        every character of every part
 <<<PART 1>>>
@@ -42,11 +44,12 @@ Plain text. Each marker is **alone on its own line**, in exactly this order:
 - `<<<PART N>>>`, `<<<SCRIPT>>>`, `<<<VOICE>>>` repeat for N = 1 up to `parts`, in order.
 - **META**: JSON object. `series_title` becomes the series title (and its slug); `parts` must equal the number of
   `<<<PART N>>>` sections (1 to 99).
-- **PROPS / SETS / CREATURES / ACTIONS / WARDROBE**: JSON arrays of **new** items only, each exactly as the
-  dashboard stores it (the schemas in `docs/schemas/props.schema.json`, `sets.schema.json`, `creatures.schema.json`,
-  `actions.schema.json`, `wardrobe.schema.json`: one entry of the `props` / `sets` / `creatures` / `actions` /
-  `wardrobe` list). Anything that already exists in the library is not repeated: the scripts and the cast just use
-  its id. WARDROBE came later: a package without it reads as `[]`. A new set may carry a
+- **PROPS / SETS / CREATURES / ACTIONS / WARDROBE / OBJECTS**: JSON arrays of **new** items only, each exactly as
+  the dashboard stores it (the schemas in `docs/schemas/props.schema.json`, `sets.schema.json`, `creatures.schema.json`,
+  `actions.schema.json`, `wardrobe.schema.json`, `objects.schema.json`: one entry of the `props` / `sets` /
+  `creatures` / `actions` / `wardrobe` / `objects` list). Anything that already exists in the library is not
+  repeated: the scripts and the cast just use its id. WARDROBE and OBJECTS (World Items: drawn ones go on stage with
+  `@item`) came later: a package without them reads as `[]`. A new set may carry a
   `"default_weather": {"kind": "fog", "intensity": "light"}` that every `@set` of it starts with.
 - **CAST**: JSON array in the cast-import shape (story guide, Cast JSON in `docs/ai/cast.md`): `{"id", "name", "color"}` plus the
   optional wardrobe slots (`hair`, `facial_hair`, `headwear`, `top`, `legwear`, `footwear`, `back`, `accessory`,

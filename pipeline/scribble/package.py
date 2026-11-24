@@ -16,10 +16,11 @@ from pydantic import ValidationError
 
 from . import db
 from .io import (atomic_write_json, part_dir_of, part_folder_name, part_folders_of, series_dirs, storage_root, cast_wardrobe_problems, creature_bodies, load_actions, load_creatures,
-                 load_part, load_props, load_series, load_sets, load_wardrobe, prop_kinds, save_part, save_series, set_kinds, wardrobe_slots)
+                 load_objects, load_part, load_props, load_series, load_sets, load_wardrobe, prop_kinds, save_part, save_series, set_kinds,
+                 wardrobe_slots, world_object_kinds)
 from .schemas import (ACTIONS, ActionLibrary, CastMember, CreatureLibrary, CustomAction, CustomCreature, CustomProp,
                       CustomSet, PartModel, PropLibrary, SeriesModel, SetLibrary, Style, Voice, WardrobeItem,
-                      WardrobeLibrary, utcnow)
+                      WardrobeLibrary, WorldObject, WorldObjectLibrary, utcnow)
 from .stages.prep import TWIST_PREFIX, clean_markdown, strip_directives
 from .storycheck import check_story
 
@@ -32,8 +33,9 @@ ASSETS = {  # section -> (model, library loader, list field, library model)
     "CREATURES": (CustomCreature, load_creatures, "creatures", CreatureLibrary),
     "ACTIONS": (CustomAction, load_actions, "actions", ActionLibrary),
     "WARDROBE": (WardrobeItem, load_wardrobe, "wardrobe", WardrobeLibrary),
+    "OBJECTS": (WorldObject, load_objects, "objects", WorldObjectLibrary),
 }
-OPTIONAL = {"WARDROBE"}  # packages written before the wardrobe have no WARDROBE section: read as []
+OPTIONAL = {"WARDROBE", "OBJECTS"}  # packages written before them have no such section: read as []
 HEAD = ["META", *ASSETS, "CAST"]
 WORDS = (70, 83)  # 30 to 35 s at 2.6 words/s, with the tail and end screen (docs/ai/tts.md)
 
@@ -72,7 +74,7 @@ def taken_ids(library: Path) -> dict[str, set[str]]:
     return {"PROPS": set(prop_kinds(library)) | {"none"}, "SETS": set(set_kinds(library)),
             "CREATURES": set(creature_bodies(library)) | {"stickman"},
             "ACTIONS": set(ACTIONS) | {a.id for a in load_actions(library).actions},
-            "WARDROBE": set(wardrobe_slots(library)) | {"none"}}
+            "WARDROBE": set(wardrobe_slots(library)) | {"none"}, "OBJECTS": set(world_object_kinds(library))}
 
 
 def _sections(text: str, err) -> list[tuple[str, int, list[str]]]:
@@ -113,13 +115,18 @@ def _first_error(e: ValidationError) -> str:
 
 
 def _rewrite(md: str, renames: dict[str, dict[str, str]]) -> str:
-    """point story.md at renamed assets: @set <set>, every word of an @do line (actions and props) and an
-    @fx lightning target (a prop)"""
+    """point story.md at renamed assets: @set <set>, every word of an @do line (actions and props), an
+    @fx lightning target (a prop) and the World Item an @item line places"""
     out = []
     for ln in md.split("\n"):
         s = ln.strip()
         if s.startswith("@set ") and (new := renames["SETS"].get(s[5:].strip())):
             ln = f"@set {new}"
+        elif s.startswith("@item ") and ":" in s:  # @item <tag>: <item> ...: the word after the colon
+            head, _, rest = ln.partition(":")
+            words = rest.split()
+            if words and (new := renames["OBJECTS"].get(words[0])):
+                ln = f"{head}: {' '.join([new, *words[1:]])}"
         elif s.startswith(("@do ", "@fx lightning ")):
             # ponytail: whole-word match on @do lines, so a cast id equal to a renamed asset id is renamed too
             for old, new in {**renames["PROPS"], **renames["ACTIONS"]}.items():
@@ -230,6 +237,12 @@ def parse(text: str, library) -> dict:
             except ValidationError as e:
                 err(sec, line + 1, f"#{i} ({x['id']}): {_first_error(e)}")
     renames = result["renames"]
+    for o in result["assets"]["OBJECTS"]:  # a new item's prop may be a renamed new prop
+        if o.prop in renames["PROPS"]:
+            o.prop = renames["PROPS"][o.prop]
+    for st in result["assets"]["SETS"]:  # a new set may place a renamed new item
+        for inst in st.objects:
+            inst.object = renames["OBJECTS"].get(inst.object, inst.object)
 
     _, line, body = got["CAST"]
     cast = _json("CAST", line, body, err)
@@ -339,7 +352,7 @@ def import_package(text: str, library) -> dict:
     library.mkdir(parents=True, exist_ok=True)
     tmp = library / f".import-{secrets.token_hex(4)}"
     tmp.mkdir()
-    fields = [field for _m, _load, field, _lib in ASSETS.values()]  # the catalogs stage() writes (no objects)
+    fields = [field for _m, _load, field, _lib in ASSETS.values()]  # the catalogs stage() writes
     old = {field: db.get_catalog(library, field) for field in fields}
     try:
         stage(result, library, tmp)

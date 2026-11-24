@@ -74,12 +74,12 @@ export async function copyLibraryList(): Promise<boolean> {
 }
 
 export async function storyGuide(): Promise<string> {
-  const [guide, tts, library, cast, script, pkg, props, sets, creatures, actions, wardrobe] = await Promise.all([
+  const [guide, tts, library, cast, script, pkg, props, sets, creatures, actions, wardrobe, objects] = await Promise.all([
     import('../../../docs/STORY_GUIDE.md?raw'), import('../../../docs/ai/tts.md?raw'), import('../../../docs/ai/library.md?raw'),
     import('../../../docs/ai/cast.md?raw'), import('../../../docs/ai/script.md?raw'), import('../../../docs/story-package.md?raw'),
     import('../../../docs/schemas/props.schema.json?raw'), import('../../../docs/schemas/sets.schema.json?raw'),
     import('../../../docs/schemas/creatures.schema.json?raw'), import('../../../docs/schemas/actions.schema.json?raw'),
-    import('../../../docs/schemas/wardrobe.schema.json?raw'),
+    import('../../../docs/schemas/wardrobe.schema.json?raw'), import('../../../docs/schemas/objects.schema.json?raw'),
   ])
   const compact = (m: { default: string }) => JSON.stringify(JSON.parse(m.default))
   return [
@@ -93,6 +93,7 @@ export async function storyGuide(): Promise<string> {
     `CREATURES: ${compact(creatures)}`,
     `ACTIONS: ${compact(actions)}`,
     `WARDROBE: ${compact(wardrobe)}`,
+    `OBJECTS: ${compact(objects)}`,
     '',
   ].join('\n\n')
 }

@@ -100,6 +100,19 @@
           "title": "Facing",
           "type": "string"
         },
+        "item": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "pickup / drop / open / close / push / sit / enter / exit: the @item tag acted on (left out when none)",
+          "title": "Item"
+        },
         "look": {
           "anyOf": [
             {
@@ -699,6 +712,28 @@
       "title": "Headwear",
       "type": "object"
     },
+    "ItemSwitch": {
+      "additionalProperties": false,
+      "properties": {
+        "frame": {
+          "description": "the state flips here (a short tween either side)",
+          "minimum": 0,
+          "title": "Frame",
+          "type": "integer"
+        },
+        "to": {
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+          "title": "To",
+          "type": "string"
+        }
+      },
+      "required": [
+        "frame",
+        "to"
+      ],
+      "title": "ItemSwitch",
+      "type": "object"
+    },
     "Legwear": {
       "additionalProperties": false,
       "properties": {
@@ -961,6 +996,15 @@
           "title": "Object",
           "type": "string"
         },
+        "riders": {
+          "default": [],
+          "description": "cast ids seated inside it (enter) for the whole shot, its seats in order",
+          "items": {
+            "type": "string"
+          },
+          "title": "Riders",
+          "type": "array"
+        },
         "start_pos": {
           "maxItems": 2,
           "minItems": 2,
@@ -988,6 +1032,18 @@
           "default": null,
           "description": "none: the item's first state",
           "title": "State"
+        },
+        "switch": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ItemSwitch"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "open / close: the state it turns to, and when"
         },
         "y": {
           "description": "height of its base (a sky / back card: its middle) in world units",

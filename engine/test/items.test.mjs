@@ -6,6 +6,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { after, test } from "node:test";
+import { fileURLToPath } from "node:url";
 import { animAt } from "../page/items.js";
 import { isWater } from "../page/world.js";
 import { fixturePart, png, render, renderNamed } from "./batch.mjs";
@@ -70,4 +71,32 @@ test("card items: a frame is the same alone, inside a chunk and after other fram
   assert.ok(png(dir("chunk"), 22).equals(png(dir("alone"), 22)), "frame 22: chunk vs alone");
   assert.ok(png(dir("chunk"), 22).equals(png(dir("later"), 22)), "frame 22: chunk vs after frames 50-52");
   assert.ok(!png(dir("chunk"), 20).equals(png(dir("chunk"), 23)), "the saucer flies and the planet's bands flow");
+});
+
+// Phase B interactions on a planned fixture (engine/test/fixtures/items, from pipeline/tests/items_fixture.py): the
+// pickup's hand-over frame (161-162), the hatch mid-tween (485, switch at 485 +-4) and the rider in the flying pod
+// (600): each frame alone, inside a chunk, and after other frames, byte for byte
+const FIXB = fileURLToPath(new URL("./fixtures/items", import.meta.url));
+test("interactions: hand-over, hatch tween and a rider in a moving pod are the same alone and in a chunk", async () => {
+  const work = fs.mkdtempSync(path.join(os.tmpdir(), "scribble-itemsb-"));
+  temps.push(work);
+  fs.cpSync(FIXB, work, { recursive: true });
+  const p = path.join(work, "demo", "part-01"), d = (n) => path.join(p, n);
+  const R = await renderNamed({
+    a: ["--part", p, "--frames", "160-163", "--out-dir", d("chunk")],
+    b: ["--part", p, "--frames", "483-487", "--out-dir", d("chunk")],
+    c: ["--part", p, "--frames", "599-601", "--out-dir", d("chunk")],
+    warm: ["--part", p, "--frames", "600-600", "--out-dir", d("warm")], // after other frames: a warm cache
+    warm2: ["--part", p, "--frames", "162-162", "--out-dir", d("warm")],
+  });
+  for (const k of ["a", "b", "c", "warm", "warm2"]) assert.ok(R[k].ok, `${k}: ${R[k].error}`);
+  for (const n of [162, 485, 600]) {
+    const alone = await render("--part", p, "--frames", `${n}-${n}`, "--out-dir", d(`alone${n}`));
+    assert.equal(alone.status, 0, alone.stderr);
+    assert.ok(png(d("chunk"), n).equals(png(d(`alone${n}`), n)), `frame ${n}: chunk vs alone`);
+  }
+  assert.ok(png(d("chunk"), 600).equals(png(d("warm"), 600)) && png(d("chunk"), 162).equals(png(d("warm"), 162)), "warm cache");
+  assert.ok(!png(d("chunk"), 161).equals(png(d("chunk"), 162)), "the crystal changes hands at the swap");
+  assert.ok(!png(d("chunk"), 483).equals(png(d("chunk"), 487)), "the hatch moves through its tween");
+  assert.ok(!png(d("chunk"), 599).equals(png(d("chunk"), 601)), "the pod (and its rider) move");
 });

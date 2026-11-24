@@ -4601,6 +4601,31 @@
         "additionalProperties": false,
         "description": "Reusable geometry and interaction capabilities for a large scene object (UI: World Items).\n\nUnlike a Prop, a WorldObject is not owned by a cast member and is not attached to a hand. Its state belongs to\nthe scene and can persist across shots. look \"pieces\": the set-piece primitives; look \"card\": a 2D ink drawing\n(a built-in drawer, or shapes) on a camera-facing card that can animate, fly a path and change state.",
         "properties": {
+          "anchors": {
+            "additionalProperties": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "description": "handle: what open / close / push reach for; seat: where sit puts the hips; pickup: what pickup reaches for",
+            "propertyNames": {
+              "enum": [
+                "handle",
+                "seat",
+                "pickup"
+              ]
+            },
+            "title": "Anchors",
+            "type": "object"
+          },
           "anims": {
             "items": {
               "$ref": "#/components/schemas/ItemAnim"
@@ -4620,7 +4645,9 @@
                 "close",
                 "break",
                 "steal",
-                "remove"
+                "remove",
+                "sit",
+                "push"
               ],
               "type": "string"
             },
@@ -4655,12 +4682,27 @@
             "title": "Category",
             "type": "string"
           },
+          "clip_y": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "enter: riders are drawn only above this height (the panel line): their legs are inside",
+            "title": "Clip Y"
+          },
           "draw": {
             "anyOf": [
               {
                 "enum": [
                   "planet",
-                  "saucer"
+                  "saucer",
+                  "pod",
+                  "bench",
+                  "crystal"
                 ],
                 "type": "string"
               },
@@ -4708,6 +4750,38 @@
             },
             "maxItems": 20,
             "title": "Pieces",
+            "type": "array"
+          },
+          "prop": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "carry: the prop (built-in or library/props.json) held after pickup",
+            "title": "Prop"
+          },
+          "seats": {
+            "description": "enter: where riders sit (hips), front to back",
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "maxItems": 4,
+            "title": "Seats",
             "type": "array"
           },
           "shapes": {

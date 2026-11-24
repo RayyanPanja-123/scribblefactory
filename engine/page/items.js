@@ -18,6 +18,10 @@ export const BOIL_CYCLE = 4;    // item drawings repeat their boil every BOIL_CY
 export const CACHE_MB = 128;    // texture cache cap per render worker (canvas bytes; the GPU copy is the same size)
 // draw order per layer: sky and back before the fog bands (0.5) and the back rain (0.7), mid / stage with the cast (1)
 export const LAYER_ORDER = { sky: 0.2, back: 0.4, mid: 1, stage: 1 };
+export const LAYER_STEP = 0.001; // a card's layers draw in order; a rider inside one draws between its first and second
+export const RIDER_ORDER = 1 + LAYER_STEP / 2;
+// open / close: the state flips over TWEEN frames centred on its switch frame, drawn in TWEEN_STEPS steps (cached)
+export const TWEEN = 8, TWEEN_STEPS = 4;
 const TAU = Math.PI * 2, rad = (d) => (d * Math.PI) / 180;
 
 /** an item's animation at time t (s): { dx, dy (world units), rot (radians), scale, opacity, flow (0..1 scroll) }.
@@ -97,6 +101,57 @@ function saucer(p, g, W, H, o) {
   }
 }
 
+/** escape pod, side view, standing on its base: an egg hull with an open cockpit (the back layer: hull and cockpit;
+ *  the front layer: the lower hull and the hatch, drawn over a rider), two landing feet. The hatch swings down and out
+ *  from its bottom hinge as it opens (o.state open, or part way: o.from -> o.state at o.k). */
+const POD = { cx: 0.5, cy: 0.56, rx: 0.42, ry: 0.42, rim: 0.5 }; // shares of W / H; rim: the cockpit's lower edge
+function openness(o) {
+  const at = (s) => (s === "open" ? 1 : 0);
+  return o.from == null ? at(o.state) : at(o.from) + (at(o.state) - at(o.from)) * o.k;
+}
+function podBack(p, g, W, H, o) {
+  const cx = W * POD.cx, cy = H * POD.cy, rx = W * POD.rx, ry = H * POD.ry;
+  for (const k of [-0.5, 0.5]) p.stroke(jitter([[cx + k * rx, cy + ry * 0.8], [cx + k * rx * 1.25, H - 6]], o.boil, 2), lw(H, 12));
+  p.poly(wobble(cx, cy, rx, ry, rng(o.seed, "hull"), o.boil, 0.012, 0.005, 64), o.main, lw(H, 11));
+  p.poly(wobble(cx, H * 0.36, rx * 0.72, H * 0.17, rng(o.seed, "cockpit"), o.boil, 0.01, 0.004, 48), shadeOf(o.main, 0.45), lw(H, 8));
+}
+function podFront(p, g, W, H, o) {
+  const cx = W * POD.cx, cy = H * POD.cy, rx = W * POD.rx, ry = H * POD.ry, rim = H * POD.rim;
+  g.save(); g.beginPath(); g.rect(0, rim, W, H); g.clip(); // the hull below the cockpit rim, over the rider's legs
+  p.poly(wobble(cx, cy, rx, ry, rng(o.seed, "hull"), o.boil, 0.012, 0.005, 64), o.main, lw(H, 11));
+  g.restore();
+  p.stroke(jitter([[cx - rx * 0.86, rim], [cx + rx * 0.86, rim]], o.boil, 2), lw(H, 9)); // the rim
+  // the hatch: hinged at its bottom edge, swinging out toward the viewer (drawn foreshortened downward)
+  const x0 = cx - rx * 0.32, x1 = cx + rx * 0.4, top = rim + H * 0.06, bot = H * 0.86, k = openness(o);
+  const h = (bot - top) * Math.cos((k * Math.PI) / 2), lean = W * 0.05 * Math.sin((k * Math.PI) / 2);
+  if (k > 0) p.poly(jitter([[x0, top], [x1, top], [x1, bot], [x0, bot]], o.boil, 1.5), shadeOf(o.main, 0.3), lw(H, 5)); // the doorway
+  p.poly(jitter([[x0 - lean, bot - h], [x1 + lean, bot - h], [x1, bot], [x0, bot]], o.boil, 2), shadeOf(o.main, 0.85), lw(H, 8));
+  p.dot(x1 - W * 0.04, bot - h * 0.5, lw(H, 9), o.accent); // the handle
+  p.dot(cx + rx * 0.6, cy - ry * 0.05, lw(H, 11), INK); p.dot(cx + rx * 0.6, cy - ry * 0.05, lw(H, 7), o.accent); // a light
+}
+
+/** park bench, side-on: a plank seat on two legs with a backrest behind it, standing on its base */
+function bench(p, g, W, H, o) {
+  const seat = H * 0.55, wood = o.main, dark = shadeOf(o.main, 0.7);
+  for (const x of [W * 0.14, W * 0.86]) p.poly(jitter([[x - W * 0.03, seat], [x + W * 0.03, seat], [x + W * 0.03, H - 4], [x - W * 0.03, H - 4]], o.boil, 1.5), o.accent, lw(H, 7));
+  for (const x of [W * 0.2, W * 0.8]) p.stroke(jitter([[x, seat], [x, H * 0.08]], o.boil, 1.5), lw(H, 12));
+  p.poly(jitter([[W * 0.08, H * 0.1], [W * 0.92, H * 0.1], [W * 0.92, H * 0.3], [W * 0.08, H * 0.3]], o.boil, 2), dark, lw(H, 8));
+  p.poly(jitter([[W * 0.04, seat - H * 0.1], [W * 0.96, seat - H * 0.1], [W * 0.96, seat + H * 0.04], [W * 0.04, seat + H * 0.04]], o.boil, 2), wood, lw(H, 9));
+}
+
+/** glowing crystal cluster on its base: a soft halo (glow), three ink-outlined shards with a light facet each */
+function crystal(p, g, W, H, o) {
+  const gl = g.createRadialGradient(W / 2, H * 0.62, 0, W / 2, H * 0.62, W * 0.5);
+  gl.addColorStop(0, `${o.accent}cc`); gl.addColorStop(1, `${o.accent}00`);
+  g.fillStyle = gl; g.fillRect(0, 0, W, H);
+  for (const [dx, h, w, tilt] of [[-0.18, 0.55, 0.16, -0.25], [0.2, 0.5, 0.15, 0.3], [0, 0.82, 0.22, 0]]) {
+    const bx = W * (0.5 + dx), by = H - 8, tip = [bx + Math.sin(tilt) * H * h, by - H * h];
+    const pts = [[bx - W * w, by], [bx - W * w * 0.8, by - H * h * 0.55], tip, [bx + W * w * 0.8, by - H * h * 0.55], [bx + W * w, by]];
+    p.poly(jitter(pts, o.boil, 1.5), o.main, lw(H, 6));
+    p.poly(jitter([[bx - W * w * 0.3, by - H * h * 0.2], tip, [bx, by - H * h * 0.5]], o.boil, 1), "rgba(255,255,255,0.55)", 0);
+  }
+}
+
 /** built-in drawings: aspect (W / H), px (canvas height), base (share of the height from the bottom where the
  *  card's anchor sits: 0.5 = its middle), default colours, layers back to front. A layer: draw; still (no boil:
  *  drawn once per state); flow (its texture scrolls sideways with a flow anim, inside the clip path) */
@@ -107,6 +162,10 @@ export const DRAWERS = {
     { name: "front", draw: planetFront },
   ] },
   saucer: { aspect: 2.2, px: 320, base: 0.5, main: "#9aa5b1", accent: "#7cf2c6", layers: [{ name: "body", draw: saucer }] },
+  pod: { aspect: 1.3, px: 512, base: 0, main: "#e8e4da", accent: "#ff8a3d", layers: [
+    { name: "back", draw: podBack }, { name: "front", draw: podFront }] },
+  bench: { aspect: 2.0, px: 256, base: 0, main: "#b07a45", accent: "#4a4f57", layers: [{ name: "body", draw: bench }] },
+  crystal: { aspect: 0.6, px: 256, base: 0, main: "#7cf2ff", accent: "#b6fbff", layers: [{ name: "body", draw: crystal }] },
 };
 /** an item's own shapes (ItemShape: canvas px around the base point, like a creature's body) on a 1024 square */
 const SHAPES = { aspect: 1, px: 1024, base: 24 / 1024, main: "#8a8a8a", accent: "#3a2a1e", layers: [{ name: "shapes",
@@ -169,27 +228,43 @@ export function itemCard(def, { color = null, accent = null, tag = "", seed = 0,
   const meshes = D.layers.map((L, i) => {
     const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide,
       fog: layer !== "sky" }));
-    m.renderOrder = LAYER_ORDER[layer] + i * 0.001;
+    m.renderOrder = LAYER_ORDER[layer] + i * LAYER_STEP;
     if (L.clip) m.material.alphaMap = maskOf(def.draw, W, H, L.clip);
     return m;
   });
   meshes.slice(1).forEach((m) => meshes[0].add(m));
   const main = color || D.main, acc = accent || D.accent;
-  return { root: meshes[0], meshes, def, drawer: D, W, H, y: 0, ph: rng(seed, "item", tag)() * TAU,
+  return { root: meshes[0], meshes, def, drawer: D, W, H, y: 0, ph: phaseOf(seed, tag),
     key: `${hash(JSON.stringify(def))}|${main}|${acc}`, main, accent: acc };
 }
 
-/** draw card c for time t (s) and boil step `boil` (frame / BOIL_FRAMES) in `state` (none: the item's first):
- *  textures from the cache, then the animation on top of where the caller put it (x added to, y from c.y). facing
- *  "left" mirrors it. Returns the state drawn. */
-export function updateCard(c, { t, boil, state = null, facing = "right" }) {
+/** the state an item shows at frame n: { state, from, k } (from / k: part way from `from` while an open / close
+ *  tweens, k in TWEEN_STEPS steps). it: a story item (schema ShotItem: state, switch { frame, to }) */
+export function stateAt(it, n) {
+  const sw = it.switch;
+  if (!sw) return { state: it.state ?? null, from: null, k: 1 };
+  const k = Math.round(Math.min(1, Math.max(0, (n - (sw.frame - TWEEN / 2)) / TWEEN)) * TWEEN_STEPS) / TWEEN_STEPS;
+  return k >= 1 ? { state: sw.to, from: null, k: 1 } : k <= 0 ? { state: it.state ?? null, from: null, k: 1 }
+    : { state: sw.to, from: it.state ?? null, k };
+}
+
+/** half the drawn width of an item's card, world units (a drawing doesn't fill its card: pipeline shots.ITEM_FILL) */
+export const cardHalf = (def) => 0.5 * 0.8 * (def.size || 1) * (def.draw ? DRAWERS[def.draw]?.aspect ?? 1 : 1);
+
+/** the seeded animation phase of item `tag` (itemCard; main.js seats its riders with the same) */
+export const phaseOf = (seed, tag) => rng(seed, "item", tag)() * TAU;
+
+/** draw card c for time t (s) and boil step `boil` (frame / BOIL_FRAMES) in `state` (none: the item's first), part
+ *  way there from `from` at k (stateAt): textures from the cache, then the animation on top of where the caller put
+ *  it (x added to, y from c.y). facing "left" mirrors it. Returns the state drawn. */
+export function updateCard(c, { t, boil, state = null, from = null, k = 1, facing = "right" }) {
   const st = state ?? c.def.states?.[0] ?? null, b = ((boil % BOIL_CYCLE) + BOIL_CYCLE) % BOIL_CYCLE, { W, H } = c;
   frame = boil;
-  const A = animAt(c.def.anims, st, t, c.ph);
+  const A = animAt(c.def.anims, st, t, c.ph), tw = from == null ? "" : `|${from}>${k}`;
   c.drawer.layers.forEach((L, i) => {
     const m = c.meshes[i], step = L.still ? 0 : b;
-    const tex = cached(`${c.key}|${st}|${L.name}|${step}`, W, H, (g) => L.draw(new Pen(g, INK), g, W, H,
-      { main: c.main, accent: c.accent, state: st, boil: rng(c.key, "boil", step), b: step, seed: c.key, shapes: c.def.shapes || [] }),
+    const tex = cached(`${c.key}|${st}${tw}|${L.name}|${step}`, W, H, (g) => L.draw(new Pen(g, INK), g, W, H,
+      { main: c.main, accent: c.accent, state: st, from, k, boil: rng(c.key, "boil", step), b: step, seed: c.key, shapes: c.def.shapes || [] }),
     (tex) => { tex.colorSpace = THREE.SRGBColorSpace; if (L.flow) tex.wrapS = THREE.RepeatWrapping; });
     if (m.material.map !== tex) { const fresh = !m.material.map; m.material.map = tex; if (fresh) m.material.needsUpdate = true; }
     if (L.flow) tex.offset.x = A.flow;

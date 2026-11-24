@@ -78,6 +78,21 @@
   Something silver shot across the sky.   <- the ship crosses the whole line
   @item ship: remove
   ```
+- Using an item: `@do <cast>: <pickup | drop | open | close | push | sit | enter | exit> <tag>` (one cast member per
+  clause, the item a drawn one on stage with that capability; stage items stand within reach beside the cast).
+  `pickup` puts it in a free hand (its prop) for the rest of the set until `drop` puts it back down at their feet;
+  one held item per character. `open` / `close` switch it mid-line. `sit` sits on it for that line. `enter` seats
+  the character inside until `exit`: inside, they ride along when the item moves (`@do pod: fly right`) and no other
+  `@do` is allowed for them.
+  ```
+  @item pod: escape-pod
+  @do mia: open pod
+  The hatch hissed open.
+  @do mia: enter pod
+  She climbed in.
+  @do pod: fly right
+  And she was gone.
+  ```
 - `@dogs N`: persistent pack of 0–6 dogs. Dogs chase during travel shots and idle or bark at the edges otherwise.
   Use `@dogs 0` to clear them.
 - `@runners N`: persistent background runners, 0–6. They run with the scroll in travel shots and cross behind the cast
