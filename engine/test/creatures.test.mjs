@@ -1,4 +1,5 @@
 // Creatures: rig poses (pure) and every built-in drawn in every action through a recording 2D context.
+import { STYLE } from "../page/style.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { BUILTIN as ALL_BUILTIN, FIRE, JOINT_OF, RIGS, creature, creatureAnchors, creaturePose, drawCreature, flamePalette, measure } from "../page/creatures.js";
@@ -109,7 +110,7 @@ test("flame: off draws exactly as before; low / high add layered tongues on mane
     // (a glowing eye has none)
     const own = high.filter((x) => !FIRE.includes(x.style)), shine = (x) => x.style === "#ffffff" && x.pts.length === 1;
     const kept = off.filter((x) => !shine(x));
-    assert.equal(off.length - kept.length, 1);
+    assert.equal(off.length - kept.length, STYLE.creature?.eye ? 1 : 0); // flat look (style.js creature null): no catchlight
     assert.ok(kept.every((x) => own.some((y) => y.style === x.style && JSON.stringify(y.pts) === JSON.stringify(x.pts))));
   }
   assert.equal(fills(record(horse, { action: "idle", flame: "high" }), FIRE[2]).length, 23); // 22 tongue cores + the eye

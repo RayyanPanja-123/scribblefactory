@@ -42,7 +42,7 @@ export const STYLE = {
   // card px in from the silhouette (past the ink outline). shadow: contact shadows' colour (never pure black).
   light: {
     outdoor: true, key: "#ffe8c6", sideWarm: 0.35, cool: "#b4c3e8",
-    rim: { color: "#ffd28a", alpha: 0.75, width: 5, inset: 15 },
+    rim: null, // off by default: the flat look (the "painted" preset turns it on)
     shadow: "#27304d",
   },
   // camera. wide: outdoor wide shots (lower, closer: the cast fills the middle third; camY / lookY world units,
@@ -108,10 +108,11 @@ export const STYLE = {
   // a soft lit spot toward the key light (screen right; x / y its centre as a share of the shape's box from the middle /
   // top, r radius share of the larger side) and light.shadow pooling from `shade.from` (share down the box) to the
   // bottom; eye: catchlight radius share of the eye dot (0 = none). null = flat fills.
-  creature: { minSize: 30, lit: { color: "#fff4dc", alpha: 0.32, x: 0.18, y: 0.28, r: 0.55 }, shade: { from: 0.4, alpha: 0.3 }, eye: 0.35 },
+  // off by default: the flat ink-and-fill look reads better (the "painted" preset turns it on)
+  creature: null,
   // the stickman's head and body blob get the same painted volume (stickman.js paintVolume); shade.side tilts the
   // shadow toward the side away from the key light, so the head reads as a ball. null = flat fills.
-  figure: { minSize: 30, lit: { color: "#fff4dc", alpha: 0.35, x: 0.2, y: 0.25, r: 0.6 }, shade: { from: 0.3, alpha: 0.26, side: 0.7 } },
+  figure: null,
   // colour grade over the finished frame (weather included, captions are added later by ffmpeg); null = off.
   // contrast / saturation: 1 = unchanged; warmth: + pushes highlights warm and shadows cool; lift: shadow floor
   // (0..0.1, keeps blacks soft like ink on paper); vignette: corner darkening share, from `soft` (0 centre .. 1 corner)
@@ -133,6 +134,13 @@ export const STYLE = {
 export const PRESETS = {
   default: {},
   cinematic: { grade: { contrast: 1.08, saturation: 1.12, warmth: 0.05, lift: 0.03, vignette: 0.28, soft: 0.45 } },
+  // glossy, rounded cast (the look before flat became the default): the lit spot and shade inside heads, bodies and
+  // creature shapes, the eyes' catchlight, and the warm rim on the key side of outdoor cards
+  painted: {
+    light: { rim: { color: "#ffd28a", alpha: 0.75, width: 5, inset: 15 } },
+    creature: { minSize: 30, lit: { color: "#fff4dc", alpha: 0.32, x: 0.18, y: 0.28, r: 0.55 }, shade: { from: 0.4, alpha: 0.3 }, eye: 0.35 },
+    figure: { minSize: 30, lit: { color: "#fff4dc", alpha: 0.35, x: 0.2, y: 0.25, r: 0.6 }, shade: { from: 0.3, alpha: 0.26, side: 0.7 } },
+  },
   storybook: { grade: { contrast: 0.95, saturation: 0.9, warmth: 0.08, lift: 0.06, vignette: 0.18, soft: 0.55 } },
 };
 

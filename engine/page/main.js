@@ -269,7 +269,7 @@ function drawCard(id, o, rim = false) {
   const c = ridden ? card(`${id}:ridden`, RIDDEN_GEO, CRW, CH + RIDE.room) : d ? card(id, CREATURE_GEO, CRW, CH) : card(id);
   if (ridden) card(id, CREATURE_GEO, CRW, CH); // its shadow lives on the plain card
   if (d) drawCreature(c.cv, d, { ...figure(id, o), room: ridden ? RIDE.room : 0 }); else drawStickman(c.cv, figure(id, o));
-  if (rim) rimLight(c.cv, o.px || 1);
+  if (rim && STYLE.light.rim) rimLight(c.cv, o.px || 1); // off by default (the "painted" preset turns it on)
   c.tex.needsUpdate = true;
   return c.mesh;
 }
