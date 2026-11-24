@@ -6,7 +6,7 @@ import os
 import traceback
 from pathlib import Path
 
-from ..io import LIBRARY_FILES, catalog_bytes, library_of, load_part, save_part, series_bytes
+from ..io import LIBRARY_FILES, library_of, load_part, save_part, series_bytes, used_catalog_bytes
 from ..schemas import utcnow
 
 
@@ -29,8 +29,8 @@ def inputs_hash(part_dir: Path, inputs, extra=None) -> str:
         if f.is_dir():  # a directory input: the names and bytes of the files directly inside it
             for x in sorted(x for x in f.iterdir() if x.is_file()):
                 h.update(x.name.encode() + b"\0" + x.read_bytes() + b"\0")
-        elif library_level and f.name in LIBRARY_FILES:  # a catalog: its old file's bytes, from the database
-            h.update(catalog_bytes(f.parent, f.name) or b"<missing>")
+        elif library_level and f.name in LIBRARY_FILES:  # a catalog: the rows this part uses, from the database
+            h.update(used_catalog_bytes(f.parent, f.name, part_dir) or b"<missing>")
         elif name == "../series.json":  # the series: its old file's bytes, from the database
             h.update(series_bytes(part_dir.parent) or b"<missing>")
         else:

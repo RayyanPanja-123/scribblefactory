@@ -407,3 +407,29 @@ def test_approach_with_nobody_in_the_way_has_no_dip():
     walks = [actor(s) for s in story.shots if actor(s).action == "walk" or actor(s).approach]
     assert walks and all(a.behind == [] for a in walks)
     assert '"behind"' not in json.dumps(story.model_dump(mode="json"))  # left out: the plan is as before
+
+
+def test_stage_hash_covers_only_used_catalog_rows(tmp_path):
+    """a new library row a part doesn't name leaves its stage and frame hashes alone; one it names (directly, or a
+    World Item its set places, or that item's prop) changes them"""
+    from pipeline.scribble.io import save_object, save_prop, save_set
+    from pipeline.scribble.schemas import CustomProp, CustomSet
+    from pipeline.scribble.stages import shots as shots_stage
+    from pipeline.scribble.stages.render import frames_hash
+    from pipeline.scribble.stages.runner import inputs_hash
+    from pipeline.tests.test_storycheck import setup
+    part = setup(tmp_path, "@set lake\n@cast bob\nBob looked at the lake.\n")
+    lake = CustomSet(id="lake", name="Lake", kind="outdoor", floor="#7a4fa3", back="#2fb3a0", water=False)
+    save_set(tmp_path, lake)
+    h = lambda: (inputs_hash(part, shots_stage.INPUTS), frames_hash(part))  # noqa: E731
+    before = h()
+    save_prop(tmp_path, CustomProp(id="spare-hat", name="Spare hat", shapes=[{"shape": "circle", "pts": [[0, 0]], "r": 9}]))
+    save_set(tmp_path, CustomSet(id="desert", name="Desert", kind="outdoor", floor="#d9b36a", back="#9fd3f5"))
+    save_prop(tmp_path, fx.GLOW)
+    save_object(tmp_path, fx.CRYSTAL)
+    assert h() == before  # nothing the part uses
+    save_set(tmp_path, CustomSet(**{**lake.model_dump(), "objects": [{"id": "gem1", "object": "glow-crystal", "at": [3, 0, -3]}]}))
+    placed = h()
+    assert placed != before  # its set now places an item (and so the item and its prop count)
+    save_prop(tmp_path, fx.GLOW.model_copy(update={"name": "Glow crystal 2"}))
+    assert h() != placed  # the placed item's prop changed: the part's hash follows

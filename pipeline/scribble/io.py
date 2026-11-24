@@ -18,7 +18,8 @@ from .schemas import (ACTIONS, BUILTIN_CREATURES, BUILTIN_SETS, BUILTIN_WARDROBE
 # User-owned files a save must never write to.
 PROTECTED = {"story.md", "voice.mp3"}
 # The library's custom items, one catalog per kind (db.CATALOG_KINDS, engine/page/library.js KINDS), still named by
-# their old file: every stage that reads one, and the render hash, depends on all of them (catalog_bytes).
+# their old file. A part's stage and render hashes cover only the rows it uses (used_catalog_bytes): a new library
+# item changes nothing for the parts that don't name it.
 LIBRARY_FILES = ["props.json", "sets.json", "objects.json", "creatures.json", "actions.json", "wardrobe.json"]
 LIBRARY_MODELS = {"props": PropLibrary, "sets": SetLibrary, "objects": WorldObjectLibrary, "creatures": CreatureLibrary,
                   "actions": ActionLibrary, "wardrobe": WardrobeLibrary}
@@ -181,6 +182,33 @@ def catalog_bytes(library, file: str) -> bytes | None:
         return None
     version = LIBRARY_MODELS[kind].model_fields["schema_version"].default  # the rows are model dumps already
     return (json.dumps({"schema_version": version, kind: items}, indent=2, ensure_ascii=False) + "\n").encode()
+
+
+ID_TOKEN = re.compile(r"[a-z0-9]+(?:[_-][a-z0-9]+)*")  # what a catalog id (Slug, WardrobeId) can be
+
+
+def used_catalog_bytes(library, file: str, part_dir) -> bytes | None:
+    """catalog_bytes cut down to the rows part_dir can use: ids named anywhere in its story.md or its series (cast
+    props, bodies, wardrobe; @set, @do, @hold, @item...), plus the World Items a used set places and the props a used
+    World Item is held as. A word that only looks like an id keeps that row too (never misses one). None: no row
+    is used (an empty catalog too)."""
+    kind = file.removesuffix(".json")
+    items = db.get_catalog(library, kind)
+    if not items:
+        return None
+    pdir = Path(part_dir)
+    text = (pdir / "story.md").read_text(encoding="utf-8") if (pdir / "story.md").is_file() else ""
+    words = set(ID_TOKEN.findall(text + (series_bytes(pdir.parent) or b"").decode("utf-8", "replace")))
+    if kind in ("objects", "props"):  # reached through a used set / a used World Item
+        sets = [s for s in db.get_catalog(library, "sets") if s["id"] in words]
+        words |= {o["object"] for s in sets for o in s.get("objects", [])}
+        if kind == "props":
+            words |= {o["prop"] for o in db.get_catalog(library, "objects") if o["id"] in words and o.get("prop")}
+    version = LIBRARY_MODELS[kind].model_fields["schema_version"].default
+    used = [x for x in items if x["id"] in words]
+    if not used:
+        return None  # nothing used: as an empty catalog, so a first row it doesn't use changes nothing either
+    return (json.dumps({"schema_version": version, kind: used}, indent=2, ensure_ascii=False) + "\n").encode()
 
 
 def _put(library, file: str, lib, field: str, item):
