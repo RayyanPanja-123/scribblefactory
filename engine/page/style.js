@@ -127,6 +127,9 @@ export const STYLE = {
   // painted clouds in outdoor skies (after the reference's cloudHD): count per sky, skipped when the sky colour's
   // lightness is under minLight (night); lit / mid / shade are the three painted tones; drift: world units per
   // second they slide right (fading out at one end of their row and back in at the other)
+  // World Items. skyLock: sky-layer items rise by this share of what a camera looking up takes off their screen height
+  // (main.js skyLift; 0 = off), so a low angle still shows them high in the sky
+  items: { skyLock: 1 },
   clouds: { count: 5, minLight: 0.45, lit: "#fbf8f1", mid: "#e1e5f3", shade: "#c3cbe9", alpha: 0.92, drift: 0.6 },
 };
 

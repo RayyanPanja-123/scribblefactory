@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+- World Items: sky lock. In a low angle, sky-layer items (sun, planet) rise to stay high in the sky instead of
+  sinking toward the cast (`STYLE.items.skyLock`, 0 = off). Only the sky layer; sets without sky items render as before.
 - Story: a walk word moves only a character the phrase names, or one a pronoun points back at ("the saucer came
   back" walks nobody; "he came back" walks the last named). check-story warns on pronoun walks only. No library
   part's plan changes.

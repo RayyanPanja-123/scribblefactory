@@ -761,6 +761,7 @@ function setCard(b, def, inst) {
   const c = itemCard(def, { color: inst.color, accent: inst.accent, tag: inst.id, seed: b.seed });
   c.y = inst.at[1];
   const opts = { outline: false, backdrop: def.layer === "sky" || def.layer === "back" };
+  if (def.layer === "sky") (b.group.userData.sky ??= []).push(c); // main.js lifts them in low angles (skyLift)
   if (opts.backdrop) b.place(c.root, inst.at, opts);
   else b.piece(() => b.place(c.root, inst.at, opts));
   b.anim((t, n) => updateCard(c, { t, boil: Math.floor(n / BOIL_FRAMES), state: inst.state }));

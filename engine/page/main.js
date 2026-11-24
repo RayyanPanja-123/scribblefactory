@@ -649,6 +649,7 @@ function drawShot(shot, n) {
     drop(shot.start_frame + uu * (shot.end_frame - shot.start_frame - 1)));
   const placeAt2 = (a, uu) => seated.get(a.cast_id) || heldPlace(a, shot.actors, placeAt, uu) || placeAt(a, uu);
   const clamp = fastClamp(shot, (s) => { shot = s; }, camAt, () => shot.actors.filter((a) => !seated.has(a.cast_id)).map((a) => placeAt2(a, 1)));
+  const sky = group.userData.sky?.length || shot.items?.some((it) => it.layer === "sky") ? skyLift(camAt) : null;
   const hidden = shot.travel ? travelHidden : hiddenFor(shot, subject, span, group);
   for (const [id, pc] of group.userData.pieces) for (const m of pc.meshes) m.visible = !hidden.has(id);
   const extraShift = extrasFor(shot, camAt, placeAt2);
@@ -656,6 +657,7 @@ function drawShot(shot, n) {
   // the frame's camera: framing, fov punch, then drift and shake (the probes above use the framing alone)
   shotCamera(shot, subject ? focusX(place) : 0, span, u, drop(kf), fovPunch(shot, (kf - shot.start_frame) / FPS));
   const shake = cameraLife(shot, n);
+  if (sky) for (const c of group.userData.sky || []) c.root.position.y += sky(c.root.position.z); // anims set y afresh
   const lives = [];
   const gestures = [], riders = new Map(); // riders: cast id -> drawStickman options, drawn inside the car card
   const ridden = new Map(); // @ride: mount cast id -> its rider's drawStickman options, drawn on the mount's card
@@ -702,7 +704,7 @@ function drawShot(shot, n) {
   drawAnimals(shot, animals, n, kf, u);
   const extras = drawExtras(shot, n, kf, u, extraShift);
   const cars = drawVehicles(shot, vehicles, riders, n, u);
-  const items = drawItems(shot, n, u, shift);
+  const items = drawItems(shot, n, u, shift, sky);
   drawForeground(shot, fg);
   const layers = layersAt(shot, fadeByShot.get(shot.id), n);
   drawFog(layers, t, shift);
@@ -1136,9 +1138,22 @@ function drawVehicles(shot, vehicles, riders, n, u) {
   return info.length ? { cars: info.join("; ") } : {};
 }
 
+/** sky lock: a camera looking up (a low angle) brings sky items down toward the middle of the frame. Returns
+ *  z -> how far to raise a sky item at depth z so it keeps the height it shows a level camera (times
+ *  STYLE.items.skyLock), or null (off, or the camera looks level / down). From the shot's opening framing
+ *  (camAt(0)): a pure function of the shot, so every frame and chunk agrees, and camera moves still move the sky. */
+function skyLift(camAt) {
+  const k = STYLE.items?.skyLock || 0;
+  if (!k) return null;
+  camAt(0);
+  camera.updateMatrixWorld();
+  const d = camera.getWorldDirection(new THREE.Vector3()), tan = d.y / Math.hypot(d.x, d.z), z0 = camera.position.z;
+  return tan > 0 ? (z) => k * tan * Math.max(0, z0 - z) : null;
+}
+
 /** @item World Items (shot.items): each card at its path's place for shot fraction u (a travel shot's scroll moves it
  *  by its depth's parallax), turned to the camera, then animated (items.js updateCard) */
-function drawItems(shot, n, u, shift) {
+function drawItems(shot, n, u, shift, sky = null) {
   const info = [];
   for (const it of shot.items || []) {
     const key = `${it.id}:${it.object}:${it.layer}`;
@@ -1148,6 +1163,7 @@ function drawItems(shot, n, u, shift) {
     c.root.position.set(x, it.y, z);
     c.root.rotation.set(0, Math.atan2(camera.position.x - x, camera.position.z - z), 0);
     const st = updateCard(c, { t: n / FPS, boil: Math.floor(n / BOIL_FRAMES), ...stateAt(it, n), facing: it.facing });
+    if (sky && it.layer === "sky") c.root.position.y += sky(z);
     // picked up: gone from the swap on; dropped: there from the swap on
     const by = shot.actors.find((a) => a.item === it.id && (a.action === "pickup" || a.action === "drop"));
     c.root.visible = !by || (by.action === "pickup" ? actU(by, u) < GIVE.swap : actU(by, u) >= GIVE.swap);
