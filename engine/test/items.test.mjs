@@ -125,3 +125,16 @@ test("approach: a mid-walk frame and the sit landing are the same alone and in a
   assert.ok(!png(d("chunk"), 149).equals(png(d("chunk"), 151)), "she walks");
   assert.ok(!png(d("chunk"), 205).equals(png(d("chunk"), 209)), "she eases down onto the bench");
 });
+
+// the same walk passes behind Amy (x 0, ~frame 139) and Bob (x -1, ~frame 164): a z dip, a pure function of x
+test("approach: passing behind an actor is the same alone and in a chunk", async () => {
+  const work = fs.mkdtempSync(path.join(os.tmpdir(), "scribble-pass-"));
+  temps.push(work);
+  fs.cpSync(FIXA, work, { recursive: true });
+  const p = path.join(work, "demo", "part-01"), d = (n) => path.join(p, n);
+  const R = await renderNamed({ a: ["--part", p, "--frames", "162-166", "--out-dir", d("chunk")] });
+  assert.ok(R.a.ok, R.a.error);
+  const alone = await render("--part", p, "--frames", "164-164", "--out-dir", d("alone"));
+  assert.equal(alone.status, 0, alone.stderr);
+  assert.ok(png(d("chunk"), 164).equals(png(d("alone"), 164)), "frame 164: chunk vs alone");
+});

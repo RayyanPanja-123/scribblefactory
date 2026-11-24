@@ -7,7 +7,7 @@ import { CRW, RIDE, creature, creatureAnchors, drawCreature, measure as creature
 import { lookup, setLibrary } from "./library.js";
 import { DH, DOG_FEET, DW, barkAmount, drawDog, gallopPhase } from "./dog.js";
 import { cameraProgress, isReactionClose, fovPunch, noise1, shakeTriggers, trauma, gestureAmount, idleLife, lookTarget, gesturePlan, mouthCurve, mouthCycles, pointAmount, stressBob, waveAmount } from "./motion.js";
-import { BUILTIN_ACTIONS, CARRIED_LIFT, GIVE, HELD_Z, HOLD_GAP, ITEM_REACH, LIE, REST, SIT, SIT_LAND, STAND_UP, actU, poseMix, collapseAt, customPose, eatAt, gaitPhase, giveAt, handOf, heldPlace, itemSide,
+import { BUILTIN_ACTIONS, CARRIED_LIFT, GIVE, HELD_Z, HOLD_GAP, ITEM_REACH, LIE, REST, SIT, SIT_LAND, STAND_UP, actU, passBehind, poseMix, collapseAt, customPose, eatAt, gaitPhase, giveAt, handOf, heldPlace, itemSide,
   propsByShot, sideToward, staggerAt, withProp, zzzAt } from "./actions.js";
 import { CAR_CARD_W, CAR_GROUND, DRIVER_X, RIDER_X, VH, VW, carEase, carSpeedShare, drawCar, seatOffset } from "./car.js";
 import { HEAD_GROW, MOOD_EXPRESSION, extraLook, fitCrowd, moodAt, placeExtras } from "./extras.js";
@@ -507,7 +507,8 @@ window.setup = (d) => {
 
 const placeAt = (a, u) => {
   const e = a.end_pos || a.start_pos, k = a.approach ? Math.min(1, u / a.approach) : u; // an approach walk ends early
-  return [lerp(a.start_pos[0], e[0], k), lerp(a.start_pos[1], e[1], k)];
+  const x = lerp(a.start_pos[0], e[0], k), z = lerp(a.start_pos[1], e[1], k);
+  return [x, a.behind?.length ? z + passBehind(a.behind, x) : z]; // passing behind actors in its way
 };
 
 /** screen rect [x0, y0, x1, y1] (NDC) of world points */

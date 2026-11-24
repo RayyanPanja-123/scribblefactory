@@ -24,6 +24,15 @@
           "description": "an item action after a walk to the item: the share of the shot the walk (start_pos to end_pos) takes; the action plays after",
           "title": "Approach"
         },
+        "behind": {
+          "default": [],
+          "description": "an approach walk passes behind the actors standing at these x (a dip in z around each; engine actions.js passBehind)",
+          "items": {
+            "type": "number"
+          },
+          "title": "Behind",
+          "type": "array"
+        },
         "cast_id": {
           "title": "Cast Id",
           "type": "string"

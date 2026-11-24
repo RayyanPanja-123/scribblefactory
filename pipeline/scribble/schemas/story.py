@@ -72,9 +72,12 @@ class Actor(Strict):
                                                                          "the share of the shot the walk (start_pos "
                                                                          "to end_pos) takes; the action plays after")
 
+    behind: list[float] = Field(default=[], description="an approach walk passes behind the actors standing at these x "
+                                                         "(a dip in z around each; engine actions.js passBehind)")
+
     @model_serializer(mode="wrap")
     def _omit_item(self, handler):
-        return omit_defaults(handler(self), type(self), ("item", "approach"))
+        return omit_defaults(handler(self), type(self), ("item", "approach", "behind"))
 
 
 class Travel(Strict):

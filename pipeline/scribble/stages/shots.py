@@ -1163,11 +1163,14 @@ class ItemStage:
                     to = round(ax + way * speed * room, 3)
                     self.notes.append((line, f"@do {ac.cast_id}: {ac.action} {g}: {g} is too far to walk to in this "
                                              f"line ({abs(ix - ax):.1f} units): place the item closer or add a line"))
-            self.walks[key] = (ax, to, L0, L0 + max(1, round(abs(to - ax) / speed * FPS)))
+            lo, hi = sorted((ax, to))  # actors standing in the way: the walk passes behind them
+            behind = sorted(o for o in others if lo < o < hi)
+            self.walks[key] = (ax, to, L0, L0 + max(1, round(abs(to - ax) / speed * FPS)), behind)
         walk = self.walks[key]
         if walk is None:
             return
-        ax, to, f0, fa = walk
+        ax, to, f0, fa, behind = walk
+        ac.behind = behind
         ac.facing = "right" if to > ax else "left"  # walking to it, then facing it
         at = lambda f: round(ax + (to - ax) * min(1.0, (f - f0) / (fa - f0)), 3)  # noqa: E731
         if s1 <= fa:  # only walking in this shot

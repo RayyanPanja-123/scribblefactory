@@ -31,6 +31,10 @@ export const ITEM_REACH = { pickup: "pickup", drop: "pickup", open: "handle", cl
   enter: "handle", exit: "handle" };
 // sit / stand: sitting down after an approach walk takes SIT_LAND of the rest of the shot, getting up STAND_UP of it
 export const SIT_LAND = 0.3, STAND_UP = 0.4;
+// an approach walk passes behind actors in its way: z dips by PASS.z around each (blocker x), smoothly to 0 at PASS.w
+export const PASS = { z: -0.5, w: 0.75 };
+/** z offset at world x of a walk passing behind actors at xs (actor.behind): a pure function of x */
+export const passBehind = (xs, x) => PASS.z * Math.max(0, ...xs.map((b) => { const d = Math.abs(x - b) / PASS.w; return d < 1 ? (1 - d * d) ** 2 : 0; }));
 /** shot share u as an item action's own timeline: after an approach walk (actor.approach) it starts on arrival */
 export const actU = (a, u) => (a.approach ? Math.max(0, (u - a.approach) / (1 - a.approach)) : u);
 // sit: side on, thighs level, shins hanging (customPose shape; the planner turns the sitter side on). The hips go on

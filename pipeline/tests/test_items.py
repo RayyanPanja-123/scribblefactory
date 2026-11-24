@@ -389,3 +389,21 @@ def test_package_carries_world_items(tmp_path):
     r = parse(text, tmp_path)
     assert [o.id for o in r["assets"]["OBJECTS"]] == ["saucer-2"] and r["renames"]["OBJECTS"] == {"saucer": "saucer-2"}
     assert "@item ship: saucer-2 back" in r["parts"][0]["story"]
+
+
+def test_approach_passes_behind_actors_in_the_way():
+    story = shots.plan(APPROACH_MD, phrases_for(APPROACH_MD), SERIES, 1, objects=fx.OBJECTS)
+    walk = [actor(s, "karen") for s in story.shots if actor(s, "karen").action == "walk" or actor(s, "karen").approach]
+    others = sorted(actor(story.shots[0], c).start_pos[0] for c in ("bob", "amy"))
+    assert walk and all(a.behind == others for a in walk)  # both stand between karen and the bench
+    later = [actor(s, "karen") for s in story.shots if actor(s, "karen").action == "sit" and not actor(s, "karen").approach]
+    assert later and all(a.behind == [] for a in later)
+
+
+def test_approach_with_nobody_in_the_way_has_no_dip():
+    md = ("# N\n\n@set street\n@cast bob\n@item b: bench mid right\nBob saw a bench across the way.\n"
+          "@do bob: sit b\nBob walked over and sat down on it with a long tired sigh of relief.\n")
+    story = shots.plan(md, phrases_for(md), SERIES, 1, objects=fx.OBJECTS)
+    walks = [actor(s) for s in story.shots if actor(s).action == "walk" or actor(s).approach]
+    assert walks and all(a.behind == [] for a in walks)
+    assert '"behind"' not in json.dumps(story.model_dump(mode="json"))  # left out: the plan is as before
