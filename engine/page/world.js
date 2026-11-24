@@ -714,7 +714,7 @@ function foam(b, p, mesh) {
   mesh.add(m);
 }
 
-function custom(b, spec) {
+function custom(b, spec, wide = false) {
   const water = isWater(spec);
   b.group.userData.water = water;
   if (spec.kind === "indoor") {
@@ -735,7 +735,8 @@ function custom(b, spec) {
   }
   // World Objects are reusable, named scene instances. They are deliberately separate from held props: their
   // geometry is authored in object-local coordinates and translated to the instance placement in the set.
-  for (const instance of spec.objects || []) {
+  for (const spot of spec.objects || []) {
+    const instance = wide && spot.at_wide ? { ...spot, at: spot.at_wide } : spot; // a 16:9 frame: its wide spot
     const object = lookup("objects", instance.object);
     if (object.look === "card") { setCard(b, object, instance); continue; }
     const recolour = instance.color && object.pieces?.[0]?.color; // a colour variant: the item's main colour, here
@@ -765,11 +766,11 @@ function setCard(b, def, inst) {
   b.anim((t, n) => updateCard(c, { t, boil: Math.floor(n / BOIL_FRAMES), state: inst.state }));
 }
 
-/** build one set (one of its prop variants) into a new group: built in, else the library's (unknown: throws) */
-export function buildSet(name, seed, variant = 0) {
+/** build one set (one of its prop variants) into a new group; wide: a 16:9 frame (placed items take their at_wide): built in, else the library's (unknown: throws) */
+export function buildSet(name, seed, variant = 0, wide = false) {
   if (!SETS.includes(name)) {
     const spec = lookup("sets", name), group = new THREE.Group();
-    custom(new Builder(group, `${seed}:${name}`), spec);
+    custom(new Builder(group, `${seed}:${name}`), spec, wide);
     return finish(group, spec.back, spec.kind === "outdoor" ? [18, 80] : null);
   }
   const group = new THREE.Group();

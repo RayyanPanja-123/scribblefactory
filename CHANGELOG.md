@@ -1,6 +1,14 @@
 # Changelog
 
 ## Unreleased
+- Story: several `@do` lines before one narration line all apply (each to different characters or items; the same
+  one twice is an error, "two @do for bob on one line"), instead of the last one replacing the others. A walk word
+  that starts a walk or a travel shot gets a check-story warning (`@do <cast>: idle` stops it); nobody seated or
+  inside an item walks from a word. A walk over several shots of one sentence keeps its direction (it used to turn
+  back on each new shot). Item flights are capped at 4 units/s (`@do ship: fly left slow | fast`: 2 / 8): a short
+  line crosses the middle of the view. Re-planning a part with such walks changes its plan once.
+- Sets: a placed World Item can have its own spot in 16:9 frames (`at_wide`; set editor: "Own spot in 16:9"),
+  so a wide view isn't bunched in the middle. alien-plains has them.
 - World Items (Phase C): drawings `sun` and `plant`; an item's drawing options (`params`: main / accent colours,
   planet rings 0..3, plant stalks 1..6) on the World Items page; drawn items are flat like the cast (no shine or
   shading patches; the crystal's glow is two flat blobs). A built item placed in a set can take a colour (its main

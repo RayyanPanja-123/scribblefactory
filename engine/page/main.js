@@ -459,8 +459,8 @@ function drawForeground(shot, fg) {
 
 /** the shot's set group (its prop variant is fixed for the whole run of shots on that set) in a fresh scene */
 function useSet(shot) {
-  const v = variantByShot.get(shot.id) ?? 0, key = `${shot.set}:${v}`;
-  if (!sets[key]) sets[key] = buildSet(shot.set, data.story.seed, v);
+  const v = variantByShot.get(shot.id) ?? 0, wide = W > H, key = `${shot.set}:${v}${wide ? ":wide" : ""}`;
+  if (!sets[key]) sets[key] = buildSet(shot.set, data.story.seed, v, wide); // a 16:9 frame: placed items' wide spots
   scene = new THREE.Scene();
   scene.add(sets[key]);
   scene.background = sets[key].userData.background;

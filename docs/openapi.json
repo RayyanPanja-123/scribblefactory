@@ -4886,6 +4886,31 @@
             "title": "At",
             "type": "array"
           },
+          "at_wide": {
+            "anyOf": [
+              {
+                "maxItems": 3,
+                "minItems": 3,
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "where it stands in a 16:9 frame (a wider view: spread it out); none: at",
+            "title": "At Wide"
+          },
           "color": {
             "anyOf": [
               {

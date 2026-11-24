@@ -2970,6 +2970,15 @@ export interface components {
                 number
             ];
             /**
+             * At Wide
+             * @description where it stands in a 16:9 frame (a wider view: spread it out); none: at
+             */
+            at_wide?: [
+                number,
+                number,
+                number
+            ] | null;
+            /**
              * Color
              * @description card: $main (none: the drawing's own)
              */

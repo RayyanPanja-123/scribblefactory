@@ -138,6 +138,8 @@ const num = 'inset mt-1 block h-10 w-full rounded-md px-3 text-sm text-ink outli
               <select v-model="o.object" :class="field"><option v-for="x in objectData?.objects ?? []" :key="x.id" :value="x.id">{{ x.name }}</option></select>
             </label>
             <div class="grid grid-cols-3 gap-2"><label v-for="axis in ['x', 'y', 'z']" :key="axis" class="text-xs font-semibold text-muted">{{ axis }}<input v-model.number="o.at[['x','y','z'].indexOf(axis)]" type="number" step="any" :class="num" /></label></div>
+            <div v-if="o.at_wide" class="grid grid-cols-[auto_1fr_1fr_1fr_auto] items-end gap-2 sm:col-span-3"><span class="pb-2 text-xs font-semibold text-muted">16:9</span><label v-for="axis in ['x', 'y', 'z']" :key="`w${axis}`" class="text-xs font-semibold text-muted">{{ axis }}<input v-model.number="o.at_wide[['x','y','z'].indexOf(axis)]" type="number" step="any" :class="num" /></label><button type="button" class="btn btn-secondary" aria-label="Use the same spot in 16:9" @click="o.at_wide = null"><Trash2 :size="16" /></button></div>
+            <button v-else type="button" class="btn btn-secondary text-xs sm:col-span-3" @click="o.at_wide = [...o.at]"><Plus :size="15" /> Own spot in 16:9 (a wider view: spread it out)</button>
             <button type="button" class="btn btn-secondary self-end text-red-ink" @click="form.objects.splice(i, 1)"><Trash2 :size="16" /> Remove</button>
           </div>
           <select v-if="objectData?.objects.length" class="btn btn-secondary" @change="($event.target as HTMLSelectElement).value && addObject(($event.target as HTMLSelectElement).value); ($event.target as HTMLSelectElement).value = ''">

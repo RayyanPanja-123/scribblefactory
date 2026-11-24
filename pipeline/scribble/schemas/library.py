@@ -272,10 +272,12 @@ class WorldObjectInstance(Strict):
     state: Slug | None = Field(default=None, description="card: its state here (none: its first)")
     color: HexColor | None = Field(default=None, description="card: $main (none: the drawing's own)")
     accent: HexColor | None = Field(default=None, description="card: $accent (none: the drawing's own)")
+    at_wide: Point3 | None = Field(default=None, description="where it stands in a 16:9 frame (a wider view: spread "
+                                                             "it out); none: at")
 
     @model_serializer(mode="wrap")
     def _omit_item_defaults(self, handler):
-        return omit_defaults(handler(self), type(self), ("state", "color", "accent"))
+        return omit_defaults(handler(self), type(self), ("state", "color", "accent", "at_wide"))
 
 
 class CustomSet(Strict):
