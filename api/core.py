@@ -8,7 +8,7 @@ from pathlib import Path
 from fastapi import HTTPException
 
 from pipeline.scribble import cli
-from pipeline.scribble.io import load_part, load_series, part_dir_of, part_folders_of, series_dirs, series_exists, storage_root
+from pipeline.scribble.io import load_part, load_series, save_part, part_dir_of, part_folders_of, series_dirs, series_exists, storage_root
 from pipeline.scribble.schemas import Stages
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -105,3 +105,8 @@ def write_story(pdir: Path, text: str) -> None:
     tmp = pdir / ".story.md.upload.tmp"
     tmp.write_text(text, encoding="utf-8", newline="\n")
     os.replace(tmp, pdir / "story.md")
+    # Run next plans from statuses, so a "done" prep would hide the edit: mark it pending and the chain after it
+    # (shots, render, audio...) re-plans; stages whose inputs end up unchanged still skip
+    model = load_part(pdir / "part.json")
+    model.stages.prep.status = "pending"
+    save_part(pdir / "part.json", model)

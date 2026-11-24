@@ -252,9 +252,14 @@ def test_upload_md(client, lib):
 
 def test_story_md(client, lib):
     story = "# T\n\n@set room\nHello.\n"
+    pj = part_dir_of(lib / "database" / "storage" / "demo", "part-01") / "part.json"
+    p = load_part(pj)
+    p.stages.prep.status = "done"
+    save_part(pj, p)
     r = client.put(f"{P}/story.md", json={"text": story})
     assert r.status_code == 200 and r.json()["story_md"] == story
-    assert (part_dir_of(lib / "database" / "storage" / "demo", "part-01") / "story.md").read_bytes() == story.encode()
+    assert (pj.parent / "story.md").read_bytes() == story.encode()
+    assert load_part(pj).stages.prep.status == "pending"  # Run next redoes prep onward
     assert client.put("/api/series/demo/parts/part-99/story.md", json={"text": "x"}).status_code == 404
 
 
@@ -347,6 +352,7 @@ def test_voice_upload(client, lib):
     assert client.put(f"{P}/voice.mp3", content=b"ID3second").status_code == 409 and f.read_bytes() == b"ID3first"
     assert client.put(f"{P}/voice.mp3?replace=true", content=b"\xff\xfbsecond").status_code == 200
     assert f.read_bytes() == b"\xff\xfbsecond"
+    assert load_part(f.parent / "part.json").stages.import_check.status == "pending"  # Run next redoes the voice
 
 
 def test_clean_frames_gate(client, lib):

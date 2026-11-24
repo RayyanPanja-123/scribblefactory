@@ -30,7 +30,7 @@ from api.jobs import JOBS, busy, check_free, check_no_jobs, load_jobs
 from api.models import Health, Notification, Overview, PartDetail, SeriesCard, SeriesDetail, StoredFile
 from api.settings_routes import drop_ai_settings
 from pipeline.scribble import cli, db, gallery, package, settings, storycheck
-from pipeline.scribble.io import (atomic_write_json, part_dir_of, sync_files, storage_root, write_series, atomic_write_text, load_part, load_series, prop_kinds,
+from pipeline.scribble.io import (atomic_write_json, part_dir_of, sync_files, storage_root, write_series, atomic_write_text, load_part, load_series, prop_kinds, save_part,
                                   save_series, unknown_cast_props, cast_body_problems, cast_files,
                                   cast_render_current)
 from pipeline.scribble.schemas import CastMember, PartModel, SeriesModel, Slug, Stages, utcnow
@@ -669,6 +669,11 @@ async def put_voice(slug: str, part: str, request: Request, replace: bool = Fals
     tmp = pdir / ".voice.mp3.upload.tmp"
     tmp.write_bytes(data)
     os.replace(tmp, pdir / "voice.mp3")
+    # a new voice: Run next must redo import_check onward (it plans from statuses; Re-render alone keeps the old
+    # voice-tight.wav, so the old audio). Its later steps re-plan themselves once one step runs.
+    model = load_part(pdir / "part.json")
+    model.stages.import_check.status = "pending"
+    save_part(pdir / "part.json", model)
     publish("part-changed", {"slug": slug, "part": part})
     return part_detail(slug, part)
 
