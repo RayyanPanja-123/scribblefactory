@@ -80,6 +80,19 @@
           "default": null,
           "description": "when a story should use it (shown to the story AI; never changes the drawing)",
           "title": "Use For"
+        },
+        "water": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "outdoor: the floor is a sea or lake (waves, foam, ripples, reflections); none: when the floor colour reads blue",
+          "title": "Water"
         }
       },
       "required": [
@@ -194,8 +207,22 @@
     },
     "WorldObjectInstance": {
       "additionalProperties": false,
-      "description": "A named placement of a WorldObject in a set; its id is the story target.",
+      "description": "A named placement of a WorldObject in a set; its id is the story target. A card stands on `at` (its base);\na sky / back card's base is its middle.",
       "properties": {
+        "accent": {
+          "anyOf": [
+            {
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "card: $accent (none: the drawing's own)",
+          "title": "Accent"
+        },
         "at": {
           "maxItems": 3,
           "minItems": 3,
@@ -213,6 +240,20 @@
           "title": "At",
           "type": "array"
         },
+        "color": {
+          "anyOf": [
+            {
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "card: $main (none: the drawing's own)",
+          "title": "Color"
+        },
         "id": {
           "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
           "title": "Id",
@@ -222,6 +263,20 @@
           "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
           "title": "Object",
           "type": "string"
+        },
+        "state": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "card: its state here (none: its first)",
+          "title": "State"
         },
         "visible": {
           "default": true,

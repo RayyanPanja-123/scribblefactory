@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import Field, model_serializer, model_validator
 
 from .base import Slug, Strict
-from .library import Weather
+from .library import ItemLayer, Weather, omit_defaults
 from .series import Expression, FRAME_SIZE, Headwear, Legwear, Prop, PropKind, Top
 
 
@@ -95,6 +95,19 @@ class Vehicle(Strict):
     variant: Literal["red", "green", "navy", "yellow"]
 
 
+class ShotItem(Strict):
+    """@item: a World Item (library/objects.json card) on stage for this shot, flying a path when start and end
+    differ (@do <tag>: fly left | right)"""
+    id: Slug = Field(description="the @item tag")
+    object: Slug = Field(description="the World Item it draws")
+    layer: ItemLayer
+    start_pos: Pos
+    end_pos: Pos | None = None
+    y: float = Field(description="height of its base (a sky / back card: its middle) in world units")
+    facing: Literal["left", "right"] = "right"
+    state: Slug | None = Field(default=None, description="none: the item's first state")
+
+
 class Extra(Strict):
     """non-cast stickman: a seeded runner or a crowd member with optional team costume/prop."""
     id: str = Field(pattern=r"^[a-z0-9_-]+$")
@@ -126,6 +139,12 @@ class Shot(Strict):
     twist: bool = False
     travel: Travel | None = Field(default=None, description="travel shot: the world scrolls past the actors")
     weather: Weather | None = Field(default=None, description="@weather (or the set's default_weather); none: clear")
+    items: list[ShotItem] = Field(default=[], description="@item World Items on stage (left out of story.json when "
+                                                          "there are none, so older plans keep their bytes)")
+
+    @model_serializer(mode="wrap")
+    def _omit_items(self, handler):
+        return omit_defaults(handler(self), type(self), ("items",))
 
 
 class Cue(Strict):

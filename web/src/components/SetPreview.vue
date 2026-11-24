@@ -4,23 +4,24 @@
 import { onMounted, ref, watch } from 'vue'
 // @ts-expect-error plain JS module from the engine, no types
 import { previewSet } from '../../../engine/page/setPreview.js'
+import type { WorldObject } from '../lib/objects'
 import type { CustomSet } from '../lib/sets'
 
-const p = withDefaults(defineProps<{ id: string; custom: CustomSet[]; label: string; weather?: CustomSet['default_weather']; w?: number; h?: number }>(), { w: 270, h: 480 })
+const p = withDefaults(defineProps<{ id: string; custom: CustomSet[]; objects?: WorldObject[]; label: string; weather?: CustomSet['default_weather']; w?: number; h?: number }>(), { objects: () => [], w: 270, h: 480 })
 const cv = ref<HTMLCanvasElement>()
 const error = ref('')
 
 function draw() {
   if (!cv.value) return
   try {
-    previewSet(cv.value, p.id, p.custom, p.weather ?? null)
+    previewSet(cv.value, p.id, p.custom, p.weather ?? null, p.objects)
     error.value = ''
   } catch (e) {
     error.value = (e as Error).message
   }
 }
 onMounted(draw)
-watch(() => [p.id, p.custom, p.weather], draw, { deep: true })
+watch(() => [p.id, p.custom, p.weather, p.objects], draw, { deep: true })
 </script>
 
 <template>

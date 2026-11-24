@@ -21,6 +21,7 @@ const { data, error, loading, reload, refresh } = useApi(() => api.sets())
 refetchOn(() => null, () => null, refresh)
 
 const custom = computed(() => data.value?.custom ?? [])
+const { data: objectData } = useApi(() => api.objects()) // World Items the custom sets place
 // previews are slow to draw, so each card draws its set only when asked
 const shown = reactive(new Set<string>())
 const big = ref<{ id: string; name: string } | null>(null) // set open in the large view
@@ -68,7 +69,7 @@ async function remove(s: { id: string; name: string }) {
         readonly="built in: read only" :json="custom.find((c) => c.id === s.id)" @delete="remove(s)">
         <template #preview>
           <button v-if="shown.has(s.id)" type="button" class="block h-full w-full" :aria-label="`Large view of ${s.name}`" title="Large view" @click="big = s">
-            <SetPreview :id="s.id" :custom="custom" :label="`The ${s.name} set, wide shot`" class="h-full w-full" />
+            <SetPreview :id="s.id" :custom="custom" :objects="objectData?.objects ?? []" :label="`The ${s.name} set, wide shot`" class="h-full w-full" />
           </button>
           <button v-else type="button" class="flex h-full w-full flex-col items-center justify-center gap-1 rounded-md bg-well text-xs text-muted hover:text-ink" :aria-label="`Preview ${s.name}`" @click="shown.add(s.id)">
             <Eye :size="16" aria-hidden="true" /> Preview
@@ -85,7 +86,7 @@ async function remove(s: { id: string; name: string }) {
           <code class="text-xs text-muted">@set {{ big.id }}</code>
           <button type="button" class="round-btn ml-auto" aria-label="Close" autofocus @click="big = null"><X :size="18" /></button>
         </div>
-        <SetPreview :id="big.id" :custom="custom" :label="`The ${big.name} set, wide shot`" :w="540" :h="960" class="aspect-[9/16] h-[calc(100vh-7rem)] max-w-full" />
+        <SetPreview :id="big.id" :custom="custom" :objects="objectData?.objects ?? []" :label="`The ${big.name} set, wide shot`" :w="540" :h="960" class="aspect-[9/16] h-[calc(100vh-7rem)] max-w-full" />
       </section>
     </div>
   </Teleport>

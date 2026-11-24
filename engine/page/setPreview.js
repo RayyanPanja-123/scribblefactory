@@ -25,9 +25,9 @@ function dispose(o) {
 }
 
 let fx = null; // full-size weather overlay, drawn at render scale then shrunk, so strokes look as they will render
-/** draw set `name` (built-in, or one of `custom`) into a 2D canvas, under `weather` ({ kind, intensity }) if given;
- *  throws the builder's error (stage clearance) */
-export function previewSet(out, name, custom, weather = null) {
+/** draw set `name` (built-in, or one of `custom`, placing World Items from `objects`) into a 2D canvas, under
+ *  `weather` ({ kind, intensity }) if given; throws the builder's error (stage clearance) */
+export function previewSet(out, name, custom, weather = null, objects = []) {
   const { width: w, height: h } = out;
   gl ??= new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
   gl.setSize(w, h, false);
@@ -36,8 +36,9 @@ export function previewSet(out, name, custom, weather = null) {
   camera.lookAt(0, 1.35, 0);
   const scene = new THREE.Scene();
   try {
-    setLibrary({ sets: custom || [] });
+    setLibrary({ sets: custom || [], objects: objects || [] });
     const set = buildSet(name, "preview");
+    for (const f of set.userData.anims) f(0, 0); // frame 0: clouds, smoke, card items drawn
     setInk(0, set.userData.background, setKind(name) === "outdoor");
     scene.add(set, standIn(-0.9), standIn(0.9));
     if (fogAlpha(weather)) { // main.js FOG

@@ -189,9 +189,9 @@ class Worker:
             word, _, rest = line.strip().partition(" ")
             if word == "READY":
                 events.put(("ready", self, json.loads(rest)))
-            elif word == "DONE":
-                first, last = map(int, rest.split())
-                events.put(("done", self, first, last))
+            elif word == "DONE":  # "DONE A B", plus the World Item cache counters as JSON when there are card items
+                first, last, *extra = rest.split(maxsplit=2)
+                events.put(("done", self, int(first), int(last), json.loads(extra[0]) if extra else None))
         events.put(("exit", self, self.proc.wait()))
 
     def send(self, first: int, last: int) -> None:
@@ -423,7 +423,10 @@ def render_chunks(part_dir: Path, total: int, workers: int, swiftshader: bool, f
             done += 1
             rendered += b - a + 1
             idle.append(w)
-            print(f"chunk {done}/{len(ranges)} done (frames {a}-{b}, {(b - a + 1) / max(time.monotonic() - t0, 1e-3):.1f} fps)")
+            items = ev[4] if len(ev) > 4 else None
+            cache = (f", items cache {100 * items['hits'] / max(1, items['hits'] + items['misses']):.1f}% hits, "
+                     f"peak {items['peakMb']} MB") if items else ""
+            print(f"chunk {done}/{len(ranges)} done (frames {a}-{b}, {(b - a + 1) / max(time.monotonic() - t0, 1e-3):.1f} fps{cache})")
         for w in pool:
             w.close()
         for w in pool:

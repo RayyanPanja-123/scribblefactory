@@ -214,7 +214,7 @@ const rot = ([x, y], [cx, cy], a) => {
 const colour = (fill, col) => (fill == null ? null : fill === "$main" ? col.main : fill === "$accent" ? col.accent : fill);
 
 /** draw shapes through T (local point -> canvas point). Circles and ellipses are wobbly marker loops. */
-function drawShapes(p, shapes, T, col, boil, seed, light = 1) {
+export function drawShapes(p, shapes, T, col, boil, seed, light = 1) {
   shapes.forEach((s, i) => {
     const fill = colour(s.fill, col), w = s.width ?? 8;
     if (s.shape === "line") { p.stroke(jitter(s.pts.map(T), boil, 1.5), w, fill || INK); return; }

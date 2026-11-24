@@ -17,6 +17,8 @@ story.md directives (one per line) are stripped from the script:
   @cam close push_in fast  the camera for the next line's first shot (see parse_cam)
   @crowd cheer 10    crowd extras behind the stage: cheer | angry | gasp | neutral [N, default 8, max 12] | off
   @runners 4         background runner extras (0-6)
+  @item ship: saucer sky right  a World Item on stage until "@item ship: remove" or a set change (see parse_item);
+                     "@item ship: state landed" changes its state; "@do ship: fly left" flies it across the next line
   @sfx riser 0.6     a sound effect (library/sfx/sfx.json id, optional volume 0-1) for the next line (see sfx.py)
   @background-music <track> [volume]  a named music bed from assets/music/stickman-history-shorts; use off to stop
   !! text            this line is the twist (prefix stripped, text kept)
@@ -28,7 +30,8 @@ from typing import NamedTuple, get_args
 
 from ..io import (CREATURE_HINT, CREATURE_SLOTS, LIBRARY_FILES, atomic_write_text, custom_actions, library_of, load_series, series_exists,
                   prop_kinds)
-from ..schemas import BuiltinProp, CamAngle, CamMove, Expression, Intensity, Weather, WeatherKind, actions_with
+from ..schemas import (ITEM_KEYWORDS, BuiltinProp, CamAngle, CamMove, Expression, Intensity, ItemLayer, Weather, WeatherKind,
+                       actions_with)
 from .runner import StageError
 
 INPUTS = ["story.md", *(f"../../{f}" for f in LIBRARY_FILES)]
@@ -53,6 +56,9 @@ MARKER_RE = re.compile("^⟦([0-9]+|!|/)⟧$")
 # @do <cast>[, <cast>]: <action> [<target>|<prop>] [, <cast>: <action> ...]
 DO_ACTIONS = actions_with("do")  # built in; plus the library's custom actions (io.custom_actions)
 DO_CAR = "car"            # "@do car: broken": the car on stage breaks down
+ITEM_MOVES = ("fly", "drive")  # "@do <item tag>: fly left | right": the item crosses the next line (shots.py)
+ITEM_LAYERS = get_args(ItemLayer)
+ITEM_SPOTS = ("left", "center", "right", "far-left", "far-right")
 BUILTIN_PROPS = get_args(BuiltinProp)
 HOLDERS = {"carry": (2, 2), "support": (1, 2)}
 
@@ -86,6 +92,12 @@ def parse_do(arg: str, line: int, cast_ids=None, props=BUILTIN_PROPS, actions=()
         if not who or not words:
             bad('each clause needs a cast id and an action, e.g. "fred: collapse"')
         act, args = words[0], words[1:]
+        if act in ITEM_MOVES:  # a World Item's path; the tag is checked against the items on stage (shots, check-story)
+            if len(who) != 1 or args not in (["left"], ["right"]):
+                bad(f'an item move takes one item and a direction, e.g. "ship: {act} left"')
+            out.append(DoClause(who, act, target=args[0]))
+            who_txt = nxt
+            continue
         if DO_CAR in who:
             if who != (DO_CAR,) or act != "broken" or args:
                 bad(f'the car only takes "car: broken" (got "{", ".join(who)}: {body.strip()}")')
@@ -253,6 +265,69 @@ def parse_cam(arg: str, line: int) -> dict:
         out[key] = t if key in ("angle", "move") else True
         i += 1
     return out
+
+
+class ItemOp(NamedTuple):
+    """one @item line: op "place" (object, layer or None: the item's own, spot, state or None), "state" or "remove" """
+    tag: str
+    op: str
+    object: str | None = None
+    layer: str | None = None
+    spot: str = "center"
+    state: str | None = None
+
+
+def parse_item(arg: str, line: int, objects=None, cast_ids=()) -> ItemOp:
+    """@item <tag>: <object> [layer] [spot] [state] | state <state> | remove. objects: World Item id -> WorldObject
+    (io.world_object_kinds; None: check the syntax only); a placed object must be a card. The tag names the item in
+    later @item and @do lines; it may not be a cast id. Errors name the story.md line."""
+    def bad(msg):
+        raise StageError(f"story.md line {line}: @item: {msg}")
+    tag, sep, rest = arg.partition(":")
+    tag, words = tag.strip(), rest.split()
+    if not sep or not re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)*", tag) or not words:
+        bad('expected "@item <tag>: <item> [layer] [spot] [state]", "@item <tag>: state <state>" or '
+            '"@item <tag>: remove", e.g. "@item ship: saucer sky right"')
+    if tag in cast_ids or tag == DO_CAR:
+        bad(f"{tag!r} is a cast id or the car: give the item its own tag")
+    if words == ["remove"]:
+        return ItemOp(tag, "remove")
+    if words[0] == "state":
+        if len(words) != 2:
+            bad('state takes one state, e.g. "@item pod: state open"')
+        return ItemOp(tag, "state", state=words[1])
+    if words[0] in ITEM_KEYWORDS:
+        bad(f"{words[0]} takes no item before it")
+    obj, layer, spot, state = words[0], None, None, None
+    for w in words[1:]:
+        if w in ITEM_LAYERS and layer is None:
+            layer = w
+        elif w in ITEM_SPOTS and spot is None:
+            spot = w
+        elif w not in ITEM_LAYERS + ITEM_SPOTS and state is None:
+            state = w
+        else:
+            bad(f"unexpected {w!r} (layers: {', '.join(ITEM_LAYERS)}; spots: {', '.join(ITEM_SPOTS)}; one state)")
+    if objects is not None:
+        o = objects.get(obj)
+        if o is None:
+            bad(f"unknown World Item {obj!r} (items: {', '.join(objects) or 'none yet: add one on the World Items page'})")
+        if o.look != "card":
+            bad(f"{obj} is built from set pieces: place it in a set (only card items go on stage with @item)")
+        if state is not None and state not in o.states:
+            bad(f"{obj} has no state {state!r} (states: {', '.join(o.states) or 'none'})")
+    return ItemOp(tag, "place", obj, layer, spot or "center", state)
+
+
+def item_state_ok(op: ItemOp, line: int, objects, placed: dict) -> None:
+    """an "@item <tag>: state <s>" line: the tag is on stage and its item has that state. placed: tag -> object id"""
+    if op.tag not in placed:
+        raise StageError(f"story.md line {line}: @item: {op.tag} is not on stage (place it first: "
+                         f"@item {op.tag}: <item>)")
+    o = objects.get(placed[op.tag]) if objects is not None else None
+    if o is not None and op.state not in o.states:
+        raise StageError(f"story.md line {line}: @item: {placed[op.tag]} has no state {op.state!r} "
+                         f"(states: {', '.join(o.states) or 'none'})")
 
 
 def parse_face(arg: str, line: int, cast_ids=None) -> dict[str, str]:

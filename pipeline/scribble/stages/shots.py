@@ -17,13 +17,13 @@ from ..io import (LIBRARY_FILES, atomic_write_json, library_of, load_part, load_
                   custom_moves,
                   outdoor_sets,
                   prop_kinds, set_kinds, set_weather, wardrobe_slots,
-                  unknown_cast_props)
+                  unknown_cast_props, world_object_kinds)
 from ..schemas import (FRAME_SIZE, BUILTIN_CREATURES, BUILTIN_SETS, BUILTIN_WARDROBE, HAND_RIGS, Prop, Top, Headwear, Legwear,
                        actions_with, Actor, FaceChange, Animal, Camera, Cue, EndCard, Extra, PhrasesModel, SeriesModel,
-                       Shot, StoryModel, Strike, Travel, Vehicle)
+                       Shot, ShotItem, StoryModel, Strike, Travel, Vehicle)
 from ..validate import (CAR_SPEED, CROWD_Z, DOG_RUN_SPEED, MAX_SHOT_FRAMES, MOODS, OUTDOOR_SETS, SPEEDS,
                         custom_speeds, end_frame, validate)
-from .prep import (BUILTIN_PROPS, DO_CAR, parse_cam, FX_LIGHTNING, FX_MODES, MARKER_RE, clean_markdown, mark_directives, parse_do,
+from .prep import (BUILTIN_PROPS, DO_CAR, ITEM_MOVES, item_state_ok, parse_item, parse_cam, FX_LIGHTNING, FX_MODES, MARKER_RE, clean_markdown, mark_directives, parse_do,
                    parse_face, parse_hold, parse_lightning, parse_look, parse_ride, parse_weather, ride, RIDE_ACTIONS)
 from .. import background_music
 from .runner import StageError
@@ -91,6 +91,14 @@ RUNNER_GAP = 0.6           # min x between runners, and (travel) from the cast
 RUNNER_Z = {"travel": (-1.6, -0.8), "cross": (-2.6, -2.0)}  # crossers run behind the crowd's front row
 DOG_EDGE_X = 1.8           # non-travel: dogs stand at |x| >= this ...
 DOG_EDGE_GAP = 0.9         # ... and at least this far (x) outside every actor's start/end, so cards never overlap
+# World Items (@item <tag>: <item> [layer] [spot] [state]), reset on a set change: per layer, where a card stands
+# (z, base height y; a sky / back card's base is its middle), how far out the far-left / far-right spots are (x)
+# and how far out an "@do <tag>: fly" goes (off screen in a wide, either frame shape)
+ITEM_PLACE = {"sky": {"z": -60.0, "y": 18.0, "far": 8.0, "reach": 40.0},  # y: clear of far hills in a low angle
+              "back": {"z": -14.0, "y": 3.4, "far": 5.0, "reach": 22.0},
+              "mid": {"z": -3.0, "y": 0.0, "far": 4.0, "reach": 12.0},
+              "stage": {"z": -0.6, "y": 0.0, "far": 3.0, "reach": 9.0}}
+ITEM_SPOT = {"far-left": -1.0, "left": -0.5, "center": 0.0, "right": 0.5, "far-right": 1.0}
 
 # Lexicons match lowercase words with punctuation and a trailing 's stripped. First match in the phrase wins.
 ACTIONS = {
@@ -154,10 +162,11 @@ class Tag(NamedTuple):
     rides: dict = {}  # @ride: {rider cast id: mount cast id}, kept across @set changes until "@ride <rider>: none"
     shake: bool = False  # @fx shake: the first word of the line after it (camera shake, story.shakes)
     cam: "tuple | None" = None  # @cam: (story.md line, prep.parse_cam parts) for the words of the line after it
+    items: dict = {}  # @item: {tag: prep.ItemOp (op "place", state updated by "@item <tag>: state <s>")}, per set
 
 
 def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILTIN_PROPS, looks_of=None, actions=(),
-              weather_of=None, wardrobe=None, creatures=None, handless=None):
+              weather_of=None, wardrobe=None, creatures=None, handless=None, objects=None):
     """Return (words, [Tag]) from
     story.md, words as prep's script has them. do: (story.md line, @do clauses) for the words of the line after an
     @do, else None. crowd: (mood, N) or None. A set change resets crowd and runners. looks: {cast id: look name} set
@@ -165,12 +174,13 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
     or None (clear), from @weather until the next @weather or @set; @set starts weather_of[set] (custom sets'
     default_weather), else clear. strike: (story.md line, target) on the first word after an @fx lightning, else None.
     face: {cast id: expression} for the words of the line after an @face, else None. holds: @hold, kept like looks.
-    handless: cast id -> "a <rig>" for creatures without hands (they cannot @hold)."""
+    handless: cast id -> "a <rig>" for creatures without hands (they cannot @hold). items: @item, reset by a set
+    change; objects: World Item id -> WorldObject (io.world_object_kinds; None: not checked)."""
     text, directives = mark_directives(md)
     set_, cast, twist_next, dogs, car, do = DEFAULT_SET, tuple(default_cast), False, 0, "off", None
     bg_music = None
     crowd, crowd_wardrobe, runners, looks, strike, face = {}, {}, 0, {}, None, None
-    holds, rides, shake_next, cam = {}, {}, False, None
+    holds, rides, shake_next, cam, items = {}, {}, False, None, {}
     weather_of = weather_of or {}
     weather = weather_of.get(set_)
     looks_of = looks_of if looks_of is not None else {c: [] for c in cast_ids}
@@ -183,7 +193,7 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
                             crowd={k: dict(v) for k, v in crowd.items()},
                             crowd_wardrobe={k: dict(v) for k, v in crowd_wardrobe.items()}, runners=runners,
                             looks=dict(looks), holds={k: dict(v) for k, v in holds.items()}, weather=weather, strike=strike, face=face, bg_music=bg_music,
-                            rides=dict(rides), shake=shake_next, cam=cam))
+                            rides=dict(rides), shake=shake_next, cam=cam, items=dict(items)))
             twist_next, strike, shake_next = False, None, False
         elif m[1] == "!":
             twist_next = True
@@ -195,7 +205,7 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
             arg = arg.strip()
             if name == "set" and arg:
                 if arg != set_:
-                    crowd, crowd_wardrobe, runners = {}, {}, 0  # extras belong to a set
+                    crowd, crowd_wardrobe, runners, items = {}, {}, 0, {}  # extras and items belong to a set
                 set_, weather = arg, weather_of.get(arg)
             elif name == "weather":
                 weather = parse_weather(arg, line)
@@ -222,6 +232,20 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
                 strike = (line, parse_lightning(arg, line, cast_ids, props))
             elif name == "do":
                 do = (line, tuple(parse_do(arg, line, cast_ids, props, actions)))
+                for c in do[1]:
+                    if c.action in ITEM_MOVES and c.who[0] not in items:
+                        raise StageError(f"story.md line {line}: @do: {c.who[0]} is not an item on stage (place it "
+                                         f"first: @item {c.who[0]}: <item>)")
+            elif name == "item":
+                op = parse_item(arg, line, objects, cast_ids)
+                if op.op == "remove":
+                    if items.pop(op.tag, None) is None:
+                        raise StageError(f"story.md line {line}: @item: {op.tag} is not on stage")
+                elif op.op == "state":
+                    item_state_ok(op, line, objects, {k: v.object for k, v in items.items()})
+                    items[op.tag] = items[op.tag]._replace(state=op.state)
+                else:
+                    items[op.tag] = op
             elif name == "crowd":
                 group, spec = parse_crowd(arg, line)
                 if spec is None:
@@ -261,7 +285,7 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
                                  f"@weather <type> [intensity], "
                                  f"@do <cast>: <action>, @cam <angle> [move] [fast] [shake] [dutch <deg>], @look <cast>: <look>, @hold <cast>: <prop> [hand], @ride <cast>: <creature>, @face <cast>: <expression>, @sfx <id>, "
                                  f"@crowd <mood> [N] | <group> <mood> [N] | off, @crowd-look <group>: <wardrobe ids>, "
-                                 f"@crowd-weapon <group>: <prop>, or @runners 0-{MAX_RUNNERS})")
+                                 f"@crowd-weapon <group>: <prop>, @item <tag>: <item> | state <s> | remove, or @runners 0-{MAX_RUNNERS})")
     return words, tags
 
 
@@ -755,11 +779,11 @@ def _car_move(mode, park, actors, subject, seconds, seed) -> Vehicle:
 
 def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, props=BUILTIN_PROPS,
          outdoor=OUTDOOR_SETS, bodies=BUILTIN_CREATURES, actions=(), weather_of=None, wardrobe=None,
-         widths=None) -> StoryModel:
+         widths=None, objects=None) -> StoryModel:
     """bodies: creature id -> (rig, has a stump), io.creature_bodies (built-ins + library/creatures.json).
     actions: the library's custom actions (io.custom_actions), which @do may ask for. weather_of: custom set id ->
     its default_weather (io.set_weather). widths: creature id -> half width in world units (io.creature_halves; none:
-    every body spaces like a stickman)"""
+    every body spaces like a stickman). objects: World Item id -> WorldObject (io.world_object_kinds), for @item"""
     if not series.cast:
         raise StageError("series.json has no cast: add some with cast-add")
     ids = [c.id for c in series.cast]
@@ -768,7 +792,7 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
     by_id = {c.id: c for c in series.cast}
     halves = {c.id: max(HUMAN_HALF, (widths or {}).get(c.body, 0.0)) for c in series.cast}
     words, tags = tag_words(md, ids, ids[:DEFAULT_CAST_SIZE], props, {c.id: list(c.looks) for c in series.cast}, actions,
-                            weather_of, wardrobe, creature_wardrobe(series.cast, bodies), handless)
+                            weather_of, wardrobe, creature_wardrobe(series.cast, bodies), handless, objects)
     heard = [w.text for w in phrases.words]
     moods = line_moods(md, words)
     puncts = punct_faces(md, words, tags)
@@ -788,6 +812,11 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
     if starts[-1] >= total:
         raise StageError("phrases are too close together to give each one a frame")
     ends = starts[1:] + [total]
+    do_span: dict[int, list[int]] = {}  # @do story.md line -> [first frame, end frame] of the line it applies to
+    for i, p in enumerate(phrases.phrases):
+        if d := tags[p.word_start].do:
+            span = do_span.setdefault(d[0], [starts[i], ends[i]])
+            span[0], span[1] = min(span[0], starts[i]), max(span[1], ends[i])
     names = {}
     for c in series.cast:
         names.setdefault(token(c.name), c.id)
@@ -819,6 +848,8 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
     pos: dict[str, float] = {}  # where each actor stands now; reset on a set change
     prev_rides: dict[str, str] = {}  # @ride pairs on stage in the last shot's phrase
     fallen: set = set()  # (@do line, cast id) that already collapsed
+    item_at: dict = {}  # @item tag -> (x it stands at, facing, the place op that put it there); reset by a set change
+    item_paths: dict = {}  # (@do line, tag) -> (x from, x to): an item's path across that line
     for i, p in enumerate(phrases.phrases):
         t = tags[p.word_start]
         set_, cast, dogs, mode, do, crowd, crowd_wardrobe, runners, looks, holds, weather, face = (
@@ -827,7 +858,11 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
             scene_key, back_pos = (set_, cast), {}
         cast, back = rows[i]  # from here on, cast is the front row
         if set_ != prev_set:
-            pos, park = {}, None
+            pos, park, item_at = {}, None, {}
+        moves = [c for c in do[1] if c.action in ITEM_MOVES] if do else []
+        if moves:  # item paths are the items' own; the cast's @do is what is left of the line
+            rest = tuple(c for c in do[1] if c.action not in ITEM_MOVES)
+            do = (do[0], rest) if rest else None
         if mode != car_mode:
             car_mode, car_left = mode, False
             if mode == "arrive":
@@ -986,7 +1021,8 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
             shots.append(Shot(id=sid, start_frame=s0, end_frame=s1, set=set_,
                               phrase_range=(i, i), camera=Camera(angle=angle, move=move, speed=speed, roll_deg=roll, **cam_extra),
                               actors=actors, animals=animals, vehicles=vehicles, extras=extras, twist=is_twist,
-                              travel=Travel(speed=tspeed) if travel else None, weather=weather))
+                              travel=Travel(speed=tspeed) if travel else None, weather=weather,
+                              items=_items(t.items, objects, item_at, item_paths, moves, t.do, do_span, s0, s1)))
             prev_angle, prev_set = angle, set_
     lightning = [strike(shots, line, target, min(round(phrases.words[w].start * FPS), total - 1), series)
                  for w, (line, target) in ((w, t.strike) for w, t in enumerate(tags) if t.strike)]
@@ -1004,6 +1040,36 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
     width, height = FRAME_SIZE[series.style.aspect]
     return StoryModel(width=width, height=height, duration_frames=total, seed=seed, shots=shots, cues=cues, end_card=end_card, lightning=lightning,
                       shakes=shakes)
+
+
+def _items(items: dict, objects, at: dict, paths: dict, moves, do, span: dict, s0: int, s1: int) -> list[ShotItem]:
+    """the @item cards of one shot [s0, s1). at: tag -> (x, facing, place op), updated; paths: (line, tag) -> (x from,
+    x to), filled on a line's first shot. A fly / drive goes from where the item stands to off screen that way, or
+    from the far side when it already stands off screen that way; it spreads over the whole line, so the line's shots
+    join up."""
+    out = []
+    for tag, op in items.items():
+        o = (objects or {}).get(op.object)
+        layer = op.layer or (o.layer if o is not None else "mid")
+        P = ITEM_PLACE[layer]
+        if tag not in at or at[tag][2]._replace(state=None) != op._replace(state=None):  # newly placed or moved
+            at[tag] = (round(ITEM_SPOT[op.spot] * P["far"], 3), "right", op)
+        x, facing, _ = at[tag]
+        x0 = x1 = x
+        move = next((c for c in moves if c.who[0] == tag), None)
+        if move:
+            way = 1 if move.target == "right" else -1
+            if (do[0], tag) not in paths:
+                to = way * P["reach"]
+                paths[(do[0], tag)] = (x if (to - x) * way > P["reach"] / 2 else -to, to)
+                at[tag] = (to, "right" if way > 0 else "left", op)
+            a, b = paths[(do[0], tag)]
+            L0, L1 = span[do[0]]
+            x0, x1 = (round(a + (b - a) * (f - L0) / (L1 - L0), 3) for f in (s0, s1))
+            facing = "right" if way > 0 else "left"
+        out.append(ShotItem(id=tag, object=op.object, layer=layer, start_pos=(x0, P["z"]),
+                            end_pos=(x1, P["z"]) if x1 != x0 else None, y=P["y"], facing=facing, state=op.state))
+    return out
 
 
 def strike(shots: list[Shot], line: int, target: str | None, frame: int, series: SeriesModel) -> Strike:
@@ -1043,7 +1109,7 @@ def plan_part(part_dir: Path):
         raise StageError(f"cast body: {'; '.join(problems)}")
     story = plan(story_md.read_text(encoding="utf-8"), phrases, series, load_part(part_dir / "part.json").number,
                  prop_kinds(library), outdoor_sets(library), creature_bodies(library), custom_actions(library),
-                 set_weather(library), wardrobe_slots(library), creature_halves(library))
+                 set_weather(library), wardrobe_slots(library), creature_halves(library), world_object_kinds(library))
     return story, phrases, series, library
 
 

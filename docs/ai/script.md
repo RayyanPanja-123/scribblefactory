@@ -65,6 +65,19 @@
 - `@car arrive | ride | leave | off`: persistent vehicle state. `arrive` parks beside the subject, `ride` carries up to
   three cast members through an outdoor travel shot, `leave` drives away, and `off` removes it. During `ride`, only
   `@do car: broken` is allowed; use `@car off` before staging the cast outside it.
+- `@item <tag>: <item> [sky | back | mid | stage] [far-left | left | center | right | far-right] [state]`: puts a drawn
+  World Item (listed as "drawn" under WORLD ITEMS) on stage until `@item <tag>: remove` or the next `@set`. The tag is
+  your name for it in later lines (not a cast id). The layer defaults to the item's own; the spot defaults to center;
+  the state to its first. `@item <tag>: state <state>` switches state from the next line on. `@do <tag>: fly left |
+  right` (or `drive`) carries it across the next line, off screen that way; flying the same way again brings it back
+  in from the other side. `remove` and `state` are reserved words, never state names.
+  ```
+  @item ship: saucer back
+  @item ship: state flying
+  @do ship: fly left
+  Something silver shot across the sky.   <- the ship crosses the whole line
+  @item ship: remove
+  ```
 - `@dogs N`: persistent pack of 0–6 dogs. Dogs chase during travel shots and idle or bark at the edges otherwise.
   Use `@dogs 0` to clear them.
 - `@runners N`: persistent background runners, 0–6. They run with the scroll in travel shots and cross behind the cast

@@ -251,7 +251,7 @@ const runningStep = computed(() => {
             <component :is="copied ? Check : Copy" :size="16" aria-hidden="true" /> {{ copied ? 'Copied' : 'Story guide' }}
           </button>
           <button class="btn btn-secondary" :aria-label="listCopied ? 'Library list copied' : 'Copy the library list'"
-            title="Compact inventory of sets, props, World Objects, creatures, actions, wardrobe, sounds and cast for any AI" @click="copyList">
+            title="Compact inventory of sets, props, World Items, creatures, actions, wardrobe, sounds and cast for any AI" @click="copyList">
             <component :is="listCopied ? Check : List" :size="16" aria-hidden="true" /> {{ listCopied ? 'Copied' : 'Library list' }}
           </button>
         </div>

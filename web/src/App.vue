@@ -29,7 +29,7 @@ const groups: { title: string; tabs: Tab[] }[] = [
     { to: '/creatures', name: 'Creatures', icon: PawPrint, match: (n) => n.startsWith('creature') },
     { to: '/wardrobe', name: 'Wardrobe', icon: Shirt, match: (n) => n.startsWith('wardrobe') },
     { to: '/sets', name: 'Sets', icon: Mountain, match: (n) => n === 'sets' || n === 'set-edit' },
-    { to: '/objects', name: 'World Objects', icon: Boxes, match: (n) => n === 'objects' },
+    { to: '/objects', name: 'World Items', icon: Boxes, match: (n) => n === 'objects' },
     { to: '/actions', name: 'Actions', icon: PersonStanding, match: (n) => n.startsWith('action') },
     { to: '/sounds', name: 'Sounds', icon: AudioLines, match: (n) => n === 'sounds' },
   ] },

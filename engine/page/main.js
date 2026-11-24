@@ -13,7 +13,8 @@ import { CAR_CARD_W, CAR_GROUND, DRIVER_X, RIDER_X, VH, VW, carEase, carSpeedSha
 import { HEAD_GROW, MOOD_EXPRESSION, extraLook, fitCrowd, moodAt, placeExtras } from "./extras.js";
 const growRect = (r, k) => { const mx = (r[2] - r[0]) * k, my = (r[3] - r[1]) * k; return [r[0] - mx, r[1] - my, r[2] + mx, r[3] + my]; };
 import { rng, setVariant } from "./rng.js";
-import { SETS, VARIANTS, buildSet, loopExcess, scrollSet, setInk, setKind } from "./world.js";
+import { SETS, VARIANTS, buildSet, loopExcess, parallaxOf, scrollSet, setInk, setKind } from "./world.js";
+import { BOIL_FRAMES, itemCard, itemStats, updateCard } from "./items.js";
 import { fadePlan, fogAlpha, fogCanvas, layersAt, paint, paintBack, strikeAt } from "./weather.js";
 import { INK, STYLE, usePreset } from "./style.js";
 import { FG_KINDS, foregroundCanvas } from "./foreground.js";
@@ -23,7 +24,7 @@ let W = 1080, H = 1920; // the frame: story.width x story.height (setup); cast s
 const CARD_H = 1.6, CARD_W = CARD_H * (CW / CH); // the whole canvas, held props included
 const BODY_CARD_W = CARD_H * (BODY_W / CH);       // just the figure: what framing and set-prop hiding measure
 const FIG_H = (CARD_H * FIGURE_PX) / CH; // tallest standing figure in world units, from stickman.js
-const BOIL_FRAMES = 4;                 // marker jitter changes every 4 frames (7.5 fps "boil")
+// BOIL_FRAMES (items.js): marker jitter changes every 4 frames (7.5 fps "boil")
 const LID = [0.5, 1, 0.5];             // 3-frame blink: half, shut, half
 const rad = (d) => (d * Math.PI) / 180;
 const lerp = (a, b, u) => a + (b - a) * u;
@@ -85,6 +86,7 @@ backMesh.position.z = -1;
 camera.add(backMesh);
 const FOG = { z: -1.05, y: 1.5, w: 40, h: 3.2, tile: 8 }; // behind the front row and back row (z -0.9), before the crowd
 let fogTex = null, fadeByShot = new Map();
+const itemCards = new Map(); // "<@item tag>:<item id>:<layer>" -> items.js card, kept for the whole part
 const fogMeshes = [];
 const sets = {}, cards = {}, hiddenByShot = new Map(), variantByShot = new Map(), extrasByShot = new Map();
 let ownedProps = new Map(); // shot id -> { cast id: props held at the shot's start } (give hands props on)
@@ -483,7 +485,7 @@ function frameSize(w, h) {
 window.setup = (d) => {
   usePreset(d.series?.style?.preset); // first: a bad preset name fails the job before anything is built
   frameSize(d.story.width ?? 1080, d.story.height ?? 1920);
-  data = d; hiddenByShot.clear(); variantByShot.clear(); extrasByShot.clear(); fgByShot.clear(); clampByShot.clear();
+  data = d; hiddenByShot.clear(); variantByShot.clear(); extrasByShot.clear(); fgByShot.clear(); clampByShot.clear(); itemCards.clear();
   for (const t of fgTex.values()) t.dispose();
   fgTex.clear();
   shakes = shakeTriggers(d.story);
@@ -626,7 +628,7 @@ function drawShot(shot, n) {
   const dir = shot.travel ? ((vehicles[0] || shot.actors[0])?.facing === "left" ? -1 : 1) : 0;
   const shift = shot.travel ? -dir * shot.travel.speed * ((kf - shot.start_frame) / FPS) : 0;
   const travelHidden = scrollSet(group, shift, !!shot.travel);
-  for (const f of group.userData.anims) f(t); // ambient life (world.js Builder.anim): smoke, pennants, birds, clouds
+  for (const f of group.userData.anims) f(t, n); // ambient life (world.js Builder.anim): smoke, pennants, birds, clouds, set items
   // a give / receive is framed on the pair's midpoint, so neither the giver nor the receiver is cut off
   const pair = subject && (subject.action === "give" || subject.action === "receive")
     ? shot.actors.find((b) => b.cast_id === subject.target) : null;
@@ -684,6 +686,7 @@ function drawShot(shot, n) {
   drawAnimals(shot, animals, n, kf, u);
   const extras = drawExtras(shot, n, kf, u, extraShift);
   const cars = drawVehicles(shot, vehicles, riders, n, u);
+  const items = drawItems(shot, n, u, shift);
   drawForeground(shot, fg);
   const layers = layersAt(shot, fadeByShot.get(shot.id), n);
   drawFog(layers, t, shift);
@@ -693,7 +696,7 @@ function drawShot(shot, n) {
   grade();
   const travel = shot.travel ? { travel: `${shot.travel.speed} u/s ${dir < 0 ? "left" : "right"}, shift ${shift.toFixed(2)}`
     + `, loop excess ${(({ excess, row }) => `${excess.toFixed(3)} (row z ${row})`)(loopExcess(group, shift))}` } : {};
-  return { ...(clamp ? { camClamp: clamp } : {}), life: lives, angle: shot.camera.angle, trauma: +shake.toFixed(4), fov: +camera.fov.toFixed(3), fg: fg?.kind ?? null, hidden: hidden.size, gestures, dogs: animals.length, ...extras, ...cars, ...travel, ...weather,
+  return { ...(clamp ? { camClamp: clamp } : {}), life: lives, angle: shot.camera.angle, trauma: +shake.toFixed(4), fov: +camera.fov.toFixed(3), fg: fg?.kind ?? null, hidden: hidden.size, gestures, dogs: animals.length, ...extras, ...cars, ...items, ...travel, ...weather,
     ...measure(shot.actors.filter((a) => !seated.has(a.cast_id)).map(place)) };
 }
 
@@ -1058,6 +1061,27 @@ function drawVehicles(shot, vehicles, riders, n, u) {
   }
   return info.length ? { cars: info.join("; ") } : {};
 }
+
+/** @item World Items (shot.items): each card at its path's place for shot fraction u (a travel shot's scroll moves it
+ *  by its depth's parallax), turned to the camera, then animated (items.js updateCard) */
+function drawItems(shot, n, u, shift) {
+  const info = [];
+  for (const it of shot.items || []) {
+    const key = `${it.id}:${it.object}:${it.layer}`, e = it.end_pos || it.start_pos;
+    if (!itemCards.has(key)) itemCards.set(key, itemCard(lookup("objects", it.object), { tag: it.id, seed: data.story.seed, layer: it.layer }));
+    const c = itemCards.get(key), x = lerp(it.start_pos[0], e[0], u) + shift * parallaxOf(it.start_pos[1]), z = lerp(it.start_pos[1], e[1], u);
+    c.y = it.y;
+    c.root.position.set(x, it.y, z);
+    c.root.rotation.set(0, Math.atan2(camera.position.x - x, camera.position.z - z), 0);
+    const st = updateCard(c, { t: n / FPS, boil: Math.floor(n / BOIL_FRAMES), state: it.state, facing: it.facing });
+    scene.add(c.root);
+    info.push(`${it.id} ${it.object}${st ? ` ${st}` : ""} x ${c.root.position.x.toFixed(2)}`);
+  }
+  return info.length ? { items: info.join("; ") } : {};
+}
+
+/** World Item texture cache counters (items.js itemStats); reset: start counting again (render.mjs, per chunk) */
+window.itemStats = (reset = false) => itemStats(reset);
 
 /** smallest figure height as a fraction of frame height, and whether every head, foot and card edge is in frame */
 function measure(spots) {

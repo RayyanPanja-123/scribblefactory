@@ -3,6 +3,8 @@
 - Props: `clipboard`, `stopwatch`, `bottle`, `syringe`, `apple`, `medal`.
 - Bodies: `human` (default), `monkey` (biped), `chicken` (bird), `cat`, `horse` (quadruped), `snake` (crawler).
 - Only humanoid and biped bodies have hands (hold, eat, give, carry, support).
+- World Items: "drawn" ones go on stage with `@item` (planets, ships; see the script guide); "built" ones are set
+  scenery only.
 - Everything else: the inventory list.
 
 

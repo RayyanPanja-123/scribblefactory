@@ -22,10 +22,11 @@ type Weather = NonNullable<CustomSet['default_weather']>
 const WEATHER = ['clear', 'rain', 'snow', 'fog', 'wind', 'storm'] as const
 const INTENSITY = ['light', 'medium', 'heavy'] as const
 const form = reactive({ id: '', name: '', use_for: '', idEdited: false, kind: 'indoor' as SetKind, floor: '', back: '', pieces: [] as SetPiece[], objects: [] as NonNullable<CustomSet['objects']>,
-  weather: 'clear' as Weather['kind'] | 'clear', intensity: 'medium' as Weather['intensity'] })
+  weather: 'clear' as Weather['kind'] | 'clear', intensity: 'medium' as Weather['intensity'], water: 'auto' as 'auto' | 'yes' | 'no' })
 function load(s: CustomSet) {
   Object.assign(form, { id: s.id, name: s.name, use_for: s.use_for ?? '', kind: s.kind, floor: s.floor, back: s.back, pieces: copy(s.pieces ?? []), objects: copy(s.objects ?? []),
-    weather: s.default_weather?.kind ?? 'clear', intensity: s.default_weather?.intensity ?? 'medium' })
+    weather: s.default_weather?.kind ?? 'clear', intensity: s.default_weather?.intensity ?? 'medium',
+    water: s.water == null ? 'auto' : s.water ? 'yes' : 'no' })
 }
 const showWeather = ref(true) // preview the default weather over the set
 const { isNew, missing, saving, save: saveItem, remove: removeItem } = useLibraryEditor({
@@ -34,7 +35,7 @@ watch(data, (c) => {
   if (!c) return
   const s = c.custom.find((x) => x.id === props.id)
   if (s) { load(s); form.idEdited = true }
-  else if (isNew.value) Object.assign(form, { id: '', name: '', use_for: '', idEdited: false, kind: 'indoor', weather: 'clear', intensity: 'medium', objects: [] }, copy(STARTER.indoor))
+  else if (isNew.value) Object.assign(form, { id: '', name: '', use_for: '', idEdited: false, kind: 'indoor', weather: 'clear', intensity: 'medium', water: 'auto', objects: [] }, copy(STARTER.indoor))
 }, { immediate: true })
 
 /** a new set: switching kind swaps in that kind's starter until you change a piece */
@@ -45,7 +46,8 @@ function setKind(k: SetKind) {
 }
 
 const draft = computed<CustomSet>(() => ({ id: form.id || 'draft', name: form.name, kind: form.kind, floor: form.floor, back: form.back, pieces: form.pieces, objects: form.objects,
-  default_weather: form.weather === 'clear' ? null : { kind: form.weather, intensity: form.intensity } }))
+  default_weather: form.weather === 'clear' ? null : { kind: form.weather, intensity: form.intensity },
+  ...(form.kind === 'outdoor' && form.water !== 'auto' ? { water: form.water === 'yes' } : {}) }))
 const previewList = computed(() => [...(data.value?.custom ?? []).filter((s) => s.id !== draft.value.id), draft.value])
 const taken = computed(() => data.value?.builtin.some((b) => b.id === form.id) || (isNew.value && data.value?.custom.some((s) => s.id === form.id)))
 const badPiece = (p: SetPiece) => [...p.at, ...p.size].some((v) => typeof v !== 'number' || !Number.isFinite(v) || Math.abs(v) > 80)
@@ -122,10 +124,15 @@ const num = 'inset mt-1 block h-10 w-full rounded-md px-3 text-sm text-ink outli
           </label>
         </div>
         <p class="text-xs text-muted">Every <code>@set</code> of this set starts with this weather, until an <code>@weather</code> line changes it.</p>
+        <label v-if="form.kind === 'outdoor'" class="block w-56 text-xs font-semibold text-muted">Water floor
+          <select v-model="form.water" :class="field">
+            <option value="auto">auto (a blue floor is water)</option><option value="yes">yes: sea or lake</option><option value="no">no: solid ground</option>
+          </select>
+        </label>
 
         <fieldset class="space-y-3">
-          <legend class="font-display text-lg font-semibold">World Objects</legend>
-          <p class="text-xs text-muted">Named objects can later be targeted by interactions such as stealing, carrying or removing them.</p>
+          <legend class="font-display text-lg font-semibold">World Items</legend>
+          <p class="text-xs text-muted">Built items stand where you put them; drawn items stand on their point (sky and back items are centred on it) and animate.</p>
           <div v-for="(o, i) in form.objects" :key="o.id" class="inset grid gap-2 rounded-md p-3 sm:grid-cols-[1fr_1fr_auto]">
             <label class="text-xs font-semibold text-muted">Object
               <select v-model="o.object" :class="field"><option v-for="x in objectData?.objects ?? []" :key="x.id" :value="x.id">{{ x.name }}</option></select>
@@ -134,9 +141,9 @@ const num = 'inset mt-1 block h-10 w-full rounded-md px-3 text-sm text-ink outli
             <button type="button" class="btn btn-secondary self-end text-red-ink" @click="form.objects.splice(i, 1)"><Trash2 :size="16" /> Remove</button>
           </div>
           <select v-if="objectData?.objects.length" class="btn btn-secondary" @change="($event.target as HTMLSelectElement).value && addObject(($event.target as HTMLSelectElement).value); ($event.target as HTMLSelectElement).value = ''">
-            <option value="">Add World Object…</option><option v-for="x in objectData.objects" :key="x.id" :value="x.id">{{ x.name }}</option>
+            <option value="">Add World Item…</option><option v-for="x in objectData.objects" :key="x.id" :value="x.id">{{ x.name }}</option>
           </select>
-          <p v-else class="text-xs text-muted">Create a reusable object on the World Objects page first.</p>
+          <p v-else class="text-xs text-muted">Create a reusable item on the World Items page first.</p>
         </fieldset>
 
         <fieldset class="space-y-3">
@@ -186,7 +193,7 @@ const num = 'inset mt-1 block h-10 w-full rounded-md px-3 text-sm text-ink outli
       </div>
 
       <aside class="raised p-6 space-y-3 lg:sticky lg:top-0 lg:self-start">
-        <SetPreview :id="draft.id" :custom="previewList" :weather="showWeather ? draft.default_weather : null"
+        <SetPreview :id="draft.id" :custom="previewList" :objects="objectData?.objects ?? []" :weather="showWeather ? draft.default_weather : null"
           :label="`Preview of ${form.name || 'the set'}`" class="aspect-[9/16] w-full" />
         <label v-if="draft.default_weather" class="flex h-11 items-center justify-center gap-2 text-sm">
           <input v-model="showWeather" type="checkbox" class="size-4" /> Preview weather ({{ form.weather }}, {{ form.intensity }})

@@ -1,7 +1,8 @@
 """check-story: story.md checked against its series before any voice or timing exists.
 
 Reports, with story.md line numbers: unknown @ directives and bad arguments, unknown cast ids, sets, actions and
-props, @do conflicts (actor not on stage, target with its own action, @do during @car ride, car: broken with no car,
+props, @item (unknown item, reserved words, a state the item lacks, a tag not on stage), @do conflicts (actor not on
+stage, target with its own action, @do during @car ride, car: broken with no car, an item move for an item not on stage,
 an @do with no line to apply to or replaced before it was used), cast not approved yet, and words changed against an
 existing script-for-tts.txt (an existing voice.mp3 would no longer match). Plus the word count and estimated duration:
 words / the words per second measured over the library's finished parts (qa.json runtime; FALLBACK_WPS without any),
@@ -18,10 +19,10 @@ from pathlib import Path
 from . import sfx as sfx_lib
 from . import background_music
 from .io import (CREATURE_HINT, all_parts, library_of, part_id_of, storage_root, cast_body_problems, creature_bodies, creature_wardrobe, custom_actions, load_series,
-                 prop_kinds, set_kinds, unknown_cast_props, wardrobe_slots)
+                 prop_kinds, set_kinds, unknown_cast_props, wardrobe_slots, world_object_kinds)
 from .schemas import HAND_RIGS
 from .stages.finish import MAX_RUNTIME_S, MIN_RUNTIME_S
-from .stages.prep import (DO_CAR, FX_LIGHTNING, FX_MODES, MAX_LIGHTNING, TWIST_PREFIX, clean_markdown, parse_do,
+from .stages.prep import (DO_CAR, ITEM_MOVES, item_state_ok, parse_item, FX_LIGHTNING, FX_MODES, MAX_LIGHTNING, TWIST_PREFIX, clean_markdown, parse_do,
                           parse_cam, parse_face, parse_hold, parse_lightning, parse_look, parse_ride, parse_weather, ride,
                           respell, strip_directives, RIDE_ACTIONS)
 from .stages.runner import StageError
@@ -29,7 +30,7 @@ from .stages.shots import (ACTION_FACE, CAR_MODES, CAR_SEATS, DEFAULT_CAST_SIZE,
                            MAX_RUNNERS, parse_crowd, parse_crowd_look, parse_crowd_weapon, plan_part, token)
 from .validate import END_SCREEN_S, TAIL_S
 
-DIRECTIVES = ("set", "cast", "dogs", "car", "fx", "do", "look", "hold", "ride", "crowd", "crowd-look", "crowd-weapon", "runners", "weather", "sfx", "face", "cam", "background-music")
+DIRECTIVES = ("set", "cast", "dogs", "car", "fx", "do", "look", "hold", "ride", "crowd", "crowd-look", "crowd-weapon", "runners", "weather", "sfx", "face", "cam", "background-music", "item")
 LINE_PREFIX = re.compile(r"^story\.md line [0-9]+: ")
 FALLBACK_WPS = 2.6  # words per second before any part has been finished
 # a first line that opens on a date or backstory instead of the hook
@@ -168,6 +169,7 @@ def check_story(part_dir: Path) -> dict:
     cast, car, pending_do, pending_strike, strikes = tuple(ids[:DEFAULT_CAST_SIZE]), "off", None, None, 0
     pending_sfx, n_sfx, pending_face, pending_cam = [], 0, None, None
     cur_set, fresh_set = None, True  # a set's first narration line opens on the establishing wide
+    objects, items = world_object_kinds(library), {}  # @item: tag -> World Item id, reset by a set change
     cam_lines = []  # every @cam line, in order (each forces one shot: _cam_repeats pairs them up)
     rides, ride_warned = {}, set()  # @ride: rider -> mount (kept across @set); warnings already given (no repeats)
     first_seen: dict[str, int] = {}  # cast id -> first line it is on stage
@@ -183,7 +185,7 @@ def check_story(part_dir: Path) -> dict:
                     if arg not in sets:
                         bad(no, f"unknown set {arg!r} (sets: {', '.join(sets)})")
                     elif arg != cur_set:
-                        cur_set, fresh_set = arg, True
+                        cur_set, fresh_set, items = arg, True, {}
                 elif name == "cast":
                     new = tuple(x.strip() for x in arg.split(",") if x.strip())
                     unknown = [x for x in new if x not in ids]
@@ -252,8 +254,19 @@ def check_story(part_dir: Path) -> dict:
                     parse_hold(arg, no, ids, props, handless)
                 elif name == "ride":
                     rides = ride(rides, *parse_ride(arg, no, ids, creatures), no)
+                elif name == "item":
+                    op = parse_item(arg, no, objects, ids)
+                    if op.op == "remove" and items.pop(op.tag, None) is None:
+                        bad(no, f"@item: {op.tag} is not on stage")
+                    elif op.op == "state":
+                        item_state_ok(op, no, objects, items)
+                    elif op.op == "place":
+                        items[op.tag] = op.object
                 elif name == "do":
                     clauses = parse_do(arg, no, ids, props, actions)
+                    for c in clauses:
+                        if c.action in ITEM_MOVES and c.who[0] not in items:
+                            bad(no, f"@do: {c.who[0]} is not an item on stage (place it first: @item {c.who[0]}: <item>)")
                     if pending_do:
                         bad(pending_do[0], f"@do is replaced by the @do on line {no} before any text line uses it")
                     pending_do = (no, clauses)
@@ -452,6 +465,8 @@ def _check_do(line: int, clauses, cast: tuple, car: str, bad) -> None:
     """the @do checks that need the stage: who is on it and whether a car is"""
     named = {w for c in clauses for w in c.who}
     for c in clauses:
+        if c.action in ITEM_MOVES:  # checked where the @do line is read (the items on stage then)
+            continue
         if c.who == (DO_CAR,):
             if car == "off":
                 bad(line, "@do car: broken, but there is no car on stage (bring one with @car arrive or ride)")

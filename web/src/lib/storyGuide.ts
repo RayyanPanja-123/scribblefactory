@@ -34,8 +34,10 @@ export async function libraryRecords(standalone = false): Promise<string> {
       'weather: clear, rain, snow, fog, wind, storm; intensity light, medium, heavy',
       `PROPS (${props.builtin.length + props.custom.length})`,
       `built-in: ${props.builtin.join(', ')}${props.custom.length ? ` | custom: ${ids(props.custom)}` : ''}`,
-      `WORLD OBJECTS (${objects.objects.length})`,
-      objects.objects.length ? objects.objects.map((o) => `${o.id} [${o.category}; ${o.capabilities.join(', ') || 'static'}; carry=${o.carry_mode}]`).join(' | ') : 'none yet',
+      `WORLD ITEMS (${objects.objects.length}; drawn ones go on stage with @item <tag>: <id>)`,
+      objects.objects.length ? objects.objects.map((o) => o.look === 'card'
+        ? `${o.id} [drawn; ${o.layer ?? 'mid'}${o.states?.length ? `; states ${o.states.join('/')}` : ''}]`
+        : `${o.id} [built, set only; ${o.category}; ${o.capabilities.join(', ') || 'static'}; carry=${o.carry_mode}]`).join(' | ') : 'none yet',
       `CREATURES (${creatures.builtin.length + creatures.custom.length})`,
       [...creatures.builtin, ...creatures.custom].map((c) => `${c.id} (${c.rig}${use(c as { use_for?: string | null })})`).join(', '),
       `ACTIONS (@do; ${actions.do.length + actions.custom.length})`,

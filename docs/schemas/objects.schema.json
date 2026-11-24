@@ -1,5 +1,189 @@
 {
   "$defs": {
+    "ItemAnim": {
+      "additionalProperties": false,
+      "description": "one looping animation of a card item, a pure function of time (any frame renders alone)",
+      "properties": {
+        "amp": {
+          "default": 1,
+          "maximum": 360,
+          "minimum": 0,
+          "title": "Amp",
+          "type": "number"
+        },
+        "hz": {
+          "default": 0.2,
+          "description": "cycles per second (not rotate)",
+          "exclusiveMinimum": 0,
+          "maximum": 5,
+          "title": "Hz",
+          "type": "number"
+        },
+        "kind": {
+          "description": "rotate: spins amp degrees/s; sway: tilts +-amp degrees about its base; bob: rises and falls +-amp units; drift: wanders +-amp units sideways; pulse: grows and shrinks by amp (share, 0..0.9); blink: fades by amp (share, 0..1); flow: scrolls the drawing's flowing layer (planet bands) hz times a second",
+          "enum": [
+            "rotate",
+            "sway",
+            "bob",
+            "drift",
+            "pulse",
+            "blink",
+            "flow"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "when": {
+          "anyOf": [
+            {
+              "items": {
+                "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "only in these states; none: always",
+          "title": "When"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "ItemAnim",
+      "type": "object"
+    },
+    "ItemShape": {
+      "additionalProperties": false,
+      "description": "one ink shape of a card World Item (canvas px, y down, the base point at 0, 0)",
+      "properties": {
+        "fill": {
+          "anyOf": [
+            {
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "type": "string"
+            },
+            {
+              "enum": [
+                "$main",
+                "$accent"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "$main: the cast member's top colour; $accent: its accent colour (else the creature's); none: outline only. For a line: its colour (default ink)",
+          "title": "Fill"
+        },
+        "pts": {
+          "description": "rect: 2 corners; circle / ellipse: the centre; line: 2+ points; poly: 3+ points (closed)",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "maxItems": 40,
+          "minItems": 1,
+          "title": "Pts",
+          "type": "array"
+        },
+        "r": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 600,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "circle: radius; ellipse: x radius",
+          "title": "R"
+        },
+        "rot": {
+          "default": 0,
+          "description": "ellipse: turn in degrees, clockwise",
+          "maximum": 180,
+          "minimum": -180,
+          "title": "Rot",
+          "type": "number"
+        },
+        "ry": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 600,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ellipse: y radius",
+          "title": "Ry"
+        },
+        "shape": {
+          "enum": [
+            "rect",
+            "circle",
+            "ellipse",
+            "line",
+            "poly"
+          ],
+          "title": "Shape",
+          "type": "string"
+        },
+        "when": {
+          "anyOf": [
+            {
+              "items": {
+                "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "only in these states; none: always",
+          "title": "When"
+        },
+        "width": {
+          "default": 8,
+          "description": "outline / line width; 0: no outline",
+          "maximum": 40,
+          "minimum": 0,
+          "title": "Width",
+          "type": "number"
+        }
+      },
+      "required": [
+        "shape",
+        "pts"
+      ],
+      "title": "ItemShape",
+      "type": "object"
+    },
     "SetPiece": {
       "additionalProperties": false,
       "description": "one primitive of a custom set, in world units: actors stand on y = 0, z = 0, x in -2..2; the back wall of an\nindoor set is at z -2.6. Anything across the stage (|x| < 2.2) must sit behind z -1, nothing forward of z 0.6\n(the engine checks this stage clearance when it builds the set).",
@@ -70,8 +254,16 @@
     },
     "WorldObject": {
       "additionalProperties": false,
-      "description": "Reusable geometry and interaction capabilities for a large scene object.\n\nUnlike a Prop, a WorldObject is not owned by a cast member and is not attached to a hand. Its state belongs to\nthe scene and can persist across shots. The renderer currently accepts the same primitives as set pieces so the\nasset can be introduced without adding a second drawing language.",
+      "description": "Reusable geometry and interaction capabilities for a large scene object (UI: World Items).\n\nUnlike a Prop, a WorldObject is not owned by a cast member and is not attached to a hand. Its state belongs to\nthe scene and can persist across shots. look \"pieces\": the set-piece primitives; look \"card\": a 2D ink drawing\n(a built-in drawer, or shapes) on a camera-facing card that can animate, fly a path and change state.",
       "properties": {
+        "anims": {
+          "items": {
+            "$ref": "#/$defs/ItemAnim"
+          },
+          "maxItems": 6,
+          "title": "Anims",
+          "type": "array"
+        },
         "capabilities": {
           "items": {
             "enum": [
@@ -110,14 +302,54 @@
             "furniture",
             "equipment",
             "debris",
+            "sky",
+            "env",
+            "scifi",
             "other"
           ],
           "title": "Category",
           "type": "string"
         },
+        "draw": {
+          "anyOf": [
+            {
+              "enum": [
+                "planet",
+                "saucer"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "card: a built-in drawing; none: its shapes",
+          "title": "Draw"
+        },
         "id": {
           "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
           "title": "Id",
+          "type": "string"
+        },
+        "layer": {
+          "default": "mid",
+          "enum": [
+            "sky",
+            "back",
+            "mid",
+            "stage"
+          ],
+          "title": "Layer",
+          "type": "string"
+        },
+        "look": {
+          "default": "pieces",
+          "enum": [
+            "pieces",
+            "card"
+          ],
+          "title": "Look",
           "type": "string"
         },
         "name": {
@@ -132,6 +364,33 @@
           },
           "maxItems": 20,
           "title": "Pieces",
+          "type": "array"
+        },
+        "shapes": {
+          "description": "card without draw: ink shapes, canvas px around the base point (x -512..512, y up is negative: -1000..24), drawn in order",
+          "items": {
+            "$ref": "#/$defs/ItemShape"
+          },
+          "maxItems": 60,
+          "title": "Shapes",
+          "type": "array"
+        },
+        "size": {
+          "default": 1.0,
+          "description": "card: world units tall",
+          "exclusiveMinimum": 0,
+          "maximum": 60,
+          "title": "Size",
+          "type": "number"
+        },
+        "states": {
+          "description": "the first is the default state",
+          "items": {
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "type": "string"
+          },
+          "maxItems": 8,
+          "title": "States",
           "type": "array"
         }
       },

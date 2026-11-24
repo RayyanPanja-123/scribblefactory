@@ -10,7 +10,8 @@
 //   node engine/render.mjs --batch jobs.json              -> [[args of one --part/--series job], ...] in one browser
 //   node engine/render.mjs --part <dir> --worker --out-dir <dir>
 //       long-lived worker: one browser, page built once. Prints "READY <renderer info json>", then reads
-//       "A B" lines on stdin and answers "DONE A B" once frames A..B are written. Exits when stdin closes.
+//       "A B" lines on stdin and answers "DONE A B" once frames A..B are written (plus the World Item cache counters
+//       as JSON when the part has card items). Exits when stdin closes.
 //       stdout carries only that protocol; logs go to stderr.
 // Renderer: the GPU by default; falls back to SwiftShader (with a note) when WebGL reports a software renderer.
 // --swiftshader forces software. --info-out <file> writes the renderer info as JSON (any mode).
@@ -229,8 +230,12 @@ async function runWorker(a) {
         writePng(framePng(outDir, n), url);
       }
       if (opened.getError()) throw opened.getError();
-      console.error(`frames ${first}-${last}: ${((performance.now() - t0) / (last - first + 1)).toFixed(0)} ms per frame`);
-      process.stdout.write(`DONE ${first} ${last}\n`);
+      // World Item texture cache over this chunk (main.js itemStats): only when the part has card items
+      const items = await opened.page.evaluate(() => window.itemStats(true));
+      const lookups = items.hits + items.misses, note = lookups
+        ? `, items cache ${((100 * items.hits) / lookups).toFixed(1)}% hits, peak ${items.peakMb} MB, ${items.evicted} evicted` : "";
+      console.error(`frames ${first}-${last}: ${((performance.now() - t0) / (last - first + 1)).toFixed(0)} ms per frame${note}`);
+      process.stdout.write(`DONE ${first} ${last}${lookups ? ` ${JSON.stringify(items)}` : ""}\n`);
     }
   } finally {
     if (browser) await browser.close();

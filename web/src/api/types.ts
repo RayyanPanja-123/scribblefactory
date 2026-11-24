@@ -1483,6 +1483,11 @@ export interface components {
              * @description when a story should use it (shown to the story AI; never changes the drawing)
              */
             use_for?: string | null;
+            /**
+             * Water
+             * @description outdoor: the floor is a sea or lake (waves, foam, ripples, reflections); none: when the floor colour reads blue
+             */
+            water?: boolean | null;
         };
         /** GalleryEntry */
         GalleryEntry: {
@@ -1594,6 +1599,85 @@ export interface components {
              * @default 1
              */
             leg: number;
+        };
+        /**
+         * ItemAnim
+         * @description one looping animation of a card item, a pure function of time (any frame renders alone)
+         */
+        ItemAnim: {
+            /**
+             * Amp
+             * @default 1
+             */
+            amp: number;
+            /**
+             * Hz
+             * @description cycles per second (not rotate)
+             * @default 0.2
+             */
+            hz: number;
+            /**
+             * Kind
+             * @description rotate: spins amp degrees/s; sway: tilts +-amp degrees about its base; bob: rises and falls +-amp units; drift: wanders +-amp units sideways; pulse: grows and shrinks by amp (share, 0..0.9); blink: fades by amp (share, 0..1); flow: scrolls the drawing's flowing layer (planet bands) hz times a second
+             * @enum {string}
+             */
+            kind: "rotate" | "sway" | "bob" | "drift" | "pulse" | "blink" | "flow";
+            /**
+             * When
+             * @description only in these states; none: always
+             */
+            when?: string[] | null;
+        };
+        /**
+         * ItemShape
+         * @description one ink shape of a card World Item (canvas px, y down, the base point at 0, 0)
+         */
+        ItemShape: {
+            /**
+             * Fill
+             * @description $main: the cast member's top colour; $accent: its accent colour (else the creature's); none: outline only. For a line: its colour (default ink)
+             */
+            fill?: string | ("$main" | "$accent") | null;
+            /**
+             * Pts
+             * @description rect: 2 corners; circle / ellipse: the centre; line: 2+ points; poly: 3+ points (closed)
+             */
+            pts: [
+                number,
+                number
+            ][];
+            /**
+             * R
+             * @description circle: radius; ellipse: x radius
+             */
+            r?: number | null;
+            /**
+             * Rot
+             * @description ellipse: turn in degrees, clockwise
+             * @default 0
+             */
+            rot: number;
+            /**
+             * Ry
+             * @description ellipse: y radius
+             */
+            ry?: number | null;
+            /**
+             * Shape
+             * @enum {string}
+             */
+            shape: "rect" | "circle" | "ellipse" | "line" | "poly";
+            /**
+             * When
+             * @description only in these states; none: always
+             */
+            when?: string[] | null;
+            /**
+             * Width
+             * @description outline / line width; 0: no outline
+             * @default 8
+             */
+            width: number;
         };
         /** Job */
         Job: {
@@ -2765,13 +2849,15 @@ export interface components {
         };
         /**
          * WorldObject
-         * @description Reusable geometry and interaction capabilities for a large scene object.
+         * @description Reusable geometry and interaction capabilities for a large scene object (UI: World Items).
          *
          *     Unlike a Prop, a WorldObject is not owned by a cast member and is not attached to a hand. Its state belongs to
-         *     the scene and can persist across shots. The renderer currently accepts the same primitives as set pieces so the
-         *     asset can be introduced without adding a second drawing language.
+         *     the scene and can persist across shots. look "pieces": the set-piece primitives; look "card": a 2D ink drawing
+         *     (a built-in drawer, or shapes) on a camera-facing card that can animate, fly a path and change state.
          */
         WorldObject: {
+            /** Anims */
+            anims?: components["schemas"]["ItemAnim"][];
             /** Capabilities */
             capabilities?: ("move" | "carry" | "enter" | "ride" | "open" | "close" | "break" | "steal" | "remove")[];
             /**
@@ -2785,13 +2871,46 @@ export interface components {
              * @default other
              * @enum {string}
              */
-            category: "vehicle" | "container" | "furniture" | "equipment" | "debris" | "other";
+            category: "vehicle" | "container" | "furniture" | "equipment" | "debris" | "sky" | "env" | "scifi" | "other";
+            /**
+             * Draw
+             * @description card: a built-in drawing; none: its shapes
+             */
+            draw?: ("planet" | "saucer") | null;
             /** Id */
             id: string;
+            /**
+             * Layer
+             * @default mid
+             * @enum {string}
+             */
+            layer: "sky" | "back" | "mid" | "stage";
+            /**
+             * Look
+             * @default pieces
+             * @enum {string}
+             */
+            look: "pieces" | "card";
             /** Name */
             name: string;
             /** Pieces */
             pieces?: components["schemas"]["SetPiece"][];
+            /**
+             * Shapes
+             * @description card without draw: ink shapes, canvas px around the base point (x -512..512, y up is negative: -1000..24), drawn in order
+             */
+            shapes?: components["schemas"]["ItemShape"][];
+            /**
+             * Size
+             * @description card: world units tall
+             * @default 1
+             */
+            size: number;
+            /**
+             * States
+             * @description the first is the default state
+             */
+            states?: string[];
         };
         /** WorldObjectCatalog */
         WorldObjectCatalog: {
@@ -2800,19 +2919,35 @@ export interface components {
         };
         /**
          * WorldObjectInstance
-         * @description A named placement of a WorldObject in a set; its id is the story target.
+         * @description A named placement of a WorldObject in a set; its id is the story target. A card stands on `at` (its base);
+         *     a sky / back card's base is its middle.
          */
         WorldObjectInstance: {
+            /**
+             * Accent
+             * @description card: $accent (none: the drawing's own)
+             */
+            accent?: string | null;
             /** At */
             at: [
                 number,
                 number,
                 number
             ];
+            /**
+             * Color
+             * @description card: $main (none: the drawing's own)
+             */
+            color?: string | null;
             /** Id */
             id: string;
             /** Object */
             object: string;
+            /**
+             * State
+             * @description card: its state here (none: its first)
+             */
+            state?: string | null;
             /**
              * Visible
              * @default true

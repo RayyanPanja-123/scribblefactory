@@ -821,6 +821,15 @@
           "title": "Id",
           "type": "string"
         },
+        "items": {
+          "default": [],
+          "description": "@item World Items on stage (left out of story.json when there are none, so older plans keep their bytes)",
+          "items": {
+            "$ref": "#/$defs/ShotItem"
+          },
+          "title": "Items",
+          "type": "array"
+        },
         "phrase_range": {
           "description": "[first, last] phrase indices into phrases.json, inclusive",
           "maxItems": 2,
@@ -893,6 +902,107 @@
         "camera"
       ],
       "title": "Shot",
+      "type": "object"
+    },
+    "ShotItem": {
+      "additionalProperties": false,
+      "description": "@item: a World Item (library/objects.json card) on stage for this shot, flying a path when start and end\ndiffer (@do <tag>: fly left | right)",
+      "properties": {
+        "end_pos": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End Pos"
+        },
+        "facing": {
+          "default": "right",
+          "enum": [
+            "left",
+            "right"
+          ],
+          "title": "Facing",
+          "type": "string"
+        },
+        "id": {
+          "description": "the @item tag",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "layer": {
+          "enum": [
+            "sky",
+            "back",
+            "mid",
+            "stage"
+          ],
+          "title": "Layer",
+          "type": "string"
+        },
+        "object": {
+          "description": "the World Item it draws",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+          "title": "Object",
+          "type": "string"
+        },
+        "start_pos": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Start Pos",
+          "type": "array"
+        },
+        "state": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "none: the item's first state",
+          "title": "State"
+        },
+        "y": {
+          "description": "height of its base (a sky / back card: its middle) in world units",
+          "title": "Y",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "object",
+        "layer",
+        "start_pos",
+        "y"
+      ],
+      "title": "ShotItem",
       "type": "object"
     },
     "Strike": {

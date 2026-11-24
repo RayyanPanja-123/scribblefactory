@@ -5,6 +5,7 @@
 // and no prop may come forward of z STAGE.front, so nothing stands on or in front of the actors.
 import * as THREE from "three";
 import { cloudCanvas } from "./borrowed.js";
+import { BOIL_FRAMES, itemCard, updateCard } from "./items.js";
 import { lookup } from "./library.js";
 import { rng } from "./rng.js";
 import { INK, STYLE } from "./style.js";
@@ -207,8 +208,8 @@ class Builder {
     this.group = group; this.seed = seed; this.n = 0; this.strength = strength;
     this.pieces = new Map(); this.piece_ = null; // piece id -> { meshes, box }: what the engine may hide per shot
     group.userData.pieces = this.pieces;
-    // ambient life: fn(t seconds) run every frame after scrollSet (main.js), so it may add to position.x; everything
-    // else it sets absolutely. Pure functions of t: frames stay deterministic.
+    // ambient life: fn(t seconds, n frame) run every frame after scrollSet (main.js), so it may add to position.x;
+    // everything else it sets absolutely. Pure functions of the frame: frames stay deterministic.
     this.anims = group.userData.anims = [];
   }
   anim(fn) { this.anims.push(fn); }
@@ -221,8 +222,10 @@ class Builder {
   }
   /** centred primitive at pos; outline = inverted ink hull (hullGeometry); floor = exempt from clearance.
    *  Anything that is not floor or backdrop (walls, windows, posters, buildings) is a prop piece. */
-  add(geo, mat, pos, { outline = true, rot = null, floor = false, backdrop = false, travelHide = false, name = "" } = {}) {
-    const m = new THREE.Mesh(geo, mat);
+  add(geo, mat, pos, opts = {}) { return this.place(new THREE.Mesh(geo, mat), pos, opts); }
+  /** add mesh m (built elsewhere: an item card) like add does */
+  place(m, pos, { outline = true, rot = null, floor = false, backdrop = false, travelHide = false, name = "" } = {}) {
+    const geo = m.geometry;
     m.name = name; // tests find named parts (e.g. the stadium rail) through window.loopCheck
     m.position.set(...pos);
     m.userData.kind = floor ? "floor" : backdrop ? "backdrop" : "prop";
@@ -670,6 +673,7 @@ const INDOOR_SETS = new Set(["room", "office"]); // built-in sets with a back wa
 /** true when an outdoor set's floor colour reads as water (style.js water.hue / minSat / light) */
 export function isWater(spec) {
   if (spec.kind !== "outdoor") return false;
+  if (spec.water != null) return spec.water; // set explicitly: no guessing from the colour
   const W = STYLE.water, hsl = new THREE.Color(spec.floor).getHSL({}), hue = hsl.h * 360;
   return hue >= W.hue[0] && hue <= W.hue[1] && hsl.s >= W.minSat && hsl.l >= W.light[0] && hsl.l <= W.light[1];
 }
@@ -733,6 +737,7 @@ function custom(b, spec) {
   // geometry is authored in object-local coordinates and translated to the instance placement in the set.
   for (const instance of spec.objects || []) {
     const object = lookup("objects", instance.object);
+    if (object.look === "card") { setCard(b, object, instance); continue; }
     for (const p of object.pieces || []) {
       const at = [p.at[0] + instance.at[0], p.at[1] + instance.at[1], p.at[2] + instance.at[2]];
       const placed = { ...p, at };
@@ -744,6 +749,18 @@ function custom(b, spec) {
       });
     }
   }
+}
+
+/** a card World Item placed in a set: standing on `at` (a sky / back card: centred on it), facing +z, animated every
+ *  frame (items.js updateCard). Sky and back cards are backdrop (never hidden, parallax by depth in travel shots);
+ *  the others are prop pieces with the usual stage clearance. */
+function setCard(b, def, inst) {
+  const c = itemCard(def, { color: inst.color, accent: inst.accent, tag: inst.id, seed: b.seed });
+  c.y = inst.at[1];
+  const opts = { outline: false, backdrop: def.layer === "sky" || def.layer === "back" };
+  if (opts.backdrop) b.place(c.root, inst.at, opts);
+  else b.piece(() => b.place(c.root, inst.at, opts));
+  b.anim((t, n) => updateCard(c, { t, boil: Math.floor(n / BOIL_FRAMES), state: inst.state }));
 }
 
 /** build one set (one of its prop variants) into a new group: built in, else the library's (unknown: throws) */
@@ -780,6 +797,8 @@ function finish(group, background, fog) {
 // at 0.35, far hills and sky at 0.1. Props reaching forward of z STAGE.behind are hidden in travel shots: wrapping
 // past the actors they would break stage clearance.
 const PARALLAX = [[-12, 1], [-40, 0.35], [-Infinity, 0.1]]; // [z centre above, factor]
+/** the share of a travel shot's world shift something at depth z moves by (story items: main.js drawItems) */
+export const parallaxOf = (z) => PARALLAX.find(([above]) => z > above)[1];
 const BAND_W = BAND.hi - BAND.lo;
 const mod = (a, n) => ((a % n) + n) % n;
 const inBand = (x) => x >= BAND.lo && x < BAND.hi;
@@ -797,7 +816,7 @@ function movers(group) {
     const box = new THREE.Box3().setFromObject(m), c = box.getCenter(new THREE.Vector3()), w = box.max.x - box.min.x;
     const f = kind === "floor" ? 1 : PARALLAX.find(([z]) => c.z > z)[1];
     const mode = w >= 50 ? "period" : f === 1 && inBand(c.x) ? "band" : "shift";
-    const period = w / (m.material.map ? m.material.map.repeat.x : 1);
+    const period = w / (m.material?.map ? m.material.map.repeat.x : 1);
     list.push({ meshes: [m, ...(m.userData.hull ? [m.userData.hull] : [])], cx: c.x, f, mode, period, box,
       hide: m.userData.travelHide });
   }

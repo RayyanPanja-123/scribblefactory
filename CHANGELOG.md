@@ -1,6 +1,17 @@
 # Changelog
 
 ## Unreleased
+- World Items (Phase A): the World Objects page is now **World Items**. Besides built items (3D pieces in a set), an
+  item can be **drawn**: an ink card from a built-in drawing (`planet`, `saucer`) or its own shapes, on a layer
+  (`sky`, `back`, `mid`, `stage`), with states and looping animations (rotate, sway, bob, drift, pulse, blink, flow),
+  previewed live on the page. Story directive `@item <tag>: <item> [layer] [spot] [state]` puts one on stage until
+  `@item <tag>: remove` or the next `@set`; `@item <tag>: state <s>` switches state; `@do <tag>: fly left | right`
+  flies it across the next line. `remove` and `state` are reserved (never state names); check-story checks items,
+  states and tags. Sets can place drawn items too (a planet in the sky). story.json shots get `items` only when there
+  are some: older plans, catalogs and every stage hash but the render's are unchanged
+  (`scripts/golden_hashes.py record | check` proves it on a library). Item drawings are cached per worker (LRU,
+  128 MB cap); render log lines show the cache hit rate and peak MB. Sets get an optional `water` flag (yes / no /
+  auto by colour) in the set editor.
 - Riding: `@ride <rider>: <creature>` puts a person in the saddle from the next line until `@ride <rider>: none` or
   the part's end, and it stays across `@set` changes. The rider is drawn on the mount's card (straddling, the far leg
   hidden, the near leg over its side, on the saddle when worn) and goes wherever the mount walks, runs or staggers;

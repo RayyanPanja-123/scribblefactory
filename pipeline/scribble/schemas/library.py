@@ -2,7 +2,7 @@
 
 from typing import Literal, get_args
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, field_validator, model_serializer, model_validator
 
 from .base import HexColor, Slug, Strict, WardrobeId
 from .series import BUILTIN_WARDROBE, BuiltinProp, Expression, PropAngle, WardrobeAnchor, WardrobeSlotName
@@ -117,17 +117,53 @@ class SetPiece(Strict):
         return self
 
 
-WorldObjectCategory = Literal["vehicle", "container", "furniture", "equipment", "debris", "other"]
+WorldObjectCategory = Literal["vehicle", "container", "furniture", "equipment", "debris", "sky", "env", "scifi", "other"]
 WorldObjectCapability = Literal["move", "carry", "enter", "ride", "open", "close", "break", "steal", "remove"]
 WorldObjectCarryMode = Literal["none", "one-hand", "two-hand", "vehicle"]
 
+# --- World Items: a world object drawn as a 2D ink card (look "card") instead of 3D pieces ---
+ItemLook = Literal["pieces", "card"]
+# sky: far behind everything (no haze, barely moves in travel shots); back: distant, hazed; mid: scenery behind the
+# stage; stage: beside the actors. Keep equal to engine/page/items.js LAYERS and stages/shots.py ITEM_LAYERS.
+ItemLayer = Literal["sky", "back", "mid", "stage"]
+ItemDrawer = Literal["planet", "saucer"]  # built-in drawings (engine/page/items.js DRAWERS)
+ITEM_KEYWORDS = ("remove", "state")  # @item <tag>: remove | state <s>: never a state name
+
+
+def omit_defaults(d: dict, model, names) -> dict:
+    """drop the given fields from a dump while they hold their defaults: rows saved before they existed keep their
+    exact bytes (stage hashes run over the catalogs)"""
+    for k in names:
+        f = model.model_fields[k]
+        if k in d and d[k] == (f.default_factory() if f.default_factory else f.default):
+            d.pop(k)
+    return d
+
+
+class ItemAnim(Strict):
+    """one looping animation of a card item, a pure function of time (any frame renders alone)"""
+    kind: Literal["rotate", "sway", "bob", "drift", "pulse", "blink", "flow"] = Field(
+        description="rotate: spins amp degrees/s; sway: tilts +-amp degrees about its base; bob: rises and falls +-amp "
+                    "units; drift: wanders +-amp units sideways; pulse: grows and shrinks by amp (share, 0..0.9); "
+                    "blink: fades by amp (share, 0..1); flow: scrolls the drawing's flowing layer (planet bands) hz "
+                    "times a second")
+    amp: float = Field(default=1, ge=0, le=360)
+    hz: float = Field(default=0.2, gt=0, le=5, description="cycles per second (not rotate)")
+    when: list[Slug] | None = Field(default=None, description="only in these states; none: always")
+
+    @model_validator(mode="after")
+    def _shares(self):
+        if self.kind in ("pulse", "blink") and self.amp > (0.9 if self.kind == "pulse" else 1):
+            raise ValueError(f"{self.kind}: amp is a share, at most {0.9 if self.kind == 'pulse' else 1}")
+        return self
+
 
 class WorldObject(Strict):
-    """Reusable geometry and interaction capabilities for a large scene object.
+    """Reusable geometry and interaction capabilities for a large scene object (UI: World Items).
 
     Unlike a Prop, a WorldObject is not owned by a cast member and is not attached to a hand. Its state belongs to
-    the scene and can persist across shots. The renderer currently accepts the same primitives as set pieces so the
-    asset can be introduced without adding a second drawing language.
+    the scene and can persist across shots. look "pieces": the set-piece primitives; look "card": a 2D ink drawing
+    (a built-in drawer, or shapes) on a camera-facing card that can animate, fly a path and change state.
     """
     id: Slug
     name: str = Field(min_length=1, max_length=40)
@@ -135,6 +171,20 @@ class WorldObject(Strict):
     capabilities: list[WorldObjectCapability] = Field(default_factory=list, max_length=9)
     carry_mode: WorldObjectCarryMode = "none"
     pieces: list[SetPiece] = Field(default_factory=list, max_length=20)
+    # card items (all left out of the saved row at their defaults)
+    look: ItemLook = "pieces"
+    draw: ItemDrawer | None = Field(default=None, description="card: a built-in drawing; none: its shapes")
+    shapes: list["ItemShape"] = Field(default_factory=list, max_length=60,
+                                      description="card without draw: ink shapes, canvas px around the base point "
+                                                  "(x -512..512, y up is negative: -1000..24), drawn in order")
+    size: float = Field(default=1.0, gt=0, le=60, description="card: world units tall")
+    layer: ItemLayer = "mid"
+    states: list[Slug] = Field(default_factory=list, max_length=8, description="the first is the default state")
+    anims: list[ItemAnim] = Field(default_factory=list, max_length=6)
+
+    @model_serializer(mode="wrap")
+    def _omit_item_defaults(self, handler):
+        return omit_defaults(handler(self), type(self), ("look", "draw", "shapes", "size", "layer", "states", "anims"))
 
     @model_validator(mode="after")
     def _capabilities(self):
@@ -147,13 +197,41 @@ class WorldObject(Strict):
             raise ValueError("two-hand objects must be carryable")
         return self
 
+    @model_validator(mode="after")
+    def _card(self):
+        if bad := [s for s in self.states if s in ITEM_KEYWORDS]:
+            raise ValueError(f"{', '.join(bad)} is reserved (@item <tag>: remove / state <s>), not a state name")
+        if len(set(self.states)) != len(self.states):
+            raise ValueError("states must be unique")
+        if self.look == "pieces" and (self.draw or self.shapes or self.anims):
+            raise ValueError("draw, shapes and anims are for a card (look: card)")
+        if self.look == "card" and not (self.draw or self.shapes):
+            raise ValueError("a card needs a built-in drawing (draw) or shapes")
+        if self.look == "card" and self.pieces:
+            raise ValueError("a card has no pieces")
+        for a in self.anims:
+            if bad := sorted(set(a.when or []) - set(self.states)):
+                raise ValueError(f"anim {a.kind}: unknown state {', '.join(bad)}")
+        for s in self.shapes:
+            if bad := sorted(set(s.when or []) - set(self.states)):
+                raise ValueError(f"shape: unknown state {', '.join(bad)}")
+        return self
+
 
 class WorldObjectInstance(Strict):
-    """A named placement of a WorldObject in a set; its id is the story target."""
+    """A named placement of a WorldObject in a set; its id is the story target. A card stands on `at` (its base);
+    a sky / back card's base is its middle."""
     id: Slug
     object: Slug
     at: Point3
     visible: bool = True
+    state: Slug | None = Field(default=None, description="card: its state here (none: its first)")
+    color: HexColor | None = Field(default=None, description="card: $main (none: the drawing's own)")
+    accent: HexColor | None = Field(default=None, description="card: $accent (none: the drawing's own)")
+
+    @model_serializer(mode="wrap")
+    def _omit_item_defaults(self, handler):
+        return omit_defaults(handler(self), type(self), ("state", "color", "accent"))
 
 
 class CustomSet(Strict):
@@ -169,6 +247,18 @@ class CustomSet(Strict):
                                                 description="placed World Objects, targetable by staged interactions")
     default_weather: Weather | None = Field(default=None, description="weather each @set of this set starts with "
                                                                       "(until an @weather); none: clear")
+    water: bool | None = Field(default=None, description="outdoor: the floor is a sea or lake (waves, foam, "
+                                                         "ripples, reflections); none: when the floor colour reads blue")
+
+    @model_serializer(mode="wrap")
+    def _omit_water(self, handler):
+        return omit_defaults(handler(self), type(self), ("water",))
+
+    @model_validator(mode="after")
+    def _water_outdoor(self):
+        if self.water and self.kind != "outdoor":
+            raise ValueError("water: only an outdoor set has a sea or lake floor")
+        return self
 
     @field_validator("id")
     @classmethod
@@ -361,6 +451,14 @@ class CreatureShape(Strict):
         if any(abs(v) > 1024 for p in self.pts for v in p):
             raise ValueError("points must stay within 1024 px")
         return self
+
+
+class ItemShape(CreatureShape):
+    """one ink shape of a card World Item (canvas px, y down, the base point at 0, 0)"""
+    when: list[Slug] | None = Field(default=None, description="only in these states; none: always")
+
+
+WorldObject.model_rebuild()
 
 
 class CreatureFace(Strict):
