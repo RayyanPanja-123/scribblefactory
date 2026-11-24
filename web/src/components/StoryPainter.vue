@@ -35,7 +35,7 @@ watch(paint, (p) => { if (writeStory(p) !== writeStory(parseStory(text.value))) 
 // the keys, grouped by how long they last (see the tips): scene ones stay until changed, line ones only touch their line
 const GROUPS: [string, string[]][] = [
   ['Scene · stays', ['set', 'cast', 'weather', 'look', 'hold', 'ride', 'background-music']],
-  ['This line only', ['do', 'face', 'fx', 'sfx']],
+  ['This line only', ['do', 'face', 'cam', 'fx', 'sfx']],
   ['Extras', ['car', 'dogs', 'runners', 'crowd', 'crowd-look', 'crowd-weapon']],
 ]
 

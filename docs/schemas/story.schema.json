@@ -299,22 +299,51 @@
           "title": "Angle",
           "type": "string"
         },
+        "dutch_deg": {
+          "default": 0,
+          "description": "@cam dutch: a tilted horizon (degrees, + rolls clockwise); glides in on a twist shot",
+          "maximum": 25,
+          "minimum": -25,
+          "title": "Dutch Deg",
+          "type": "number"
+        },
+        "forced": {
+          "default": false,
+          "description": "set by @cam: the validator lets its angle repeat the previous shot's and a twist keep @cam's move / dutch",
+          "title": "Forced",
+          "type": "boolean"
+        },
         "move": {
-          "enum": [
-            "push_in",
-            "pull_out",
-            "truck_left",
-            "truck_right",
-            "crane_up",
-            "crane_down"
+          "anyOf": [
+            {
+              "enum": [
+                "push_in",
+                "pull_out",
+                "truck_left",
+                "truck_right",
+                "crane_up",
+                "crane_down"
+              ],
+              "type": "string"
+            },
+            {
+              "const": "hold",
+              "type": "string"
+            }
           ],
-          "title": "Move",
-          "type": "string"
+          "description": "hold: no move (only from @cam; the planner always creeps)",
+          "title": "Move"
         },
         "roll_deg": {
           "default": 0,
           "title": "Roll Deg",
           "type": "number"
+        },
+        "shake": {
+          "default": false,
+          "description": "@cam shake: a camera shake at the shot's first frame",
+          "title": "Shake",
+          "type": "boolean"
         },
         "speed": {
           "maximum": 1.0,
@@ -1161,6 +1190,15 @@
     "seed": {
       "title": "Seed",
       "type": "integer"
+    },
+    "shakes": {
+      "default": [],
+      "description": "@fx shake: frames the camera (engine) and the captions (finish) shake on; older story.json files have none",
+      "items": {
+        "type": "integer"
+      },
+      "title": "Shakes",
+      "type": "array"
     },
     "shots": {
       "items": {

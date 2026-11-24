@@ -46,6 +46,7 @@ One per line. A directive holds until it is changed, except `@do` and `!!`, whic
 | `@crowd-look <group>: <wardrobe ids>` | Gives a crowd team built-in or library wardrobe items (top, headwear, legwear). | `@crowd-look red: suit, flat_cap, trousers` |
 | `@crowd-weapon <group>: <prop>` | Gives every member of a crowd team a held prop from the props library. | `@crowd-weapon red: rifle` |
 | `@runners N` | Background runners (0-6): run along in travel shots, cross the background otherwise. | `@runners 4` |
+| `@cam [angle] [move] [fast] [shake] [dutch <deg>]` | The camera for the next line's first shot; only what is given, the planner picks the rest. Key beats only. | `@cam close push_in fast` |
 | `@fx <effect>` | Caption effect for the next line: drop, shake, pop or none. | `@fx shake` |
 | `@fx lightning [target]` | One lightning strike (bolt + brief flash) at the next line, beside a cast id on stage or whoever holds a prop id. At most 3 per part. | `@fx lightning poseidon` |
 | `@weather <type> [intensity]` | clear, rain, snow, fog, wind or storm; light, medium or heavy (default medium). Until the next `@weather` or `@set`; a `@set` starts the set's default weather (custom sets), else clear. | `@weather storm heavy` |

@@ -307,3 +307,57 @@ def test_unused_custom_actions_counts_every_series_and_the_gallery(tmp_path):
         (tmp_path / story).mkdir(parents=True, exist_ok=True)
         (tmp_path / story / "story.md").write_text(f"# T\n\n@do bob: {action}\nBob moved.\n", encoding="utf-8")
     assert unused_custom_actions(tmp_path) == ids[2:]
+
+
+def test_cam_checks(tmp_path):
+    story = """# Test
+
+@set office
+@cast bob
+@cam close
+Bob walked in.
+@cam over_shoulder
+Bob sat down.
+@cam medium hold fast
+Bob stood up.
+@cam zoom
+Bob left.
+@cam dutch 40
+Bob came back.
+@cam low
+@cam high
+Bob waved.
+@cast bob, amy
+@cam close push_in fast shake
+Amy waved.
+@cam over_shoulder
+!! Amy was a spy.
+@cam fast
+Bob gasped.
+@cam wide
+"""
+    r = check_story(setup(tmp_path, story))
+    problems = {(p["line"], p["message"].split(" (")[0]) for p in r["problems"]}
+    assert (11, "@cam: unknown 'zoom'") in problems
+    assert (13, "@cam: dutch 40 is outside -25..25") in problems
+    assert (15, "@cam is replaced by the @cam on line 16 before any text line uses it") in problems
+    assert (25, "@cam has no narration line after it") in problems
+    assert len([p for p in problems if "@cam" in p[1]]) == 4
+    warns = {(w["line"], w["message"]) for w in plain(r)["warnings"]}
+    assert (5, "@cam close replaces the establishing wide of this set's first line") in warns
+    assert (7, "@cam over_shoulder needs two on stage (@cast bob): the planner picks the angle instead") in warns
+    assert (9, "@cam fast has no move (give one, e.g. push_in): fast is ignored") in warns
+    assert (23, "@cam fast has no move (give one, e.g. push_in): fast is ignored") in warns
+    cam_warns = {w for w in warns if "@cam" in w[1]}
+    assert len(cam_warns) == 4  # line 19 (fast with a move) and 21 (two on stage, a twist) are fine
+
+
+def test_cam_repeated_angle_warning_once_timed(tmp_path):
+    from pipeline.tests.test_shots import phrases_for
+    story = "# Test\n\n@set office\n@cast bob, amy\nBob walked in.\n@cam close\nAmy sat down.\n@cam close\nBob waved.\n"
+    pdir = setup(tmp_path, story)
+    msg = "@cam: same angle as previous shot (close), may look like a missed cut"
+    assert not [w for w in check_story(pdir)["warnings"] if msg in w["message"]]  # not timed yet: no plan, no warning
+    (pdir / "phrases.json").write_text(phrases_for(story).model_dump_json(), encoding="utf-8")
+    hits = [(w["line"], w["message"]) for w in check_story(pdir)["warnings"] if "missed cut" in w["message"]]
+    assert hits == [(8, msg)]  # the second close; the first follows a wide

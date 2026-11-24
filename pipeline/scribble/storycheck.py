@@ -22,14 +22,14 @@ from .io import (CREATURE_HINT, all_parts, library_of, part_id_of, storage_root,
 from .schemas import HAND_RIGS
 from .stages.finish import MAX_RUNTIME_S, MIN_RUNTIME_S
 from .stages.prep import (DO_CAR, FX_LIGHTNING, FX_MODES, MAX_LIGHTNING, TWIST_PREFIX, clean_markdown, parse_do,
-                          parse_face, parse_hold, parse_lightning, parse_look, parse_ride, parse_weather, ride,
+                          parse_cam, parse_face, parse_hold, parse_lightning, parse_look, parse_ride, parse_weather, ride,
                           respell, strip_directives, RIDE_ACTIONS)
 from .stages.runner import StageError
 from .stages.shots import (ACTION_FACE, CAR_MODES, CAR_SEATS, DEFAULT_CAST_SIZE, EXPRESSIONS, MAX_CAST, MAX_DOGS, MAX_ON_STAGE,
-                           MAX_RUNNERS, parse_crowd, parse_crowd_look, parse_crowd_weapon, token)
+                           MAX_RUNNERS, parse_crowd, parse_crowd_look, parse_crowd_weapon, plan_part, token)
 from .validate import END_SCREEN_S, TAIL_S
 
-DIRECTIVES = ("set", "cast", "dogs", "car", "fx", "do", "look", "hold", "ride", "crowd", "crowd-look", "crowd-weapon", "runners", "weather", "sfx", "face", "background-music")
+DIRECTIVES = ("set", "cast", "dogs", "car", "fx", "do", "look", "hold", "ride", "crowd", "crowd-look", "crowd-weapon", "runners", "weather", "sfx", "face", "cam", "background-music")
 LINE_PREFIX = re.compile(r"^story\.md line [0-9]+: ")
 FALLBACK_WPS = 2.6  # words per second before any part has been finished
 # a first line that opens on a date or backstory instead of the hook
@@ -166,7 +166,9 @@ def check_story(part_dir: Path) -> dict:
 
     sounds = sfx_lib.by_id(library)
     cast, car, pending_do, pending_strike, strikes = tuple(ids[:DEFAULT_CAST_SIZE]), "off", None, None, 0
-    pending_sfx, n_sfx, pending_face = [], 0, None
+    pending_sfx, n_sfx, pending_face, pending_cam = [], 0, None, None
+    cur_set, fresh_set = None, True  # a set's first narration line opens on the establishing wide
+    cam_lines = []  # every @cam line, in order (each forces one shot: _cam_repeats pairs them up)
     rides, ride_warned = {}, set()  # @ride: rider -> mount (kept across @set); warnings already given (no repeats)
     first_seen: dict[str, int] = {}  # cast id -> first line it is on stage
     for no, line in enumerate(md.replace("\r\n", "\n").split("\n"), 1):
@@ -180,6 +182,8 @@ def check_story(part_dir: Path) -> dict:
                 elif name == "set":
                     if arg not in sets:
                         bad(no, f"unknown set {arg!r} (sets: {', '.join(sets)})")
+                    elif arg != cur_set:
+                        cur_set, fresh_set = arg, True
                 elif name == "cast":
                     new = tuple(x.strip() for x in arg.split(",") if x.strip())
                     unknown = [x for x in new if x not in ids]
@@ -212,6 +216,12 @@ def check_story(part_dir: Path) -> dict:
                 elif name == "face":
                     parse_face(arg, no, ids)
                     pending_face = no
+                elif name == "cam":
+                    spec = parse_cam(arg, no)
+                    if pending_cam:
+                        bad(pending_cam[0], f"@cam is replaced by the @cam on line {no} before any text line uses it")
+                    pending_cam = (no, spec)
+                    cam_lines.append(no)
                 elif name == "sfx":
                     sid, _vol = sfx_lib.parse_sfx(arg, no, list(sounds))
                     n_sfx += 1
@@ -274,7 +284,17 @@ def check_story(part_dir: Path) -> dict:
                                          f"move the mount instead, or \"@ride {w}: none\" first)"})
             _check_do(*pending_do, cast, car, bad)
             pending_do = None
-        pending_sfx, pending_face = [], None
+        if pending_cam:
+            cno, spec = pending_cam
+            if spec.get("angle") == "over_shoulder" and len(cast) < 2:
+                warnings.append({"line": cno, "message": f"@cam over_shoulder needs two on stage (@cast {', '.join(cast)}): "
+                                                         "the planner picks the angle instead"})
+            if spec.get("fast") and (spec.get("move") == "hold" or ("move" not in spec and not TWIST_PREFIX.match(line))):
+                warnings.append({"line": cno, "message": "@cam fast has no move (give one, e.g. push_in): fast is ignored"})
+            if fresh_set and spec.get("angle", "wide") != "wide":
+                warnings.append({"line": cno, "message": f"@cam {spec['angle']} replaces the establishing wide of this "
+                                                         "set's first line"})
+        pending_sfx, pending_face, pending_cam, fresh_set = [], None, None, False
         if pending_strike:
             if pending_strike[1] in ids and pending_strike[1] not in cast:
                 bad(pending_strike[0], f"@fx lightning: {pending_strike[1]} is not on stage on the next line "
@@ -286,6 +306,10 @@ def check_story(part_dir: Path) -> dict:
         bad(pending_strike[0], "@fx lightning has no text line after it to strike on")
     if pending_face:
         bad(pending_face, "@face has no narration line after it")
+    if pending_cam:
+        bad(pending_cam[0], "@cam has no narration line after it")
+    if cam_lines and not problems:
+        warnings += _cam_repeats(part_dir, cam_lines)
     for no in pending_sfx:
         bad(no, "@sfx has no narration line after it to play on")
 
@@ -329,6 +353,21 @@ def check_story(part_dir: Path) -> dict:
                                                   f"add about {add} words"})
     return {"ok": not problems, "problems": [tag_missing(p) for p in problems], "warnings": warnings,
             "words": len(words), "seconds": seconds, "wps": round(wps, 2)}
+
+
+def _cam_repeats(part_dir: Path, cam_lines: list[int]) -> list[dict]:
+    """warnings for @cam shots whose angle repeats the shot before (the planner allows it for @cam). Needs the shot
+    plan, so only once the part is timed (phrases.json matches story.md); else none. Each @cam forces exactly one
+    shot, so the forced shots pair with the @cam lines in order."""
+    try:
+        story = plan_part(part_dir)[0]
+    except (StageError, OSError, ValueError):
+        return []  # not timed yet, or stale timing: the shots stage will say so
+    forced = [(i, s) for i, s in enumerate(story.shots) if s.camera.forced]
+    if len(forced) != len(cam_lines):
+        return []
+    return [{"line": no, "message": f"@cam: same angle as previous shot ({s.camera.angle}), may look like a missed cut"}
+            for no, (i, s) in zip(cam_lines, forced) if i and story.shots[i - 1].camera.angle == s.camera.angle]
 
 
 STAGING = ("do", "look", "hold", "ride", "face", "fx", "crowd", "dogs", "runners", "car", "weather", "sfx")

@@ -112,6 +112,12 @@
           "description": "[left, right] thigh angles, -90..90 (rest -6, 6); the feet stay on the ground; none: at rest",
           "title": "Legs"
         },
+        "snap": {
+          "default": false,
+          "description": "arrive on this key exactly: no anticipation dip before it and no spring past it (the engine adds both to big pose changes)",
+          "title": "Snap",
+          "type": "boolean"
+        },
         "t": {
           "description": "when, as a share of the action's duration",
           "maximum": 1,

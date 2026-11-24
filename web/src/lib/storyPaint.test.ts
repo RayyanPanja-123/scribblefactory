@@ -81,3 +81,13 @@ describe('lintBeat', () => {
     expect(lintBeat(p.beats, 2, c)).toEqual(['Sound: loudness "3" must be 0 to 1.'])
   })
 })
+
+describe('@cam card', () => {
+  it('reads any token order into fields and writes them back in order', () => {
+    const k = KINDS.cam
+    expect(k.parse('shake close dutch -12 push_in fast')).toEqual({ angle: 'close', move: 'push_in', fast: 'fast', shake: 'shake', dutch: '-12' })
+    expect(k.build(k.parse('shake close dutch -12 push_in fast')!)).toBe('close push_in fast shake dutch -12')
+    expect(k.build(k.parse('hold')!)).toBe('hold')
+    for (const bad of ['zoom', 'close wide', 'dutch', 'dutch x']) expect(k.parse(bad)).toBeNull() // shown as plain text
+  })
+})

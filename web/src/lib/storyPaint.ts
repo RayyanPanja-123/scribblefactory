@@ -56,6 +56,20 @@ export type Kind = {
 }
 
 export const FX = ['pop', 'shake', 'drop', 'none', 'lightning']
+// pipeline schemas/story.py CamAngle / CamMove (+ hold): keep in step
+export const CAM_ANGLES = ['wide', 'medium', 'close', 'low', 'high', 'over_shoulder']
+export const CAM_MOVES = ['push_in', 'pull_out', 'truck_left', 'truck_right', 'crane_up', 'crane_down', 'hold']
+/** @cam tokens -> fields (any order, each once), or null when the fields cannot hold them */
+function camParts(arg: string): Rec | null {
+  const r: Rec = { angle: '', move: '', fast: '', shake: '', dutch: '' }, w = words(arg)
+  for (let i = 0; i < w.length; i++) {
+    const t = w[i], key = CAM_ANGLES.includes(t) ? 'angle' : CAM_MOVES.includes(t) ? 'move' : ['fast', 'shake', 'dutch'].includes(t) ? t : ''
+    if (!key || r[key]) return null
+    if (key === 'dutch') { if (!/^-?\d+(\.\d+)?$/.test(w[i + 1] ?? '')) return null; r.dutch = w[++i]; continue }
+    r[key] = t
+  }
+  return r
+}
 export const WEATHER = ['clear', 'rain', 'snow', 'fog', 'wind', 'storm']
 export const CAR = ['arrive', 'ride', 'leave', 'off']
 export const MOODS = ['cheer', 'angry', 'gasp', 'neutral', 'off', 'fight']
@@ -122,6 +136,13 @@ export const KINDS: Record<string, Kind> = {
   face: { label: 'Face', common: true, rank: 6, start: (c) => `${first(c)}: happy`,
     fields: (c) => [who(c), { key: 'face', label: 'Face', type: 'select', options: [...EXPRESSIONS] }],
     parse: (a) => pair(a, 'face'), build: (r) => `${r.who}: ${r.face}` },
+  cam: { label: 'Camera', common: false, rank: 6, start: () => 'close push_in',
+    fields: () => [{ key: 'angle', label: 'Angle', type: 'select', options: ['', ...CAM_ANGLES], names: { '': 'Planner picks' } },
+      { key: 'move', label: 'Move', type: 'select', options: ['', ...CAM_MOVES], names: { '': 'Planner picks' } },
+      { key: 'fast', label: 'Fast', type: 'select', options: ['', 'fast'], names: { '': 'No' } },
+      { key: 'shake', label: 'Shake', type: 'select', options: ['', 'shake'], names: { '': 'No' } },
+      { key: 'dutch', label: 'Tilt (dutch, -25..25)', type: 'number' }],
+    parse: camParts, build: (r) => join(r.angle, r.move, r.fast, r.shake, r.dutch ? `dutch ${r.dutch}` : '') },
   fx: { label: 'Effect', common: true, rank: 7, start: () => 'pop',
     fields: (c, r) => [{ key: 'fx', label: 'Effect', type: 'select', options: FX },
       ...(r.fx === 'lightning' ? [{ key: 'at', label: 'Beside', type: 'select' as const, options: ['', ...ids(c), ...c.props] }] : [])],

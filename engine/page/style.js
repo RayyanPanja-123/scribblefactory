@@ -58,7 +58,7 @@ export const STYLE = {
     // legacyEase: moves use the old smootherstep instead of cubic in-out / quintic out (a fast push).
     // drift: hand-held float, pos world units / rot degrees at hz, times scale[angle] (close-ups drift less).
     // shake: trauma per trigger (strength, decaying linearly over decay s), summed and clamped to 1, then
-    // offset = max * trauma^2 * noise(t * hz); pos world units, rot degrees.
+    // offset = max * trauma^2 * noise(t * hz); pos world units, rot degrees. cam: an @cam shake (at its shot's start).
     // punch: a fast push (push_in at speed >= fastSpeed, or a twist) zooms the fov by keys [shot s, degrees over the
     // angle's fov] eased cubic in-out; never on the skip angles (edges would clip).
     // foreground: an ink silhouette near the camera on `chance` of sets (seeded per set), alpha, blur px, depth = share
@@ -67,7 +67,7 @@ export const STYLE = {
     life: {
       legacyEase: false,
       drift: { pos: 0.02, rot: 0.3, hz: 0.3, scale: { wide: 1, medium: 0.75, low: 0.75, high: 0.75, close: 0.5, over_shoulder: 0.5 } },
-      shake: { pos: 0.05, rot: 1.2, hz: 9, decay: 0.6, strength: { twist: 1.0, collapse: 0.7, lightning: 0.6, fx: 0.8 } },
+      shake: { pos: 0.05, rot: 1.2, hz: 9, decay: 0.6, strength: { twist: 1.0, collapse: 0.7, lightning: 0.6, fx: 0.8, cam: 0.9 } },
       punch: { fastSpeed: 0.7, keys: [[0, 0], [0.12, 11], [0.32, -3], [0.8, 0]], skip: ["wide", "over_shoulder"] },
       foreground: { chance: 0.6, alpha: 0.5, blur: 5, depth: 0.7, edge: 0.2, captionTop: { 1920: 0.6, 1080: 0.72 } },
     },

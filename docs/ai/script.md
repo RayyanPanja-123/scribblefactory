@@ -1,13 +1,13 @@
 ## Script format
 - Line 1 `# Title`, then a blank line.
 - One directive per line, alone.
-- `@do`, `@face`, `@fx`, `@sfx`: next narration line only (one must follow). Others last until changed.
+- `@do`, `@face`, `@cam`, `@fx`, `@sfx`: next narration line only (one must follow). Others last until changed.
 - Narration: plain text, numbers as words; no digits, symbols, abbreviations, parentheses, markdown.
 
 
 ## Directives
 - Directives are silent and must occupy their own line. They are never sent to TTS.
-- Persistent directives remain active until changed. `@do`, `@face`, `@fx`, `@fx lightning`, and `@sfx` apply to the next narration line only.
+- Persistent directives remain active until changed. `@do`, `@face`, `@cam`, `@fx`, `@fx lightning`, and `@sfx` apply to the next narration line only.
 
 ### Persistent scene state
 
@@ -120,6 +120,15 @@ fit the story's period or design.
   clear; narration mood words can also change faces during the line. With no `@face` and no mood word, the line's
   punctuation picks the speaker's face: a `!!` twist line is `shocked`, a line ending in `!` is `surprised`, a line
   ending in `?` is `confused` (a `!` or `?` mid-line does nothing). Use `@face <cast>: neutral` to keep a plain face.
+- `@cam [angle] [move] [fast] [shake] [dutch <deg>]`: picks the camera for the next line's first shot; the planner
+  chooses everything you leave out (and every other shot). angle: `wide`, `medium`, `close`, `low`, `high`,
+  `over_shoulder` (needs two on stage); move: `push_in`, `pull_out`, `truck_left`, `truck_right`, `crane_up`,
+  `crane_down`, or `hold` (still); `fast` speeds a move up (a fast push punches in); `shake` jolts the camera on the
+  line's first word; `dutch <deg>` tilts the horizon (-25..25). On a `!!` line the twist keeps its push and roll
+  unless you give a move or `dutch`. `fast` works best with `push_in` / `pull_out`: trucks and cranes on close shots
+  barely speed up (the camera slows them so the cast stays in frame). Key beats only (two or three a part), never every line:
+  `@cam low crane_up` (someone rises to power), `@cam close push_in fast shake` (the reveal hits),
+  `@cam dutch 15` (something is off).
 - `@fx drop | shake | pop`: animates the next line's caption. Use `shake` for impact, `pop` for a reveal, and `drop` for
   a dramatic entrance or punchline. Use sparingly.
 - `@fx lightning [cast | prop]`: creates one lightning bolt and flash beside a cast member or the holder of a prop on

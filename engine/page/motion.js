@@ -146,12 +146,14 @@ export function trauma(t, triggers, decay) {
 }
 
 /** shake triggers of a story.json: [{ t0 s, strength, kind }]. twist: its low_hit cue (finish shakes the captions
- *  there too); collapse: the moment the body lands; lightning: each strike; fx: story.shakes (@fx shake). */
+ *  there too); collapse: the moment the body lands; lightning: each strike; fx: story.shakes (@fx shake); cam: a
+ *  shot's camera.shake (@cam shake: the camera only, captions stay still). */
 export function shakeTriggers(story) {
   const S = STYLE.camera.life.shake.strength, out = [], at = (frame, kind) => out.push({ t0: frame / 30, strength: S[kind], kind });
   for (const sh of story.shots || []) {
     if (sh.twist) at((story.cues || []).find((c) => c.kind === "low_hit" && c.frame >= sh.start_frame && c.frame < sh.end_frame)?.frame ?? sh.start_frame, "twist");
     if (sh.actors?.some((a) => a.action === "collapse")) at(sh.start_frame + COLLAPSE_S * 30, "collapse");
+    if (sh.camera?.shake) at(sh.start_frame, "cam"); // @cam shake: the line's first word
   }
   for (const l of story.lightning || []) at(l.frame, "lightning");
   for (const f of story.shakes || []) at(f, "fx");

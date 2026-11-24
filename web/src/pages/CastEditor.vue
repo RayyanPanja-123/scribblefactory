@@ -424,7 +424,7 @@ const swatch = 'mt-1 block h-10 w-14 shrink-0 cursor-pointer rounded-md'
           <WardrobePreview v-if="humanoid && entry" class="h-80" :wear="entry" :library="library" :build="creature(base.body)?.build"
             :expression="draft.expression" :seed="`${slug}:${id}`" :label="`${base.name}${active ? `, look ${active}` : ''}, live preview`" />
           <CreaturePreview v-else-if="creature(base.body)" class="h-80" :creature="creature(base.body)!" :color="draft.top.color" :headless="draft.headless"
-            :flame="draft.flame" :flame-color="draft.flameColor" :wear="entry" :library="library" :label="`${base.name}${active ? `, look ${active}` : ''}, live preview`" />
+            :flame="draft.flame" :flame-color="draft.flameColor" :wear="entry ?? undefined" :library="library" :label="`${base.name}${active ? `, look ${active}` : ''}, live preview`" />
           <div v-else class="drawing grid h-80 place-items-center rounded-md p-4 text-center text-sm text-muted">No live preview for this body: save and render to see it.</div>
           <figcaption class="mt-2 text-center text-xs text-muted">Live preview (idle){{ active ? `: look ${active}` : '' }}</figcaption>
         </figure>

@@ -89,7 +89,7 @@ def validate(story: StoryModel, phrases: PhrasesModel, cast_ids: set[str], outdo
         n = s.end_frame - s.start_frame
         if not 1 <= n <= MAX_SHOT_FRAMES:
             err(s.id, "shot_length", f"{n} frames, must be 1..{MAX_SHOT_FRAMES}")
-        if prev and prev.camera.angle == s.camera.angle:
+        if prev and prev.camera.angle == s.camera.angle and not s.camera.forced:  # @cam may repeat an angle
             err(s.id, "repeated_angle", f"same camera angle {s.camera.angle!r} as {prev.id}")
         if not s.camera.speed > 0:
             err(s.id, "camera_speed", f"speed {s.camera.speed} must be > 0 (camera always creeps)")
@@ -345,9 +345,9 @@ def _check_extras(s, seconds, err) -> None:
 
 
 def _check_twist(s, story, err) -> None:
-    if s.camera.move != "push_in":
+    if s.camera.move != "push_in" and not s.camera.forced:  # @cam's move / dutch win on a twist
         err(s.id, "twist", f"twist shot needs move push_in, got {s.camera.move}")
-    if s.camera.roll_deg == 0:
+    if s.camera.roll_deg == 0 and not s.camera.forced:
         err(s.id, "twist", "twist shot needs roll_deg != 0")
     near = {c.kind for c in story.cues if abs(c.frame - s.start_frame) <= TWIST_CUE_WINDOW}
     for kind in ("music_stop", "low_hit"):

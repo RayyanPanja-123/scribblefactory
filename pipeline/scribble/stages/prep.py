@@ -14,6 +14,7 @@ story.md directives (one per line) are stripped from the script:
   @ride charro: charro-horse  a person rides a creature from the next line on, until "@ride charro: none" or the
                      end of the part; it stays mounted across @set changes (see parse_ride)
   @face mike: angry  a cast member's face for the next line only (see parse_face)
+  @cam close push_in fast  the camera for the next line's first shot (see parse_cam)
   @crowd cheer 10    crowd extras behind the stage: cheer | angry | gasp | neutral [N, default 8, max 12] | off
   @runners 4         background runner extras (0-6)
   @sfx riser 0.6     a sound effect (library/sfx/sfx.json id, optional volume 0-1) for the next line (see sfx.py)
@@ -27,7 +28,7 @@ from typing import NamedTuple, get_args
 
 from ..io import (CREATURE_HINT, CREATURE_SLOTS, LIBRARY_FILES, atomic_write_text, custom_actions, library_of, load_series, series_exists,
                   prop_kinds)
-from ..schemas import BuiltinProp, Expression, Intensity, Weather, WeatherKind, actions_with
+from ..schemas import BuiltinProp, CamAngle, CamMove, Expression, Intensity, Weather, WeatherKind, actions_with
 from .runner import StageError
 
 INPUTS = ["story.md", *(f"../../{f}" for f in LIBRARY_FILES)]
@@ -216,6 +217,44 @@ def parse_hold(arg: str, line: int, cast_ids=None, props=None, handless=None) ->
     return who, hand, None if kind == "none" else kind
 
 
+CAM_ANGLES, CAM_MOVES = get_args(CamAngle), (*get_args(CamMove), "hold")
+CAM_DUTCH = 25  # @cam dutch: at most this many degrees either way
+
+
+def parse_cam(arg: str, line: int) -> dict:
+    """@cam [angle] [move | hold] [fast] [shake] [dutch <deg>], in any order, at least one -> only the parts given:
+    {angle, move, fast: True, shake: True, dutch: degrees}. The shot planner applies them to the next line's first
+    shot and keeps its own choice for the rest."""
+    toks, out = arg.split(), {}
+    usage = (f'expected "@cam [{" | ".join(CAM_ANGLES)}] [{" | ".join(CAM_MOVES)}] [fast] [shake] '
+             f'[dutch <-{CAM_DUTCH}..{CAM_DUTCH}>]", e.g. "@cam close push_in fast"')
+    if not toks:
+        raise StageError(f"story.md line {line}: @cam: {usage}")
+    i = 0
+    while i < len(toks):
+        t = toks[i]
+        key = "angle" if t in CAM_ANGLES else "move" if t in CAM_MOVES else t if t in ("fast", "shake", "dutch") else None
+        if key is None:
+            raise StageError(f"story.md line {line}: @cam: unknown {t!r} ({usage})")
+        if key in out:
+            both = f" ({out[key]!r} and {t!r})" if key in ("angle", "move") else ""
+            raise StageError(f"story.md line {line}: @cam: {key} given twice{both}")
+        if key == "dutch":
+            deg = toks[i + 1] if i + 1 < len(toks) else ""
+            try:
+                out["dutch"] = float(deg)
+            except ValueError:
+                raise StageError(f"story.md line {line}: @cam: dutch needs degrees, e.g. \"dutch 12\" "
+                                 f"(-{CAM_DUTCH}..{CAM_DUTCH})") from None
+            if not -CAM_DUTCH <= out["dutch"] <= CAM_DUTCH:
+                raise StageError(f"story.md line {line}: @cam: dutch {deg} is outside -{CAM_DUTCH}..{CAM_DUTCH}")
+            i += 2
+            continue
+        out[key] = t if key in ("angle", "move") else True
+        i += 1
+    return out
+
+
 def parse_face(arg: str, line: int, cast_ids=None) -> dict[str, str]:
     """@face <cast>[, <cast>]: <expression> -> {cast id: expression} for the next narration line. cast_ids: the
     series cast, or None to check the syntax only. Errors name the story.md line."""
@@ -272,7 +311,7 @@ def mark_directives(md: str) -> tuple[str, list[tuple[int, str]]]:
         if _is_directive(line):
             out.append(MARKER.format(len(found)))
             found.append((no, line.strip()[1:]))
-            close = close or line.strip()[1:].split(None, 1)[:1] in (["do"], ["face"])
+            close = close or line.strip()[1:].split(None, 1)[:1] in (["do"], ["face"], ["cam"])
         else:
             line = TWIST_PREFIX.sub(lambda m: m[1] + MARKER.format("!") + " ", line)
             if close and line.strip():  # an @do covers exactly the next text line

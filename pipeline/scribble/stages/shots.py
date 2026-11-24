@@ -23,7 +23,7 @@ from ..schemas import (FRAME_SIZE, BUILTIN_CREATURES, BUILTIN_SETS, BUILTIN_WARD
                        Shot, StoryModel, Strike, Travel, Vehicle)
 from ..validate import (CAR_SPEED, CROWD_Z, DOG_RUN_SPEED, MAX_SHOT_FRAMES, MOODS, OUTDOOR_SETS, SPEEDS,
                         custom_speeds, end_frame, validate)
-from .prep import (BUILTIN_PROPS, DO_CAR, FX_LIGHTNING, FX_MODES, MARKER_RE, clean_markdown, mark_directives, parse_do,
+from .prep import (BUILTIN_PROPS, DO_CAR, parse_cam, FX_LIGHTNING, FX_MODES, MARKER_RE, clean_markdown, mark_directives, parse_do,
                    parse_face, parse_hold, parse_lightning, parse_look, parse_ride, parse_weather, ride, RIDE_ACTIONS)
 from .. import background_music
 from .runner import StageError
@@ -42,6 +42,7 @@ ESTABLISHING = "wide"      # first shot of the part and after each set change; i
 MOVES = ["push_in", "pull_out", "truck_left", "truck_right", "crane_up", "crane_down"]
 SPEED = (0.15, 0.35)
 TWIST_ROLL = (6.0, 10.0)   # degrees, sign seeded
+FAST_SPEED = 0.8           # @cam fast: over the engine's fast push (style.js camera.life.punch.fastSpeed, 0.7)
 STAGE_X = 1.0              # starting cast spread across -STAGE_X..STAGE_X, z = 0
 BOUNDS = (-2.0, 2.0)       # x range a walk/run must end inside
 MOVE_SPEED = {"walk": 1.2, "run": 2.5, "stagger": 0.6}  # units/s
@@ -152,6 +153,7 @@ class Tag(NamedTuple):
     bg_music: "tuple | None"
     rides: dict = {}  # @ride: {rider cast id: mount cast id}, kept across @set changes until "@ride <rider>: none"
     shake: bool = False  # @fx shake: the first word of the line after it (camera shake, story.shakes)
+    cam: "tuple | None" = None  # @cam: (story.md line, prep.parse_cam parts) for the words of the line after it
 
 
 def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILTIN_PROPS, looks_of=None, actions=(),
@@ -168,7 +170,7 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
     set_, cast, twist_next, dogs, car, do = DEFAULT_SET, tuple(default_cast), False, 0, "off", None
     bg_music = None
     crowd, crowd_wardrobe, runners, looks, strike, face = {}, {}, 0, {}, None, None
-    holds, rides, shake_next = {}, {}, False
+    holds, rides, shake_next, cam = {}, {}, False, None
     weather_of = weather_of or {}
     weather = weather_of.get(set_)
     looks_of = looks_of if looks_of is not None else {c: [] for c in cast_ids}
@@ -181,12 +183,12 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
                             crowd={k: dict(v) for k, v in crowd.items()},
                             crowd_wardrobe={k: dict(v) for k, v in crowd_wardrobe.items()}, runners=runners,
                             looks=dict(looks), holds={k: dict(v) for k, v in holds.items()}, weather=weather, strike=strike, face=face, bg_music=bg_music,
-                            rides=dict(rides), shake=shake_next))
+                            rides=dict(rides), shake=shake_next, cam=cam))
             twist_next, strike, shake_next = False, None, False
         elif m[1] == "!":
             twist_next = True
         elif m[1] == "/":
-            do = face = None  # the @do / @face line is over
+            do = face = cam = None  # the @do / @face / @cam line is over
         else:
             line, d = directives[int(m[1])]
             name, _, arg = d.strip().partition(" ")
@@ -236,6 +238,8 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
                 crowd_wardrobe[group] = {**crowd_wardrobe.get(group, {}), "props": [Prop(kind=weapon, hand="right")]}
             elif name == "runners" and arg.isdigit() and int(arg) <= MAX_RUNNERS:
                 runners = int(arg)
+            elif name == "cam":
+                cam = (line, parse_cam(arg, line))
             elif name == "face":
                 face = {**(face or {}), **parse_face(arg, line, cast_ids)}
             elif name == "sfx":
@@ -255,7 +259,7 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
                 raise StageError(f"story.md line {line}: bad directive @{d.strip()} (use @set <name>, @cast a, b, "
                                  f"@dogs 0-{MAX_DOGS}, @car {' | '.join(CAR_MODES)}, @fx {' | '.join(FX_MODES)} | lightning [target], "
                                  f"@weather <type> [intensity], "
-                                 f"@do <cast>: <action>, @look <cast>: <look>, @hold <cast>: <prop> [hand], @ride <cast>: <creature>, @face <cast>: <expression>, @sfx <id>, "
+                                 f"@do <cast>: <action>, @cam <angle> [move] [fast] [shake] [dutch <deg>], @look <cast>: <look>, @hold <cast>: <prop> [hand], @ride <cast>: <creature>, @face <cast>: <expression>, @sfx <id>, "
                                  f"@crowd <mood> [N] | <group> <mood> [N] | off, @crowd-look <group>: <wardrobe ids>, "
                                  f"@crowd-weapon <group>: <prop>, or @runners 0-{MAX_RUNNERS})")
     return words, tags
@@ -807,7 +811,7 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
             featured |= {w for c in t.do[1] for w in c.who + ((c.target,) if c.target else ()) if w in key[1]}
 
     shots, cues = [], [Cue(frame=0, kind="music_start")]
-    prev_angle = prev_set = subject = None
+    prev_angle = prev_set = subject = cam_used = None
     back_pos: dict[str, float] = {}  # back row of the current scene (a scene's first shot places it)
     scene_key = None
     car_mode, car_left, park = "off", False, None  # park: (x, facing) where an arrived car stands
@@ -870,6 +874,10 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
                 angle = ESTABLISHING if prev_angle != ESTABLISHING else next(x for x in ANGLES if x != prev_angle)
             move, speed, roll = rng.choice(MOVES), round(rng.uniform(*SPEED), 3), 0.0
             is_twist = twist and k == 0
+            # @cam: the line's first shot only, drawn after the planner's own choices (same randomness either way)
+            cam_here = tags[p.word_start].cam if k == 0 else None
+            if cam_here and cam_here[0] == cam_used:
+                cam_here = None  # a later phrase of the same line
             if is_twist:
                 move = "push_in"
                 roll = round(rng.uniform(*TWIST_ROLL), 2) * rng.choice((-1, 1))
@@ -964,8 +972,19 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
                     ac.expression, ac.faces = face[ac.cast_id], []
                 elif ac.cast_id == subject and ac.expression == expression:
                     ac.expression, ac.faces = (opened[-1] if opened else expression), switches
+            cam_extra = {}
+            if cam_here:  # only the parts @cam gives; the rest keep the planner's (or the twist's) values
+                cam_used, c = cam_here
+                if "angle" in c and not (c["angle"] == "over_shoulder" and len(actors) < 2):  # needs someone's shoulder
+                    angle = c["angle"]
+                move = c.get("move", move)
+                if c.get("fast") and move != "hold" and ("move" in c or is_twist):  # fast needs a move (storycheck)
+                    speed = FAST_SPEED
+                if "dutch" in c:  # replaces a twist's roll
+                    roll, cam_extra["dutch_deg"] = 0.0, c["dutch"]
+                cam_extra.update(shake=bool(c.get("shake")), forced=True)
             shots.append(Shot(id=sid, start_frame=s0, end_frame=s1, set=set_,
-                              phrase_range=(i, i), camera=Camera(angle=angle, move=move, speed=speed, roll_deg=roll),
+                              phrase_range=(i, i), camera=Camera(angle=angle, move=move, speed=speed, roll_deg=roll, **cam_extra),
                               actors=actors, animals=animals, vehicles=vehicles, extras=extras, twist=is_twist,
                               travel=Travel(speed=tspeed) if travel else None, weather=weather))
             prev_angle, prev_set = angle, set_
@@ -1009,7 +1028,9 @@ def strike(shots: list[Shot], line: int, target: str | None, frame: int, series:
     return Strike(frame=frame, target=who)
 
 
-def run(part_dir: Path) -> None:
+def plan_part(part_dir: Path):
+    """(story, phrases, series, library): the part's shot plan as this stage makes it, nothing written or validated.
+    Raises StageError / FileNotFoundError when it cannot be planned yet (no story.md or phrases.json, stale timing)."""
     story_md = part_dir / "story.md"
     if not story_md.exists():
         raise StageError("story.md not found")
@@ -1023,6 +1044,11 @@ def run(part_dir: Path) -> None:
     story = plan(story_md.read_text(encoding="utf-8"), phrases, series, load_part(part_dir / "part.json").number,
                  prop_kinds(library), outdoor_sets(library), creature_bodies(library), custom_actions(library),
                  set_weather(library), wardrobe_slots(library), creature_halves(library))
+    return story, phrases, series, library
+
+
+def run(part_dir: Path) -> None:
+    story, phrases, series, library = plan_part(part_dir)
     if unknown := sorted({s.set for s in story.shots} - set(set_kinds(library))):  # the engine would throw mid-render
         raise StageError(f"unknown set: {', '.join(unknown)} (built in: {', '.join(BUILTIN_SETS)}, or add it on the "
                          f"dashboard's Sets page)")

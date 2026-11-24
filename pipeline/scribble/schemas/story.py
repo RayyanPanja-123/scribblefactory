@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, model_serializer, model_validator
 
 from .base import Slug, Strict
 from .library import Weather
@@ -15,11 +15,29 @@ from .series import Expression, FRAME_SIZE, Headwear, Legwear, Prop, PropKind, T
 Pos = tuple[float, float]  # [x, z] on the ground plane
 
 
+CamAngle = Literal["wide", "medium", "close", "low", "high", "over_shoulder"]
+CamMove = Literal["push_in", "pull_out", "truck_left", "truck_right", "crane_up", "crane_down"]
+
+
 class Camera(Strict):
-    angle: Literal["wide", "medium", "close", "low", "high", "over_shoulder"]
-    move: Literal["push_in", "pull_out", "truck_left", "truck_right", "crane_up", "crane_down"]
+    angle: CamAngle
+    move: CamMove | Literal["hold"] = Field(description="hold: no move (only from @cam; the planner always creeps)")
     speed: float = Field(ge=0.05, le=1.0)
     roll_deg: float = 0
+    # @cam only (left out of story.json at their defaults, so plans without @cam stay as they were)
+    dutch_deg: float = Field(default=0, ge=-25, le=25, description="@cam dutch: a tilted horizon (degrees, + rolls "
+                                                                     "clockwise); glides in on a twist shot")
+    shake: bool = Field(default=False, description="@cam shake: a camera shake at the shot's first frame")
+    forced: bool = Field(default=False, description="set by @cam: the validator lets its angle repeat the previous "
+                                                     "shot's and a twist keep @cam's move / dutch")
+
+    @model_serializer(mode="wrap")
+    def _omit_cam_defaults(self, handler):
+        d = handler(self)
+        for k, v in (("dutch_deg", 0), ("shake", False), ("forced", False)):
+            if d.get(k) == v:
+                d.pop(k, None)
+        return d
 
 
 class FaceChange(Strict):

@@ -317,7 +317,8 @@ function shotCamera(shot, sx, xs, u, drop = 0, punch = 0) {
   }
   // a lying subject: the framing comes down with it (drop: world units, 0 standing)
   if (drop) { pos[1] = Math.max(0.3, pos[1] - drop); look[1] -= drop; }
-  // the camera creeps for the whole shot (speed >= 0.05), eased in and out; a reaction close-up holds first (motion.js)
+  // the camera creeps for the whole shot (speed >= 0.05), eased in and out; a reaction close-up holds first (motion.js);
+  // an @cam hold doesn't move at all
   const k = shot.camera.speed * cameraProgress(shot, u);
   switch (shot.camera.move) {
     case "push_in": ({ pos, look } = dolly(pos, look, 1 - M.push * k)); break;
@@ -330,10 +331,44 @@ function shotCamera(shot, sx, xs, u, drop = 0, punch = 0) {
   camera.position.set(...pos);
   camera.up.set(0, 1, 0);
   camera.lookAt(...look);
-  // a twist shot's roll; else the optional slight seeded horizon tilt (style.js camera.tilt degrees, capped at 2)
-  const tilt = Math.min(2, C.tilt) * (2 * rng(data.story.seed, shot.id, "tilt")() - 1);
-  camera.rotateZ(rad(shot.camera.roll_deg ? shot.camera.roll_deg * glide(u / 0.4) : tilt));
+  // a twist shot's roll; else an @cam dutch angle (glides in like the roll on a twist shot, else tilted from frame 0);
+  // else the optional slight seeded horizon tilt (style.js camera.tilt degrees, capped at 2)
+  const tilt = Math.min(2, C.tilt) * (2 * rng(data.story.seed, shot.id, "tilt")() - 1), dutch = shot.camera.dutch_deg;
+  camera.rotateZ(rad(shot.camera.roll_deg ? shot.camera.roll_deg * glide(u / 0.4)
+    : dutch ? dutch * (shot.twist ? glide(u / 0.4) : 1) : tilt));
   setFov(A.fov + punch);
+}
+
+const clampByShot = new Map(); // shot id -> clamped speed (fastClamp), or null when the shot's own speed fits
+const PLANNER_MAX_SPEED = 0.35;  // the shot planner's top move speed (pipeline shots.SPEED): keep in step
+
+/** an @cam fast truck / crane may carry the cast out of frame: the fastest speed (up to the shot's own) at which every
+ *  head on screen with the camera all but still (speed 0.05) is still wholly on screen at the move's end (headRect:
+ *  a close-up never shows the feet, so heads are what a sideways or vertical move must keep), found once per shot by
+ *  bisection. Sets the shot (use: (s) => reassigns drawShot's shot, so camAt sees it) and returns a log note, or
+ *  null when nothing is clamped. */
+function fastClamp(shot, use, camAt, spots) {
+  const C = shot.camera;
+  if (!C.forced || C.speed < STYLE.camera.life.punch.fastSpeed || !/^(truck|crane)_/.test(C.move)) return null;
+  const at = (speed) => ({ ...shot, camera: { ...C, speed } });
+  if (!clampByShot.has(shot.id)) {
+    const inside = (r) => r[0] >= -1 && r[2] <= 1 && r[1] >= -1 && r[3] <= 1;
+    const heads = (speed) => { use(at(speed)); camAt(1); camera.updateMatrixWorld(); return spots().map(([x, z]) => inside(headRect(x, z))); };
+    const shown = heads(0.05), fits = (speed) => heads(speed).every((ok, i) => ok || !shown[i]);
+    let best = null;
+    if (shown.some(Boolean) && !fits(C.speed)) {
+      let lo = 0.05, hi = C.speed;
+      for (let i = 0; i < 16; i++) { const mid = (lo + hi) / 2; if (fits(mid)) lo = mid; else hi = mid; }
+      best = Math.floor(lo * 1000) / 1000;
+    }
+    use(shot);
+    clampByShot.set(shot.id, best);
+  }
+  const best = clampByShot.get(shot.id);
+  if (best === null) return null;
+  use(at(best));
+  return `${C.move} fast ${C.speed} -> ${best} (cast kept in frame)` + (best < PLANNER_MAX_SPEED
+    ? `: fast has little effect on ${C.angle} ${C.move}, try push_in/pull_out or a wider angle` : "");
 }
 
 /** fov in degrees; the projection is rebuilt only when it changes (frameSize rebuilds it for a new aspect) */
@@ -448,7 +483,7 @@ function frameSize(w, h) {
 window.setup = (d) => {
   usePreset(d.series?.style?.preset); // first: a bad preset name fails the job before anything is built
   frameSize(d.story.width ?? 1080, d.story.height ?? 1920);
-  data = d; hiddenByShot.clear(); variantByShot.clear(); extrasByShot.clear(); fgByShot.clear();
+  data = d; hiddenByShot.clear(); variantByShot.clear(); extrasByShot.clear(); fgByShot.clear(); clampByShot.clear();
   for (const t of fgTex.values()) t.dispose();
   fgTex.clear();
   shakes = shakeTriggers(d.story);
@@ -592,8 +627,6 @@ function drawShot(shot, n) {
   const shift = shot.travel ? -dir * shot.travel.speed * ((kf - shot.start_frame) / FPS) : 0;
   const travelHidden = scrollSet(group, shift, !!shot.travel);
   for (const f of group.userData.anims) f(t); // ambient life (world.js Builder.anim): smoke, pennants, birds, clouds
-  const hidden = shot.travel ? travelHidden : hiddenFor(shot, subject, span, group);
-  for (const [id, pc] of group.userData.pieces) for (const m of pc.meshes) m.visible = !hidden.has(id);
   // a give / receive is framed on the pair's midpoint, so neither the giver nor the receiver is cut off
   const pair = subject && (subject.action === "give" || subject.action === "receive")
     ? shot.actors.find((b) => b.cast_id === subject.target) : null;
@@ -606,6 +639,9 @@ function drawShot(shot, n) {
   const camAt = (uu) => shotCamera(shot, subject ? focusX((a) => placeAt2(a, uu)) : 0, span, uu,
     drop(shot.start_frame + uu * (shot.end_frame - shot.start_frame - 1)));
   const placeAt2 = (a, uu) => seated.get(a.cast_id) || heldPlace(a, shot.actors, placeAt, uu) || placeAt(a, uu);
+  const clamp = fastClamp(shot, (s) => { shot = s; }, camAt, () => shot.actors.filter((a) => !seated.has(a.cast_id)).map((a) => placeAt2(a, 1)));
+  const hidden = shot.travel ? travelHidden : hiddenFor(shot, subject, span, group);
+  for (const [id, pc] of group.userData.pieces) for (const m of pc.meshes) m.visible = !hidden.has(id);
   const extraShift = extrasFor(shot, camAt, placeAt2);
   const fg = foregroundFor(shot, subject, camAt, placeAt2);
   // the frame's camera: framing, fov punch, then drift and shake (the probes above use the framing alone)
@@ -657,7 +693,7 @@ function drawShot(shot, n) {
   grade();
   const travel = shot.travel ? { travel: `${shot.travel.speed} u/s ${dir < 0 ? "left" : "right"}, shift ${shift.toFixed(2)}`
     + `, loop excess ${(({ excess, row }) => `${excess.toFixed(3)} (row z ${row})`)(loopExcess(group, shift))}` } : {};
-  return { life: lives, angle: shot.camera.angle, trauma: +shake.toFixed(4), fov: +camera.fov.toFixed(3), fg: fg?.kind ?? null, hidden: hidden.size, gestures, dogs: animals.length, ...extras, ...cars, ...travel, ...weather,
+  return { ...(clamp ? { camClamp: clamp } : {}), life: lives, angle: shot.camera.angle, trauma: +shake.toFixed(4), fov: +camera.fov.toFixed(3), fg: fg?.kind ?? null, hidden: hidden.size, gestures, dogs: animals.length, ...extras, ...cars, ...travel, ...weather,
     ...measure(shot.actors.filter((a) => !seated.has(a.cast_id)).map(place)) };
 }
 

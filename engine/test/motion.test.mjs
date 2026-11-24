@@ -187,3 +187,10 @@ test("camera life: seeded continuous noise, clamped trauma, shake triggers, fov 
   STYLE.camera.life.legacyEase = true;
   try { assert.ok(Math.abs(cameraProgress(shot(), 0.2) - 0.05792) < 1e-4, "legacy: smootherstep"); } finally { STYLE.camera.life.legacyEase = false; }
 });
+
+test("camera life: an @cam shake triggers at its shot's start with its own strength", async () => {
+  const { shakeTriggers } = await import("../page/motion.js");
+  const { STYLE } = await import("../page/style.js");
+  const shot = { id: "s02", start_frame: 40, end_frame: 90, actors: [], camera: { angle: "close", move: "hold", speed: 0.2, shake: true, forced: true } };
+  assert.deepEqual(shakeTriggers({ shots: [shot] }), [{ t0: 40 / 30, strength: STYLE.camera.life.shake.strength.cam, kind: "cam" }]);
+});

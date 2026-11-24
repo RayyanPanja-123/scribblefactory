@@ -1,5 +1,6 @@
 import json
 import math
+import re
 
 import pytest
 
@@ -856,3 +857,83 @@ def test_punctuation_faces_only_when_nothing_else_sets_one():
     # ? confused; a mid-line ! nothing (two phrases, one line ending in "."); line-end ! surprised; !! shocked;
     # @face beats the !; a mood word beats the ?
     assert faces == ["confused", "neutral", "neutral", "surprised", "shocked", "smug", "happy"]
+
+
+# --- @cam ---
+
+def test_parse_cam_forms_and_errors():
+    from pipeline.scribble.stages.prep import parse_cam
+    assert parse_cam("close push_in fast shake", 3) == {"angle": "close", "move": "push_in", "fast": True, "shake": True}
+    assert parse_cam("close push_in dutch 12", 3) == {"angle": "close", "move": "push_in", "dutch": 12.0}
+    assert parse_cam("dutch -15 low", 3) == {"dutch": -15.0, "angle": "low"}
+    assert parse_cam("hold", 3) == {"move": "hold"}
+    for bad, msg in [("", "expected"), ("zoom", "unknown 'zoom'"), ("close wide", "angle given twice"),
+                     ("push_in hold", "move given twice"), ("fast fast", "fast given twice"), ("dutch", "dutch needs degrees"),
+                     ("dutch x", "dutch needs degrees"), ("dutch 26", "outside -25..25"), ("dutch -30", "outside -25..25")]:
+        with pytest.raises(StageError, match=f"line 3: @cam: .*{re.escape(msg)}"):
+            parse_cam(bad, 3)
+
+
+def _cams(md, word_s=0.4):
+    story, _ = plan(md, word_s)
+    return story, [s.camera for s in story.shots]
+
+
+def test_cam_overrides_only_what_it_gives_on_the_first_shot():
+    base = "# T\n\n@cast bob, amy\nBob walked in.\nAmy sat down.\nBob talked about the weather and the news and the town and the long winter.\n"
+    auto, auto_c = _cams(base)
+    story, c = _cams(base.replace("Amy sat", "@cam close\nAmy sat"))
+    assert c[1].angle == "close" and (c[1].move, c[1].speed, c[1].roll_deg) == (auto_c[1].move, auto_c[1].speed, auto_c[1].roll_deg)
+    assert c[1].forced and not c[1].shake and c[1].dutch_deg == 0
+    # the next shot treats the forced one as a normal prior shot: never repeats it
+    assert c[2].angle != "close" and not c[2].forced
+    # a line split over several shots: only its first shot
+    _, c = _cams(base.replace("Bob talked", "@cam low crane_up\nBob talked"))
+    long = [i for i, s in enumerate(story.shots) if s.phrase_range[0] >= 2]
+    assert len(long) > 1 and (c[long[0]].angle, c[long[0]].move) == ("low", "crane_up")
+    assert not any(c[i].forced for i in long[1:])
+    # hold only when written; fast needs a move
+    _, c = _cams(base.replace("Amy sat", "@cam medium hold fast\nAmy sat"))
+    assert c[1].move == "hold" and c[1].speed == auto_c[1].speed
+    _, c = _cams(base.replace("Amy sat", "@cam close fast\nAmy sat"))
+    assert c[1].speed == auto_c[1].speed  # no move given on a plain line: fast ignored
+    _, c = _cams(base.replace("Amy sat", "@cam close push_in fast shake\nAmy sat"))
+    assert (c[1].move, c[1].speed, c[1].shake) == ("push_in", shots.FAST_SPEED, True)
+    # over_shoulder needs two on stage: the planner's own angle
+    solo = "# T\n\n@cast bob\nBob walked in.\nBob sat down.\n"
+    _, a = _cams(solo)
+    _, c = _cams(solo.replace("Bob sat", "@cam over_shoulder\nBob sat"))
+    assert c[1].angle == a[1].angle and c[1].angle != "over_shoulder" and c[1].forced
+
+
+def test_cam_on_a_twist_line():
+    md = "# T\n\n@cast bob, amy\nBob walked in.\n{cam}!! Bob was a spy.\nAmy gasped.\n"
+    _, t = _cams(md.format(cam=""))
+    _, c = _cams(md.format(cam="@cam close\n"))  # angle only: the twist keeps its push and roll
+    assert (c[1].angle, c[1].move, c[1].roll_deg) == ("close", "push_in", t[1].roll_deg) and c[1].roll_deg
+    story, c = _cams(md.format(cam="@cam close pull_out dutch 15\n"))  # @cam's move and dutch win
+    assert (c[1].move, c[1].roll_deg, c[1].dutch_deg) == ("pull_out", 0, 15)
+    assert {cu.kind for cu in story.cues if cu.frame == story.shots[1].start_frame} >= {"music_stop", "low_hit"}
+    _, c = _cams(md.format(cam="@cam fast\n"))  # the twist's push takes fast
+    assert c[1].speed == shots.FAST_SPEED
+    errors_ = validate(story, plan(md.format(cam="@cam close pull_out dutch 15\n"))[1], {"bob", "amy"})
+    assert not errors_  # forced: the twist move / roll rules let @cam win
+
+
+def test_cam_validator_exemptions_are_narrow():
+    story, ph = plan("# T\n\n@cast bob, amy\nBob walked in.\nAmy sat down.\nBob left.\n")
+    s = story.shots
+    s[1].camera.angle = s[0].camera.angle
+    assert {e.rule for e in validate(story, ph, {"bob", "amy"})} == {"repeated_angle"}
+    s[1].camera.forced = True
+    assert not validate(story, ph, {"bob", "amy"})
+    s[1].camera = s[1].camera.model_copy(update={"speed": 0})  # every other rule still applies to a forced shot
+    assert {e.rule for e in validate(story, ph, {"bob", "amy"})} == {"camera_speed"}
+
+
+def test_cam_fields_left_out_at_their_defaults():
+    from pipeline.scribble.schemas import Camera
+    assert Camera(angle="wide", move="push_in", speed=0.2).model_dump(mode="json") == {
+        "angle": "wide", "move": "push_in", "speed": 0.2, "roll_deg": 0.0}
+    c = Camera(angle="close", move="hold", speed=0.2, dutch_deg=12, shake=True, forced=True)
+    assert Camera.model_validate(c.model_dump(mode="json")) == c
