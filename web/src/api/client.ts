@@ -81,6 +81,7 @@ export const api = {
     call<SeriesModel>('POST', `/api/series/${e(slug)}/approve-cast`, { cast_id: castId }),
   markPosted: (slug: string, p: string, body: { platform: Platform; url: string; date?: string; force?: boolean }) =>
     call<PartModel>('POST', `${part(slug, p)}/mark-posted`, body),
+  reopen: (slug: string, p: string) => call<PartModel>('POST', `${part(slug, p)}/reopen`),
   saveUpload: (slug: string, p: string, text: string) => call<PartDetail>('PUT', `${part(slug, p)}/upload.md`, { text }),
   mobileDownloadUrl: (slug: string, p: string) => call<{ url: string }>('GET', `/api/mobile-download-url/${e(slug)}/${e(p)}`),
   exportPart: (slug: string, p: string) => call<ExportResult>('POST', `${part(slug, p)}/export`),

@@ -345,6 +345,12 @@ def mark_posted(slug: str, part: str, body: Posting):
     return part_action(slug, part, *argv)
 
 
+@app.post("/api/series/{slug}/parts/{part}/reopen", response_model=PartModel)
+def reopen(slug: str, part: str):
+    """start a part over (taken down, or redone): clear its posts, approvals and stages; files stay"""
+    return part_action(slug, part, "reopen", slug, part)
+
+
 class UploadText(BaseModel):
     text: str
 

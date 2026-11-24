@@ -21,7 +21,7 @@ from pydantic import TypeAdapter, ValidationError
 from . import backup, db, gallery, sheet, storycheck
 from .io import (atomic_write_json, series_where, part_dir_of, part_exists, part_folder_name, part_folders_of, series_dirs, series_exists, storage_root, cast_body_problems, cast_files, cast_key, cast_render_current, load_part, load_series, prop_kinds, replace_file, save_part,
                  save_series, unknown_cast_props)
-from .schemas import CastMember, Expression, PartId, PartModel, Post, SeriesModel, Slug, Stages, StoryModel, Style, Voice, utcnow
+from .schemas import Approvals, CastMember, Expression, PartId, PartModel, Post, Posted, SeriesModel, Slug, Stages, StoryModel, Style, Voice, utcnow
 from .stages import STAGES
 from .stages import render as render_stage
 from .stages.runner import StageError, recover_stuck, run_stage
@@ -600,6 +600,19 @@ def cmd_mark_posted(args) -> int:
     return 0
 
 
+def cmd_reopen(args) -> int:
+    """Start a part over (taken down, or redone): forget its posts, approvals and stage runs. Files stay; a new
+    voice and story replace the old ones and Run next redoes every stage."""
+    pdir = part_dir(args)
+    if pid := render_stage.lock_owner(pdir):
+        raise UserError(f"a render is running on {args.slug} {args.part} (pid {pid}); wait for it or stop it")
+    part = load_part(pdir / "part.json")
+    part.posted, part.approvals, part.stages = Posted(), Approvals(), Stages()
+    save_part(pdir / "part.json", part, drop_approvals=True)
+    print(f"{args.part} reopened: posts, approvals and stages cleared")
+    return 0
+
+
 def cmd_clean_frames(args) -> int:
     if args.posted:
         return clean_posted(args)
@@ -814,6 +827,11 @@ def build_parser() -> Parser:
     c.add_argument("--date", help="YYYY-MM-DD (default: today, UTC)")
     c.add_argument("--force", action="store_true", help="replace an existing entry")
     c.set_defaults(func=cmd_mark_posted)
+
+    c = sub.add_parser("reopen", parents=[common], help="start a part over: clear its posts, approvals and stages")
+    c.add_argument("slug")
+    c.add_argument("part")
+    c.set_defaults(func=cmd_reopen)
 
     c = sub.add_parser("clean-frames", parents=[common],
                        help="delete frames/ once final.mp4 is finished; --posted: of every posted part")

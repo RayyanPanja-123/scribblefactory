@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ExternalLink, Instagram, QrCode, Youtube } from 'lucide-vue-next'
+import { ExternalLink, Instagram, QrCode, RotateCcw, Youtube } from 'lucide-vue-next'
 import { reactive } from 'vue'
 import { api, type PartModel, type Platform } from '../api/client'
 import { act, confirm } from '../composables/feedback'
@@ -29,6 +29,10 @@ async function post(pl: Platform) {
     Object.assign(f, { url: '', replacing: false })
     emit('posted')
   }
+}
+async function reopen() {
+  const ok = await confirm({ title: 'Start this part over?', body: 'Clears its posted links, approvals and pipeline stages. Files stay; record a new voice, then Run next.', confirm: 'Start over', danger: true })
+  if (ok && await act(() => api.reopen(props.slug, props.part), 'Part reopened')) emit('posted')
 }
 </script>
 
@@ -65,5 +69,12 @@ async function post(pl: Platform) {
         <QrCode :size="16" aria-hidden="true" /> Show phone QR
       </button>
     </div>
+  </div>
+  <div class="raised p-5">
+    <p class="font-display text-lg font-semibold">Start over</p>
+    <p class="mt-1 text-sm text-muted">Video taken down or redoing it? Clear posts, approvals and stages.</p>
+    <button type="button" class="btn btn-secondary mt-4" @click="reopen">
+      <RotateCcw :size="16" aria-hidden="true" /> Start part over
+    </button>
   </div>
 </template>

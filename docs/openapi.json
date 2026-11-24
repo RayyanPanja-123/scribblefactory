@@ -6323,6 +6323,55 @@
         "summary": "Mark Posted"
       }
     },
+    "/api/series/{slug}/parts/{part}/reopen": {
+      "post": {
+        "description": "start a part over (taken down, or redone): clear its posts, approvals and stages; files stay",
+        "operationId": "reopen_api_series__slug__parts__part__reopen_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "part",
+            "required": true,
+            "schema": {
+              "title": "Part",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartModel"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reopen"
+      }
+    },
     "/api/series/{slug}/parts/{part}/sfx-suggestions": {
       "get": {
         "operationId": "sfx_suggestions_api_series__slug__parts__part__sfx_suggestions_get",

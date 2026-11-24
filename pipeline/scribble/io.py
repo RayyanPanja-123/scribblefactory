@@ -607,11 +607,12 @@ def save_series(path, model: SeriesModel) -> None:
     write_series(path, model)
 
 
-def save_part(path, model: PartModel) -> None:
-    """add or update the part in the folder of this (former) part.json path; never drops an approval"""
+def save_part(path, model: PartModel, *, drop_approvals: bool = False) -> None:
+    """add or update the part in the folder of this (former) part.json path; never drops an approval unless
+    drop_approvals (reopen: the part starts over)"""
     pdir = Path(path).parent
     library, slug = series_where(pdir.parent)
-    if part_exists(pdir):
+    if part_exists(pdir) and not drop_approvals:
         old = load_part(path).approvals
         for name in ("stills", "final"):
             kept = getattr(old, name).approved_at

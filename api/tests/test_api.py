@@ -101,6 +101,19 @@ def test_overview(client, lib):
     assert o["sheet"] == []  # posted parts leave the sheet
 
 
+def test_reopen(client, lib):
+    cli(["mark-posted", "demo", "part-01", "youtube", "--url", "https://yt/x"])
+    cli(["approve", "demo", "part-01", "stills"])
+    pj = part_dir_of(lib / "database" / "storage" / "demo", "part-01") / "part.json"
+    p = load_part(pj)
+    p.stages.prep.status = "done"
+    save_part(pj, p)
+    r = client.post("/api/series/demo/parts/part-01/reopen")
+    assert r.status_code == 200
+    p = load_part(pj)
+    assert p.posted.youtube is None and p.approvals.stills.approved_at is None and p.stages.prep.status == "pending"
+
+
 def test_series_list(client, lib):
     [s] = client.get("/api/series").json()
     assert (s["slug"], s["part_count"]) == ("demo", 1) and "cover" not in s
