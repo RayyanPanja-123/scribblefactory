@@ -556,14 +556,7 @@ function drawShot(shot, n) {
   const water = !!group.userData.water;
   const wet = outdoor && ["rain", "storm"].includes(shot.weather?.kind);
   const animals = shot.animals || [], vehicles = shot.vehicles || [];
-  // riders sit in their car's seats: their spot is the car's spot plus the seat offset
-  const seated = new Map();
-  for (const v of vehicles) {
-    const [cx, cz] = carAt(v, u), sgn = v.facing === "left" ? -1 : 1;
-    v.riders.forEach((r, i) => seated.set(r, [cx + sgn * seatOffset(RIDER_X[i]), cz]));
-  }
-  const place = (a) => seated.get(a.cast_id) || heldPlace(a, shot.actors, placeAt, u) || placeAt(a, u);
-  const owned = ownedProps.get(shot.id) || {}, wide = shot.camera.angle === "wide";
+  const F = shotFrame(shot, n), { seated, place } = F, wide = shot.camera.angle === "wide";
   const subject = shot.actors.find((a) => a.action !== "idle") || shot.actors[0];
   // a body wider than the stickman (a horse) widens the span by the extra on each side, so wides fit all of it
   const extra = (a) => (d => (d ? Math.max(0, (CARD_H * creatureSize(d).half) / CH - BODY_CARD_W / 2) : 0))(a.cast_id && creatureOf(a.cast_id));
@@ -601,51 +594,15 @@ function drawShot(shot, n) {
   const shake = cameraLife(shot, n);
   const gestures = [], riders = new Map(); // riders: cast id -> drawStickman options, drawn inside the car card
   const ridden = new Map(); // @ride: mount cast id -> its rider's drawStickman options, drawn on the mount's card
-  const standing = shot.actors.filter((b) => !seated.has(b.cast_id) && !["lie", "collapse", "carried"].includes(b.action));
-  const ownMove = (a) => (a.end_pos ? Math.hypot(a.end_pos[0] - a.start_pos[0], a.end_pos[1] - a.start_pos[1]) : 0);
-  const onMount = (a) => a.mount && shot.actors.some((b) => b.cast_id === a.mount);
-  for (const a of [...shot.actors].sort((p, q) => onMount(q) - onMount(p))) { // riders first: their mounts carry them
+  for (const a of [...shot.actors].sort((p, q) => F.onMount(q) - F.onMount(p))) { // riders first: their mounts carry them
     const [x, z] = place(a), key = charSeed(a.cast_id);
-    // carried / supported move with their holders: their stride distance is the holders' move
-    const holder = shot.actors.find((h) => h.target === a.cast_id && (h.action === "carry" || h.action === "support"));
-    const own = holder && (a.action === "carried" || a.action === "supported") ? ownMove(holder) : ownMove(a);
-    const shotLen = (shot.end_frame - shot.start_frame) / FPS;
-    const travelled = ((shot.travel ? shot.travel.speed * shotLen : 0) + own) * u; // effective stride distance
-    const ts = (kf - shot.start_frame) / FPS, shotSecs = (shot.end_frame - shot.start_frame) / FPS;
-    const phase = gaitPhase(a.action, travelled, ts);
-    const plan = gesturePlan(data.story.seed, shot.id, a.cast_id, a.action, shotSecs);
-    const gesture = plan ? { kind: plan.kind, k: gestureAmount(plan, ts) } : null;
-    if (gesture?.k > 0) gestures.push(`${a.cast_id} ${gesture.kind}`);
     camera.updateMatrixWorld();
     const feet = new THREE.Vector3(x, 0, z).project(camera), head = new THREE.Vector3(x, FIG_H, z).project(camera);
-    const px = (((head.y - feet.y) / 2) * H) / FIGURE_PX; // screen px per card canvas px
-    const o = {
-      boil: Math.floor(n / BOIL_FRAMES), action: a.action, expression: expressionOf(a.cast_id, faceAt(a, kf), a.look), facing: a.facing, t, phase, px, look: a.look,
-      lid: lidAt(n, key),
-      breath: Math.sin((2 * Math.PI * t) / 3.4 + 2 * Math.PI * rng(key, "breath")()),
-      mouth: a.action === "talk" && n === kf ? mouth[n] : 0, // shut while drawn outside its shot (wipe)
-      bob: a.action === "talk" && !seated.has(a.cast_id) ? stressBob(t, shotWords(shot)) : 0,
-      gesture, pointK: a.action === "point" ? pointAmount(ts) : 1,
-      wave: a.action === "wave" ? waveAmount(ts) : null,
-      props: owned[a.cast_id] || castOf(a.cast_id, a.look).props,
-    };
-    const roll = actionPose(shot, a, o, x, u, ts, n);
+    const { o, roll, turn, phase, gesture } = poseOf(F, a, (((head.y - feet.y) / 2) * H) / FIGURE_PX); // px: screen px per card px
+    if (gesture?.k > 0) gestures.push(`${a.cast_id} ${gesture.kind}`);
     if (seated.has(a.cast_id)) { riders.set(a.cast_id, figure(a.cast_id, o)); continue; }
-    if (onMount(a)) { ridden.set(a.mount, figure(a.cast_id, o)); continue; }
+    if (F.onMount(a)) { ridden.set(a.mount, figure(a.cast_id, o)); continue; }
     if (ridden.has(a.cast_id)) o.rider = ridden.get(a.cast_id);
-    // idle life (motion.js idleLife): breathing bob and weight shift; the head tilts toward whoever it looks at, and a
-    // camera-facing two-hander angles toward the other one (card turn + a glance)
-    const life = !roll.k && idleLife(key, t, o.action, o.breath);
-    let turn = 0;
-    if (life) {
-      o.bob = Math.max(o.bob, life.bob); o.shift = life.shift;
-      const other = lookTarget(a, standing);
-      if (other) {
-        const toward = place(other)[0] >= x ? 1 : -1;
-        o.tilt = sideToward(x, place(other)[0], o.facing) * rad(STYLE.idle.headTilt);
-        if (standing.length === 2 && o.facing === "camera") { turn = toward * rad(STYLE.idle.turn); o.gaze = toward * STYLE.idle.gaze; }
-      }
-    }
     const mesh = drawCard(a.cast_id, o, outdoor && STYLE.light.outdoor), yaw = Math.atan2(camera.position.x - x, camera.position.z - z) + turn;
     // lying (lie, the end of a collapse): the card rolls 90 degrees about the feet in its own plane and lifts so the
     // body rests on the floor; carried: lifted clear of the ground
@@ -677,6 +634,67 @@ function drawShot(shot, n) {
     + `, loop excess ${(({ excess, row }) => `${excess.toFixed(3)} (row z ${row})`)(loopExcess(group, shift))}` } : {};
   return { angle: shot.camera.angle, trauma: +shake.toFixed(4), fov: +camera.fov.toFixed(3), fg: fg?.kind ?? null, hidden: hidden.size, gestures, dogs: animals.length, ...extras, ...cars, ...travel, ...weather,
     ...measure(shot.actors.filter((a) => !seated.has(a.cast_id)).map(place)) };
+}
+
+/** per-frame context of a shot at frame n (shot motion held at its edges, like drawShot): what every actor's pose
+ *  reads. Pure: no drawing, no camera. */
+function shotFrame(shot, n) {
+  const kf = Math.min(Math.max(n, shot.start_frame), shot.end_frame - 1);
+  const u = (kf - shot.start_frame) / (shot.end_frame - shot.start_frame);
+  // riders sit in their car's seats: their spot is the car's spot plus the seat offset
+  const seated = new Map();
+  for (const v of shot.vehicles || []) {
+    const [cx, cz] = carAt(v, u), sgn = v.facing === "left" ? -1 : 1;
+    v.riders.forEach((r, i) => seated.set(r, [cx + sgn * seatOffset(RIDER_X[i]), cz]));
+  }
+  const place = (a) => seated.get(a.cast_id) || heldPlace(a, shot.actors, placeAt, u) || placeAt(a, u);
+  return { shot, n, kf, u, t: n / FPS, seated, place, owned: ownedProps.get(shot.id) || {},
+    standing: shot.actors.filter((b) => !seated.has(b.cast_id) && !["lie", "collapse", "carried"].includes(b.action)),
+    onMount: (a) => a.mount && shot.actors.some((b) => b.cast_id === a.mount) }; // falsy, not false: the riders-first sort relies on it
+}
+
+const ownMove = (a) => (a.end_pos ? Math.hypot(a.end_pos[0] - a.start_pos[0], a.end_pos[1] - a.start_pos[1]) : 0);
+
+/** actor a's drawStickman options at shot frame F (shotFrame): { o, roll, turn (card yaw extra), phase, gesture }.
+ *  Pure function of the frame: the same F and actor give the same pose, so a pose a frame earlier is poseOf at n - 1.
+ *  px: screen px per card canvas px (face stroke widths only). */
+function poseOf(F, a, px = 1) {
+  const { shot, n, kf, u, t, seated, place, owned, standing } = F, x = place(a)[0], key = charSeed(a.cast_id);
+  // carried / supported move with their holders: their stride distance is the holders' move
+  const holder = shot.actors.find((h) => h.target === a.cast_id && (h.action === "carry" || h.action === "support"));
+  const own = holder && (a.action === "carried" || a.action === "supported") ? ownMove(holder) : ownMove(a);
+  const shotLen = (shot.end_frame - shot.start_frame) / FPS;
+  const travelled = ((shot.travel ? shot.travel.speed * shotLen : 0) + own) * u; // effective stride distance
+  const ts = (kf - shot.start_frame) / FPS, shotSecs = (shot.end_frame - shot.start_frame) / FPS;
+  const phase = gaitPhase(a.action, travelled, ts);
+  const plan = gesturePlan(data.story.seed, shot.id, a.cast_id, a.action, shotSecs);
+  const gesture = plan ? { kind: plan.kind, k: gestureAmount(plan, ts) } : null;
+  const o = {
+    boil: Math.floor(n / BOIL_FRAMES), action: a.action, expression: expressionOf(a.cast_id, faceAt(a, kf), a.look), facing: a.facing, t, phase, px, look: a.look,
+    lid: lidAt(n, key),
+    breath: Math.sin((2 * Math.PI * t) / 3.4 + 2 * Math.PI * rng(key, "breath")()),
+    mouth: a.action === "talk" && n === kf ? mouth[n] : 0, // shut while drawn outside its shot (wipe)
+    bob: a.action === "talk" && !seated.has(a.cast_id) ? stressBob(t, shotWords(shot)) : 0,
+    gesture, pointK: a.action === "point" ? pointAmount(ts) : 1,
+    wave: a.action === "wave" ? waveAmount(ts) : null,
+    props: owned[a.cast_id] || castOf(a.cast_id, a.look).props,
+  };
+  const roll = actionPose(shot, a, o, x, u, ts, n);
+  let turn = 0;
+  if (seated.has(a.cast_id) || F.onMount(a)) return { o, roll, turn, phase, gesture }; // no idle life in a seat / saddle
+  // idle life (motion.js idleLife): breathing bob and weight shift; the head tilts toward whoever it looks at, and a
+  // camera-facing two-hander angles toward the other one (card turn + a glance)
+  const life = !roll.k && idleLife(key, t, o.action, o.breath);
+  if (life) {
+    o.bob = Math.max(o.bob, life.bob); o.shift = life.shift;
+    const other = lookTarget(a, standing);
+    if (other) {
+      const toward = place(other)[0] >= x ? 1 : -1;
+      o.tilt = sideToward(x, place(other)[0], o.facing) * rad(STYLE.idle.headTilt);
+      if (standing.length === 2 && o.facing === "camera") { turn = toward * rad(STYLE.idle.turn); o.gaze = toward * STYLE.idle.gaze; }
+    }
+  }
+  return { o, roll, turn, phase, gesture };
 }
 
 /** fog layers: a soft drift plane per layer, behind the cast, drifting slowly (and with a travel shot's scroll) */
