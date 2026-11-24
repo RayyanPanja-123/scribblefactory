@@ -47,19 +47,28 @@ def test_storycheck_reports_two_do_for_one_target(tmp_path):
 
 # --- 2: walk words ---
 
-def test_walk_word_warns_and_explicit_idle_stops_it():
+def test_walk_word_moves_only_a_named_character():
     notes = []
-    md = "# W\n\n@set office\n@cast bob\nBob came home.\n@do bob: idle\nBob came back again.\n"
+    story, _ = plan("# N\n\n@set office\n@cast bob\nBob came home.\nThe saucer came back.\n", notes)
+    assert actor(story.shots[0], "bob").action == "walk"  # named: walks, no note (the story asked for it)
+    assert actor(story.shots[-1], "bob").action != "walk"  # names nobody: moves nobody
+    assert notes == []
+
+
+def test_pronoun_walk_warns_and_explicit_idle_stops_it():
+    notes = []
+    md = "# W\n\n@set office\n@cast bob\nBob sat.\nHe came home.\n@do bob: idle\nHe came back again.\n"
     story, _ = plan(md, notes)
-    assert actor(story.shots[0], "bob").action == "walk"
-    assert notes == [(5, "'came' starts a walk for bob; add @do bob: idle to stop it")]
-    assert actor(story.shots[-1], "bob").action == "idle"  # the explicit @do wins, and no note for line 7
+    assert actor(story.shots[1], "bob").action == "walk"  # the pronoun points back at bob
+    assert notes == [(6, "'came' starts a walk for bob; add @do bob: idle to stop it")]
+    assert actor(story.shots[-1], "bob").action == "idle"  # the explicit @do wins, and no note for line 8
 
 
-def test_walk_word_outdoors_notes_the_travel_shot():
+def test_unnamed_walk_word_outdoors_is_no_travel_shot():
     notes = []
-    story, _ = plan("# T\n\n@set street\n@cast bob\nThe saucer came back.\n", notes)
-    assert story.shots[0].travel is not None
+    story, _ = plan("# T\n\n@set street\n@cast bob\nThe saucer came back.\nThen he came back too.\n", notes)
+    assert story.shots[0].travel is None
+    assert story.shots[-1].travel is not None
     assert notes and "starts a travel shot for bob" in notes[0][1]
 
 

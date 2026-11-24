@@ -207,10 +207,10 @@ fit the story's period or design.
   `check-story`.
 - When there is no explicit `@do`, the planner infers actions from narration words such as `walked`, `ran`, `waved`,
   `laughed`, or `gasped`. Explicit `@do` wins over that inference; `@face` wins over the inferred face for its line.
-  A walk word (`came`, `went`, `left`, `ran`...) moves the line's subject even when the sentence is about something
-  else ("the saucer came back" walks the character last named), and outdoors it turns the shot into a travel shot.
-  check-story warns each time; `@do <cast>: idle` (or any `@do` for them) stops it. Nobody seated or inside an item
-  walks from a word.
+  A walk word (`came`, `went`, `left`, `ran`...) moves only a character the phrase names ("Bob came back" walks Bob;
+  "the saucer came back" walks nobody). A pronoun (`he`, `she`, `they`, `you`...) points back at the character last
+  named, so "he came back" walks them; outdoors a walk turns the shot into a travel shot. check-story warns on each
+  pronoun walk; `@do <cast>: idle` (or any `@do` for them) stops it. Nobody seated or inside an item walks from a word.
 - A walk over several shots of one sentence keeps going the same way (it stops at the stage edge, never turns back).
 - A line that cannot fit a walking or running action may be kept in place rather than forced off the stage. Use a
   deliberate in-place action such as `react`, `angry`, `gasp`, or `cheer` when the beat must remain visible.

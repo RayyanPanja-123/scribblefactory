@@ -144,6 +144,10 @@ DIRECTIONS = {"left": -1, "right": 1}
 ACTION_FACE = {"angry": "angry", "gasp": "surprised", "react": "surprised", "cheer": "happy"}
 
 
+# a walk word moves the line's subject only when the phrase names it or points back at it with one of these
+PRONOUNS = frozenset("i me my we us our you your he him his she her they them their".split())
+
+
 def token(word: str) -> str:
     return re.sub(r"[^a-z0-9]", "", re.sub(r"['’]s\W*$", "", word.lower()))
 
@@ -558,12 +562,14 @@ def punct_faces(md: str, words: list[str], tags) -> list[str | None]:
     return out
 
 
-def _actors(cast, pos, subject, words, seconds, travel_dir=0, zs=None, mood=None, halves=None, dirs=None, line=0):
+def _actors(cast, pos, subject, words, seconds, travel_dir=0, zs=None, mood=None, halves=None, dirs=None, line=0,
+            action=None):
     """Actors for one shot, starting at pos[cid]. Updates pos to where each one ends.
     travel_dir (+1 right / -1 left): travel shot, every actor does the subject's walk/run in place at z zs[cid].
     mood: the line's mood (line_moods), else the shot's own words decide. halves: cast id -> half width (_free).
-    dirs: (story.md line, cast id) -> walk direction, kept: a walk over several shots of one line never turns back."""
-    action = next((ACTIONS[w] for w in words if w in ACTIONS), "talk")
+    dirs: (story.md line, cast id) -> walk direction, kept: a walk over several shots of one line never turns back.
+    action: the subject's action as the planner settled it (else the first action word, else talk)."""
+    action = action or next((ACTIONS[w] for w in words if w in ACTIONS), "talk")
     expression = mood or next((EXPRESSIONS[w] for w in words if w in EXPRESSIONS), "neutral")
     if travel_dir:
         facing = "left" if travel_dir < 0 else "right"
@@ -945,6 +951,8 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
         action = next((ACTIONS[w] for w in pw if w in ACTIONS), None)
         if action and (subject in stage.sitting or subject in inside):
             action = None  # seated on or inside an item: a walk word in the line moves nobody
+        if action in MOVE_SPEED and not mentioned and not PRONOUNS.intersection(pw):
+            action = None  # "the saucer came back": a walk word moves only a character the phrase names (or a pronoun)
         mood = moods[p.word_start] if p.word_start < len(moods) else None
         expression = mood or next((EXPRESSIONS[w] for w in pw if w in EXPRESSIONS), None) or (
             puncts[p.word_start] if p.word_start < len(puncts) else None) or "neutral"
@@ -1001,7 +1009,7 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
             else:
                 # a mounted subject: the mount does the moving, the rider the talking / gesturing (_seat_riders)
                 actors = _actors(spacers, pos, rides.get(subject, subject), pw, seconds, tdir, zs, mood, halves,
-                                 walk_dir, tags[p.word_start].line)
+                                 walk_dir, tags[p.word_start].line, action or "talk")
                 actors = _seat_riders(actors, rides, pos, subject, action)
                 if car_here:
                     v = _car_move(car_mode, park, actors, subject, seconds, seed)
@@ -1071,7 +1079,7 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
                 cam_extra.update(shake=bool(c.get("shake")), forced=True)
             line_no = tags[p.word_start].line
             moved = next((ac for ac in actors if ac.cast_id == subject and ac.action in MOVE_SPEED), None)
-            if notes is not None and action in MOVE_SPEED and line_no not in walk_note and (travel or moved) and not (
+            if notes is not None and action in MOVE_SPEED and not mentioned and line_no not in walk_note and (travel or moved) and not (
                     do and subject in {w for c in do[1] for w in c.who}):
                 word = next(w for w in heard[p.word_start:p.word_end + 1] if ACTIONS.get(token(w)) == action)
                 walk_note.add(line_no)

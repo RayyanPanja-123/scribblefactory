@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+- Story: a walk word moves only a character the phrase names, or one a pronoun points back at ("the saucer came
+  back" walks nobody; "he came back" walks the last named). check-story warns on pronoun walks only. No library
+  part's plan changes.
 - Story: several `@do` lines before one narration line all apply (each to different characters or items; the same
   one twice is an error, "two @do for bob on one line"), instead of the last one replacing the others. A walk word
   that starts a walk or a travel shot gets a check-story warning (`@do <cast>: idle` stops it); nobody seated or
