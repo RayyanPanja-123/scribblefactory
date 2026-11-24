@@ -216,17 +216,17 @@ def clamp_gaps(words: list[dict], phrases: list[dict], duration: float, quiet: l
 
 
 def tighten(voice: Path, out: Path, cuts: list[tuple[float, float]]) -> None:
-    """voice with the cut spans removed -> 48 kHz 16-bit WAV (written atomically)"""
-    keep = "+".join(f"between(t,{a},{b})" for a, b in cuts)
-    af = ["-af", f"aselect='not({keep})',asetpts=N/SR/TB"] if cuts else []
-    tmp = out.with_name(f".{out.name}.tmp.wav")
-    try:
-        ff.run("ffmpeg", "-v", "error", "-y", "-i", voice, *af, "-ar", "48000", "-ac", "2", "-c:a", "pcm_s16le", tmp,
-               fail=f"ffmpeg could not write {out.name}")
-    except StageError:
-        tmp.unlink(missing_ok=True)
-        raise
-    tmp.replace(out)
+    """voice with the cut spans removed -> 48 kHz 16-bit WAV (written atomically). Cut in numpy, not as one ffmpeg
+    aselect expression: a long part has 100+ cuts and ffmpeg's expression parser fails on that ("Cannot allocate
+    memory")."""
+    import numpy as np
+    from ..io import atomic_write_bytes
+    from .audio import SR, decode, wav_bytes
+    x = decode(voice)
+    keep = np.ones(len(x), bool)
+    for a, b in cuts:
+        keep[int(a * SR):int(b * SR)] = False
+    atomic_write_bytes(out, wav_bytes(x[keep]))
 
 
 def run(part_dir: Path) -> None:
