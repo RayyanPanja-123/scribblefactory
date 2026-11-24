@@ -65,6 +65,21 @@ def path(library) -> Path:
 
 _engines: dict[Path, Engine] = {}
 _lock = threading.Lock()
+# read-only libraries (dev scripts and tests: the real library). Opened with sqlite's mode=ro: no migration, no import
+# of old JSON files, and any write fails ("attempt to write a readonly database"). SCRIBBLE_DB_READONLY=1: every library.
+_read_only: set[Path] = set()
+
+
+def read_only(library=None) -> None:
+    """open `library` (None: every library) read-only from now on in this process. Call before its first use."""
+    if library is None:
+        os.environ["SCRIBBLE_DB_READONLY"] = "1"
+    else:
+        _read_only.add(Path(library).resolve())
+
+
+def is_read_only(library) -> bool:
+    return os.environ.get("SCRIBBLE_DB_READONLY") == "1" or Path(library).resolve() in _read_only
 
 
 def _pragmas(conn, _record) -> None:
@@ -86,6 +101,16 @@ def _migrate(e: Engine) -> None:
 def engine(library) -> Engine:
     """this library's database, created and migrated on first use in this process; old JSON files imported"""
     lib = Path(library).resolve()
+    ro = is_read_only(lib)
+    if ro:  # never created, migrated or imported into: a missing database is an error
+        with _lock:
+            if (lib, "ro") not in _engines:
+                f = path(lib)
+                if not f.is_file():
+                    raise FileNotFoundError(f"no database at {f} (opened read-only)")
+                _engines[(lib, "ro")] = create_engine(f"sqlite:///file:{f.as_posix()}?mode=ro&uri=true", poolclass=NullPool,
+                                                      connect_args={"timeout": 30, "uri": True})
+            return _engines[(lib, "ro")]
     with _lock:
         if lib not in _engines:
             f = path(lib)

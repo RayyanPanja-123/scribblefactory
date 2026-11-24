@@ -1,3 +1,5 @@
+import shutil
+import sqlite3
 from pathlib import Path
 
 from pipeline.scribble.io import cast_files, cast_key, load_series
@@ -27,3 +29,33 @@ def new_part(library, number: int = 1, title: str = "T", slug: str = "s") -> Pat
     p.mkdir(exist_ok=True)
     save_part(p / "part.json", PartModel(id=f"part-{number:02d}", number=number, title=title))
     return p
+
+
+REAL_LIBRARY = Path(__file__).resolve().parents[2] / "library"
+COPY_SUFFIXES = {".md", ".json", ".txt", ".mp3", ".wav"}  # what stages read from a part folder (no frames or video)
+
+
+def library_copy(tmp_path, src: Path = REAL_LIBRARY) -> Path:
+    """a working copy of a library in tmp_path: its database (sqlite backup API, source opened read-only), its loose
+    files (settings, sfx) and its part folders' story / timing / voice files, never frames or video. Tests that need
+    real data use this, never the real library."""
+    dst = Path(tmp_path) / "library"
+    (dst / "database").mkdir(parents=True)
+    source = sqlite3.connect(f"file:{(src / 'database' / 'scribble.db').as_posix()}?mode=ro", uri=True)
+    copy = sqlite3.connect(dst / "database" / "scribble.db")
+    try:
+        source.backup(copy)
+    finally:
+        copy.close()
+        source.close()
+    for f in src.iterdir():
+        if f.is_file():
+            shutil.copy(f, dst / f.name)
+    if (src / "sfx").is_dir():
+        shutil.copytree(src / "sfx", dst / "sfx")
+    for f in (src / "database" / "storage").rglob("*"):
+        if f.is_file() and f.suffix in COPY_SUFFIXES and "frames" not in f.parts and f.name != "audio":
+            out = dst / f.relative_to(src)
+            out.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy(f, out)
+    return dst

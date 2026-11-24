@@ -5,7 +5,8 @@ story.json. Read-only. Record before an engine/schema change, check after: nothi
   .venv/Scripts/python scripts/golden_hashes.py check golden.json [--library library]
 
 check exits 1 and lists each difference. The render stage hashes the engine's page code, so an engine change always
-moves render hashes (pass --skip render to leave them out)."""
+moves render hashes (pass --skip render to leave them out). The library's database is opened read-only (sqlite
+mode=ro): a snapshot never writes to it. --write allows writes (e.g. a library that still has old JSON to import)."""
 
 import argparse
 import hashlib
@@ -50,7 +51,10 @@ def main() -> int:
     ap.add_argument("file")
     ap.add_argument("--library", default="library")
     ap.add_argument("--skip", action="append", default=[], help="stage names to leave out (e.g. render)")
+    ap.add_argument("--write", action="store_true", help="open the database read-write (default: read-only)")
     a = ap.parse_args()
+    if not a.write:
+        db.read_only(a.library)
     now = snapshot(Path(a.library), set(a.skip))
     if a.mode == "record":
         Path(a.file).write_text(json.dumps(now, indent=1), encoding="utf-8")
