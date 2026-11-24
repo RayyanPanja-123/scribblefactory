@@ -95,7 +95,7 @@ DOG_EDGE_GAP = 0.9         # ... and at least this far (x) outside every actor's
 # (z, base height y; a sky / back card's base is its middle), how far out the far-left / far-right spots are (x)
 # and how far out an "@do <tag>: fly" goes (off screen in a wide, either frame shape)
 ITEM_PLACE = {"sky": {"z": -60.0, "y": 18.0, "far": 8.0, "reach": 40.0},  # y: clear of far hills in a low angle
-              "back": {"z": -14.0, "y": 3.4, "far": 5.0, "reach": 22.0},
+              "back": {"z": -14.0, "y": 7.0, "far": 5.0, "reach": 22.0},  # y: overhead, clear of the heads in a low angle
               "mid": {"z": -3.0, "y": 0.0, "far": 4.0, "reach": 12.0},
               "stage": {"z": -0.6, "y": 0.0, "far": 3.0, "reach": 9.0}}
 ITEM_SPOT = {"far-left": -1.0, "left": -0.5, "center": 0.0, "right": 0.5, "far-right": 1.0}
@@ -107,6 +107,7 @@ PUSH_D = 0.6               # push: the item slides this far away from the pusher
 # at walk speed, in at most APPROACH_SHARE of the line (else as far as the fastest walk gets: a check-story warning)
 APPROACH = {"pickup", "open", "close", "push", "sit", "enter"}
 REACH_TOL, APPROACH_SHARE = 0.15, 0.6
+ACT_ROOM = 0.4  # an arrival with less of its shot left than this (and more line to come) acts in the next shot
 
 # Lexicons match lowercase words with punctuation and a trailing 's stripped. First match in the phrase wins.
 ACTIONS = {
@@ -1173,8 +1174,12 @@ class ItemStage:
         ac.behind = behind
         ac.facing = "right" if to > ax else "left"  # walking to it, then facing it
         at = lambda f: round(ax + (to - ax) * min(1.0, (f - f0) / (fa - f0)), 3)  # noqa: E731
+        L1 = span[line][1]
         if s1 <= fa:  # only walking in this shot
             ac.action, ac.item, ac.start_pos, ac.end_pos = "walk", None, (at(s0), 0.0), (at(s1), 0.0)
+        elif s0 < fa and (s1 - fa) < ACT_ROOM * (s1 - s0) and s1 < L1:  # arrives late: acts in the line's next shot
+            ac.action, ac.item, ac.start_pos, ac.end_pos = "idle", None, (at(s0), 0.0), (to, 0.0)
+            ac.approach = round((fa - s0) / (s1 - s0), 4)
         elif s0 < fa:  # arrives in this shot, then acts
             ac.start_pos, ac.end_pos, ac.approach = (at(s0), 0.0), (to, 0.0), round((fa - s0) / (s1 - s0), 4)
         else:

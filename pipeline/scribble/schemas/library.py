@@ -1,5 +1,6 @@
 """The shared library catalogs: props, sets, world objects, creatures, actions and wardrobe (library/<kind>.json)."""
 
+import re
 from typing import Literal, get_args
 
 from pydantic import Field, field_validator, model_serializer, model_validator
@@ -127,9 +128,11 @@ ItemLook = Literal["pieces", "card"]
 # sky: far behind everything (no haze, barely moves in travel shots); back: distant, hazed; mid: scenery behind the
 # stage; stage: beside the actors. Keep equal to engine/page/items.js LAYERS and stages/shots.py ITEM_LAYERS.
 ItemLayer = Literal["sky", "back", "mid", "stage"]
-ItemDrawer = Literal["planet", "saucer", "pod", "bench", "crystal"]  # built-in drawings (engine/page/items.js DRAWERS)
+ItemDrawer = Literal["planet", "saucer", "pod", "bench", "crystal", "sun", "plant"]  # built-in drawings (engine/page/items.js DRAWERS)
 # card width / height per drawing (engine items.js DRAWERS aspect; own shapes: 1): the planner spaces stage items by it
-ITEM_ASPECT = {"planet": 1.6, "saucer": 2.2, "pod": 1.3, "bench": 2.0, "crystal": 0.6}
+ITEM_ASPECT = {"planet": 1.6, "saucer": 2.2, "pod": 1.3, "bench": 2.0, "crystal": 0.6, "sun": 1.0, "plant": 0.7}
+# a drawing's options (WorldObject params): main / accent its default colours, rings (planet) 0..3, stalks (plant) 1..6
+ITEM_PARAMS = {"main": "colour", "accent": "colour", "rings": (0, 3), "stalks": (1, 6)}
 ItemAnchor = Literal["handle", "seat", "pickup"]
 # @do <cast>: <action> <item tag>: the capability the item needs for each item action
 ITEM_ACTIONS = {"pickup": "carry", "drop": "carry", "open": "open", "close": "close", "push": "push", "sit": "sit",
@@ -199,11 +202,14 @@ class WorldObject(Strict):
                                                            "panel line): their legs are inside")
     prop: Slug | None = Field(default=None, description="carry: the prop (built-in or library/props.json) held after "
                                                         "pickup")
+    params: dict[str, float | str] = Field(default_factory=dict, description="the drawing's options: main / accent "
+                                                                             "(default colours), rings (planet 0..3), "
+                                                                             "stalks (plant 1..6)")
 
     @model_serializer(mode="wrap")
     def _omit_item_defaults(self, handler):
         return omit_defaults(handler(self), type(self), ("look", "draw", "shapes", "size", "layer", "states", "anims",
-                                                         "anchors", "seats", "clip_y", "prop"))
+                                                         "anchors", "seats", "clip_y", "prop", "params"))
 
     @model_validator(mode="after")
     def _capabilities(self):
@@ -236,6 +242,14 @@ class WorldObject(Strict):
                 raise ValueError(f"shape: unknown state {', '.join(bad)}")
         if self.look == "pieces" and (self.anchors or self.seats or self.clip_y is not None or self.prop):
             raise ValueError("anchors, seats, clip_y and prop are for a card (look: card)")
+        for k, v in self.params.items():
+            want = ITEM_PARAMS.get(k)
+            if want is None:
+                raise ValueError(f"params: unknown {k!r} (known: {', '.join(ITEM_PARAMS)})")
+            if want == "colour" and not (isinstance(v, str) and re.fullmatch(r"#[0-9a-fA-F]{6}", v)):
+                raise ValueError(f"params.{k}: a #rrggbb colour")
+            if want != "colour" and not (isinstance(v, (int, float)) and want[0] <= v <= want[1]):
+                raise ValueError(f"params.{k}: a number {want[0]}..{want[1]}")
         caps = set(self.capabilities)
         if self.look == "card":  # what each interaction needs to play
             need = {"carry": (self.prop, "a prop (what the hand holds)"), "enter": (self.seats, "seats"),

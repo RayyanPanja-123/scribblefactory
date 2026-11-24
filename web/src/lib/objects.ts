@@ -10,11 +10,12 @@ export type WorldObject = {
   id: string; name: string; category: ObjectCategory; capabilities: Capability[]; carry_mode: CarryMode; pieces: ObjectPiece[]
   look?: 'pieces' | 'card'; draw?: string | null; shapes?: unknown[]; size?: number; layer?: ItemLayer; states?: string[]; anims?: ItemAnim[]
   anchors?: Partial<Record<'handle' | 'seat' | 'pickup', number[]>>; seats?: number[][]; clip_y?: number | null; prop?: string | null
+  params?: { main?: string; accent?: string; rings?: number; stalks?: number }
 }
 export type ObjectCatalog = { objects: WorldObject[] }
 
 export const CATEGORIES: ObjectCategory[] = ['vehicle', 'container', 'furniture', 'equipment', 'debris', 'sky', 'env', 'scifi', 'other']
-export const DRAWINGS = ['planet', 'saucer', 'pod', 'bench', 'crystal'] // engine/page/items.js DRAWERS
+export const DRAWINGS = ['planet', 'saucer', 'pod', 'bench', 'crystal', 'sun', 'plant'] // engine/page/items.js DRAWERS
 export const LAYERS: ItemLayer[] = ['sky', 'back', 'mid', 'stage']
 export const RESERVED_STATES = ['remove', 'state'] // @item <tag>: remove | state <s>
 /** what amp means per animation kind (pipeline schemas ItemAnim) */

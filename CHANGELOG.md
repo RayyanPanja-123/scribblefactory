@@ -1,6 +1,12 @@
 # Changelog
 
 ## Unreleased
+- World Items (Phase C): drawings `sun` and `plant`; an item's drawing options (`params`: main / accent colours,
+  planet rings 0..3, plant stalks 1..6) on the World Items page; drawn items are flat like the cast (no shine or
+  shading patches; the crystal's glow is two flat blobs). A built item placed in a set can take a colour (its main
+  colour swapped: rock variants). Flying `back` items fly higher (overhead in a low angle). An approach walk that
+  arrives late in a shot acts in the line's next shot instead of in its last frames. Demo library assets:
+  alien-sun, ringed-planet, saucer, alien-rock, alien-plant, glow-crystal (+ prop) and the alien-plains set.
 - World Items: a character out of reach of an item walks over first (in the first part of the line, then acts;
   check-story warns when the line is too short for the walk). sit now lasts until the sitter's next `@do`;
   `@do <cast>: stand` gets up. A World Item's held prop must be a real prop (saving it says so, check-story too),

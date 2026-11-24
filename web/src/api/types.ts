@@ -2891,7 +2891,7 @@ export interface components {
              * Draw
              * @description card: a built-in drawing; none: its shapes
              */
-            draw?: ("planet" | "saucer" | "pod" | "bench" | "crystal") | null;
+            draw?: ("planet" | "saucer" | "pod" | "bench" | "crystal" | "sun" | "plant") | null;
             /** Id */
             id: string;
             /**
@@ -2908,6 +2908,13 @@ export interface components {
             look: "pieces" | "card";
             /** Name */
             name: string;
+            /**
+             * Params
+             * @description the drawing's options: main / accent (default colours), rings (planet 0..3), stalks (plant 1..6)
+             */
+            params?: {
+                [key: string]: number | string;
+            };
             /** Pieces */
             pieces?: components["schemas"]["SetPiece"][];
             /**

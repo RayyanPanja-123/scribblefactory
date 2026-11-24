@@ -46,14 +46,15 @@ export function animAt(anims, state, t, ph = 0) {
 const shadeOf = (hex, k) => { const c = new THREE.Color(hex).multiplyScalar(k); return `#${c.getHexString()}`; };
 const lw = (H, px) => (px * H) / 512; // line widths are given for a 512 px tall card
 
-/** ringed planet: ring back half, a banded surface that scrolls (flow) inside the disc, then shading, the ink outline
- *  and the ring's front half */
+/** ringed planet: ring back half, a banded surface that scrolls (flow) inside the disc, then the ink outline and the
+ *  ring's front half (flat fills, no shading: like the cast) */
 const RING = { rx: 0.48, ry: 0.11, tilt: -14 }, DISC = 0.36; // ring radii share of W / H; disc radius share of H
-function ring(p, g, W, H, o, back) {
-  const pts = ellPts(W / 2, H / 2, RING.rx * W, RING.ry * H, back ? 180 : 0, back ? 360 : 180, RING.tilt, 40);
-  p.stroke(jitter(pts, o.boil, 2), lw(H, 34));
-  p.stroke(jitter(pts, o.boil, 2), lw(H, 22), o.accent);
-  p.stroke(pts, lw(H, 4), shadeOf(o.accent, 0.75));
+function ring(p, g, W, H, o, back) { // params.rings bands (default 1; 0: no ring), each a little wider
+  for (let i = 0; i < (o.params.rings ?? 1); i++) {
+    const k = 1 - 0.13 * i, pts = ellPts(W / 2, H / 2, RING.rx * W * k, RING.ry * H * k, back ? 180 : 0, back ? 360 : 180, RING.tilt, 40);
+    p.stroke(jitter(pts, o.boil, 2), lw(H, 30 - 6 * i));
+    p.stroke(jitter(pts, o.boil, 2), lw(H, 19 - 5 * i), i % 2 ? shadeOf(o.accent, 0.8) : o.accent);
+  }
 }
 function planetBands(p, g, W, H, o) {
   const R = rng(o.seed, "bands");
@@ -76,10 +77,6 @@ function planetBands(p, g, W, H, o) {
 const discPath = (g, W, H) => g.arc(W / 2, H / 2, DISC * H, 0, TAU);
 function planetFront(p, g, W, H, o) {
   const cx = W / 2, cy = H / 2, r = DISC * H;
-  g.save(); g.beginPath(); g.arc(cx, cy, r, 0, TAU); g.clip(); // shadow side away from the key light (screen left)
-  g.fillStyle = "rgba(39,48,77,0.38)"; g.beginPath(); g.arc(cx, cy, r, 0, TAU); g.arc(cx + r * 0.35, cy - r * 0.2, r * 1.05, 0, TAU, true); g.fill();
-  g.fillStyle = "rgba(255,248,230,0.35)"; g.beginPath(); g.ellipse(cx + r * 0.4, cy - r * 0.45, r * 0.22, r * 0.12, -0.6, 0, TAU); g.fill();
-  g.restore();
   p.poly(wobble(cx, cy, r, r, rng(o.seed, "rim"), o.boil, 0.015, 0.006, 64), null, lw(H, 9));
   ring(p, g, W, H, o, false);
 }
@@ -91,7 +88,6 @@ function saucer(p, g, W, H, o) {
   if (landed) for (const k of [-0.55, 0, 0.55]) p.stroke(jitter([[cx + k * rx * 0.8, cy + ry * 0.6], [cx + k * rx * 1.05, H * 0.97]], o.boil, 2), lw(H, 12));
   const dome = ellPts(cx, cy - ry * 0.35, rx * 0.42, H * 0.36, 180, 360, 0, 32);
   p.poly(jitter(dome, o.boil, 2), o.accent, lw(H, 10));
-  g.fillStyle = "rgba(255,255,255,0.45)"; g.beginPath(); g.ellipse(cx - rx * 0.16, cy - H * 0.36, rx * 0.08, H * 0.07, -0.5, 0, TAU); g.fill();
   p.poly(wobble(cx, cy, rx, ry, rng(o.seed, "body"), o.boil, 0.01, 0.004, 64), o.main, lw(H, 11));
   p.poly(wobble(cx, cy + ry * 0.25, rx * 0.72, ry * 0.42, rng(o.seed, "rim"), o.boil, 0.01, 0.004, 48), shadeOf(o.main, 0.72), lw(H, 7));
   for (let i = 0; i < 7; i++) {
@@ -141,14 +137,48 @@ function bench(p, g, W, H, o) {
 
 /** glowing crystal cluster on its base: a soft halo (glow), three ink-outlined shards with a light facet each */
 function crystal(p, g, W, H, o) {
-  const gl = g.createRadialGradient(W / 2, H * 0.62, 0, W / 2, H * 0.62, W * 0.5);
-  gl.addColorStop(0, `${o.accent}cc`); gl.addColorStop(1, `${o.accent}00`);
-  g.fillStyle = gl; g.fillRect(0, 0, W, H);
+  g.save(); // the glow: two flat translucent blobs in the accent colour (flat fills, like the cast)
+  for (const [r, a] of [[0.48, 0.22], [0.34, 0.3]]) {
+    g.globalAlpha = a; p.poly(wobble(W / 2, H * 0.6, W * r, W * r * 0.9, rng(o.seed, "glow", r), o.boil, 0.04, 0.02, 32), o.accent, 0);
+  }
+  g.restore();
   for (const [dx, h, w, tilt] of [[-0.18, 0.55, 0.16, -0.25], [0.2, 0.5, 0.15, 0.3], [0, 0.82, 0.22, 0]]) {
     const bx = W * (0.5 + dx), by = H - 8, tip = [bx + Math.sin(tilt) * H * h, by - H * h];
     const pts = [[bx - W * w, by], [bx - W * w * 0.8, by - H * h * 0.55], tip, [bx + W * w * 0.8, by - H * h * 0.55], [bx + W * w, by]];
     p.poly(jitter(pts, o.boil, 1.5), o.main, lw(H, 6));
     p.poly(jitter([[bx - W * w * 0.3, by - H * h * 0.2], tip, [bx, by - H * h * 0.5]], o.boil, 1), "rgba(255,255,255,0.55)", 0);
+  }
+}
+
+/** sun: a flat disc with a ring of ink-outlined rays (it turns and pulses as a whole: anims rotate, pulse) */
+function sun(p, g, W, H, o) {
+  const cx = W / 2, cy = H / 2, r = H * 0.27, n = 12;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * TAU, w = TAU / n / 2.6, long = i % 2 ? 0.44 : 0.48;
+    const at = (aa, rr) => [cx + Math.cos(aa) * rr * H, cy + Math.sin(aa) * rr * H];
+    p.poly(jitter([at(a - w, 0.3), at(a, long), at(a + w, 0.3)], o.boil, 1.5), o.accent, lw(H, 6));
+  }
+  p.poly(wobble(cx, cy, r, r, rng(o.seed, "sun"), o.boil, 0.012, 0.006, 56), o.main, lw(H, 9)); // flat, like the cast
+}
+
+/** alien plant on its base: params.stalks curving stalks (default 3) fanning out, each with two leaves and a bulb
+ *  in the accent colour on top (it sways about its base: anims sway) */
+function plant(p, g, W, H, o) {
+  const n = Math.max(1, Math.min(6, Math.round(o.params.stalks ?? 3))), R = rng(o.seed, "stalks");
+  const base = [W / 2, H - 6];
+  for (let i = 0; i < n; i++) {
+    const f = n === 1 ? 0 : i / (n - 1) - 0.5, h = H * (0.62 + 0.28 * R()), lean = f * W * 0.7;
+    const tip = [base[0] + lean, base[1] - h], mid = [base[0] + lean * 0.25, base[1] - h * 0.55];
+    const pts = Array.from({ length: 9 }, (_, k) => { const u = k / 8, v = 1 - u;
+      return [v * v * base[0] + 2 * v * u * mid[0] + u * u * tip[0], v * v * base[1] + 2 * v * u * mid[1] + u * u * tip[1]]; });
+    p.stroke(jitter(pts, o.boil, 1.5), lw(H, 13));
+    p.stroke(jitter(pts, o.boil, 1.5), lw(H, 6), o.main);
+    for (const s of [-1, 1]) { // two leaves part way up
+      const at = pts[3 + (s > 0 ? 1 : 0)], lf = H * 0.11;
+      p.poly(jitter(ellPts(at[0] + s * lf * 0.8, at[1] - lf * 0.2, lf, lf * 0.35, 0, 360, s * -25, 16), o.boil, 1), o.main, lw(H, 5));
+    }
+    const br = H * (0.07 + 0.03 * R());
+    p.poly(wobble(tip[0], tip[1], br, br * 1.15, rng(o.seed, "bulb", i), o.boil, 0.04, 0.015, 24), o.accent, lw(H, 7));
   }
 }
 
@@ -166,6 +196,8 @@ export const DRAWERS = {
     { name: "back", draw: podBack }, { name: "front", draw: podFront }] },
   bench: { aspect: 2.0, px: 256, base: 0, main: "#b07a45", accent: "#4a4f57", layers: [{ name: "body", draw: bench }] },
   crystal: { aspect: 0.6, px: 256, base: 0, main: "#7cf2ff", accent: "#b6fbff", layers: [{ name: "body", draw: crystal }] },
+  sun: { aspect: 1, px: 512, base: 0.5, main: "#ffd166", accent: "#ff9f43", layers: [{ name: "body", draw: sun }] },
+  plant: { aspect: 0.7, px: 384, base: 0, main: "#3fbf7f", accent: "#ff6fb5", layers: [{ name: "body", draw: plant }] },
 };
 /** an item's own shapes (ItemShape: canvas px around the base point, like a creature's body) on a 1024 square */
 const SHAPES = { aspect: 1, px: 1024, base: 24 / 1024, main: "#8a8a8a", accent: "#3a2a1e", layers: [{ name: "shapes",
@@ -233,7 +265,7 @@ export function itemCard(def, { color = null, accent = null, tag = "", seed = 0,
     return m;
   });
   meshes.slice(1).forEach((m) => meshes[0].add(m));
-  const main = color || D.main, acc = accent || D.accent;
+  const P = def.params || {}, main = color || P.main || D.main, acc = accent || P.accent || D.accent; // instance, item, drawing
   return { root: meshes[0], meshes, def, drawer: D, W, H, y: 0, ph: phaseOf(seed, tag),
     key: `${hash(JSON.stringify(def))}|${main}|${acc}`, main, accent: acc };
 }
@@ -264,7 +296,7 @@ export function updateCard(c, { t, boil, state = null, from = null, k = 1, facin
   c.drawer.layers.forEach((L, i) => {
     const m = c.meshes[i], step = L.still ? 0 : b;
     const tex = cached(`${c.key}|${st}${tw}|${L.name}|${step}`, W, H, (g) => L.draw(new Pen(g, INK), g, W, H,
-      { main: c.main, accent: c.accent, state: st, from, k, boil: rng(c.key, "boil", step), b: step, seed: c.key, shapes: c.def.shapes || [] }),
+      { main: c.main, accent: c.accent, state: st, from, k, boil: rng(c.key, "boil", step), b: step, seed: c.key, shapes: c.def.shapes || [], params: c.def.params || {} }),
     (tex) => { tex.colorSpace = THREE.SRGBColorSpace; if (L.flow) tex.wrapS = THREE.RepeatWrapping; });
     if (m.material.map !== tex) { const fresh = !m.material.map; m.material.map = tex; if (fresh) m.material.needsUpdate = true; }
     if (L.flow) tex.offset.x = A.flow;
@@ -285,12 +317,13 @@ export function previewItem(out, def, { t = 0, state = null, color = null, accen
   if (!D) throw new Error(`unknown item drawing "${def.draw}" (known: ${Object.keys(DRAWERS).join(", ")})`);
   const H = D.px, W = Math.round(H * D.aspect), st = state ?? def.states?.[0] ?? null;
   const b = Math.floor((t * 30) / BOIL_FRAMES) % BOIL_CYCLE, A = animAt(def.anims, st, t, 0);
-  const key = `${hash(JSON.stringify(def))}|${color || D.main}|${accent || D.accent}`;
+  const P = def.params || {}, main = color || P.main || D.main, acc = accent || P.accent || D.accent;
+  const key = `${hash(JSON.stringify(def))}|${main}|${acc}`;
   if (previews.size > 64) previews.clear();
   const layer = (L) => {
     const k = `${key}|${st}|${L.name}|${L.still ? 0 : b}`;
     if (!previews.has(k)) previews.set(k, canvasOf(W, H, (g) => L.draw(new Pen(g, INK), g, W, H,
-      { main: color || D.main, accent: accent || D.accent, state: st, boil: rng(key, "boil", L.still ? 0 : b), b: L.still ? 0 : b, seed: key, shapes: def.shapes || [] })));
+      { main, accent: acc, state: st, boil: rng(key, "boil", L.still ? 0 : b), b: L.still ? 0 : b, seed: key, shapes: def.shapes || [], params: P })));
     return previews.get(k);
   };
   const g = out.getContext("2d"), k = Math.min((0.8 * out.width) / W, (0.6 * out.height) / H), unit = (k * H) / (def.size || 1);

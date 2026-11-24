@@ -433,3 +433,18 @@ def test_stage_hash_covers_only_used_catalog_rows(tmp_path):
     assert placed != before  # its set now places an item (and so the item and its prop count)
     save_prop(tmp_path, fx.GLOW.model_copy(update={"name": "Glow crystal 2"}))
     assert h() != placed  # the placed item's prop changed: the part's hash follows
+
+
+def test_late_arrival_acts_in_the_next_shot():
+    """a walk that arrives with less than ACT_ROOM of its shot left (and more line to come): that shot only walks
+    (idle after arriving), the action plays whole in the line's next shot"""
+    md = ("# L\n\n@set street\n@cast bob\n@item gem: glow-crystal stage left\nBob was alone on the street.\n"
+          "@do bob: walk\nHe wandered off.\n@do bob: pickup gem\nThen he went back for the glowing crystal.\nDone.\n")
+    ph = phrases_for(md, word_s=0.5)
+    story = shots.plan(md, ph, SERIES, 1, objects=fx.OBJECTS)
+    arrive = next(s for s in story.shots if actor(s).approach)
+    a, nxt = actor(arrive), actor(story.shots[story.shots.index(arrive) + 1])
+    assert a.action == "idle" and a.approach > 1 - shots.ACT_ROOM and a.item is None
+    assert nxt.action == "pickup" and nxt.item == "gem" and nxt.approach is None
+    assert nxt.start_pos[0] == a.end_pos[0]  # it picks up where the walk ended
+    assert not validate(story, ph, {c.id for c in SERIES.cast})

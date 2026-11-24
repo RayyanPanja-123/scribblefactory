@@ -738,13 +738,15 @@ function custom(b, spec) {
   for (const instance of spec.objects || []) {
     const object = lookup("objects", instance.object);
     if (object.look === "card") { setCard(b, object, instance); continue; }
+    const recolour = instance.color && object.pieces?.[0]?.color; // a colour variant: the item's main colour, here
     for (const p of object.pieces || []) {
       const at = [p.at[0] + instance.at[0], p.at[1] + instance.at[1], p.at[2] + instance.at[2]];
-      const placed = { ...p, at };
+      const placed = { ...p, at, ...(recolour && p.color === recolour ? { color: instance.color } : {}) };
       const opts = { backdrop: p.backdrop, outline: p.outline ?? true };
       b.piece(() => {
-        const m = p.shape === "box" ? b.box(...p.size, p.color, at, opts) : p.shape === "cyl" ? b.cyl(...p.size, p.color, at, opts)
-          : p.shape === "ball" ? b.ball(p.size[0], p.color, at, opts) : b.mound(p.size[0], p.size[1], p.color, at, opts);
+        const col = placed.color;
+        const m = p.shape === "box" ? b.box(...p.size, col, at, opts) : p.shape === "cyl" ? b.cyl(...p.size, col, at, opts)
+          : p.shape === "ball" ? b.ball(p.size[0], col, at, opts) : b.mound(p.size[0], p.size[1], col, at, opts);
         if (water) foam(b, placed, m);
       });
     }

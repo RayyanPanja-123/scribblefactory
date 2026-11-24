@@ -90,6 +90,12 @@ const num = 'inset mt-1 block h-9 w-full rounded-md px-2 text-sm text-ink outlin
           <label class="text-xs font-semibold text-muted">Layer<select v-model="form.layer" :class="field"><option v-for="x in LAYERS" :key="x">{{ x }}</option></select></label>
           <label class="text-xs font-semibold text-muted">Height (units)<input v-model.number="form.size" type="number" step="any" min="0.05" max="60" :class="num" /></label>
         </div>
+        <div class="flex flex-wrap items-end gap-3">
+          <label class="flex items-center gap-2 text-xs font-semibold text-muted">Main <input :value="form.params?.main ?? '#888888'" type="color" class="h-9 w-12" @input="(form.params ??= {}).main = ($event.target as HTMLInputElement).value" /></label>
+          <label class="flex items-center gap-2 text-xs font-semibold text-muted">Accent <input :value="form.params?.accent ?? '#888888'" type="color" class="h-9 w-12" @input="(form.params ??= {}).accent = ($event.target as HTMLInputElement).value" /></label>
+          <label v-if="form.draw === 'planet'" class="w-24 text-xs font-semibold text-muted">Rings<input :value="form.params?.rings ?? 1" type="number" min="0" max="3" step="1" :class="num" @input="(form.params ??= {}).rings = Number(($event.target as HTMLInputElement).value)" /></label>
+          <label v-if="form.draw === 'plant'" class="w-24 text-xs font-semibold text-muted">Stalks<input :value="form.params?.stalks ?? 3" type="number" min="1" max="6" step="1" :class="num" @input="(form.params ??= {}).stalks = Number(($event.target as HTMLInputElement).value)" /></label>
+        </div>
         <label class="block text-xs font-semibold text-muted">States <span class="font-normal">(comma-separated, the first is the default; e.g. flying, landed)</span><input v-model="statesText" :class="field" :aria-invalid="badStates.length > 0" /></label>
         <p v-if="badStates.length" class="text-xs text-red-ink" role="alert">Not usable as a state: {{ badStates.join(', ') }} (lowercase-with-dashes; remove and state are reserved for @item).</p>
         <div v-if="states.length" class="flex flex-wrap items-center gap-2 text-xs"><span class="font-semibold text-muted">Preview state</span><button v-for="s in states" :key="s" type="button" class="btn btn-secondary" :aria-pressed="(previewState ?? states[0]) === s" @click="previewState = s">{{ s }}</button></div>

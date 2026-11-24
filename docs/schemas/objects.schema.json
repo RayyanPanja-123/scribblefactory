@@ -358,7 +358,9 @@
                 "saucer",
                 "pod",
                 "bench",
-                "crystal"
+                "crystal",
+                "sun",
+                "plant"
               ],
               "type": "string"
             },
@@ -400,6 +402,21 @@
           "minLength": 1,
           "title": "Name",
           "type": "string"
+        },
+        "params": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "description": "the drawing's options: main / accent (default colours), rings (planet 0..3), stalks (plant 1..6)",
+          "title": "Params",
+          "type": "object"
         },
         "pieces": {
           "items": {
