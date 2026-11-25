@@ -135,6 +135,9 @@ const base = ref<Draft>()
 const looks = ref<Record<string, Obj>>({}) // name -> overrides
 const active = ref('') // '' = the base outfit
 const lookDraft = ref<Draft>()
+const newId = ref(props.id) // editing it renames the member; the server rewrites story.md and moves the render
+const idError = computed(() => !LOOK_ID.test(newId.value) ? 'Lowercase letters, digits and dashes only.'
+  : newId.value !== props.id && data.value?.detail.series.cast.some((c) => c.id === newId.value) ? 'That id is taken.' : '')
 // the TTS voice of this member's own lines ("<id>: line" in story.md): not part of the look, no new approval
 const voice = ref<TtsVoice | null>(null)
 const voices = ref<TtsVoices | null>(null)
@@ -210,13 +213,13 @@ const library = computed(() => ({ props: data.value?.propCatalog.custom ?? [], w
 const saving = ref(false)
 async function save(andRender: boolean) {
   commitLook()
-  if (!baseEntry.value) return
-  const body: Obj = { ...baseEntry.value, looks: looks.value, voice: voice.value }
+  if (!baseEntry.value || idError.value) return
+  const body: Obj = { ...baseEntry.value, id: newId.value, looks: looks.value, voice: voice.value }
   saving.value = true
   const s = await act(() => api.editCast(props.slug, props.id, body), `${body.name as string} saved`)
   if (s && andRender) {
     const part = data.value!.detail.series.parts[0]
-    if (part) await act(() => api.submitJob(props.slug, part, [`cast-sheet ${props.id}`]), `${body.name as string} render queued`)
+    if (part) await act(() => api.submitJob(props.slug, part, [`cast-sheet ${newId.value}`]), `${body.name as string} render queued`)
   }
   saving.value = false
   if (s) router.push(back.value)
@@ -238,7 +241,7 @@ const swatch = 'mt-1 block h-10 w-14 shrink-0 cursor-pointer rounded-md'
       <div class="raised min-w-0 space-y-5 p-6">
         <div>
           <h2 class="font-display text-3xl font-semibold">{{ base.name || id }}</h2>
-          <p class="mt-1 text-sm text-muted">Id <code>{{ id }}</code> stays (stories use it). A new look clears the approval and needs a re-render of this character only.</p>
+          <p class="mt-1 text-sm text-muted">Id <code>{{ id }}</code> (stories use it; change it on the Character tab). A new look clears the approval and needs a re-render of this character only.</p>
         </div>
 
         <!-- which outfit the tabs edit -->
@@ -268,6 +271,11 @@ const swatch = 'mt-1 block h-10 w-14 shrink-0 cursor-pointer rounded-md'
         <div v-show="tab === 'character'" id="cast-panel-character" role="tabpanel" aria-labelledby="cast-tab-character" class="grid gap-4 sm:grid-cols-2">
           <label class="block text-xs font-semibold text-muted">Name
             <input v-model="base.name" required :disabled="!!active" :class="field" />
+          </label>
+          <label class="block text-xs font-semibold text-muted">Id
+            <input v-model.trim="newId" required :disabled="!!active || busy" :class="field" />
+            <span v-if="idError" class="mt-1 block font-normal text-red-ink" role="alert">{{ idError }}</span>
+            <span v-else-if="newId !== id" class="mt-1 block font-normal">Story lines and directives using <code>{{ id }}</code> are rewritten to <code>{{ newId }}</code>.</span>
           </label>
           <label class="block text-xs font-semibold text-muted">Body
             <select v-model="base.body" :disabled="!!active" :class="field">

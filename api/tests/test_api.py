@@ -208,6 +208,19 @@ def test_edit_cast_needs_that_members_rerender(client, lib):
     assert client.put("/api/series/demo/cast/zed", json=bob).status_code == 404
 
 
+def test_edit_cast_new_id_renames_member_and_render(client, lib):
+    sd = lib / "database" / "storage" / "demo"
+    rendered(sd)
+    client.post("/api/series/demo/approve-cast", json={"cast_id": "bob"})
+    bob = client.get("/api/series/demo").json()["series"]["cast"][0]
+    r = client.put("/api/series/demo/cast/bob", json={**bob, "id": "Bad Id"})
+    assert r.status_code == 409 and (sd / "cast" / "bob.png").is_file()  # refused before anything moves
+    r = client.put("/api/series/demo/cast/bob", json={**bob, "id": "robert"})
+    assert r.status_code == 200 and [c["id"] for c in r.json()["cast"]] == ["robert"]
+    assert r.json()["cast"][0]["approved_at"]  # same look: approval stays
+    assert (sd / "cast" / "robert.png").is_file() and not (sd / "cast" / "bob.png").exists()
+
+
 def test_import_cast_updates_by_id_and_appends(client, lib):
     rendered(lib / "database" / "storage" / "demo")
     client.post("/api/series/demo/approve-cast", json={"cast_id": "bob"})

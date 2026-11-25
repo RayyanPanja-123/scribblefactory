@@ -32,7 +32,7 @@ from api.settings_routes import drop_ai_settings
 from pipeline.scribble import cli, db, gallery, package, settings, storycheck
 from pipeline.scribble.io import (atomic_write_json, part_dir_of, sync_files, storage_root, write_series, atomic_write_text, load_part, load_series, prop_kinds, save_part,
                                   save_series, unknown_cast_props, cast_body_problems, cast_files,
-                                  cast_render_current)
+                                  cast_render_current, replace_file)
 from pipeline.scribble.schemas import CastMember, PartModel, SeriesModel, Slug, Stages, utcnow
 from pipeline.scribble.stages import render as render_stage
 from pipeline.scribble.stages.import_check import probe_duration
@@ -473,10 +473,41 @@ def import_cast(slug: str, body: NewCast):
 
 @app.put("/api/series/{slug}/cast/{cast_id}", response_model=SeriesModel)
 def edit_cast(slug: str, cast_id: str, body: dict):
-    """replace one cast member (same entry shape as NewCast; the id stays); see merge_cast"""
-    if not any(c.id == cast_id for c in load_series(series_path(slug) / "series.json").cast):
+    """replace one cast member (same entry shape as NewCast); see merge_cast. A different body["id"] renames the
+    member: story.md lines (`<id>: line` and @directives) and its render files follow, its approval stays."""
+    d = series_path(slug)
+    series = load_series(d / "series.json")
+    old = next((c for c in series.cast if c.id == cast_id), None)
+    if old is None:
         raise HTTPException(404, f"cast id {cast_id!r} not in {slug}")
-    return merge_cast(slug, [{**body, "id": cast_id}])
+    new_id = body.get("id") or cast_id
+    if new_id == cast_id:
+        return merge_cast(slug, [{**body, "id": cast_id}])
+    check_free(slug)
+    if any(c.id == new_id for c in series.cast):
+        raise HTTPException(409, f"cast id {new_id!r} exists already in {slug}")
+    entry = cast_member(0, {**body, "id": new_id})  # a bad id is a 409 before anything moves
+    entry.approved_at = old.approved_at if entry.look() == old.look() else None
+    series.cast = [entry if c.id == cast_id else c for c in series.cast]
+    if unknown := unknown_cast_props([entry], lib()):
+        raise HTTPException(409, f"unknown prop {unknown[0]} (props: {', '.join(prop_kinds(lib()))})")
+    if problems := cast_body_problems([entry], lib()):
+        raise HTTPException(409, f"cast: {problems[0]}")
+    word = rf"(?<![\w-]){re.escape(cast_id)}(?![\w-])"
+    for pid, _ in parts_of(d):
+        f = part_dir_of(d, pid) / "story.md"
+        if f.is_file():
+            lines = f.read_text(encoding="utf-8").splitlines(keepends=True)
+            text = "".join(re.sub(word, new_id, l) if l.lstrip().startswith("@")
+                           else re.sub(rf"^(\s*){re.escape(cast_id)}(?=\s*:)", rf"\g<1>{new_id}", l) for l in lines)
+            if text != "".join(lines):
+                write_story(part_dir_of(d, pid), text)  # marks prep pending so the part re-plans
+    write_series(d / "series.json", series)
+    for k, src in cast_files(d, cast_id).items():  # renders follow the id (a missing one is just not drawn yet)
+        if src.is_file():
+            replace_file(src, cast_files(d, new_id)[k])
+    publish("series-changed", {"slug": slug})
+    return series_json(d)
 
 
 @app.delete("/api/series/{slug}/cast/{cast_id}", response_model=SeriesModel)
