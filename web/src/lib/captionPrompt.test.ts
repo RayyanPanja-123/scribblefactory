@@ -16,4 +16,11 @@ describe('upload.md captions', () => {
     expect(p).toContain('Follow @sf for Part 2.')
     expect(p).not.toContain('@cast')
   })
+  it('gives the story so far and the cast', () => {
+    const p = buildCaptionPrompt({ series: 'S', number: 2, parts: 3, title: 't', story: 'Now.',
+      before: [{ number: 1, title: 'One', story: '# One\n@set x\nA receipt.' }], cast: [{ name: 'Cat', body: 'cat' }, { name: 'Ethan', body: 'human' }] })
+    expect(p).toContain('Part 1, "One":\nA receipt.')
+    expect(p).toContain('Characters: Cat (a cat), Ethan')
+    expect(p).not.toContain('@set')
+  })
 })

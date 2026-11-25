@@ -38,10 +38,13 @@ async function writeCaptions() {
   try {
     const i = s.parts.indexOf(props.part)
     const nextId = s.parts[i + 1]
-    const [next, cfg] = await Promise.all([nextId ? api.part(props.slug, nextId).catch(() => null) : null, api.settings().catch(() => null)])
+    const [next, cfg, ...earlier] = await Promise.all([nextId ? api.part(props.slug, nextId).catch(() => null) : null, api.settings().catch(() => null),
+      ...s.parts.slice(0, i).map((id) => api.part(props.slug, id).catch(() => null))])
     const prompt = buildCaptionPrompt({
       series: s.title, number: i + 1, parts: s.parts.length, title: me.part.title, story: me.story_md ?? '',
+      before: earlier.flatMap((x, k) => x?.story_md ? [{ number: k + 1, title: x.part.title, story: x.story_md }] : []),
       next: next?.story_md ? { title: next.part.title, story: next.story_md } : undefined,
+      cast: s.cast.map((x) => ({ name: x.name, body: x.body ?? 'human' })),
       handles: cfg?.settings.socials,
     })
     const r = await act(() => api.writeCaptions(prompt), 'Captions written: check them, then Save')

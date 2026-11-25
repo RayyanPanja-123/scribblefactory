@@ -8,16 +8,23 @@ const narration = (md: string) => md.split('\n').map((l) => l.trim())
 export type CaptionInput = {
   series: string; number: number; parts: number
   title: string; story: string // this part's story.md
+  before?: { number: number; title: string; story: string }[] // earlier parts, in order: the story so far
   next?: { title: string; story: string } // the next part, for a teaser
+  cast?: { name: string; body: string }[]
   handles?: { youtube?: string; instagram?: string }
 }
 
 export function buildCaptionPrompt(c: CaptionInput): string {
   const last = c.number === c.parts
   const ig = c.handles?.instagram?.trim()
+  const cast = c.cast?.length ? `\nCharacters: ${c.cast.map((x) => x.body === 'human' ? x.name : `${x.name} (a ${x.body})`).join(', ')}\n` : ''
+  const before = c.before?.length
+    ? `\nThe story so far (earlier parts, for context only; the captions are about this part):\n${c.before.map((b) => `Part ${b.number}, "${b.title}":\n${narration(b.story)}`).join('\n\n')}\n`
+    : ''
   return `Write YouTube Shorts and Instagram Reels captions for one part of a stickman animated series.
 
 Series: ${c.series}
+${cast}${before}
 This is part ${c.number} of ${c.parts}${last ? ' (the finale)' : ''}: "${c.title}"
 
 Its narration (what the video says):
@@ -49,6 +56,7 @@ Fields:
   Would you risk your safety for a twelve-cent prize? Part 2 of 3. Follow @scribblesagashorts for Part 3. 👇
 
   #stickmananimation #shortstory #scifistory #animatedstories
+- Every field is about this part's own events, in concrete detail from its narration, using the characters' names and the story's real objects; nothing generic that could caption any video, nothing the story never says.
 - Tease the last line's twist; never quote it. If the story is true history, say so ("True story").
 - Plain, punchy, no clickbait lies, no markdown.`
 }
