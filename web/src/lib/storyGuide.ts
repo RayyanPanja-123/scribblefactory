@@ -85,8 +85,8 @@ export async function copyLibraryList(): Promise<boolean> {
 }
 
 export async function storyGuide(): Promise<string> {
-  const [guide, tts, library, cast, script, pkg, props, sets, creatures, actions, wardrobe, objects] = await Promise.all([
-    import('../../../docs/story-writter/STORY_GUIDE.md?raw'), import('../../../docs/story-writter/tts.md?raw'), import('../../../docs/story-writter/library.md?raw'),
+  const [guide, tts, ttsShorts, ttsLong, library, cast, script, pkg, props, sets, creatures, actions, wardrobe, objects] = await Promise.all([
+    import('../../../docs/story-writter/STORY_GUIDE.md?raw'), import('../../../docs/story-writter/tts.md?raw'), import('../../../docs/story-writter/tts-shorts.md?raw'), import('../../../docs/story-writter/tts-long.md?raw'), import('../../../docs/story-writter/library.md?raw'),
     import('../../../docs/story-writter/cast.md?raw'), import('../../../docs/story-writter/script.md?raw'), import('../../../docs/story-package.md?raw'),
     import('../../../docs/schemas/props.schema.json?raw'), import('../../../docs/schemas/sets.schema.json?raw'),
     import('../../../docs/schemas/creatures.schema.json?raw'), import('../../../docs/schemas/actions.schema.json?raw'),
@@ -94,7 +94,7 @@ export async function storyGuide(): Promise<string> {
   ])
   const compact = (m: { default: string }) => JSON.stringify(JSON.parse(m.default))
   return [
-    ...[guide, tts, library, cast, script].map((m) => m.default.trimEnd()),
+    ...[guide, tts, ttsShorts, ttsLong, library, cast, script].map((m) => m.default.trimEnd()),
     '---',
     pkg.default.replace(/^## /gm, '### ').replace(/^# Story Package v1/, '## Story Package format (v1)').trimEnd(),
     '---',

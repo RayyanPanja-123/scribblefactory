@@ -174,7 +174,7 @@ const facts = computed(() => {
         <button type="button" class="btn btn-secondary ml-auto" @click="voiceOpen = true"><Sparkles :size="16" aria-hidden="true" /> Voice scripts with AI</button>
         <RouterLink :to="`/series/${slug}/new-part`" class="btn btn-secondary"><Plus :size="16" aria-hidden="true" /> New part</RouterLink>
       </div>
-      <AiVoiceScripts :open="voiceOpen" :slug="slug" :title="data.series.title" :cast="data.series.cast" @close="voiceOpen = false" @done="refresh" />
+      <AiVoiceScripts :open="voiceOpen" :slug="slug" :title="data.series.title" :cast="data.series.cast" :aspect="data.series.style.aspect" @close="voiceOpen = false" @done="refresh" />
       <EmptyState v-if="!data.parts.length" :icon="FileQuestion" title="No parts yet"
         text="A part is one short: write its story, record the voice, and the factory does the rest." />
       <PartCard v-for="(p, i) in data.parts" :key="p.id" :slug="slug" :part="p" :index="i" />

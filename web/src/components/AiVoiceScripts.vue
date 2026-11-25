@@ -8,10 +8,12 @@ import AiBridge from './AiBridge.vue'
 
 // Story step 1: title -> voice scripts. One small prompt, one paste, then one part per script (narration only;
 // directives come later per part).
-const props = defineProps<{ open: boolean; slug: string; title: string; cast: { id: string; name: string }[] }>()
+const props = defineProps<{ open: boolean; slug: string; title: string; cast: { id: string; name: string }[]; aspect?: '9:16' | '16:9' }>()
 const emit = defineEmits<{ close: []; done: [] }>()
 
 const parts = ref(3)
+const minutes = ref(5) // long video (16:9) only: minutes of speech per part
+const wide = computed(() => props.aspect === '16:9')
 const notes = ref('')
 const reply = ref('')
 const error = ref('')
@@ -23,7 +25,7 @@ const MODES: { id: VoiceMode; label: string; hint: string }[] = [
   { id: 'narration', label: 'Single narration', hint: 'One narrator reads everything. Best for history explainers.' },
   { id: 'cast', label: 'Cast voice acting', hint: 'A narrator plus the characters’ own lines, each in their own voice (TTS). Best for comedy and banter.' },
 ]
-const prompt = computed(() => mode.value ? voicePrompt({ title: props.title, parts: parts.value, mode: mode.value, notes: notes.value, cast: props.cast }) : '')
+const prompt = computed(() => mode.value ? voicePrompt({ title: props.title, parts: parts.value, mode: mode.value, aspect: props.aspect, minutes: minutes.value, notes: notes.value, cast: props.cast }) : '')
 const words = spokenWords
 
 function close() {
@@ -61,9 +63,12 @@ async function create() {
         </div>
 
         <div v-if="!parsed.length" class="mt-5 space-y-5">
-          <div class="grid gap-4 sm:grid-cols-[8rem_1fr]">
+          <div class="grid gap-4" :class="wide ? 'sm:grid-cols-[8rem_8rem_1fr]' : 'sm:grid-cols-[8rem_1fr]'">
             <label class="block text-xs font-semibold text-muted">Parts
               <input v-model.number="parts" type="number" min="1" max="20" class="inset mt-1 block h-10 w-full rounded-md px-4 text-sm text-ink outline-none focus:border-blue" />
+            </label>
+            <label v-if="wide" class="block text-xs font-semibold text-muted">Minutes per part
+              <input v-model.number="minutes" type="number" min="1" max="30" class="inset mt-1 block h-10 w-full rounded-md px-4 text-sm text-ink outline-none focus:border-blue" />
             </label>
             <label class="block text-xs font-semibold text-muted">Tone, angle, things to avoid (optional)
               <input v-model="notes" placeholder="Funny, focus on the emperor's madness" class="inset mt-1 block h-10 w-full rounded-md px-4 text-sm text-ink outline-none focus:border-blue" />

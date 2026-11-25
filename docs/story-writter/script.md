@@ -302,7 +302,7 @@ A finished part that played exactly as written (its first three lines since rewo
 - Series library: sets `colosseum`, `roman-street` (period sets); custom actions `attack-with-spears`, `raise-trident`;
     looks `caligula: coins` (prop `stack-of-silver-coins`), `marcus: shell`, `cassius: spear`; Neptune holds a
     `trident`. Use your own inventory's ids.
-- Length: it predates the 30 to 35 s rule. A part now has 70 to 83 words (docs/story-writter/tts.md): match this part's staging
+- Length: it predates the 30 to 35 s rule. A part now has 70 to 83 words (docs/story-writter/tts-shorts.md): match this part's staging
     density per line, not its length or its word positions.
 - 120 words, 12 lines, no name in lines 1 to 3 and a name in every later line; 39 directives besides `@set` and
     `@cast`; 12 lines with a `@do`, 8 with a `@face`.

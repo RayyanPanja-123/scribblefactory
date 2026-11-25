@@ -14,6 +14,18 @@ Cassius counted the days.
 <<<END>>>
 \`\`\``
 
+describe('voicePrompt long video', () => {
+  it('uses the long rules for 16:9 and the Shorts rules otherwise', () => {
+    const long = voicePrompt({ title: 'T', parts: 1, mode: 'narration', aspect: '16:9', minutes: 4 })
+    expect(long).toContain('540 words, never over 560')
+    expect(long).toContain('Writing rules: long video')
+    expect(long).not.toContain('Writing rules: Shorts')
+    const short = voicePrompt({ title: 'T', parts: 1, mode: 'narration' })
+    expect(short).toContain('Writing rules: Shorts')
+    expect(short).not.toContain('Writing rules: long')
+  })
+})
+
 describe('voicePrompt', () => {
   it('carries the title, part count and writing rules, nothing about directives', () => {
     const p = voicePrompt({ title: 'Caligula', parts: 3, mode: 'narration', cast: [{ id: 'cassius', name: 'Cassius' }] })
@@ -58,5 +70,12 @@ describe('voice mode', () => {
   })
   it('counts only the spoken words', () => {
     expect(spokenWords({ title: 'T', lines: ['cassius: "Nine more."', '!! kai: Then we walk.'] })).toBe(5)
+  })
+})
+
+describe('parseVoiceReply without a title', () => {
+  it('names the part instead of failing', () => {
+    const r = parseVoiceReply('<<<PART 1>>>\nA line.\n!! The twist.\n<<<END>>>', 1)
+    expect(r.parts![0].title).toBe('Part 1')
   })
 })
