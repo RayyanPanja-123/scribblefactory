@@ -1,40 +1,18 @@
 <script setup lang="ts">
-import { ArrowRight, Check, Copy, Film, HardDrive, List, NotebookPen, Plus, Send, X } from 'lucide-vue-next'
-import { computed, ref } from 'vue'
+import { ArrowRight, Film, HardDrive, Plus, Send, X } from 'lucide-vue-next'
+import { computed } from 'vue'
 import { api, type Overview } from '../api/client'
 import GreaseCircle from '../components/GreaseCircle.vue'
 import PencilTick from '../components/PencilTick.vue'
 import ErrorCard from '../components/ErrorCard.vue'
-import { toast } from '../composables/feedback'
 import { queuedCount, refetchOn, runningJob } from '../composables/live'
 import { useApi } from '../composables/useApi'
 import { bytes, label } from '../composables/ui'
 import { needsYou } from '../lib/partSteps'
-import { copyLibraryList, storyGuide } from '../lib/storyGuide'
 
 // The studio wall: the exposure sheet is the page; the margin beside it holds what runs, what ships next and the log.
 const { data, error, loading, reload, refresh } = useApi(() => Promise.all([api.overview(), api.series()]))
 refetchOn(() => null, () => null, refresh)
-
-// the story guide (lib/storyGuide) and live library list are shared together with the AI
-const copied = ref(false)
-async function copyGuide() {
-  try {
-    await navigator.clipboard.writeText(await storyGuide())
-    copied.value = true
-    toast('Story guide copied: paste it into any AI alongside the library list', 'ok')
-    setTimeout(() => (copied.value = false), 2500)
-  } catch {
-    toast('Could not copy to the clipboard. Open docs/story-writter/STORY_GUIDE.md and copy it from there.', 'error')
-  }
-}
-// just what the library has (sets, props, creatures, actions, wardrobe, cast), without the rest of the guide
-const listCopied = ref(false)
-async function copyList() {
-  if (!(await copyLibraryList())) return
-  listCopied.value = true
-  setTimeout(() => (listCopied.value = false), 2500)
-}
 
 // ---- the exposure sheet: unposted parts as rows, the part's journey as columns, grouped by series ----
 type Row = Overview['sheet'][number]
@@ -243,23 +221,6 @@ const runningStep = computed(() => {
         <span class="flex-1">Library on disk <span class="num text-muted">{{ bytes(diskTotal) }}</span></span>
         <ArrowRight :size="14" class="text-muted" aria-hidden="true" />
       </RouterLink>
-
-      <section class="space-y-2 px-5 py-4" aria-labelledby="ai-title">
-        <h2 id="ai-title" class="colhead">Write with an AI</h2>
-        <div class="flex flex-wrap gap-2">
-          <button class="btn btn-secondary" :aria-label="copied ? 'Story guide copied' : 'Copy the story guide'" @click="copyGuide">
-            <component :is="copied ? Check : Copy" :size="16" aria-hidden="true" /> {{ copied ? 'Copied' : 'Story guide' }}
-          </button>
-          <button class="btn btn-secondary" :aria-label="listCopied ? 'Library list copied' : 'Copy the library list'"
-            title="Compact inventory of sets, props, World Items, creatures, actions, wardrobe, sounds and cast for any AI" @click="copyList">
-            <component :is="listCopied ? Check : List" :size="16" aria-hidden="true" /> {{ listCopied ? 'Copied' : 'Library list' }}
-          </button>
-        </div>
-        <details class="text-sm text-muted" :open="!parts">
-          <summary class="flex cursor-pointer items-center gap-2 hover:text-ink"><NotebookPen :size="14" aria-hidden="true" /> How a part gets written</summary>
-          <p class="mt-1.5">Copy the guide and library list to your AI, give it a story title and the agreed part count, then follow its guided stops: TTS scripts, library items one by one, and directive scripts last.</p>
-        </details>
-      </section>
     </aside>
   </div>
 </template>
