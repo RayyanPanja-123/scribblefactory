@@ -2,7 +2,7 @@
 
 Local, offline factory for stickman animated shorts (9:16 1080x1920 or 16:9 1920x1080 per series, 30fps).
 Personal use. Runs fully offline. AI help works via copy/paste with any chat AI (ChatGPT, Claude, Gemini).
-Voice is recorded manually.
+Voice comes from a local Kokoro TTS server (narrator and per-cast voices) or a manual recording.
 
 ## Layout
 
@@ -48,7 +48,7 @@ There is no AI provider and no API key: each library page has its own **Generate
 item in the modal, click Next, copy the type-specific prompt into any chat AI, paste the JSON reply back, and click
 Done to import it directly into that library. Nothing existing is overwritten by the save APIs.
 
-**Series creation** (`/new-series`) is the single starting point for a new series. Create the series and cast there, optionally import a whole-series JSON file, then add and write parts from the series workspace. Voice (FreeTTS) and uploading stay manual.
+**Series creation** (`/new-series`) is the single starting point for a new series. Create the series and cast there, optionally import a whole-series JSON file, then add and write parts from the series workspace. Voice is set per series, cast member or part (TTS or upload); uploading stays manual.
 
 ## Background music
 
