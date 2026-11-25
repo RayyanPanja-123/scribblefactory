@@ -127,6 +127,20 @@ class PartDetail(BaseModel):
     part_bytes: int  # the whole part folder, frames included
     busy: str | None
     audio_notice: str | None = None
+    tts_lines: list["TtsLine"] | None = None  # a TTS part's voice, line by line (voice-tts.json)
+
+
+class TtsLine(BaseModel):
+    line: int  # story.md line
+    speaker: str | None  # cast id; None: the narrator
+    voice: str
+    speed: float
+    text: str
+    clip: str  # the cached clip: /api/tts/clip/<clip>
+    start: float
+    end: float
+    pause: float | None = None  # @pause before it
+    pace: float | None = None  # @pace speed factor
 
 
 class Job(BaseModel):

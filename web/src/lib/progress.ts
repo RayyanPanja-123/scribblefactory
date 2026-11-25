@@ -1,7 +1,8 @@
 // Progress of the current job step from its output lines (render: "chunk 3/12 done ...", "resuming: 2/12 chunk(s)
 // already done"; anything printing "frame N/M"). null = no countable progress: show an indeterminate bar.
 
-const PATTERNS = [/\bchunk (\d+)\/(\d+)/i, /resuming: (\d+)\/(\d+) chunk/i, /\bframes? (\d+)\s*\/\s*(\d+)/i]
+const PATTERNS = [/\bchunk (\d+)\/(\d+)/i, /resuming: (\d+)\/(\d+) chunk/i, /\bframes? (\d+)\s*\/\s*(\d+)/i,
+  /^line (\d+)\/(\d+)$/] // tts: "line 3/10" as each line's voice arrives
 
 export function parseProgress(lines: readonly string[]): number | null {
   for (let i = lines.length - 1; i >= 0; i--) {

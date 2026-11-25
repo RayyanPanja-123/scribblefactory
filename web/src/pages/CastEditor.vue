@@ -7,9 +7,10 @@
 import { ArrowLeft, Pencil, Plus, RefreshCw, Trash2, X } from 'lucide-vue-next'
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { api, type CastMember } from '../api/client'
+import { api, type CastMember, type TtsVoice, type TtsVoices } from '../api/client'
 import CreaturePreview from '../components/CreaturePreview.vue'
 import ErrorCard from '../components/ErrorCard.vue'
+import VoicePicker from '../components/VoicePicker.vue'
 import WardrobePreview from '../components/WardrobePreview.vue'
 import { act, confirm } from '../composables/feedback'
 import { seriesBusy } from '../composables/live'
@@ -134,8 +135,13 @@ const base = ref<Draft>()
 const looks = ref<Record<string, Obj>>({}) // name -> overrides
 const active = ref('') // '' = the base outfit
 const lookDraft = ref<Draft>()
+// the TTS voice of this member's own lines ("<id>: line" in story.md): not part of the look, no new approval
+const voice = ref<TtsVoice | null>(null)
+const voices = ref<TtsVoices | null>(null)
+api.ttsVoices().then((v) => { voices.value = v }).catch(() => {})
 watch(member, (c) => {
   if (!c || base.value) return
+  voice.value = c.voice ?? null
   base.value = toDraft(c as unknown as Obj)
   looks.value = Object.fromEntries(Object.entries(c.looks ?? {}).map(([k, v]) => [k, nonNull(v as Obj)]))
 }, { immediate: true })
@@ -205,7 +211,7 @@ const saving = ref(false)
 async function save(andRender: boolean) {
   commitLook()
   if (!baseEntry.value) return
-  const body: Obj = { ...baseEntry.value, looks: looks.value }
+  const body: Obj = { ...baseEntry.value, looks: looks.value, voice: voice.value }
   saving.value = true
   const s = await act(() => api.editCast(props.slug, props.id, body), `${body.name as string} saved`)
   if (s && andRender) {
@@ -301,6 +307,10 @@ const swatch = 'mt-1 block h-10 w-14 shrink-0 cursor-pointer rounded-md'
           <label v-if="creature(base.body)?.parts.stump" class="flex items-center gap-2 text-sm">
             <input v-model="draft.headless" type="checkbox" class="size-4" /> Headless (the stump instead of the head)
           </label>
+          <fieldset class="sm:col-span-2">
+            <legend class="text-xs font-semibold text-muted">TTS voice: how {{ base.name || id }} sounds on their own lines (<code>{{ id }}: line</code>)</legend>
+            <VoicePicker v-model="voice" :voices="voices" none="The narrator's voice" :sample="`Hi, I'm ${base.name || id}. Nice to meet you.`" class="mt-1" />
+          </fieldset>
         </div>
 
         <!-- head, body, legs: wardrobe slots -->

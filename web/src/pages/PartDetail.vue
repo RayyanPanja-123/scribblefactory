@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ArrowLeft, ArrowRight, Check, CircleAlert, CircleCheck, CircleX, Copy, Download, ExternalLink, HardDrive, Minus, Play, Plus, RefreshCw, Save, Sparkles, Trash2, Upload, X } from 'lucide-vue-next'
+import { ArrowLeft, ArrowRight, AudioLines, Check, CircleAlert, CircleCheck, CircleX, Copy, Download, ExternalLink, HardDrive, Minus, Pause, Play, Plus, RefreshCw, Save, Sparkles, Trash2, Upload, X } from 'lucide-vue-next'
 import { animate, motion } from 'motion-v'
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { api, media, type Approval, type StoryCheck } from '../api/client'
+import { api, media, ttsClip, type Approval, type StoryCheck } from '../api/client'
 import PartCaptions from '../components/PartCaptions.vue'
 import PartPosting from '../components/PartPosting.vue'
 import PartStepper from '../components/PartStepper.vue'
@@ -44,6 +44,7 @@ const stages = computed<Record<string, string>>(() => Object.fromEntries(stageLi
 const errors = computed(() => Object.fromEntries(stageList.value.map(([k, v]) => [k, v.error ?? null])))
 const approved = (a: Approval) => !!p.value?.approvals[a].approved_at
 const has = (f: string) => !!d.value?.files[f]
+const tts = computed(() => p.value?.voice_source === 'tts') // the voice comes from the TTS server
 // script-for-tts.txt: what the voice reads (written by prep, or by a Story Package import)
 async function copyTts() {
   try {
@@ -74,6 +75,7 @@ const state = computed<PartState>(() => ({
   stages: stages.value as never,
   approvals: { stills: approved('stills'), final: approved('final') },
   files: { voice: has('voice.mp3'), stillsSheet: has('stills-sheet.png') },
+  tts: tts.value,
   castApproved: !unapprovedCast.value.length,
   busy: busy.value,
   failed: failedStage.value,
@@ -194,6 +196,38 @@ async function uploadVoice(e: Event) {
     uploading.value = false
   }
 }
+
+// ---- TTS voice: made line by line on the TTS server (the tts stage), the recording kept as voice-recorded.mp3 ----
+async function setSource(source: 'recorded' | 'tts') {
+  if (source === (tts.value ? 'tts' : 'recorded')) return
+  const ok = await act(() => api.setVoiceSource(props.slug, props.part, source),
+    source === 'tts' ? 'Voice: made with TTS from now on' : 'Voice: recorded from now on')
+  if (ok) refresh()
+}
+const generate = () => run(['run --stage prep', 'run --stage tts', 'run --stage import_check', 'run --stage timing'])
+const speakerName = (id: string | null) => (id ? (series.value?.cast.find((c) => c.id === id)?.name ?? id) : 'Narrator')
+const pace = (x: number | null | undefined) => (x == null ? null : x < 1 ? 'slow' : 'fast')
+const linePlayer = ref<HTMLAudioElement | null>(null)
+const playingClip = ref<string | null>(null)
+function stopLine() {
+  linePlayer.value?.pause()
+  linePlayer.value = null
+  playingClip.value = null
+}
+function playLine(clip: string) {
+  const again = playingClip.value === clip
+  stopLine()
+  if (again) return
+  const a = new Audio(ttsClip(clip))
+  a.onended = stopLine
+  linePlayer.value = a
+  playingClip.value = clip
+  a.play().catch(() => {
+    toast('Could not play that line: make the voice again', 'error')
+    stopLine()
+  })
+}
+onBeforeUnmount(stopLine)
 
 // ---- what is on screen: each section shows up once it has something to do or show ----
 const anyApproval = computed(() => APPROVALS.some((a) => approved(a.key) || has(a.file)))
@@ -564,20 +598,56 @@ watch(() => props.part, () => { chosen.value = null })
 
     <div v-show="tab === 'voice'" id="panel-voice" role="tabpanel" aria-labelledby="tab-voice">
       <section id="voice" :class="{ 'next-target': focus === 'voice' }" class="raised p-6">
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
           <h3 class="font-display text-lg font-semibold">Voice</h3>
           <span class="text-xs text-muted">{{ has('voice.mp3') ? `voice.mp3 · ${d?.voice_duration?.toFixed(1) ?? '?'} s` : 'no voice.mp3 yet' }}</span>
-          <label class="btn btn-secondary ml-auto" :class="{ 'pointer-events-none opacity-50': !!busy || uploading }" :title="busy ?? undefined">
+          <div class="ml-auto inline-flex rounded-md border border-rule p-0.5" role="group" aria-label="Where the voice comes from">
+            <button v-for="v in (['recorded', 'tts'] as const)" :key="v" type="button" class="rounded px-3 py-1 text-sm font-semibold"
+              :class="(tts ? 'tts' : 'recorded') === v ? 'bg-ink text-panel' : 'text-muted hover:text-ink'" :aria-pressed="(tts ? 'tts' : 'recorded') === v"
+              :disabled="!!busy" :title="busy ?? undefined" @click="setSource(v)">
+              {{ v === 'tts' ? 'TTS' : 'Recorded' }}</button>
+          </div>
+          <button v-if="tts" type="button" class="btn btn-primary" :disabled="!!busy" :title="busy ?? undefined" @click="generate">
+            <AudioLines :size="16" aria-hidden="true" /> {{ has('voice.mp3') && d?.tts_lines ? 'Make voice again' : 'Make voice' }}
+          </button>
+          <label v-else class="btn btn-secondary" :class="{ 'pointer-events-none opacity-50': !!busy || uploading }" :title="busy ?? undefined">
             <Upload :size="16" aria-hidden="true" /> {{ uploading ? 'Uploading…' : has('voice.mp3') ? 'Replace' : 'Upload mp3' }}
             <input type="file" accept=".mp3,audio/mpeg" class="sr-only" :disabled="!!busy || uploading" @change="uploadVoice" />
           </label>
         </div>
         <audio v-if="has('voice.mp3')" :key="d?.voice_duration ?? 0" :src="src('voice.mp3')" controls class="mt-4 w-full" />
-        <p class="mt-1 text-xs text-muted">An import check runs after each upload.</p>
+        <p v-if="tts" class="mt-1 text-xs text-muted">
+          Made line by line on the TTS server: the narrator's voice and each cast member's own (series page and cast editor).
+          Only changed lines are made again; the voice check and timing run after.<template v-if="has('voice-recorded.mp3')"> Your recording is kept as voice-recorded.mp3.</template>
+        </p>
+        <p v-else class="mt-1 text-xs text-muted">An import check runs after each upload.<template v-if="d?.tts_lines"> voice.mp3 is still the TTS voice: upload a recording to replace it.</template></p>
+
+        <div v-if="tts && d?.tts_lines?.length" class="mt-4">
+          <h4 class="text-sm font-semibold">Lines <span class="num font-normal text-muted">{{ d.tts_lines.length }}</span></h4>
+          <ol class="inset mt-2 max-h-96 divide-y divide-rule overflow-auto rounded-md">
+            <li v-for="l in d.tts_lines" :key="`${l.line}-${l.clip}`" class="flex items-start gap-3 px-3 py-2">
+              <button type="button" class="btn btn-secondary size-8 shrink-0 justify-center p-0" :aria-pressed="playingClip === l.clip"
+                :aria-label="`${playingClip === l.clip ? 'Stop' : 'Play'} line ${l.line}`" @click="playLine(l.clip)">
+                <component :is="playingClip === l.clip ? Pause : Play" :size="14" aria-hidden="true" />
+              </button>
+              <div class="min-w-0 flex-1">
+                <p class="text-sm text-ink">{{ l.text }}</p>
+                <p class="mt-0.5 flex flex-wrap gap-x-3 text-xs text-muted">
+                  <span class="font-semibold" :class="l.speaker ? 'text-ink' : ''">{{ speakerName(l.speaker) }}</span>
+                  <span>{{ l.voice }} · {{ l.speed }}×</span>
+                  <span v-if="l.pause != null">@pause {{ l.pause }} s</span>
+                  <span v-if="pace(l.pace)">@pace {{ pace(l.pace) }}</span>
+                  <span class="num">line {{ l.line }} · {{ l.start.toFixed(1) }} s</span>
+                </p>
+              </div>
+            </li>
+          </ol>
+        </div>
+
         <div class="mt-4">
           <div class="flex items-center gap-2">
             <h4 class="text-sm font-semibold">TTS script</h4>
-            <span class="text-xs text-muted">script-for-tts.txt: paste it into freetts.ai, word for word</span>
+            <span class="text-xs text-muted">{{ tts ? 'script-for-tts.txt: what the voice reads, speakers left out' : 'script-for-tts.txt: paste it into freetts.ai, word for word' }}</span>
             <button v-if="d?.tts_script" type="button" class="btn btn-secondary ml-auto" @click="copyTts"><Copy :size="14" aria-hidden="true" /> Copy</button>
           </div>
           <pre v-if="d?.tts_script" class="inset mt-2 max-h-80 overflow-auto rounded-md p-4 font-mono text-xs leading-5 whitespace-pre-wrap text-ink">{{ d.tts_script }}</pre>

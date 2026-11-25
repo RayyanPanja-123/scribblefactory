@@ -107,7 +107,8 @@ def run(part_dir: Path) -> None:
     atomic_write_json(manifest, {
         "schema_version": 1, "mp3_sha256": sha(mp3), "gap": cfg["gap"], "tag": cfg["tag"],
         "lines": [{"line": no, "speaker": said.get(no), "voice": v, "speed": s, "text": text,
-                   "clip": p.stem, "start": a, "end": b}
+                   "clip": p.stem, "start": a, "end": b,
+                   "pause": marks.get(no, {}).get("pause"), "pace": marks.get(no, {}).get("pace")}
                   for (no, text), (v, s), p, (a, b) in zip(lines, voices, paths, spans)]})
     used = sorted({f"{v} at {s}x" for v, s in voices})
     print(f"voice.mp3: {len(lines)} lines, {spans[-1][1]:.1f} s, {len(said)} spoken by the cast; voices: {', '.join(used)}")

@@ -27,6 +27,9 @@ export type Settings = S['Settings']
 export type PackageResult = S['PackageResult']
 export type CaptionReply = S['Captions']
 export type GalleryEntry = S['GalleryEntry']
+export type TtsVoice = S['TtsVoice']
+export type TtsVoices = S['Voices']
+export type TtsLine = S['TtsLine']
 export type Approval = 'stills' | 'final'
 export type Platform = 'youtube' | 'instagram'
 export type ExportResult = { path: string; filename: string }
@@ -64,6 +67,9 @@ const part = (slug: string, p: string) => `/api/series/${e(slug)}/parts/${e(p)}`
 
 /** a library sound's audio file; v: a cache-buster after a re-upload */
 export const sfxAudio = (id: string, v?: number) => `/api/sfx/${e(id)}/audio${v ? `?v=${v}` : ''}`
+
+/** a cached TTS line (a part's voice-tts.json lines[].clip) */
+export const ttsClip = (key: string) => `/api/tts/clip/${e(key)}`
 
 export const media = (slug: string, rel: string) => `/api/media/${e(slug)}/${rel.split('/').map(e).join('/')}`
 
@@ -104,6 +110,17 @@ export const api = {
   cleanFrames: (slug: string, p: string) => call<PartModel>('POST', `${part(slug, p)}/clean-frames`),
   writeCaptions: (prompt: string) => call<CaptionReply>('POST', '/api/captions', { prompt }),
   settings: () => call<SettingsView>('GET', '/api/settings'),
+  ttsVoices: () => call<TtsVoices>('GET', '/api/tts/voices'),
+  /** a voice sample as an object URL (revoke it when done); the server's error as an ApiError */
+  ttsPreview: async (voice: string, speed: number, text = '') => {
+    const r = await fetch(`/api/tts/preview?${new URLSearchParams({ voice, speed: String(speed), text })}`).catch(() => null)
+    if (!r) throw new ApiError(0, 'The API is not reachable. Is uvicorn running on port 8765?')
+    if (!r.ok) throw new ApiError(r.status, await r.json().then((b) => String(b?.detail), () => `${r.status} ${r.statusText}`))
+    return URL.createObjectURL(await r.blob())
+  },
+  setNarrator: (slug: string, tts: TtsVoice | null) => call<SeriesModel>('PUT', `/api/series/${e(slug)}/voice`, { tts }),
+  setVoiceSource: (slug: string, p: string, source: 'recorded' | 'tts') =>
+    call<PartModel>('PUT', `${part(slug, p)}/voice-source`, { source }),
   saveSettings: (body: Settings) => call<SettingsView>('PUT', '/api/settings', body),
   saveGeminiKey: (key: string) => call<SettingsView>('PUT', '/api/settings/gemini-key', { key }),
   jobs: () => call<Job[]>('GET', '/api/jobs'),

@@ -345,3 +345,26 @@ describe('slugify', () => {
     expect(slugify('!!!')).toBe('')
   })
 })
+
+describe('nextSteps with a TTS voice', () => {
+  const base = { stages: {}, approvals: { stills: false, final: false }, files: { voice: false, stillsSheet: false }, castApproved: true }
+  it('makes the voice instead of waiting for an upload', () => {
+    expect(nextSteps({ ...base, tts: true })).toEqual({
+      steps: ['run --stage prep', 'run --stage tts', 'run --stage import_check', 'run --stage timing', 'run --stage shots',
+        'run --stage validate', 'render-stills'], stop: 'stills approval' })
+    expect(nextSteps(base).stop).toMatch(/^voice\.mp3/)
+  })
+  it('makes it again after the story changed (prep to redo)', () => {
+    const done = { prep: 'done', tts: 'done', import_check: 'done', timing: 'done', shots: 'done', validate: 'done' } as const
+    expect(nextSteps({ ...base, tts: true, files: { voice: true, stillsSheet: true }, stages: { ...done, prep: 'pending' } }).steps.slice(0, 2))
+      .toEqual(['run --stage prep', 'run --stage tts'])
+    expect(nextSteps({ ...base, tts: true, files: { voice: true, stillsSheet: true }, stages: done }).steps).toEqual([])
+  })
+})
+
+describe('parseProgress for the tts step', () => {
+  it('counts lines as their voice arrives', () => {
+    expect(parseProgress(['tts: 0 of 10 lines cached, fetching 10 from http://x', 'line 4/10'])).toBe(0.4)
+    expect(parseProgress(['The skeleton line 4/10 of the story is long'])).toBeNull() // only the tts progress line
+  })
+})

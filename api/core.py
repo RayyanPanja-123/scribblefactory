@@ -14,7 +14,7 @@ from pipeline.scribble.schemas import Stages
 ROOT = Path(__file__).resolve().parents[1]
 OPENAPI = ROOT / "docs" / "openapi.json"
 MEDIA_TYPES = {".mp4", ".png", ".jpg", ".mp3", ".md", ".json"}
-PART_FILES = ["story.md", "voice.mp3", "final.mp4", "stills-sheet.png"]
+PART_FILES = ["story.md", "voice.mp3", "final.mp4", "stills-sheet.png", "voice-recorded.mp3"]  # the last: a TTS part's kept recording
 APPROVE_NEEDS = {"stills": "stills-sheet.png", "final": "final.mp4"}
 JOB_COMMANDS = {"run", "render-stills", "render", "cast-sheet"}
 KEEP_JOBS = 500  # finished jobs kept as history (oldest dropped first); the History page cleans up sooner

@@ -10,6 +10,7 @@ export interface PipelineState {
   approvals: { stills: boolean; final: boolean }
   files: { voice: boolean; stillsSheet: boolean }
   castApproved: boolean // every series cast member approved (the stills render refuses otherwise)
+  tts?: boolean // the part's voice comes from the TTS server (the tts stage makes voice.mp3): nothing to upload
 }
 
 export interface Plan {
@@ -26,7 +27,9 @@ export function nextSteps(s: PipelineState): Plan {
   const steps: string[] = []
 
   if (!done('prep')) steps.push('run --stage prep')
-  if (!s.files.voice) return { steps, stop: 'voice.mp3: make it on freetts.ai and upload it in the Voice card' }
+  if (s.tts) {
+    if (steps.length || !done('tts') || !s.files.voice) steps.push('run --stage tts')
+  } else if (!s.files.voice) return { steps, stop: 'voice.mp3: make it on freetts.ai and upload it in the Voice card' }
 
   for (const st of PREP_STRETCH) if (steps.length || !done(st)) steps.push(`run --stage ${st}`)
 

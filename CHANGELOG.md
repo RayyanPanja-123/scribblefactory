@@ -1,6 +1,13 @@
 # Changelog
 
 ## Unreleased
+- TTS in the web app (Phase C). Cast editor (Character tab): a TTS voice for the member's own lines, with speed and
+  a Preview. Series page: the narrator voice (Default: settings). Part Voice tab: Recorded / TTS switch, "Make voice"
+  (prep, tts, voice check, timing as one job, with a line-by-line progress bar), and the voice's lines: play each
+  one, its speaker, voice and speed, `@pause` / `@pace`. Run next plans the tts step for a TTS part instead of
+  asking for an upload. API: `GET /api/tts/voices` (labels and languages from the server, or the last ids when it
+  is down), `GET /api/tts/preview`, `GET /api/tts/clip/<key>`, `PUT /api/series/<slug>/voice`,
+  `PUT .../parts/<part>/voice-source`; part detail has `tts_lines`.
 - Shots for cast lines (Phase B3). In a story with `kai: line` lines, the speaker is the subject and talks (only
   they move their mouth), everyone else turns to them, and on a narrator line nobody talks (keyword actions and `@do`
   still apply; the narrated subject stays framed). A back-and-forth between cast members plays in one held wide shot

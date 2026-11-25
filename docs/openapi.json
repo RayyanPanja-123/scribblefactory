@@ -2124,6 +2124,26 @@
         "title": "MonthPosts",
         "type": "object"
       },
+      "NarratorBody": {
+        "properties": {
+          "tts": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TtsVoice"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the narrator's voice; null: settings tts_voice"
+          }
+        },
+        "required": [
+          "tts"
+        ],
+        "title": "NarratorBody",
+        "type": "object"
+      },
       "NewCast": {
         "properties": {
           "cast": {
@@ -2596,6 +2616,20 @@
               }
             ],
             "title": "Story Md"
+          },
+          "tts_lines": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TtsLine"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tts Lines"
           },
           "tts_script": {
             "anyOf": [
@@ -3224,7 +3258,7 @@
             "type": "string"
           },
           "voice": {
-            "$ref": "#/components/schemas/Voice"
+            "$ref": "#/components/schemas/pipeline__scribble__schemas__series__Voice"
           }
         },
         "required": [
@@ -4146,6 +4180,83 @@
         "title": "Top",
         "type": "object"
       },
+      "TtsLine": {
+        "properties": {
+          "clip": {
+            "title": "Clip",
+            "type": "string"
+          },
+          "end": {
+            "title": "End",
+            "type": "number"
+          },
+          "line": {
+            "title": "Line",
+            "type": "integer"
+          },
+          "pace": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pace"
+          },
+          "pause": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pause"
+          },
+          "speaker": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Speaker"
+          },
+          "speed": {
+            "title": "Speed",
+            "type": "number"
+          },
+          "start": {
+            "title": "Start",
+            "type": "number"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "voice": {
+            "title": "Voice",
+            "type": "string"
+          }
+        },
+        "required": [
+          "line",
+          "speaker",
+          "voice",
+          "speed",
+          "text",
+          "clip",
+          "start",
+          "end"
+        ],
+        "title": "TtsLine",
+        "type": "object"
+      },
       "TtsVoice": {
         "additionalProperties": false,
         "description": "a voice on the Kokoro TTS server (settings tts_url): its id and speaking speed",
@@ -4224,47 +4335,47 @@
         "title": "ValidationError",
         "type": "object"
       },
-      "Voice": {
-        "additionalProperties": false,
+      "VoiceSourceBody": {
         "properties": {
-          "notes": {
-            "default": "",
-            "title": "Notes",
-            "type": "string"
-          },
-          "pronunciations": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "default": {},
-            "title": "Pronunciations",
-            "type": "object"
-          },
-          "provider": {
-            "default": "freetts.ai",
-            "title": "Provider",
-            "type": "string"
-          },
-          "tts": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/TtsVoice"
-              },
-              {
-                "type": "null"
-              }
+          "source": {
+            "enum": [
+              "recorded",
+              "tts"
             ],
-            "description": "the narrator's TTS voice for parts with voice_source tts (none: settings tts_voice)"
-          },
-          "voice_name": {
-            "title": "Voice Name",
+            "title": "Source",
             "type": "string"
           }
         },
         "required": [
-          "voice_name"
+          "source"
         ],
-        "title": "Voice",
+        "title": "VoiceSourceBody",
+        "type": "object"
+      },
+      "Voices": {
+        "properties": {
+          "default": {
+            "title": "Default",
+            "type": "string"
+          },
+          "online": {
+            "title": "Online",
+            "type": "boolean"
+          },
+          "voices": {
+            "items": {
+              "$ref": "#/components/schemas/api__tts_routes__Voice"
+            },
+            "title": "Voices",
+            "type": "array"
+          }
+        },
+        "required": [
+          "online",
+          "voices",
+          "default"
+        ],
+        "title": "Voices",
         "type": "object"
       },
       "Waiting": {
@@ -5027,6 +5138,89 @@
           "at"
         ],
         "title": "WorldObjectInstance",
+        "type": "object"
+      },
+      "api__tts_routes__Voice": {
+        "properties": {
+          "gender": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gender"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "lang": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lang"
+          }
+        },
+        "required": [
+          "id",
+          "label"
+        ],
+        "title": "Voice",
+        "type": "object"
+      },
+      "pipeline__scribble__schemas__series__Voice": {
+        "additionalProperties": false,
+        "properties": {
+          "notes": {
+            "default": "",
+            "title": "Notes",
+            "type": "string"
+          },
+          "pronunciations": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "title": "Pronunciations",
+            "type": "object"
+          },
+          "provider": {
+            "default": "freetts.ai",
+            "title": "Provider",
+            "type": "string"
+          },
+          "tts": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TtsVoice"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the narrator's TTS voice for parts with voice_source tts (none: settings tts_voice)"
+          },
+          "voice_name": {
+            "title": "Voice Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "voice_name"
+        ],
+        "title": "Voice",
         "type": "object"
       }
     }
@@ -7088,6 +7282,64 @@
         "summary": "Put Upload Md"
       }
     },
+    "/api/series/{slug}/parts/{part}/voice-source": {
+      "put": {
+        "operationId": "set_voice_source_api_series__slug__parts__part__voice_source_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "part",
+            "required": true,
+            "schema": {
+              "title": "Part",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoiceSourceBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartModel"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Voice Source"
+      }
+    },
     "/api/series/{slug}/parts/{part}/voice.mp3": {
       "put": {
         "description": "Raw mp3 body (no multipart dep). voice.mp3 is protected: replacing it needs ?replace=true.",
@@ -7145,6 +7397,55 @@
           }
         },
         "summary": "Put Voice"
+      }
+    },
+    "/api/series/{slug}/voice": {
+      "put": {
+        "operationId": "set_narrator_api_series__slug__voice_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NarratorBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesModel"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Narrator"
       }
     },
     "/api/sets": {
@@ -7586,6 +7887,120 @@
           }
         },
         "summary": "Storage"
+      }
+    },
+    "/api/tts/clip/{key}": {
+      "get": {
+        "description": "one cached line (voice-tts.json lines[].clip)",
+        "operationId": "clip_api_tts_clip__key__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Clip"
+      }
+    },
+    "/api/tts/preview": {
+      "get": {
+        "description": "a short line in this voice (WAV), cached like any other line",
+        "operationId": "preview_api_tts_preview_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "voice",
+            "required": true,
+            "schema": {
+              "title": "Voice",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "speed",
+            "required": false,
+            "schema": {
+              "default": 1.0,
+              "title": "Speed",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "text",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Text",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview"
+      }
+    },
+    "/api/tts/voices": {
+      "get": {
+        "operationId": "voices_api_tts_voices_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Voices"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Voices"
       }
     },
     "/api/wardrobe": {

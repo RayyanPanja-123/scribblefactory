@@ -191,7 +191,16 @@ def part_detail(slug: str, part: str, audio_notice: str | None = None):
             "story_md": story.read_text(encoding="utf-8") if story.is_file() else None,
             "tts_script": tts.read_text(encoding="utf-8") if tts.is_file() else None,
             "voice_duration": voice, "frames_bytes": du(pdir / "frames"), "part_bytes": du(pdir),
-            "busy": busy(slug, part), "audio_notice": audio_notice}
+            "busy": busy(slug, part), "audio_notice": audio_notice, "tts_lines": tts_lines(pdir)}
+
+
+def tts_lines(pdir: Path) -> list[dict] | None:
+    """voice-tts.json's lines (a TTS part's voice: each line's speaker, voice, clip and time), or None"""
+    m = pdir / "voice-tts.json"
+    try:
+        return json.loads(m.read_text(encoding="utf-8"))["lines"] if m.is_file() else None
+    except (ValueError, KeyError):
+        return None
 
 
 class MissingItem(BaseModel):
@@ -701,9 +710,9 @@ def startup() -> None:
         print(f"startup: {n}", flush=True)
 
 
-from api import captions, catalogs, events, jobs, settings_routes, sounds
+from api import captions, catalogs, events, jobs, settings_routes, sounds, tts_routes
 
-for _module in (catalogs, sounds, settings_routes, captions, jobs, events):
+for _module in (catalogs, sounds, settings_routes, captions, jobs, events, tts_routes):
     app.include_router(_module.router)
 
 

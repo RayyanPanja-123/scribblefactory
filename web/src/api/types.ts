@@ -735,6 +735,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/series/{slug}/parts/{part}/voice-source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set Voice Source */
+        put: operations["set_voice_source_api_series__slug__parts__part__voice_source_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/series/{slug}/parts/{part}/voice.mp3": {
         parameters: {
             query?: never;
@@ -748,6 +765,23 @@ export interface paths {
          * @description Raw mp3 body (no multipart dep). voice.mp3 is protected: replacing it needs ?replace=true.
          */
         put: operations["put_voice_api_series__slug__parts__part__voice_mp3_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/series/{slug}/voice": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set Narrator */
+        put: operations["set_narrator_api_series__slug__voice_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -907,6 +941,63 @@ export interface paths {
          *     brought up to date first (only new or changed files are measured)
          */
         get: operations["storage_api_storage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tts/clip/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Clip
+         * @description one cached line (voice-tts.json lines[].clip)
+         */
+        get: operations["clip_api_tts_clip__key__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tts/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Preview
+         * @description a short line in this voice (WAV), cached like any other line
+         */
+        get: operations["preview_api_tts_preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tts/voices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Voices */
+        get: operations["voices_api_tts_voices_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1786,6 +1877,11 @@ export interface components {
             /** Youtube */
             youtube: number;
         };
+        /** NarratorBody */
+        NarratorBody: {
+            /** @description the narrator's voice; null: settings tts_voice */
+            tts: components["schemas"]["TtsVoice"] | null;
+        };
         /** NewCast */
         NewCast: {
             /** Cast */
@@ -1952,6 +2048,8 @@ export interface components {
             } | null;
             /** Story Md */
             story_md: string | null;
+            /** Tts Lines */
+            tts_lines?: components["schemas"]["TtsLine"][] | null;
             /** Tts Script */
             tts_script: string | null;
             /** Upload Md */
@@ -2221,7 +2319,7 @@ export interface components {
             style: components["schemas"]["Style"];
             /** Title */
             title: string;
-            voice: components["schemas"]["Voice"];
+            voice: components["schemas"]["pipeline__scribble__schemas__series__Voice"];
         };
         /** SetCatalog */
         SetCatalog: {
@@ -2660,6 +2758,29 @@ export interface components {
              */
             style: string;
         };
+        /** TtsLine */
+        TtsLine: {
+            /** Clip */
+            clip: string;
+            /** End */
+            end: number;
+            /** Line */
+            line: number;
+            /** Pace */
+            pace?: number | null;
+            /** Pause */
+            pause?: number | null;
+            /** Speaker */
+            speaker: string | null;
+            /** Speed */
+            speed: number;
+            /** Start */
+            start: number;
+            /** Text */
+            text: string;
+            /** Voice */
+            voice: string;
+        };
         /**
          * TtsVoice
          * @description a voice on the Kokoro TTS server (settings tts_url): its id and speaking speed
@@ -2694,29 +2815,22 @@ export interface components {
             /** Error Type */
             type: string;
         };
-        /** Voice */
-        Voice: {
+        /** VoiceSourceBody */
+        VoiceSourceBody: {
             /**
-             * Notes
-             * @default
+             * Source
+             * @enum {string}
              */
-            notes: string;
-            /**
-             * Pronunciations
-             * @default {}
-             */
-            pronunciations: {
-                [key: string]: string;
-            };
-            /**
-             * Provider
-             * @default freetts.ai
-             */
-            provider: string;
-            /** @description the narrator's TTS voice for parts with voice_source tts (none: settings tts_voice) */
-            tts?: components["schemas"]["TtsVoice"] | null;
-            /** Voice Name */
-            voice_name: string;
+            source: "recorded" | "tts";
+        };
+        /** Voices */
+        Voices: {
+            /** Default */
+            default: string;
+            /** Online */
+            online: boolean;
+            /** Voices */
+            voices: components["schemas"]["api__tts_routes__Voice"][];
         };
         /** Waiting */
         Waiting: {
@@ -3026,6 +3140,41 @@ export interface components {
              * @default true
              */
             visible: boolean;
+        };
+        /** Voice */
+        api__tts_routes__Voice: {
+            /** Gender */
+            gender?: string | null;
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Lang */
+            lang?: string | null;
+        };
+        /** Voice */
+        pipeline__scribble__schemas__series__Voice: {
+            /**
+             * Notes
+             * @default
+             */
+            notes: string;
+            /**
+             * Pronunciations
+             * @default {}
+             */
+            pronunciations: {
+                [key: string]: string;
+            };
+            /**
+             * Provider
+             * @default freetts.ai
+             */
+            provider: string;
+            /** @description the narrator's TTS voice for parts with voice_source tts (none: settings tts_voice) */
+            tts?: components["schemas"]["TtsVoice"] | null;
+            /** Voice Name */
+            voice_name: string;
         };
     };
     responses: never;
@@ -4553,6 +4702,42 @@ export interface operations {
             };
         };
     };
+    set_voice_source_api_series__slug__parts__part__voice_source_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                part: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VoiceSourceBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartModel"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     put_voice_api_series__slug__parts__part__voice_mp3_put: {
         parameters: {
             query?: {
@@ -4574,6 +4759,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PartDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_narrator_api_series__slug__voice_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NarratorBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesModel"];
                 };
             };
             /** @description Validation Error */
@@ -4936,6 +5156,90 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    clip_api_tts_clip__key__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_api_tts_preview_get: {
+        parameters: {
+            query: {
+                voice: string;
+                speed?: number;
+                text?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    voices_api_tts_voices_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Voices"];
                 };
             };
         };

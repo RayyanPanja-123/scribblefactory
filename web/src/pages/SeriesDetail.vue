@@ -1,15 +1,16 @@
 <script setup lang="ts">
 // Series page: loads the series and lays it out. The cast workflow lives in CastPanel, each part in PartCard,
 // and what to do next is lib/seriesNext (pure, tested).
-import { ArrowLeft, ArrowRight, CircleCheck, FileQuestion, Images, Plus, Sparkles, Trash2 } from 'lucide-vue-next'
-import { computed, ref } from 'vue'
+import { ArrowLeft, ArrowRight, CircleCheck, FileQuestion, Images, Plus, Save, Sparkles, Trash2 } from 'lucide-vue-next'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { api } from '../api/client'
+import { api, type TtsVoice, type TtsVoices } from '../api/client'
 import AiVoiceScripts from '../components/AiVoiceScripts.vue'
 import CastPanel from '../components/CastPanel.vue'
 import EmptyState from '../components/EmptyState.vue'
 import ErrorCard from '../components/ErrorCard.vue'
 import PartCard from '../components/PartCard.vue'
+import VoicePicker from '../components/VoicePicker.vue'
 import { act, confirm } from '../composables/feedback'
 import { castSheetJob, jobs, refetchOn } from '../composables/live'
 import { useApi } from '../composables/useApi'
@@ -21,6 +22,19 @@ const { data, error, loading, reload, refresh } = useApi(() => api.seriesDetail(
 refetchOn(() => props.slug, () => null, refresh)
 
 const voiceOpen = ref(false)
+
+// the narrator's TTS voice (parts with a TTS voice; null: the default in settings)
+const narrator = ref<TtsVoice | null>(null)
+const voices = ref<TtsVoices | null>(null)
+api.ttsVoices().then((v) => { voices.value = v }).catch(() => {})
+watch(() => data.value?.series.voice.tts, (v) => { narrator.value = v ?? null }, { immediate: true })
+const narratorChanged = computed(() => JSON.stringify(narrator.value) !== JSON.stringify(series.value?.voice.tts ?? null))
+const savingNarrator = ref(false)
+async function saveNarrator() {
+  savingNarrator.value = true
+  if (await act(() => api.setNarrator(props.slug, narrator.value), 'Narrator voice saved')) refresh()
+  savingNarrator.value = false
+}
 const castPanel = ref<InstanceType<typeof CastPanel>>()
 const series = computed(() => data.value?.series)
 
@@ -141,6 +155,17 @@ const facts = computed(() => {
     </header>
 
     <CastPanel ref="castPanel" :series="series" :renders="data.cast" @changed="refresh" />
+
+    <section class="raised p-5" aria-labelledby="narrator-title">
+      <div class="flex flex-wrap items-center gap-3">
+        <h3 id="narrator-title" class="text-sm font-semibold">Narrator voice</h3>
+        <span class="text-xs text-muted">reads every line that is not a cast member's own, in parts with a TTS voice</span>
+        <button type="button" class="btn btn-secondary ml-auto" :disabled="!narratorChanged || savingNarrator" @click="saveNarrator">
+          <Save :size="16" aria-hidden="true" /> {{ savingNarrator ? 'Saving…' : 'Save' }}
+        </button>
+      </div>
+      <VoicePicker v-model="narrator" :voices="voices" :none="`Default (${voices?.default ?? 'settings'})`" class="mt-3" />
+    </section>
 
     <section class="space-y-4" aria-labelledby="parts-title">
       <div class="flex items-center gap-3">
