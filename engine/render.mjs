@@ -67,11 +67,18 @@ const libraryOf = (seriesDir) => {
   const inStorage = path.basename(up) === "storage" && path.basename(path.dirname(up)) === "database";
   return inStorage ? path.resolve(up, "..", "..") : up;
 };
+/** the library database, read-only; waits out a writer's lock like the Python side (db.py: timeout 30) instead of
+ * failing at once with "database is locked" while a job step writes */
+const openDb = (f) => {
+  const db = new DatabaseSync(f, { readOnly: true });
+  db.exec("PRAGMA busy_timeout = 30000");
+  return db;
+};
 /** every custom item of the library (the database's catalog_item rows, pipeline/scribble/db.py; none yet: []), handed
  * to the page once (library.js). A library without a database (engine tests) still reads library/<kind>.json. */
 const loadLibrary = (library) => {
   const dbFile = path.join(library, "database", "scribble.db");
-  const db = fs.existsSync(dbFile) ? new DatabaseSync(dbFile, { readOnly: true }) : null;
+  const db = fs.existsSync(dbFile) ? openDb(dbFile) : null;
   const rows = db?.prepare("SELECT data FROM catalog_item WHERE kind = ? ORDER BY id");
   try {
     return Object.fromEntries(["props", "sets", "objects", "creatures", "actions", "wardrobe"].map((k) => {
@@ -89,7 +96,7 @@ const loadLibrary = (library) => {
  * series.json when there is no database row (engine tests) */
 const loadSeries = (seriesDir) => {
   const dbFile = path.join(libraryOf(seriesDir), "database", "scribble.db");
-  const db = fs.existsSync(dbFile) ? new DatabaseSync(dbFile, { readOnly: true }) : null;
+  const db = fs.existsSync(dbFile) ? openDb(dbFile) : null;
   try {
     const s = db?.prepare("SELECT id, slug, title, status, created_at, data FROM series WHERE slug = ?").get(path.basename(path.resolve(seriesDir)));
     if (!s) return readJson(path.join(seriesDir, "series.json"));

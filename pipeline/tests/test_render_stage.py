@@ -397,3 +397,15 @@ def test_use_for_notes_never_change_the_frames_hash(tmp_path):
     a = pixel_bytes("props.json", noted("a wizard's staff"))
     assert pixel_bytes("props.json", noted("any magic moment")) == a
     assert pixel_bytes("props.json", noted("any magic moment").replace(b'"shapes": []', b'"shapes": [1]')) != a  # the drawing counts
+
+
+def test_background_music_never_changes_the_frames_hash():
+    import json as _json
+    from pipeline.scribble.stages.render import pixel_bytes
+    dump = lambda cues: (_json.dumps({"shots": [], "cues": cues}, indent=2, ensure_ascii=False) + "\n").encode()  # noqa: E731
+    hit = {"frame": 9, "kind": "low_hit", "track": None, "volume": None}
+    music = {"frame": 0, "kind": "background_music", "track": "cartoon-pizzicato", "volume": 0.15}
+    plain = dump([hit])
+    assert pixel_bytes("story.json", plain) == plain  # no music: the raw bytes, so rendered frames stay valid
+    assert pixel_bytes("story.json", dump([music, hit])) == plain  # music added later: the same hash
+    assert pixel_bytes("story.json", dump([music])) != plain  # the low_hit drives the twist zoom: it counts

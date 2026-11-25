@@ -12,6 +12,7 @@ Source pages:
 - https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100256 — Cartoon Pizzicato
 - https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100768 — Fluffing a Duck
 - https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100085 — Scheming Weasel (faster version)
+- https://incompetech.com/music/royalty-free/mp3-royaltyfree/Darkling.mp3 — Darkling
 - https://pixabay.com/music/sneaky-funny-comedy-quirky-background-music-316889/ — Funny Comedy Quirky Background Music, lNPLUSMUSIC
 
 Pixabay tracks are listed under the Pixabay Content License and do not require attribution according to their source pages.

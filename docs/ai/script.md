@@ -174,9 +174,9 @@ fit the story's period or design.
 - `@sfx <id> [volume 0-1]`: plays a library sound on the next line. Maximum 5 per part and never on back-to-back lines.
   Use a riser before a reveal, an impact on a strike, or a location sound to establish a scene.
 - `@background-music <track> [volume 0-1]`: starts a named music file from the Stickman History Shorts pack and keeps
-  it under the narration until another `@background-music` changes it. The default volume is `0.15` (about 15%); use
-  `@background-music off` to stop it. Without any `@background-music` the part plays the default synth loop (it stops on the `!!` line). Track IDs: `monkeys-spinning-monkeys`, `comedy-quirky-sneaky`, `sneaky-snitch`,
-  `cartoon-pizzicato`, `fluffing-a-duck`, `scheming-weasel-faster`, and `funny-comedy-quirky`.
+  it under the narration until another `@background-music` changes it. The default volume is `0.5` (about 6 dB under the voice); use
+  `@background-music off` to stop it. Without any `@background-music` the part plays the default synth loop (it stops on the `!!` line). Prefer the four moods, switching as the story turns: `calm` (the world at ease), `mysterious` (something unexpected happened, or is building up), `funny` (a funny moment) and `scary` (exploring the unknown). Named tracks also work: `monkeys-spinning-monkeys`, `comedy-quirky-sneaky`, `sneaky-snitch`,
+  `fluffing-a-duck`, `scheming-weasel-faster`, `funny-comedy-quirky` and `darkling`.
 - `@pause <seconds>` (0-3): silence before the next line, for comic timing (a beat before the punchline). `@pace
   slow | fast`: the next line spoken slower or faster. Both only shape a TTS voice (a recorded one keeps its own
   timing); the narrator and the cast still never overlap.

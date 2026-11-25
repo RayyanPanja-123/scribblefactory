@@ -91,7 +91,13 @@ def frames_hash(part_dir: Path) -> str:
 
 def pixel_bytes(name: str, data: bytes) -> bytes:
     """a file's bytes as far as pixels go: a library catalog's "use_for" notes (for the story AI) are left out, so
-    editing a note never re-renders. A catalog without notes hashes as its raw bytes, so older chunks stay valid."""
+    editing a note never re-renders. A catalog without notes hashes as its raw bytes, so older chunks stay valid.
+    story.json's background_music cues are audio only: left out (re-dumped as io.atomic_write_json writes it, so the
+    bytes match the plan without them), so adding music to a rendered part never re-renders its frames."""
+    if name == "story.json" and b'"background_music"' in data:
+        story = json.loads(data)
+        story["cues"] = [c for c in story["cues"] if c["kind"] != "background_music"]
+        return (json.dumps(story, indent=2, ensure_ascii=False) + "\n").encode()
     if name not in LIBRARY_FILES or b'"use_for"' not in data:
         return data
     strip = lambda v: ({k: strip(x) for k, x in v.items() if k != "use_for"} if isinstance(v, dict)  # noqa: E731

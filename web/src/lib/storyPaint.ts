@@ -74,10 +74,10 @@ export const WEATHER = ['clear', 'rain', 'snow', 'fog', 'wind', 'storm']
 export const CAR = ['arrive', 'ride', 'leave', 'off']
 export const MOODS = ['cheer', 'angry', 'gasp', 'neutral', 'off', 'fight']
 // pipeline/scribble/background_music.py TRACKS: keep in step
-export const TRACKS = ['off', 'monkeys-spinning-monkeys', 'comedy-quirky-sneaky', 'sneaky-snitch', 'cartoon-pizzicato',
-  'fluffing-a-duck', 'scheming-weasel-faster', 'funny-comedy-quirky']
+export const TRACKS = ['off', 'calm', 'mysterious', 'funny', 'scary', 'monkeys-spinning-monkeys', 'comedy-quirky-sneaky', 'sneaky-snitch',
+  'fluffing-a-duck', 'scheming-weasel-faster', 'funny-comedy-quirky', 'darkling']
 
-// volume as words: '' leaves it out (the sound's own level; music: 15%)
+// volume as words: '' leaves it out (the sound's own level; music: 50%)
 const volume = (normal: string): Field => ({ key: 'vol', label: 'Loudness', type: 'select', options: ['', '0.25', '0.5', '0.75', '1'],
   names: { '': `Normal (${normal})`, '0.25': 'Quiet (25%)', '0.5': 'Half (50%)', '0.75': 'Loud (75%)', '1': 'Full (100%)' } })
 const words = (s: string) => s.split(/\s+/).filter(Boolean)
@@ -176,7 +176,7 @@ export const KINDS: Record<string, Kind> = {
     fields: (c) => [{ key: 'who', label: 'Team', type: 'text' }, { key: 'prop', label: 'Prop', type: 'select', options: c.props }],
     parse: (a) => pair(a, 'prop'), build: (r) => `${r.who}: ${r.prop}` },
   'background-music': { label: 'Music', common: false, rank: 4, start: () => TRACKS[1],
-    fields: () => [{ key: 'track', label: 'Track', type: 'select', options: TRACKS }, volume('15%')],
+    fields: () => [{ key: 'track', label: 'Track', type: 'select', options: TRACKS }, volume('50%')],
     parse: (a) => upTo(a, 2, ['track', 'vol']), build: (r) => join(r.track, r.track === 'off' ? '' : r.vol) },
 }
 

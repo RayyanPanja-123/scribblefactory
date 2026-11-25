@@ -11,7 +11,7 @@ from pydantic import BaseModel, TypeAdapter, ValidationError
 from api.core import lib, part_path, write_story
 from api.events import publish
 from api.jobs import check_free, check_no_jobs
-from pipeline.scribble import sfx as sfx_lib
+from pipeline.scribble import background_music, sfx as sfx_lib
 from pipeline.scribble.io import atomic_write_json, load_part
 from pipeline.scribble.stages.import_check import probe_duration
 from pipeline.scribble.stages.runner import StageError
@@ -173,3 +173,17 @@ def decide_sfx(slug: str, part: str, body: SfxDecision):
         atomic_write_json(f, sorted({*rej, f"{body.id}|{body.text.strip()}"}))
     publish("part-changed", {"slug": slug, "part": part})
     return sfx_suggestions(slug, part)
+
+
+@router.post("/api/series/{slug}/parts/{part}/background-music")
+def attach_background_music(slug: str, part: str):
+    """the "Attach Background Music" button: story.md's @background-music lines replaced by mood cues
+    (background_music.score); the next run re-mixes the audio and re-encodes, reusing the rendered frames"""
+    pdir = part_path(slug, part)
+    check_free(slug, part)
+    if not (pdir / "story.md").is_file():
+        raise HTTPException(404, "no story.md")
+    md = background_music.score((pdir / "story.md").read_text(encoding="utf-8"))
+    write_story(pdir, md)
+    publish("part-changed", {"slug": slug, "part": part})
+    return {"cues": md.count("\n@background-music ") + md.startswith("@background-music ")}

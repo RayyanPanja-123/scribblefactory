@@ -50,6 +50,13 @@ Done to import it directly into that library. Nothing existing is overwritten by
 
 **Series creation** (`/new-series`) is the single starting point for a new series. Create the series and cast there, optionally import a whole-series JSON file, then add and write parts from the series workspace. Voice (FreeTTS) and uploading stay manual.
 
+## Background music
+
+A part's `@background-music <track>` lines mix a looping track under the narration. The part page has an 
+**Attach Background Music** button: it replaces those lines with mood cues (`calm`, `mysterious`, `funny`, `scary`) 
+picked from each line's `@face` / `@do` directives. A mood flips only after two lines in a row. Tracks are 
+loudness-matched, default volume 0.5, and adding music re-mixes audio only: rendered frames are reused.
+
 ## Tests
 
 ```sh

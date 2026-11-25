@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeft, ArrowRight, AudioLines, Check, CircleAlert, CircleCheck, CircleX, Copy, Download, ExternalLink, HardDrive, Minus, Pause, Play, Plus, RefreshCw, Save, Sparkles, Trash2, Upload, X } from 'lucide-vue-next'
+import { ArrowLeft, ArrowRight, AudioLines, Check, CircleAlert, CircleCheck, CircleX, Copy, Download, ExternalLink, HardDrive, Minus, Music, Pause, Play, Plus, RefreshCw, Save, Sparkles, Trash2, Upload, X } from 'lucide-vue-next'
 import { animate, motion } from 'motion-v'
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -356,6 +356,14 @@ const lufs = computed(() => {
   return typeof v === 'number' ? v : null
 })
 
+// ---- background music: mood cues from the faces (background_music.score) ----
+async function attachMusic() {
+  const ok = await confirm({ title: 'Attach background music?', body: 'Picks calm, mysterious, funny or scary for each line from its faces and actions, replacing every @background-music line in story.md. The next run re-mixes the audio and reuses the rendered frames.', confirm: 'Attach music' })
+  if (!ok) return
+  const r = await act(() => api.attachBackgroundMusic(props.slug, props.part), 'Background music attached')
+  if (r) refresh()
+}
+
 // ---- danger zone ----
 const cleanReason = computed(() =>
   !has('final.mp4') || stages.value.finish !== 'done' ? 'finish not done yet: frames are still needed'
@@ -707,6 +715,15 @@ watch(() => props.part, () => { chosen.value = null })
 
       <!-- @sfx suggestions: from the stills on, until the final is approved -->
       <SfxSuggestions v-if="has('stills-sheet.png') && !approved('final')" :slug="slug" :part="part" :story-md="d?.story_md" :busy="busy" @changed="refresh" />
+
+      <!-- background music: one click scores the story with the four moods -->
+      <section v-if="d?.story_md && !approved('final')" class="raised flex flex-wrap items-center gap-3 p-6" aria-labelledby="music-title">
+        <span class="min-w-0 flex-1">
+          <h3 id="music-title" class="font-display text-lg font-semibold">Background music</h3>
+          <span class="text-sm text-muted">Calm, mysterious, funny or scary, picked line by line. Edit the <code>@background-music</code> lines after if a pick is off.</span>
+        </span>
+        <button type="button" class="btn btn-primary" :disabled="!!busy" :title="busy ?? undefined" @click="attachMusic"><Music :size="14" aria-hidden="true" /> Attach Background Music</button>
+      </section>
 
       <!-- light table: the stills sheet -->
       <section v-if="show.review" id="review" :class="{ 'next-target': focus === 'review' }" class="raised p-6">

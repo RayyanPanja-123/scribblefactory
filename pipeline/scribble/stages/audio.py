@@ -23,7 +23,8 @@ from ..schemas import StoryModel
 from .runner import StageError
 
 MUSIC_UNDER_DB = -6  # synth music loudness relative to the voice
-BACKGROUND_UNDER_DB = -16.5  # the pack's default 15% bed under narration
+BACKGROUND_UNDER_DB = -16.5  # music at volume 0.15, relative to the voice; other volumes scale from it
+TRACK_LUFS = -17.0  # each @background-music file is matched to this before its volume (Darkling is ~7 dB hotter)
 SFX_UNDER_DB = -3    # SFX loudness relative to the voice
 TARGET_LUFS, TARGET_TP, LUFS_TOL = -14.0, -1.0, 0.5
 LOUDNORM_TP = -1.5   # aim under -1 dBTP: loudnorm's true peak lands a few tenths off its target
@@ -182,6 +183,7 @@ def render_background_music(story: StoryModel, n: int) -> tuple[np.ndarray, floa
         sample = decode(track)
         if not len(sample):
             continue
+        sample = sample * _gain(TRACK_LUFS, loudness(track)[0])  # every track equally loud, so volume means the same
         segment = np.resize(sample, (stop - start, 2)) * float(cue.volume or 0.0)
         fade = min(FADE, len(segment))
         segment[:fade] *= np.linspace(0, 1, fade)[:, None]

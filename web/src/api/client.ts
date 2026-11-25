@@ -152,6 +152,7 @@ export const api = {
   sfxSuggestions: (slug: string, p: string) => call<SfxSuggestions>('GET', `${part(slug, p)}/sfx-suggestions`),
   decideSfx: (slug: string, p: string, s: SfxSuggestion, accept: boolean) =>
     call<SfxSuggestions>('POST', `${part(slug, p)}/sfx-suggestions`, { ...s, accept }),
+  attachBackgroundMusic: (slug: string, p: string) => call<{ cues: number }>('POST', `${part(slug, p)}/background-music`),
   validatePackage: (text: string) => call<PackageResult>('POST', '/api/packages/validate', { text }),
   importPackage: (text: string) => call<PackageResult>('POST', '/api/packages/import', { text }),
 }
