@@ -1,6 +1,6 @@
-// Story step "stage": one part's narration -> a staged story.md. Small prompt: docs/story-writter/script.md, this series' cast
+// Story step "stage": one part's narration -> a staged story.md. Small prompt: docs/story-writter/stage.md (a bullet digest of script.md: keep in sync), this series' cast
 // and the live inventory list, nothing about other parts, packages or schemas.
-import scriptRules from '../../../docs/story-writter/script.md?raw'
+import scriptRules from '../../../docs/story-writter/stage.md?raw'
 
 type Look = { props?: { kind: string }[] | null }
 type Cast = { id: string; name: string; body?: string; looks?: Record<string, Look> }

@@ -50,37 +50,21 @@ good for a snappy salute or a punch)
   the figure; on a camera action the knees bend outward (a front-view squat). Left out: straight legs.
 - lean (optional): the whole figure, -60..60, about the feet. With bent knees it bends at the hips instead.
 
-## Angles (degrees, the figure faces the camera; side actions use the same angles relative to the facing direction)
-- Measured from straight DOWN; positive turns toward screen RIGHT (the figure's left hand side is screen left).
-- Upper arm: 0 hangs down, 90 points right, -90 points left, 180 / -180 straight up. Rest: left -16, right 16.
-- Forearm bend: turns the forearm relative to the upper arm, same sign rule: for the right arm, + bends the hand
-  up and inward; on a camera action use - for the left arm (the mirror image). 0 = straight arm.
-  On a side action both arms are seen in profile: both bends are 0..180 (+ folds the forearm forward and up,
-  like a real elbow); a negative bend there would bend the elbow backward and is refused.
-- Legs: rest -6 (left) and 6 (right); -20 kicks the left leg out to the left, 20 the right leg out to the right.
-- Lean: + leans toward screen right.
-- Arms are short (about a head and a half): raised hands end beside or just above the head.
+## Angles (degrees; side actions use the same angles relative to the facing direction)
+- Measured from straight DOWN, positive toward screen RIGHT (the figure's left is screen left).
+- Upper arm: 0 down, 90 right, -90 left, ±180 straight up. Rest: left -16, right 16. Arms are short: raised hands end beside or just above the head.
+- Forearm bend: relative to the upper arm, same sign rule; camera action: use - for the left arm (mirror). 0 = straight. Side action: both bends 0..180 (elbow bends forward only; negative is refused).
+- Legs: rest -6 (left), 6 (right); -20 kicks left out, 20 right out. Lean: + toward screen right; keep 0-10 unless a sway or dance.
 
 ## What the figure can and cannot do
-- A camera-facing action is a front view, like a paper cut-out. A side action is mirrored into a left/right profile:
-  arms[0] is the back arm, arms[1] the front arm, and positive lean bends forward.
-  Nothing bends toward or away from the viewer: on a camera action "lean" only tilts the whole figure sideways,
-  like a tilted head, so a camera bow is shown with the arms: the right arm [-10, -110] (upper arm down, forearm
-  folded across the chest), the left arm out a little [-40, 0], lean at most 5-8. A deep bow is a side action:
-  knees [30, 30] and lean 30-45 bend it at the hips.
-- Arms out to the side (±90) is a T-pose; ±130..180 is hands up; a forearm folded in (bend ±100..140) brings the
-  hand to the chest, face or head.
-- Kneeling, crouching and picking things up need a side action ("facing": "side") with knees. One-knee kneel:
-  legs [0, 90], knees [90, 90] (back knee on the ground, front shin straight down), lean 0-15. Deep squat:
-  legs [85, 85], knees [160, 160]. With bent knees, lean bends forward at the hips. Arms are short: only from
-  the deep squat with lean 40 and the front arm [20, 0] does a hand touch the ground (a kneel reaches the knee).
-  Use knees for life in any move: a 20-30 dip before a jump, throw or raise; a bent front knee in a lunge or
-  thrust; the swinging leg bent in a step or kick. On a camera action bent knees point outward.
-- Keep the lean small (0-10) unless the move is a sideways sway or a dance.
+- Camera action = front view, like a paper cut-out; "lean" only tilts sideways. Camera bow: right arm [-10, -110], left arm [-40, 0], lean at most 5-8.
+- Side action = profile: arms[0] is the back arm, arms[1] the front arm, + lean bends forward. A deep bow: knees [30, 30], lean 30-45.
+- Arms ±90 = T-pose; ±130..180 = hands up; forearm bend ±100..140 = hand to chest, face or head.
+- Kneeling, crouching, picking up need a side action with knees. One-knee kneel: legs [0, 90], knees [90, 90], lean 0-15. Deep squat: legs [85, 85], knees [160, 160]. Only a deep squat with lean 40 and front arm [20, 0] touches the ground.
+- Use knees for life: a 20-30 dip before a jump, throw or raise; a bent front knee in a lunge; a bent swinging leg in a step or kick.
 
 ## Style
-Clear, readable cartoon poses: big silhouettes, 2-4 distinct poses, no jitter. Keep the move in place (no
-walking unless the brief asks for a side-facing move; for a walk or moonwalk, use alternating legs and set move.
+Big readable silhouettes, 2-4 distinct poses, no jitter, in place (no walking unless the brief asks for a side move; for a walk or moonwalk use alternating legs and set move).
 
 ## Examples (in this exact format)
 ${EXAMPLES.map((e) => `\`\`\`json\n${JSON.stringify(e)}\n\`\`\``).join('\n\n')}
