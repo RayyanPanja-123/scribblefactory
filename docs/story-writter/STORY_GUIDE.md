@@ -3,10 +3,7 @@
 ## Interaction contract
 - This is a staged conversation, not a one-shot package-generation task. Stop at every gate below and wait for the user's explicit next instruction.
 - The user first shares this guide and the current library list, then supplies a story title and the agreed number of parts.
-- **Before writing anything, ask the user one question and wait for the answer: single narration (one narrator reads
-  everything) or cast voice acting (a narrator plus the characters speaking their own lines, each in their own voice)?**
-  Unless the user already said which in this conversation. Recommend cast voice acting for comedy, banter and
-  character-driven stories, single narration for history explainers. Use the answer for every part.
+- **Before writing anything, ask the user one question and wait for the answer: single narration (one narrator reads everything) or cast voice acting (a narrator plus the characters speaking their own lines, each in their own voice)?** Unless the user already said which in this conversation. Recommend cast voice acting for comedy, banter and character-driven stories, single narration for history explainers. Use the answer for every part.
 - For the title phase, write TTS scripts in that voice mode for exactly the agreed number of parts. The story may be real history or invented fantasy: follow the title and the user's notes.
 - After the TTS scripts, stop. Do not suggest or create props, expressions, creatures, wardrobe, sets, actions or sounds until the user explicitly asks for library planning.
 - In library planning, give items one at a time in this order: props, expressions, creatures, wardrobe, sets, actions, sounds. Stop after each item and wait for `next` or an equivalent explicit request.
@@ -25,19 +22,14 @@
 - Characters by role ("the commander") from line 4 on: use their cast `name`. Lines 1 to 3 never name anyone.
 
 ## What this makes
-- Each part = one vertical Short: a voice reads the narration (or, in cast voice acting, the narrator and each
-  speaking character in their own voice), a planner turns each line into stickman shots in 3D. The character who
-  speaks a line is the one whose mouth moves; on a narrator line nobody's does.
+- Each part = one vertical Short: a voice reads the narration (or, in cast voice acting, the narrator and each speaking character in their own voice), a planner turns each line into stickman shots in 3D. The character who speaks a line is the one whose mouth moves; on a narrator line nobody's does.
 - `@` lines are silent directives.
 
 ## Workflow and stop gates
 1. The user provides this guide and the current library list, then gives a story title and the agreed part count. Never ask the user to repeat the inventory if it was already provided.
    - The library list contains every set, prop, expression, creature, action, wardrobe item, sound and existing cast by id. Never guess ids.
 2. Shape the story from the title and the user's notes: real history or invented fantasy are both fine.
-3. Ask single narration or cast voice acting (Interaction contract) and wait for the answer. Then write the TTS
-   scripts for exactly the agreed number of parts. These are the words the voices will read: no `@` directives, no
-   staging, no props JSON, no Story Package, and no extra parts. In cast voice acting, a character's own line is
-   `<cast id>: words` (Voice mode in Writing rules).
+3. Ask single narration or cast voice acting (Interaction contract) and wait for the answer. Then write the TTS scripts for exactly the agreed number of parts. These are the words the voices will read: no `@` directives, no staging, no props JSON, no Story Package, and no extra parts. In cast voice acting, a character's own line is `<cast id>: words` (Voice mode in Writing rules).
    - Keep the hook, intensifier, rehook and twist rules in Writing rules.
 4. Stop and wait for explicit approval or requested edits to the TTS scripts. Do not continue automatically.
 5. When the user explicitly asks to plan library items, work through the categories in this exact order: props, expressions, creatures, wardrobe, sets, actions, sounds.
@@ -82,14 +74,27 @@ narration only
 
    - Markers exactly as shown, alone on their line, in order, none skipped; empty sections `[]`.
    - Asset sections: only new items.
-   - CAST: every character of the whole series. In cast voice acting, give every speaking character a
-     `"voice": {"id": "<voice id>", "speed": 1.0}` from TTS VOICES in the library list: a distinct voice each,
-     matching who they are (gender, age, accent), never the narrator's. The narrator's voice is picked in the app.
+   - CAST: every character of the whole series. In cast voice acting, give every speaking character a `"voice": {"id": "<voice id>", "speed": 1.0}` from TTS VOICES in the library list: a distinct voice each, matching who they are (gender, age, accent), never the narrator's. The narrator's voice is picked in the app.
    - SCRIPT: cast lines keep their `<cast id>: ` prefix, and the speaker is on stage (`@cast`) for that line.
-   - VOICE: its SCRIPT's spoken lines word for word, one line each; no `@` lines, title, `!!` or `<cast id>: `
-     prefix.
+   - VOICE: its SCRIPT's spoken lines word for word, one line each; no `@` lines, title, `!!` or `<cast id>:` prefix.
 7. User pastes back `staging:` warnings: fix every one that fits; resend the whole package.
 
+## Story quality (required)
+Write like a human storyteller, not a viral-content template. Each story should feel specific to its characters and situation, not assembled from familiar short-form formulas.
+
+- Give important characters believable motives, personal stakes, flaws and distinct personalities. Their choices should make sense to them, even when those choices are poor.
+- Make dialogue natural and character-specific. Avoid lines that exist only to explain the plot to the audience.
+- Show emotion through actions, reactions, hesitation, choices and small details instead of repeatedly naming the emotion.
+- Build tension through cause and effect. Let events create questions naturally; do not manufacture suspense with empty announcements.
+- Use concrete, memorable details that belong to this story. Avoid generic dramatic wording that could fit any story.
+- Let reveals emerge from earlier details. Foreshadow subtly, then let the audience connect the pieces. Do not explain a twist after revealing it.
+- Vary sentence length and rhythm. Use short sentences when the moment earns them, not as the default style.
+- Avoid clickbait phrasing and narrator prompts such as "Here's where it gets weird", "Watch what happens", "You won't believe", or "But then things changed".
+- Avoid excessive fragments, fake countdowns, arbitrary numbers, repeated rhetorical questions and overdramatic claims.
+- Do not force a twist, villain, death or surprise ending when the story does not need one. Make the ending feel earned.
+- Keep narration clear and speakable. Every line should add meaningful action, character, emotion, atmosphere or information.
+- The hook should come from an unusual but meaningful situation or character choice, not clickbait wording. Make the audience care about the people, not just the reveal.
+- These quality rules never override the required voice mode, agreed part count, story structure, script format, library workflow or Story Package markers.
 
 ## Your series
 - **About:**
