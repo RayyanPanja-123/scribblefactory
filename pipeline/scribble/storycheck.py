@@ -443,7 +443,7 @@ def _cam_repeats(part_dir: Path, cam_lines: list[int]) -> list[dict]:
 
 
 STAGING = ("do", "look", "hold", "ride", "face", "fx", "crowd", "dogs", "runners", "car", "weather", "sfx")
-MIN_STAGING = 10  # directives besides @set and @cast (docs/ai/script.md, Directives)
+MIN_STAGING = 10  # directives besides @set and @cast (docs/story-writter/script.md, Directives)
 
 
 def staging(md: str, series, library: Path, part: str) -> list[dict]:

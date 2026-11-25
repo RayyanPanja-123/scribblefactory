@@ -7,7 +7,7 @@ import { propOptions } from '../lib/props'
 import { SLOT_LABEL, SLOTS, wardrobeOptions } from '../lib/wardrobe'
 import { useApi } from '../composables/useApi'
 
-// Every story.md directive in one place, in plain words (the full rules for the AI live in docs/ai/script.md,
+// Every story.md directive in one place, in plain words (the full rules for the AI live in docs/story-writter/script.md,
 // Directives; keep the two in step). The lists of sets, bodies, actions and props are live: built-ins plus this
 // library's custom ones.
 const { data } = useApi(async () => {

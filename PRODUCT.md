@@ -13,7 +13,7 @@ Today: one creator running the app locally in a desktop browser, in long working
 A local, offline factory that turns a written story plus a recorded voice track into a finished 9:16 stickman short (1080x1920, 30 fps). The creator plans series and parts, builds reusable assets (props, sets, creatures, cast), writes each part's story, records voice, renders stills, test and final videos, approves each stage, and logs where it was posted. Success: a part moves from idea to posted without the creator losing track of what is waiting on them.
 
 ## Positioning
-Everything runs on the creator's own machine: the renderer (Three.js + Playwright), the Python pipeline and the library on disk. Runs fully offline. AI help works via copy/paste with any chat AI (ChatGPT, Claude, Gemini): the app writes the prompt and imports the reply; there are no AI providers, accounts or API keys. Every editor also works by hand. Stories are a plain-text script format (`docs/STORY_GUIDE.md`) the engine animates directly.
+Everything runs on the creator's own machine: the renderer (Three.js + Playwright), the Python pipeline and the library on disk. Runs fully offline. AI help works via copy/paste with any chat AI (ChatGPT, Claude, Gemini): the app writes the prompt and imports the reply; there are no AI providers, accounts or API keys. Every editor also works by hand. Stories are a plain-text script format (`docs/story-writter/STORY_GUIDE.md`) the engine animates directly.
 
 ## Operating Context
 - Workflow per part: story -> voice -> stills -> final -> upload text -> posted.

@@ -25,7 +25,7 @@ async function copyGuide() {
     toast('Story guide copied: paste it into any AI alongside the library list', 'ok')
     setTimeout(() => (copied.value = false), 2500)
   } catch {
-    toast('Could not copy to the clipboard. Open docs/STORY_GUIDE.md and copy it from there.', 'error')
+    toast('Could not copy to the clipboard. Open docs/story-writter/STORY_GUIDE.md and copy it from there.', 'error')
   }
 }
 // just what the library has (sets, props, creatures, actions, wardrobe, cast), without the rest of the guide

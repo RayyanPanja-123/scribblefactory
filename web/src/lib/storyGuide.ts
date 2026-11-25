@@ -1,4 +1,4 @@
-// The story guide a chat AI gets: docs/STORY_GUIDE.md (contract + workflow) + the step rules in docs/ai/ (tts,
+// The story guide a chat AI gets: docs/story-writter/STORY_GUIDE.md (contract + workflow) + the step rules in docs/story-writter/ (tts,
 // library, cast, script: each also usable alone as one step's prompt) + the Story Package format (docs/story-package.md, the one
 // source) + the library item schemas for new items. All bundled at build time and loaded on first use. Overview and
 // Story Writer copy it. The live library list is separate (libraryRecords): the user shares it alongside the guide.
@@ -86,8 +86,8 @@ export async function copyLibraryList(): Promise<boolean> {
 
 export async function storyGuide(): Promise<string> {
   const [guide, tts, library, cast, script, pkg, props, sets, creatures, actions, wardrobe, objects] = await Promise.all([
-    import('../../../docs/STORY_GUIDE.md?raw'), import('../../../docs/ai/tts.md?raw'), import('../../../docs/ai/library.md?raw'),
-    import('../../../docs/ai/cast.md?raw'), import('../../../docs/ai/script.md?raw'), import('../../../docs/story-package.md?raw'),
+    import('../../../docs/story-writter/STORY_GUIDE.md?raw'), import('../../../docs/story-writter/tts.md?raw'), import('../../../docs/story-writter/library.md?raw'),
+    import('../../../docs/story-writter/cast.md?raw'), import('../../../docs/story-writter/script.md?raw'), import('../../../docs/story-package.md?raw'),
     import('../../../docs/schemas/props.schema.json?raw'), import('../../../docs/schemas/sets.schema.json?raw'),
     import('../../../docs/schemas/creatures.schema.json?raw'), import('../../../docs/schemas/actions.schema.json?raw'),
     import('../../../docs/schemas/wardrobe.schema.json?raw'), import('../../../docs/schemas/objects.schema.json?raw'),

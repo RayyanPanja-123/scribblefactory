@@ -10,7 +10,7 @@ declare module '*.svg' {
   export default url
 }
 
-// Vite `?raw` imports: the file's text (Overview copies docs/STORY_GUIDE.md this way)
+// Vite `?raw` imports: the file's text (Overview copies docs/story-writter/STORY_GUIDE.md this way)
 declare module '*?raw' {
   const text: string
   export default text

@@ -1,8 +1,8 @@
-// Story step 1, title -> voice scripts: a small self-contained prompt (only docs/ai/tts.md, no library, no directives)
+// Story step 1, title -> voice scripts: a small self-contained prompt (only docs/story-writter/tts.md, no library, no directives)
 // and the reader for its reply. Each script becomes a part whose story.md is the lines under a starter @set; staging
 // comes later, one part at a time. The voice mode (single narration or cast voice acting) is the creator's choice,
 // asked in the app before the prompt is made: the prompt states it, the AI never guesses it.
-import ttsRules from '../../../docs/ai/tts.md?raw'
+import ttsRules from '../../../docs/story-writter/tts.md?raw'
 
 export type VoicePart = { title: string; lines: string[] }
 export type VoiceMode = 'narration' | 'cast'
