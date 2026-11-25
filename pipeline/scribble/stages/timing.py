@@ -4,6 +4,7 @@ Pauses between words longer than GAP_MAX are clamped to GAP_KEEP: voice-tight.wa
 cut out (voice.mp3 is protected, never rewritten), and phrases.json is timed on voice-tight.wav. Later stages use it.
 """
 
+import json
 import re
 from difflib import SequenceMatcher
 from pathlib import Path
@@ -144,12 +145,14 @@ def _ends_sentence(words: list[dict], i: int) -> bool:
     return bool(SENTENCE_END.search(words[i]["text"]))
 
 
-def split_phrases(words: list[dict]) -> list[dict]:
-    """Break after sentence punctuation and before a pause > PAUSE; split longer runs at natural breaks
-    (MAX_WORDS, up to HARD_MAX_WORDS); then merge phrases shorter than MIN_PHRASE_S into the same sentence."""
+def split_phrases(words: list[dict], breaks=frozenset()) -> list[dict]:
+    """Break after sentence punctuation, before a pause > PAUSE and after each word index in breaks (where the
+    speaker changes: a phrase is one voice's); split longer runs at natural breaks (MAX_WORDS, up to HARD_MAX_WORDS);
+    then merge phrases shorter than MIN_PHRASE_S into the same sentence."""
     segments, first = [], 0
     for i, w in enumerate(words):
-        if i == len(words) - 1 or _ends_sentence(words, i) or words[i + 1]["start"] - w["end"] > PAUSE:
+        if (i == len(words) - 1 or _ends_sentence(words, i) or words[i + 1]["start"] - w["end"] > PAUSE
+                or i in breaks):
             segments.append((first, i))
             first = i + 1
     spans = []
@@ -165,10 +168,10 @@ def split_phrases(words: list[dict]) -> list[dict]:
         if carry is not None:
             a, carry = carry, None
         short = words[b]["end"] - words[a]["start"] < MIN_PHRASE_S
-        opens_sentence = a == 0 or _ends_sentence(words, a - 1)
+        opens_sentence = a == 0 or _ends_sentence(words, a - 1) or a - 1 in breaks
         if short and not opens_sentence and merged:
             merged[-1] = (merged[-1][0], b)          # into the previous phrase of the same sentence
-        elif short and not _ends_sentence(words, b) and b < len(words) - 1:
+        elif short and not _ends_sentence(words, b) and b < len(words) - 1 and b not in breaks:
             carry = a                                # first of its sentence: into the next phrase
         else:
             merged.append((a, b))
@@ -176,14 +179,16 @@ def split_phrases(words: list[dict]) -> list[dict]:
              "word_start": a, "word_end": b} for a, b in merged]
 
 
-def gap_cuts(words: list[dict], quiet: list[tuple[float, float]] | None = None) -> list[tuple[float, float]]:
+def gap_cuts(words: list[dict], quiet: list[tuple[float, float]] | None = None,
+             keep_after=frozenset()) -> list[tuple[float, float]]:
     """(start, end) spans to cut: the middle of every pause > GAP_MAX, leaving GAP_KEEP (half on each side).
     quiet: measured silences of the voice. Whisper often ends a word before its sound does, so with quiet given a
-    cut only takes the middle of the longest silence inside the pause: a word's tail is never cut."""
+    cut only takes the middle of the longest silence inside the pause: a word's tail is never cut. keep_after: word
+    indices whose following pause is meant (a TTS voice's gap or @pause between two lines): never cut."""
     half, cuts = GAP_KEEP / 2, []
-    for a, b in zip(words, words[1:]):
+    for i, (a, b) in enumerate(zip(words, words[1:])):
         lo, hi = a["end"], b["start"]
-        if hi - lo <= GAP_MAX:
+        if hi - lo <= GAP_MAX or i in keep_after:
             continue
         if quiet is not None:
             spans = [(max(lo, s), min(hi, e)) for s, e in quiet if min(hi, e) > max(lo, s)]
@@ -207,10 +212,11 @@ def shift(t: float, cuts: list[tuple[float, float]]) -> float:
     return round(t - sum(min(t, b) - a for a, b in cuts if t > a), 3)
 
 
-def clamp_gaps(words: list[dict], phrases: list[dict], duration: float, quiet: list[tuple[float, float]] | None = None):
+def clamp_gaps(words: list[dict], phrases: list[dict], duration: float, quiet: list[tuple[float, float]] | None = None,
+               keep_after=frozenset()):
     """-> (words, phrases, duration, cuts) retimed for the voice with every pause > GAP_MAX clamped to GAP_KEEP
-    (only its measured silence, when quiet is given: see gap_cuts)"""
-    cuts = gap_cuts(words, quiet)
+    (only its measured silence, when quiet is given; never after a word in keep_after: see gap_cuts)"""
+    cuts = gap_cuts(words, quiet, keep_after)
     move = lambda xs: [{**x, "start": shift(x["start"], cuts), "end": shift(x["end"], cuts)} for x in xs]  # noqa: E731
     return move(words), move(phrases), shift(duration, cuts), cuts
 
@@ -227,6 +233,27 @@ def tighten(voice: Path, out: Path, cuts: list[tuple[float, float]]) -> None:
     for a, b in cuts:
         keep[int(a * SR):int(b * SR)] = False
     atomic_write_bytes(out, wav_bytes(x[keep]))
+
+
+def line_joins(part_dir: Path, n_words: int) -> tuple[frozenset, frozenset]:
+    """(keep_after, breaks) as word indices: the last word of each story.md line, when voice.mp3 is the tts stage's
+    (its gaps between lines are meant: kept), and the last word before each change of speaker (a phrase break).
+    Both empty for a recorded voice without speaker lines, so it times as it always did."""
+    from ..sfx import line_words  # sfx imports the stages package
+    from .prep import speakers
+    from .tts import MANIFEST, sha
+    story = part_dir / "story.md"
+    if not story.is_file():
+        return frozenset(), frozenset()
+    md = story.read_text(encoding="utf-8")
+    spans = sorted(line_words(md).items())
+    if sum(b - a + 1 for _, (a, b) in spans) != n_words:
+        return frozenset(), frozenset()  # the script and story.md disagree: check-story reports it
+    said = speakers(md)
+    breaks = frozenset(b for (n1, (_, b)), (n2, _) in zip(spans, spans[1:]) if said.get(n1) != said.get(n2))
+    m = part_dir / MANIFEST
+    ours = m.is_file() and json.loads(m.read_text(encoding="utf-8")).get("mp3_sha256") == sha(part_dir / "voice.mp3")
+    return frozenset(b for _, (_, b) in spans[:-1]) if ours else frozenset(), breaks
 
 
 def run(part_dir: Path) -> None:
@@ -246,8 +273,9 @@ def run(part_dir: Path) -> None:
         words = caption_words(words, clean_markdown(strip_directives(story.read_text(encoding="utf-8"))).split())
     quiet = silences(voice, duration, min_len=GAP_KEEP)
     words = extend_last(words, quiet, duration)
-    phrases = split_phrases(words)  # on the real pauses: clamped ones would no longer end a phrase
-    words, phrases, duration, cuts = clamp_gaps(words, phrases, round(duration, 3), quiet)
+    keep_after, breaks = line_joins(part_dir, len(words))
+    phrases = split_phrases(words, breaks)  # on the real pauses: clamped ones would no longer end a phrase
+    words, phrases, duration, cuts = clamp_gaps(words, phrases, round(duration, 3), quiet, keep_after)
     model = PhrasesModel(duration=duration, words=words, phrases=phrases)  # validates times
     tighten(voice, part_dir / VOICE, cuts)
     atomic_write_json(part_dir / "phrases.json", model.model_dump(mode="json"))

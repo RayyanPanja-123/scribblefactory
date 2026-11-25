@@ -24,13 +24,13 @@ from .schemas import HAND_RIGS, ITEM_ACTIONS, actions_with
 from .stages.finish import MAX_RUNTIME_S, MIN_RUNTIME_S
 from .stages.prep import (DO_CAR, ITEM_MOVES, item_state_ok, parse_item, FX_LIGHTNING, FX_MODES, MAX_LIGHTNING, TWIST_PREFIX, clean_markdown, parse_do, spoken,
                           parse_cam, parse_face, parse_hold, parse_lightning, parse_look, parse_ride, parse_weather, ride,
-                          respell, speakers, strip_directives, RIDE_ACTIONS)
+                          parse_pace, parse_pause, respell, speakers, strip_directives, RIDE_ACTIONS)
 from .stages.runner import StageError
 from .stages.shots import (ACTION_FACE, CAR_MODES, CAR_SEATS, DEFAULT_CAST_SIZE, EXPRESSIONS, MAX_CAST, MAX_DOGS, MAX_ON_STAGE,
                            MAX_RUNNERS, parse_crowd, parse_crowd_look, parse_crowd_weapon, plan_part, token)
 from .validate import END_SCREEN_S, TAIL_S
 
-DIRECTIVES = ("set", "cast", "dogs", "car", "fx", "do", "look", "hold", "ride", "crowd", "crowd-look", "crowd-weapon", "runners", "weather", "sfx", "face", "cam", "background-music", "item")
+DIRECTIVES = ("set", "cast", "dogs", "car", "fx", "do", "look", "hold", "ride", "crowd", "crowd-look", "crowd-weapon", "runners", "weather", "sfx", "face", "cam", "background-music", "item", "pause", "pace")
 LINE_PREFIX = re.compile(r"^story\.md line [0-9]+: ")
 FALLBACK_WPS = 2.6  # words per second before any part has been finished
 # a first line that opens on a date or backstory instead of the hook
@@ -170,7 +170,8 @@ def check_story(part_dir: Path) -> dict:
         if sid not in ids:
             bad(no, f"unknown cast id {sid} (a line starting \"{sid}: \" is spoken by cast member {sid}; "
                     f"series cast: {', '.join(ids) or '-'})")
-    if part_exists(part_dir) and load_part(part_dir / "part.json").voice_source == "tts":
+    tts_part = part_exists(part_dir) and load_part(part_dir / "part.json").voice_source == "tts"
+    if tts_part:
         s = settings.load(library)
         narrator = series.voice.tts.id if series.voice.tts else s["tts_voice"]
         if narrator not in s["tts_voices"]:
@@ -255,6 +256,11 @@ def check_story(part_dir: Path) -> dict:
                         warnings.append({"line": no, "message": f"@sfx {sid}: {sounds[sid].file} is missing from "
                                                                  "library/sfx/ (left out of the mix)"})
                     pending_sfx.append(no)
+                elif name in ("pause", "pace"):
+                    (parse_pause if name == "pause" else parse_pace)(arg, no)
+                    if not tts_part:
+                        warnings.append({"line": no, "message": f"@{name} only shapes a TTS voice: this part's voice "
+                                                                 "is recorded (set-voice-source ... tts)"})
                 elif name == "background-music":
                     track, _volume = background_music.parse(arg, no)
                     if track and not background_music.path(track).is_file():

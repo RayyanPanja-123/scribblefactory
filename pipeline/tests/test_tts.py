@@ -285,3 +285,49 @@ def test_storycheck_speakers_and_voices(part):
     r = check_story(part)
     assert not any("voice" in x["message"] or "unknown cast" in x["message"] for x in r["problems"])
     assert any(w["message"].startswith("mira speaks but has no TTS voice") for w in r["warnings"])
+
+
+# ---------------- timing: @pause, @pace, meant gaps, one voice per phrase ----------------
+
+BEATS = ("# Stranded\nThe ship came down hard.\n@pause 1.5\n@pace fast\nkai: Everyone alive?\nmira: Define alive.\n")
+
+
+def test_pause_and_pace_shape_the_voice(part, server):
+    url, _ = server
+    use(part, url)
+    with_cast(part, {"kai": "am_adam", "mira": "am_michael"})
+    (part / "story.md").write_text(BEATS, encoding="utf-8")
+    from pipeline.scribble.stages.prep import clean_markdown, strip_directives, voice_marks
+    (part / "script-for-tts.txt").write_text(clean_markdown(strip_directives(BEATS)) + "\n", encoding="utf-8")
+    assert voice_marks(BEATS) == {5: {"pause": 1.5, "pace": 1.15}}
+    tts_stage.run(part)
+    assert {i["text"]: i["speed"] for i in Kokoro.made}["Everyone alive?"] == 1.15  # @pace fast: that line only
+    assert {i["text"]: i["speed"] for i in Kokoro.made}["Define alive."] == 1.0
+    a, b, c = json.loads((part / tts_stage.MANIFEST).read_text(encoding="utf-8"))["lines"]
+    assert b["start"] - a["end"] == pytest.approx(1.5, abs=0.002)  # @pause 1.5 before kai's line
+    assert c["start"] - b["end"] == pytest.approx(0.3, abs=0.002)  # the usual gap
+
+
+def test_meant_gaps_survive_and_phrases_break_at_a_new_speaker():
+    from pipeline.scribble.stages.timing import gap_cuts, split_phrases
+    w = lambda t, s, e: {"text": t, "start": s, "end": e}  # noqa: E731
+    words = [w("Go", 0.0, 0.3), w("now", 0.35, 0.7), w("Why", 2.2, 2.5), w("not", 2.55, 2.9)]
+    assert gap_cuts(words) == [(0.85, 2.05)]  # a 1.5 s pause: cut down to 0.3 s
+    assert gap_cuts(words, keep_after={1}) == []  # a TTS line join (@pause): kept
+    one = [w("Go", 0.0, 0.3), w("now", 0.35, 0.7), w("why", 0.8, 1.1), w("not", 1.15, 1.5)]
+    assert [(p["word_start"], p["word_end"]) for p in split_phrases(one)] == [(0, 3)]
+    assert [(p["word_start"], p["word_end"]) for p in split_phrases(one, breaks={1})] == [(0, 1), (2, 3)]
+
+
+def test_storycheck_pause_and_pace(part):
+    from pipeline.scribble.storycheck import check_story
+    with_cast(part, {"kai": "am_adam", "mira": "am_adam"})
+    (part / "story.md").write_text(BEATS.replace("@pause 1.5", "@pause 9"), encoding="utf-8")
+    assert any("bad directive @pause 9" in x["message"] for x in check_story(part)["problems"])
+    m = load_part(part / "part.json")
+    m.voice_source = "recorded"
+    save_part(part / "part.json", m)
+    (part / "story.md").write_text(BEATS, encoding="utf-8")
+    r = check_story(part)
+    assert not any("@pause" in x["message"] or "@pace" in x["message"] for x in r["problems"])
+    assert {w["line"] for w in r["warnings"] if "only shapes a TTS voice" in w["message"]} == {3, 4}

@@ -13,7 +13,7 @@ from pathlib import Path
 
 from .. import ff, tts
 from ..io import atomic_write_json, library_of, load_part, load_series, part_exists, series_exists
-from .prep import speakers
+from .prep import speakers, voice_marks
 from .runner import StageError
 
 INPUTS = ["script-for-tts.txt", "story.md"]
@@ -80,11 +80,15 @@ def run(part_dir: Path) -> None:
     lines = script_lines(part_dir)
     if not lines:
         raise StageError("script-for-tts.txt is empty")
-    said = speakers((part_dir / "story.md").read_text(encoding="utf-8"))
+    md = (part_dir / "story.md").read_text(encoding="utf-8")
+    said, marks = speakers(md), voice_marks(md)
     by_cast, narr = cast_voices(part_dir), narrator(part_dir)
     voices = [by_cast.get(said.get(no), narr) for no, _ in lines]  # a speaker without a voice: the narrator's
+    voices = [(v, round(min(2.0, max(0.5, s * marks.get(no, {}).get("pace", 1.0))), 3))  # @pace: this line only
+              for (no, _), (v, s) in zip(lines, voices)]
+    gaps = [marks.get(no, {}).get("pause", cfg["gap"]) for no, _ in lines]  # @pause: the silence before this line
     paths = tts.clips(lib, [(text, v, s) for (_, text), (v, s) in zip(lines, voices)], cfg)  # all before any write
-    wav, spans = tts.stitch(paths, cfg["gap"])
+    wav, spans = tts.stitch(paths, gaps)
 
     mp3, manifest = part_dir / "voice.mp3", part_dir / MANIFEST
     made = json.loads(manifest.read_text(encoding="utf-8")).get("mp3_sha256") if manifest.is_file() else None

@@ -298,6 +298,8 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
                 face = {**(face or {}), **parse_face(arg, line, cast_ids)}
             elif name == "sfx":
                 pass  # sound effect: the audio stage reads it
+            elif name in ("pause", "pace"):
+                pass  # the TTS voice's timing: the tts stage reads them (check-story checks them)
             elif name == "background-music":
                 bg_music = background_music.parse(arg, line)
             elif name == "look":

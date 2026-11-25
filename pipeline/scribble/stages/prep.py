@@ -78,6 +78,45 @@ def speakers(md: str) -> dict[int, str]:
             if not _is_directive(line) and (s := speaker(line))}
 
 
+PACE = {"slow": 0.85, "fast": 1.15}  # @pace: the next line's TTS speed, times its voice's own
+MAX_PAUSE = 3.0                     # @pause <seconds>: the silence before the next line in a TTS voice
+
+
+def parse_pause(arg: str, line: int) -> float:
+    try:
+        s = float(arg)
+    except ValueError:
+        s = -1.0
+    if not 0 <= s <= MAX_PAUSE:
+        raise StageError(f"story.md line {line}: bad directive @pause {arg} (use @pause <seconds 0-{MAX_PAUSE:g}>, "
+                         "e.g. @pause 1.2: the silence before the next line in a TTS voice)")
+    return s
+
+
+def parse_pace(arg: str, line: int) -> float:
+    if arg not in PACE:
+        raise StageError(f"story.md line {line}: bad directive @pace {arg} (use @pace {' | '.join(PACE)}: the next "
+                         "line spoken slower or faster in a TTS voice)")
+    return PACE[arg]
+
+
+def voice_marks(md: str) -> dict[int, dict]:
+    """story.md line number -> {"pause": s, "pace": x} from the @pause / @pace lines before it (text lines with words
+    that have any)"""
+    out, pending = {}, {}
+    for no, line in enumerate(md.replace("\r\n", "\n").split("\n"), 1):
+        s = line.strip()
+        if s.startswith("@"):
+            name, _, arg = s[1:].partition(" ")
+            if name == "pause":
+                pending["pause"] = parse_pause(arg.strip(), no)
+            elif name == "pace":
+                pending["pace"] = parse_pace(arg.strip(), no)
+        elif pending and clean_markdown(spoken(line)):
+            out[no], pending = pending, {}
+    return out
+
+
 MARKER = "⟦{}⟧"  # a token for the n-th @ line, "!" before a twist line, "/" after the line an @do applies to
 MARKER_RE = re.compile("^⟦([0-9]+|!|/|L[0-9]+)⟧$")
 

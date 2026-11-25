@@ -175,6 +175,9 @@ fit the story's period or design.
   it under the narration until another `@background-music` changes it. The default volume is `0.15` (about 15%); use
   `@background-music off` to stop it. Without any `@background-music` the part plays the default synth loop (it stops on the `!!` line). Track IDs: `monkeys-spinning-monkeys`, `comedy-quirky-sneaky`, `sneaky-snitch`,
   `cartoon-pizzicato`, `fluffing-a-duck`, `scheming-weasel-faster`, and `funny-comedy-quirky`.
+- `@pause <seconds>` (0-3): silence before the next line, for comic timing (a beat before the punchline). `@pace
+  slow | fast`: the next line spoken slower or faster. Both only shape a TTS voice (a recorded one keeps its own
+  timing); the narrator and the cast still never overlap.
 - `!! <line>`: the twist line. The line is read aloud and gets a push-in, roll, and low hit. Use it for the
   final reversal, not for ordinary emphasis.
 

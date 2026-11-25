@@ -173,15 +173,32 @@ def clips(library, lines: list[tuple[str, str, float]], cfg: dict) -> list[Path]
     return [d / f"{k}.wav" for k in keys]
 
 
-def stitch(paths: list[Path], gap: float) -> tuple[bytes, list[tuple[float, float]]]:
-    """the clips one after another with gap seconds of silence between them: (WAV bytes, [(start, end) per clip]).
-    Clips never overlap: each starts after the previous one's end plus the gap."""
+EDGE_LEVEL = 300         # |sample| below this at a clip's start or end is its silence...
+EDGE_KEEP_S = 0.02       # ...trimmed to this much, so the gap between two lines is the gap asked for
+
+
+def trim(pcm: bytes) -> bytes:
+    """a clip without its leading and trailing silence (EDGE_KEEP_S of it left at each end)"""
+    import array
+    x = array.array("h", pcm)
+    first = next((i for i, v in enumerate(x) if abs(v) > EDGE_LEVEL), None)
+    if first is None:
+        return pcm
+    last = next(i for i in range(len(x) - 1, -1, -1) if abs(x[i]) > EDGE_LEVEL)
+    keep = round(EDGE_KEEP_S * SAMPLE_RATE)
+    return x[max(0, first - keep):min(len(x), last + 1 + keep)].tobytes()
+
+
+def stitch(paths: list[Path], gaps: list[float]) -> tuple[bytes, list[tuple[float, float]]]:
+    """the clips, their edge silence trimmed, one after another with gaps[i] seconds of silence before clip i (the
+    first clip starts at 0): (WAV bytes, [(start, end) per clip]). Clips never overlap: each starts after the previous
+    one's end plus its gap."""
     frames, spans, at = [], [], 0
-    silence = b"\0\0" * round(gap * SAMPLE_RATE)
     for i, p in enumerate(paths):
         with wave.open(str(p)) as w:
-            pcm = w.readframes(w.getnframes())
+            pcm = trim(w.readframes(w.getnframes()))
         if i:
+            silence = b"\0\0" * round(gaps[i] * SAMPLE_RATE)
             frames.append(silence)
             at += len(silence) // 2
         spans.append((round(at / SAMPLE_RATE, 3), round((at + len(pcm) // 2) / SAMPLE_RATE, 3)))

@@ -1,6 +1,11 @@
 # Changelog
 
 ## Unreleased
+- Voice timing (Phase B2): `@pause <0-3 s>` before a line sets the silence before it, `@pace slow | fast` speaks
+  the next line at 0.85x / 1.15x its voice's speed (TTS parts only; check-story warns on a recorded one). The tts
+  stage trims each clip's edge silence so the gap between lines is the gap asked for, and timing keeps those gaps
+  (it still shortens long pauses inside a line). A phrase never spans a change of speaker. A recorded voice without
+  speaker lines times exactly as before (phrases.json and voice-tight.wav re-made byte-identical on a library copy).
 - Voice: cast members speak their own lines (Phase B1). In story.md, `kai: Everyone alive?` (quotes optional,
   `!! kai: ...` for a spoken twist) is Kai's line; every other line is the narrator's. In a TTS part each line is
   made in its speaker's voice (`cast-voice <slug> kai am_adam [--speed 1.1]`; a speaker without one is read by the
