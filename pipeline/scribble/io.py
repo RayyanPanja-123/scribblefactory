@@ -675,8 +675,9 @@ def series_bytes(series_dir) -> bytes | None:
         return None
     if (text := db.series_file_text(*series_where(series_dir))) is not None:
         return text.encode()  # imported and not saved since: the file's own bytes
-    s = load_series(Path(series_dir) / SERIES_FILE)
-    return (json.dumps(s.model_dump(mode="json"), indent=2, ensure_ascii=False) + "\n").encode()
+    d = load_series(Path(series_dir) / SERIES_FILE).model_dump(mode="json")
+    d["voice"].pop("tts", None)  # the TTS narrator voice: hashed by the tts stage alone, so it never re-plans or re-renders
+    return (json.dumps(d, indent=2, ensure_ascii=False) + "\n").encode()
 
 
 # ---- stored files (db.StoredFile): the files of a series folder and their metadata ----

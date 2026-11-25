@@ -18,8 +18,8 @@ from pathlib import Path
 
 from pydantic import TypeAdapter, ValidationError
 
-from . import backup, db, gallery, sheet, storycheck
-from .io import (atomic_write_json, series_where, part_dir_of, part_exists, part_folder_name, part_folders_of, series_dirs, series_exists, storage_root, cast_body_problems, cast_files, cast_key, cast_render_current, load_part, load_series, prop_kinds, replace_file, save_part,
+from . import backup, db, gallery, settings, sheet, storycheck
+from .io import (all_parts, atomic_write_json, series_where, part_dir_of, part_exists, part_folder_name, part_folders_of, series_dirs, series_exists, storage_root, cast_body_problems, cast_files, cast_key, cast_render_current, load_part, load_series, prop_kinds, replace_file, save_part,
                  save_series, unknown_cast_props)
 from .schemas import Approvals, CastMember, Expression, PartId, PartModel, Post, Posted, SeriesModel, Slug, Stages, StoryModel, Style, Voice, utcnow
 from .stages import STAGES
@@ -145,10 +145,85 @@ def parse_props(text: str) -> list[dict]:
 
 
 def cmd_set_voice(args) -> int:
+    if args.name is None and args.tts is None:
+        raise UserError("set-voice needs --name and/or --tts")
     f, series = load_existing_series(args)
-    series.voice.voice_name = args.name
+    if args.name is not None:
+        series.voice.voice_name = args.name
+    if args.tts == "none":
+        series.voice.tts = None
+    elif args.tts is not None:
+        from .schemas import TtsVoice
+        known = settings.load(library_root(args))["tts_voices"]
+        if args.tts not in known:
+            raise UserError(f"unknown TTS voice {args.tts!r} (known: {', '.join(known)})")
+        series.voice.tts = TtsVoice(id=args.tts, speed=args.speed)
     save_series(f, series)
-    print(f"{args.slug} voice: {args.name}")
+    v = series.voice
+    print(f"{args.slug} voice: {v.voice_name!r}, TTS narrator: {f'{v.tts.id} at {v.tts.speed}x' if v.tts else 'default'}")
+    return 0
+
+
+def cmd_set_voice_source(args) -> int:
+    pdir = part_dir(args)
+    p = load_part(pdir / "part.json")
+    p.voice_source = args.source
+    save_part(pdir / "part.json", p)
+    print(f"{args.slug} {args.part} voice: {args.source}"
+          + (" (run --stage tts makes voice.mp3)" if args.source == "tts" else " (upload voice.mp3)"))
+    return 0
+
+
+def cmd_tts_settings(args) -> int:
+    lib, values = library_root(args), {}
+    if args.url is not None:
+        values["tts_url"] = args.url.strip().rstrip("/")
+    if args.voice is not None:
+        values["tts_voice"] = args.voice
+    if args.gap is not None:
+        if not 0 <= args.gap <= 2:
+            raise UserError("--gap: 0..2 seconds")
+        values["tts_line_gap"] = args.gap
+    if args.tag is not None:
+        values["tts_model_tag"] = args.tag
+    if values:
+        db.put_settings(lib, values)
+    s = settings.load(lib)
+    for k in ("tts_url", "tts_voice", "tts_voices", "tts_line_gap", "tts_model_tag"):
+        print(f"{k}: {s[k]}")
+    return 0
+
+
+def cmd_tts_voices(args) -> int:
+    from . import tts
+    lib = library_root(args)
+    if args.probe:
+        url = tts.config(lib)["url"]
+        print(f"probing {len(tts.KOKORO_VOICES)} Kokoro voice ids on {url} ...")
+        found = tts.probe_voices(url, tts.KOKORO_VOICES)
+        if not found:
+            raise UserError("the server took none of the known voice ids")
+        db.put_settings(lib, {"tts_voices": found})
+    print("\n".join(settings.load(lib)["tts_voices"]))
+    return 0
+
+
+def cmd_tts_cache_prune(args) -> int:
+    """delete cached clips no part's voice-tts.json uses (a clip of an edited line, an old voice or tag)"""
+    from . import tts
+    lib = library_root(args)
+    used = set()
+    for _, pdir in all_parts(lib):
+        m = pdir / "voice-tts.json"
+        if m.is_file():
+            used |= {ln["clip"] for ln in json.loads(m.read_text(encoding="utf-8"))["lines"]}
+    gone = [f for f in tts.cache_dir(lib).glob("*.wav") if f.stem not in used]
+    size = sum(f.stat().st_size for f in gone)
+    for f in gone:
+        if args.yes:
+            f.unlink()
+    print(f"{'deleted' if args.yes else 'would delete'} {len(gone)} unused clips ({size / 1e6:.1f} MB)"
+          + ("" if args.yes else "; --yes to delete"))
     return 0
 
 
@@ -376,7 +451,7 @@ def _print_table(d: Path, parts: list[str]) -> None:
             continue
         p = load_part(f)
         rows.append([p.id, p.title]
-                    + [getattr(p.stages, n).status for n in stages]
+                    + [getattr(getattr(p.stages, n), "status", "-") for n in stages]
                     + [_date(getattr(p.approvals, n).approved_at) for n in ("stills", "final")]
                     + [_date(post.posted_at if post else None) for post in (p.posted.youtube, p.posted.instagram)])
     widths = [max(len(r[i]) for r in rows) for i in range(len(header))]
@@ -743,10 +818,34 @@ def build_parser() -> Parser:
     c.add_argument("--headless", choices=["yes", "no"], help="creatures with a stump: no head")
     c.set_defaults(func=cmd_cast_edit)
 
-    c = sub.add_parser("set-voice", parents=[common], help="set the series voice name")
+    c = sub.add_parser("set-voice", parents=[common], help="set the series voice name and/or TTS narrator voice")
     c.add_argument("slug")
-    c.add_argument("--name", required=True)
+    c.add_argument("--name")
+    c.add_argument("--tts", help="the narrator's Kokoro voice id (settings tts_voices), or none: settings tts_voice")
+    c.add_argument("--speed", type=float, default=1.0, help="with --tts: 0.5..2.0")
     c.set_defaults(func=cmd_set_voice)
+
+    c = sub.add_parser("set-voice-source", parents=[common],
+                       help="a part's voice: recorded (upload voice.mp3) or tts (the tts stage makes it)")
+    c.add_argument("slug")
+    c.add_argument("part")
+    c.add_argument("source", choices=["recorded", "tts"])
+    c.set_defaults(func=cmd_set_voice_source)
+
+    c = sub.add_parser("tts-settings", parents=[common], help="show / set the TTS server settings")
+    c.add_argument("--url", help="the Kokoro server, e.g. http://192.168.1.6:8765 ('' turns TTS off)")
+    c.add_argument("--voice", help="default narrator voice id")
+    c.add_argument("--gap", type=float, help="seconds of silence between script lines")
+    c.add_argument("--tag", help="cache tag: change it when the server's model or voices change")
+    c.set_defaults(func=cmd_tts_settings)
+
+    c = sub.add_parser("tts-voices", parents=[common], help="list the TTS voices; --probe asks the server which work")
+    c.add_argument("--probe", action="store_true")
+    c.set_defaults(func=cmd_tts_voices)
+
+    c = sub.add_parser("tts-cache-prune", parents=[common], help="delete cached TTS clips no part uses")
+    c.add_argument("--yes", action="store_true", help="delete (default: only report)")
+    c.set_defaults(func=cmd_tts_cache_prune)
 
     c = sub.add_parser("set-style", parents=[common], help="set the series style preset (refused once locked)")
     c.add_argument("slug")

@@ -61,7 +61,7 @@ SHEET_STEPS = ["Story", "Voice", "Plan", "Stills", "Final", "Post"]
 
 
 def sheet_cells(slug: str, pdir: Path, p) -> list[str]:
-    st = {f.alias or n: getattr(p.stages, n).status for n, f in Stages.model_fields.items()}
+    st = {f.alias or n: s.status for n, f in Stages.model_fields.items() if (s := getattr(p.stages, n)) is not None}
     ok = lambda *xs: all(st.get(x) == "done" for x in xs)  # noqa: E731
     steps = [  # (done, stages that can fail it, ready for review)
         (ok("prep"), ["prep"], False),

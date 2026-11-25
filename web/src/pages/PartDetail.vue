@@ -39,8 +39,9 @@ const d = computed(() => data.value?.[0])
 const series = computed(() => data.value?.[1].series)
 const wide = computed(() => series.value?.style.aspect === '16:9')
 const p = computed(() => d.value?.part)
-const stages = computed<Record<string, string>>(() => Object.fromEntries(Object.entries(p.value?.stages ?? {}).map(([k, v]) => [k, v.status])))
-const errors = computed(() => Object.fromEntries(Object.entries(p.value?.stages ?? {}).map(([k, v]) => [k, v.error ?? null])))
+const stageList = computed(() => Object.entries(p.value?.stages ?? {}).filter((e): e is [string, NonNullable<typeof e[1]>] => e[1] != null)) // tts: only once a TTS part ran it
+const stages = computed<Record<string, string>>(() => Object.fromEntries(stageList.value.map(([k, v]) => [k, v.status])))
+const errors = computed(() => Object.fromEntries(stageList.value.map(([k, v]) => [k, v.error ?? null])))
 const approved = (a: Approval) => !!p.value?.approvals[a].approved_at
 const has = (f: string) => !!d.value?.files[f]
 // script-for-tts.txt: what the voice reads (written by prep, or by a Story Package import)

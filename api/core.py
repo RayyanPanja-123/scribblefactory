@@ -86,7 +86,8 @@ def part_summary(pdir: Path, p) -> dict:
     if p is None:
         return {"id": pdir.name, "missing": True}
     return {"id": p.id, "number": p.number, "title": p.title,
-            "stages": {f.alias or name: getattr(p.stages, name).status for name, f in Stages.model_fields.items()},
+            "stages": {f.alias or name: s.status for name, f in Stages.model_fields.items()
+                       if (s := getattr(p.stages, name)) is not None},
             "approvals": {n: getattr(p.approvals, n).model_dump(mode="json")["approved_at"] for n in APPROVE_NEEDS},
             "posted": p.posted.model_dump(mode="json"),
             "waiting": waiting_approvals(pdir, p)}

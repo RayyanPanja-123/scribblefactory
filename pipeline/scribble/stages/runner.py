@@ -7,7 +7,7 @@ import traceback
 from pathlib import Path
 
 from ..io import LIBRARY_FILES, library_of, load_part, save_part, series_bytes, used_catalog_bytes
-from ..schemas import utcnow
+from ..schemas import Stage, utcnow
 
 
 class StageError(Exception):
@@ -41,7 +41,10 @@ def inputs_hash(part_dir: Path, inputs, extra=None) -> str:
 
 def _update(part_json: Path, name: str, **fields) -> None:
     part = load_part(part_json)
-    stage = getattr(part.stages, "validate_" if name == "validate" else name)
+    field = "validate_" if name == "validate" else name
+    if (stage := getattr(part.stages, field)) is None:  # an optional stage (tts) on its first run
+        stage = Stage()
+        setattr(part.stages, field, stage)
     for k, v in fields.items():
         setattr(stage, k, v)
     save_part(part_json, part)
@@ -54,7 +57,7 @@ def run_stage(part_dir, name, fn, force=False, inputs=(), outputs=(), extra=None
     """
     part_dir = Path(part_dir)
     part_json = part_dir / "part.json"
-    stage = getattr(load_part(part_json).stages, "validate_" if name == "validate" else name)
+    stage = getattr(load_part(part_json).stages, "validate_" if name == "validate" else name) or Stage()
     digest = inputs_hash(part_dir, inputs, extra)
     if (not force and stage.status == "done" and stage.inputs_hash == digest
             and all((part_dir / o).exists() for o in outputs)):
@@ -90,7 +93,7 @@ def recover_stuck(part_dir) -> list[str]:
     stuck = []
     for field, info in type(part.stages).model_fields.items():
         stage = getattr(part.stages, field)
-        if stage.status != "running":
+        if stage is None or stage.status != "running":
             continue
         live = stage.pid and pid_alive(stage.pid) and RUNNER_PROCESS.match(process_name(stage.pid) or "")
         if live or (field == "render" and lock_owner(Path(part_dir))):

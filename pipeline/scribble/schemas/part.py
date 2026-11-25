@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, model_serializer, model_validator
 
 from .base import PartId, Strict, UtcDateTime
 
@@ -21,6 +21,8 @@ class Stage(Strict):
 
 class Stages(Strict):
     prep: Stage = Stage()
+    tts: Stage | None = Field(default=None, description="voice_source tts only: voice.mp3 from the TTS server "
+                                                        "(none: never run)")
     import_check: Stage = Stage()
     timing: Stage = Stage()
     shots: Stage = Stage()
@@ -30,6 +32,13 @@ class Stages(Strict):
     finish: Stage = Stage()
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True, serialize_by_alias=True)
+
+    @model_serializer(mode="wrap")
+    def _no_null_tts(self, handler):
+        d = handler(self)
+        if d.get("tts") is None:
+            d.pop("tts", None)  # a recorded-voice part never shows it
+        return d
 
 
 class Approval(Strict):
@@ -59,6 +68,15 @@ class PartModel(Strict):
     stages: Stages = Stages()
     approvals: Approvals = Approvals()
     posted: Posted = Posted()
+    voice_source: Literal["recorded", "tts"] = Field(default="recorded", description="recorded: an uploaded voice.mp3; "
+                                                     "tts: the tts stage makes voice.mp3 from the script")
+
+    @model_serializer(mode="wrap")
+    def _omit_recorded(self, handler):
+        d = handler(self)
+        if d.get("voice_source") == "recorded":
+            d.pop("voice_source")  # part.json as before
+        return d
 
     @model_validator(mode="before")
     @classmethod

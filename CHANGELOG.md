@@ -1,6 +1,13 @@
 # Changelog
 
 ## Unreleased
+- Voice: TTS voices from the in-house Kokoro server (Phase A, single narrator). A part with
+  `set-voice-source <slug> <part> tts` gets a new `tts` stage: one clip per story.md line, cached in
+  `library/_tts-cache` (key: text, voice, speed, server, `tts_model_tag`), joined with `tts_line_gap` silence into
+  voice.mp3; every later stage runs as for an upload. A recording already there is kept as voice-recorded.mp3, and a
+  server that is down leaves the part untouched. Narrator: `set-voice <slug> --tts am_adam --speed 1.1` (else
+  settings `tts_voice`); server: `tts-settings --url http://host:port`; `tts-voices --probe`, `tts-cache-prune`.
+  Recorded parts, plans and frames are byte-identical (the narrator voice is left out of the series hash).
 - World Items: sky lock. In a low angle, sky-layer items (sun, planet) rise to stay high in the sky instead of
   sinking toward the cast (`STYLE.items.skyLock`, 0 = off). Only the sky layer; sets without sky items render as before.
 - Story: a walk word moves only a character the phrase names, or one a pronoun points back at ("the saucer came

@@ -9,6 +9,12 @@ from .base import HexColor, PartId, Slug, Strict, UtcDateTime, WardrobeId
 
 # --- series.json ---
 
+class TtsVoice(Strict):
+    """a voice on the Kokoro TTS server (settings tts_url): its id and speaking speed"""
+    id: str = Field(min_length=1, max_length=60, description="Kokoro voice id, e.g. am_michael (settings tts_voices)")
+    speed: float = Field(default=1.0, ge=0.5, le=2.0)
+
+
 class Voice(Strict):
     provider: str = "freetts.ai"
     voice_name: str
@@ -16,6 +22,15 @@ class Voice(Strict):
     # word -> respelling for the voice only (script-for-tts.txt); captions keep the word. One token each, so the
     # voice keeps story.md's word count: e.g. {"Negro": "Neh-groh"}
     pronunciations: dict[str, str] = {}
+    tts: TtsVoice | None = Field(default=None, description="the narrator's TTS voice for parts with voice_source "
+                                                           "tts (none: settings tts_voice)")
+
+    @model_serializer(mode="wrap")
+    def _no_null_tts(self, handler):
+        d = handler(self)
+        if d.get("tts") is None:
+            d.pop("tts", None)  # left out unset: series.json as before
+        return d
 
     @field_validator("pronunciations")
     @classmethod

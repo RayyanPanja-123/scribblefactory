@@ -2013,6 +2013,13 @@ export interface components {
             stages: components["schemas"]["Stages"];
             /** Title */
             title: string;
+            /**
+             * Voice Source
+             * @description recorded: an uploaded voice.mp3; tts: the tts stage makes voice.mp3 from the script
+             * @default recorded
+             * @enum {string}
+             */
+            voice_source: "recorded" | "tts";
         };
         /** PartSummary */
         PartSummary: {
@@ -2550,6 +2557,8 @@ export interface components {
              *     }
              */
             timing: components["schemas"]["Stage"];
+            /** @description voice_source tts only: voice.mp3 from the TTS server (none: never run) */
+            tts?: components["schemas"]["Stage"] | null;
             /**
              * @default {
              *       "status": "pending"
@@ -2649,6 +2658,22 @@ export interface components {
              */
             style: string;
         };
+        /**
+         * TtsVoice
+         * @description a voice on the Kokoro TTS server (settings tts_url): its id and speaking speed
+         */
+        TtsVoice: {
+            /**
+             * Id
+             * @description Kokoro voice id, e.g. am_michael (settings tts_voices)
+             */
+            id: string;
+            /**
+             * Speed
+             * @default 1
+             */
+            speed: number;
+        };
         /** UploadText */
         UploadText: {
             /** Text */
@@ -2686,6 +2711,8 @@ export interface components {
              * @default freetts.ai
              */
             provider: string;
+            /** @description the narrator's TTS voice for parts with voice_source tts (none: settings tts_voice) */
+            tts?: components["schemas"]["TtsVoice"] | null;
             /** Voice Name */
             voice_name: string;
         };

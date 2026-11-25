@@ -8,6 +8,12 @@ caption_model: the free Gemini model captions try first (FREE_GEMINI).
 export_directory: folder where approved final videos are copied by the Export button.
 audio_directory: root folder where a folder is created for each new series' audio files.
 gemini_key: the Gemini API key for captions; read only by gemini_key(), never by load(), so it never reaches the browser.
+tts_url: the Kokoro TTS server (e.g. http://192.168.1.6:8765); empty: TTS off.
+tts_voice: the default narrator voice (a series' voice.tts overrides it).
+tts_voices: the voice ids the server takes (it has no list endpoint: `tts-voices --probe` finds them).
+tts_line_gap: seconds of silence between two script lines in a TTS voice.
+tts_model_tag: part of every cached clip's key; change it when the server's model or voices change (the server
+  reports no version), so old clips are made again.
 """
 import ctypes
 import json
@@ -24,7 +30,10 @@ FREE_GEMINI = ("gemini-flash-latest", "gemini-3.8-flash", "gemini-3.7-flash", "g
                "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite")
 DEFAULTS = {"render_workers": "auto", "force_software_gl": False, "socials": dict.fromkeys(SOCIALS, ""),
             "caption_model": FREE_GEMINI[0], "export_directory": r"D:\personal\short-animations\reels",
-            "audio_directory": r"D:\personal\short-animations\audios"}
+            "audio_directory": r"D:\personal\short-animations\audios",
+            # the voices the server took when probed 2026-11-24 (of the 54 Kokoro v1.0 ids, only these 4)
+            "tts_url": "", "tts_voice": "am_michael", "tts_voices": ["am_adam", "am_fenrir", "am_michael", "am_puck"],
+            "tts_line_gap": 0.3, "tts_model_tag": "kokoro-onnx"}
 MAX_WORKERS = 16
 MAX_AUTO = 8
 GB_PER_WORKER = 1.5  # one Chromium with its page and frames in flight, plus headroom

@@ -2706,6 +2706,16 @@
           "title": {
             "title": "Title",
             "type": "string"
+          },
+          "voice_source": {
+            "default": "recorded",
+            "description": "recorded: an uploaded voice.mp3; tts: the tts stage makes voice.mp3 from the script",
+            "enum": [
+              "recorded",
+              "tts"
+            ],
+            "title": "Voice Source",
+            "type": "string"
           }
         },
         "required": [
@@ -3871,6 +3881,17 @@
               "status": "pending"
             }
           },
+          "tts": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Stage"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "voice_source tts only: voice.mp3 from the TTS server (none: never run)"
+          },
           "validate": {
             "$ref": "#/components/schemas/Stage",
             "default": {
@@ -4114,6 +4135,31 @@
         "title": "Top",
         "type": "object"
       },
+      "TtsVoice": {
+        "additionalProperties": false,
+        "description": "a voice on the Kokoro TTS server (settings tts_url): its id and speaking speed",
+        "properties": {
+          "id": {
+            "description": "Kokoro voice id, e.g. am_michael (settings tts_voices)",
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Id",
+            "type": "string"
+          },
+          "speed": {
+            "default": 1.0,
+            "maximum": 2.0,
+            "minimum": 0.5,
+            "title": "Speed",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "TtsVoice",
+        "type": "object"
+      },
       "UploadText": {
         "properties": {
           "text": {
@@ -4187,6 +4233,17 @@
             "default": "freetts.ai",
             "title": "Provider",
             "type": "string"
+          },
+          "tts": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TtsVoice"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the narrator's TTS voice for parts with voice_source tts (none: settings tts_voice)"
           },
           "voice_name": {
             "title": "Voice Name",

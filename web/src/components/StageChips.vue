@@ -6,11 +6,12 @@ import { label, statusChip } from '../composables/ui'
 // 8 stage chips. With `menu`, each chip opens a small menu: the error (failed) and "re-run (force)".
 const p = defineProps<{ stages: Record<string, string>; errors?: Record<string, string | null>; menu?: boolean; disabled?: string | null }>()
 const emit = defineEmits<{ rerun: [stage: string] }>()
-const SHORT: Record<string, string> = { prep: 'script', import_check: 'voice check', timing: 'timing', shots: 'shots', render: 'video', audio: 'sound', finish: 'final', validate: 'story check' }
-const FRIENDLY: Record<string, string> = { prep: 'Prepare script', import_check: 'Check voice', timing: 'Align voice', shots: 'Plan shots', render: 'Render video', audio: 'Make sound', finish: 'Finish and QA', validate: 'Check story' }
+const SHORT: Record<string, string> = { prep: 'script', tts: 'tts voice', import_check: 'voice check', timing: 'timing', shots: 'shots', render: 'video', audio: 'sound', finish: 'final', validate: 'story check' }
+const FRIENDLY: Record<string, string> = { prep: 'Prepare script', tts: 'Make TTS voice', import_check: 'Check voice', timing: 'Align voice', shots: 'Plan shots', render: 'Render video', audio: 'Make sound', finish: 'Finish and QA', validate: 'Check story' }
 // what each stage does (pipeline/scribble/stages/*.py headers), shown in the chip's hover / focus tooltip
 const ABOUT: Record<string, string> = {
   prep: 'Turns story.md into script-for-tts.txt: the plain spoken text to paste into the voice site (every @ line stripped).',
+  tts: 'TTS parts only: makes voice.mp3 from the script on the Kokoro server, one clip per line (cached), with your recording kept as voice-recorded.mp3.',
   import_check: 'Checks voice.mp3 plays and reports long silences or a length that does not fit the script. Changes nothing.',
   timing: 'Listens to the voice on this machine and finds when each word is spoken (phrases.json). Makes voice-tight.wav with long pauses shortened; voice.mp3 is never changed.',
   shots: 'Plans the video from story.md\'s @ lines and the word timings (story.json): set, cast, positions, actions, faces, camera, weather, lightning and sound cues. Fixed rules and seed, no AI: the same script gives the same plan.',

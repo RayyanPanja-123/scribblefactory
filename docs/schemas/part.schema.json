@@ -249,6 +249,18 @@
             "status": "pending"
           }
         },
+        "tts": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Stage"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "voice_source tts only: voice.mp3 from the TTS server (none: never run)"
+        },
         "validate": {
           "$ref": "#/$defs/Stage",
           "default": {
@@ -373,6 +385,16 @@
     },
     "title": {
       "title": "Title",
+      "type": "string"
+    },
+    "voice_source": {
+      "default": "recorded",
+      "description": "recorded: an uploaded voice.mp3; tts: the tts stage makes voice.mp3 from the script",
+      "enum": [
+        "recorded",
+        "tts"
+      ],
+      "title": "Voice Source",
       "type": "string"
     }
   },
