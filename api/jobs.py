@@ -1,5 +1,9 @@
 """The job queue: one in-process worker running CLI subprocesses. Jobs persist to the job table (db.py), so a
-restart resumes the queue (main.startup). busy() / check_no_jobs(): what a running job blocks."""
+restart resumes the queue (main.startup). busy() / check_no_jobs(): what a running job blocks.
+
+Each step runs apart from the API (api/jobstep.py, its own process group) and writes its output to
+<library>/_jobs/<job>-<step>.log, its exit code to <log>.rc. The worker follows the log, so a restarting API (dev
+reload) leaves a running step alone: the new API re-attaches to it (load_jobs) and the job carries on."""
 
 import itertools
 import os
@@ -8,7 +12,9 @@ import shlex
 import subprocess
 import sys
 import threading
+import time
 from collections import deque
+from pathlib import Path
 from datetime import date, datetime
 
 from fastapi import HTTPException, APIRouter
@@ -113,10 +119,20 @@ def save_jobs() -> None:
         db.save_jobs(lib(), [{**public(j), "argv": j["argv"], "pid": j.get("pid")} for j in list(JOBS)])
 
 
+def step_log(job: dict, step: int) -> Path:
+    return lib() / "_jobs" / f"{job['id']}-{step}.log"
+
+
+def _alive(pid: int | None) -> bool:
+    return bool(pid) and render_stage.pid_alive(pid) and bool(
+        render_stage.RUNNER_PROCESS.match(render_stage.process_name(pid) or ""))
+
+
 def load_jobs() -> list[str]:
-    """the job table -> JOBS. A job left running by the last API process failed ("interrupted by restart"); its
-    process, if it still runs (job steps start in their own process group, so they can outlive the API), is stopped:
-    no one follows its output any more. Queued jobs stay queued and the worker picks them up. Returns notes."""
+    """the job table -> JOBS. A job left running by the last API process is picked up again when its step still runs
+    (or ended meanwhile: its exit code is in the log's .rc): the worker follows the step's log and carries on with the
+    rest. One whose step is gone without an exit code failed ("interrupted by restart"). Queued jobs stay queued and the
+    worker picks them up. Returns notes."""
     global _ids
     notes = []
     try:
@@ -136,18 +152,20 @@ def load_jobs() -> list[str]:
                 j["tag"] = f"{series_code(j['slug'])}{number:03d}"
         j["output"] = deque(j.get("output", []), maxlen=OUTPUT_LINES)
         if j["status"] == "running":
-            pid = j.get("pid")
-            if pid and render_stage.pid_alive(pid) and render_stage.RUNNER_PROCESS.match(
-                    render_stage.process_name(pid) or ""):
-                render_stage.kill_pid_tree(pid)
-                notes.append(f"job {j['id']}: stopped its orphaned process {pid}")
+            step = j.get("current_step") or 0
+            log = step_log(j, step)
+            if log.is_file() and (_alive(j.get("pid")) or Path(f"{log}.rc").is_file()):
+                j["adopt"] = True  # the worker follows its log again (before any queued job)
+                notes.append(f"job {j['id']} ({j['slug']} {j['part']}): step {step + 1} still running, picked up again")
+                continue
             j.update(status="failed", error="interrupted by restart", finished_at=_iso(utcnow()), pid=None)
             notes.append(f"job {j['id']} ({j['slug']} {j['part']}) was running: marked failed (interrupted by restart)")
     with _cv:
         JOBS[:] = saved
         _ids = itertools.count(max((j["id"] for j in saved), default=0) + 1)
-        if any(j["status"] == "queued" for j in saved):
-            notes.append(f"resuming {sum(j['status'] == 'queued' for j in saved)} queued job(s)")
+        if any(j["status"] == "queued" or j.get("adopt") for j in saved):
+            if n := sum(j["status"] == "queued" for j in saved):
+                notes.append(f"resuming {n} queued job(s)")
             _start_worker()
             _cv.notify()
     if saved:
@@ -213,6 +231,8 @@ def cancel_job(job_id: int):
         proc = _procs.get(job_id)
     if proc:
         render_stage.kill_tree(proc)  # the worker sees the exit and finishes the job as cancelled
+    elif not was_queued and job.get("pid"):
+        render_stage.kill_pid_tree(job["pid"])  # a step picked up after a restart: no Popen, its process tree
     elif was_queued:
         job["finished_at"] = _iso(utcnow())
         publish("job-finished", _brief(job))
@@ -234,12 +254,15 @@ def _start_worker() -> None:
 def _work() -> None:
     while True:
         with _cv:
-            while not (job := next((j for j in JOBS if j["status"] == "queued"), None)):
+            while not (job := next((j for j in JOBS if j.get("adopt")), None)
+                       or next((j for j in JOBS if j["status"] == "queued"), None)):
                 _cv.wait()
-            job["status"], job["started_at"] = "running", _iso(utcnow())
+            adopt = job.pop("adopt", False)
+            if not adopt:
+                job["status"], job["started_at"] = "running", _iso(utcnow())
         save_jobs()
         publish("job-started", _brief(job))
-        _run(job)
+        _run(job, adopt)
         try:  # the files the job made or changed: their stored_file rows
             sync_files(storage_root(lib()) / job["slug"])
         except Exception as e:  # never fails the job
@@ -253,36 +276,83 @@ def _work() -> None:
         save_jobs()
 
 
-def _run(job: dict) -> None:
-    env = {**os.environ, "PYTHONUNBUFFERED": "1", "PYTHONIOENCODING": "utf-8"}
-    for i, argv in enumerate(job["argv"]):
-        job["current_step"] = i
-        publish("job-step", {"id": job["id"], "step": i, "command": job["steps"][i]})
-        with _cv:
-            if job["status"] == "cancelled":
-                return
-            proc = subprocess.Popen(argv, cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                    text=True, encoding="utf-8", errors="replace", **render_stage.GROUP)
-            _procs[job["id"]] = proc
-            job["pid"] = proc.pid
-        save_jobs()
-        for line in proc.stdout:
-            line = line.rstrip("\r\n")
+POLL_S = 0.25  # how often the worker reads a step's log
+
+
+def _follow(job: dict, i: int, log: Path, running, pos: int = 0) -> int:
+    """publish the step's log lines as they come until the step ends; its exit code (-1: killed, no .rc written)"""
+    rc, buf = Path(f"{log}.rc"), b""
+    while True:
+        ended = rc.is_file() or not running()  # read once more after it ends: its last lines
+        with open(log, "rb") as f:
+            f.seek(pos)
+            data = f.read()
+        pos += len(data)
+        *lines, buf = (buf + data).split(b"\n")
+        if ended and buf:
+            lines, buf = [*lines, buf], b""
+        for raw in lines:
+            line = raw.decode("utf-8", "replace").rstrip("\r")
             job["output"].append(line)
             publish("job-output", {"id": job["id"], "step": i, "line": line})
-        proc.wait()
-        with _cv:
-            _procs.pop(job["id"], None)
-        job["returncode"] = proc.returncode
-        if job["status"] == "cancelled" and job["part"]:  # killed: its stage never got to say so, nor drop its lock
-            d = part_dir_of(storage_root(lib()) / job["slug"], job["part"])
-            notes = render_stage.clear_stale_lock(d) + [f"{n}: cancelled, marked failed" for n in recover_stuck(d)]
-            job["output"] += notes
-        publish("part-changed", {"slug": job["slug"], "part": job["part"]})
-        publish("series-changed", {"slug": job["slug"]})
-        if job["status"] == "cancelled":
-            return
-        if proc.returncode != 0:
-            job["status"] = "failed"
-            return
-    job["status"] = "done"
+        if ended:
+            return int(rc.read_text().strip() or -1) if rc.is_file() else -1
+        time.sleep(POLL_S)
+
+
+def _run(job: dict, adopt: bool = False) -> None:
+    """the job's steps in order. adopt: picked up after an API restart, its current step already running (or ended):
+    follow that step's log from where it is now, then carry on with the rest"""
+    env = {**os.environ, "PYTHONUNBUFFERED": "1", "PYTHONIOENCODING": "utf-8"}
+    first = (job["current_step"] or 0) if adopt else 0
+    try:
+        for i, argv in enumerate(job["argv"][first:], first):
+            job["current_step"] = i
+            log = step_log(job, i)
+            publish("job-step", {"id": job["id"], "step": i, "command": job["steps"][i]})
+            if adopt and i == first:  # not our child: follow it by pid. Its lines from while the API was away are in
+                pid = job["pid"]       # the log; the saved output has them up to the restart only
+                job["output"].append("(the API restarted: picked this step up again)")
+                rc = _follow(job, i, log, lambda: _alive(pid), pos=log.stat().st_size)
+            else:
+                with _cv:
+                    if job["status"] == "cancelled":
+                        return
+                    log.parent.mkdir(exist_ok=True)
+                    for f in (log, Path(f"{log}.rc")):
+                        f.unlink(missing_ok=True)
+                    proc = subprocess.Popen([sys.executable, "-m", "api.jobstep", str(log), *argv], cwd=ROOT, env=env,
+                                            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                            stderr=subprocess.DEVNULL, **render_stage.GROUP)
+                    _procs[job["id"]] = proc
+                    job["pid"] = proc.pid
+                save_jobs()
+                while not log.exists() and proc.poll() is None:  # the wrapper creates it first thing
+                    time.sleep(0.05)
+                log.touch()
+                rc = _follow(job, i, log, lambda: proc.poll() is None)
+                proc.wait()
+            with _cv:
+                _procs.pop(job["id"], None)
+            job["returncode"] = rc
+            _finish_step(job)
+            if job["status"] == "cancelled":
+                return
+            if rc != 0:
+                job["status"] = "failed"
+                return
+        job["status"] = "done"
+    finally:
+        if job["status"] != "running":  # the output is saved with the job: its logs can go
+            for f in (lib() / "_jobs").glob(f"{job['id']}-*"):
+                f.unlink(missing_ok=True)
+
+
+def _finish_step(job: dict) -> None:
+    """after a step: a cancelled one never got to mark its stage or drop its lock; the pages refresh"""
+    if job["status"] == "cancelled" and job["part"]:
+        d = part_dir_of(storage_root(lib()) / job["slug"], job["part"])
+        notes = render_stage.clear_stale_lock(d) + [f"{n}: cancelled, marked failed" for n in recover_stuck(d)]
+        job["output"] += notes
+    publish("part-changed", {"slug": job["slug"], "part": job["part"]})
+    publish("series-changed", {"slug": job["slug"]})

@@ -1,6 +1,11 @@
 # Changelog
 
 ## Unreleased
+- Jobs survive an API restart (a dev reload, a crash). Each step runs apart from the API (`api/jobstep.py`, its own
+  process group) with its output in `library/_jobs/<job>-<step>.log` and its exit code in `<log>.rc`; the worker
+  follows the log. A restarted API picks a still-running (or meanwhile finished) step up again and carries on with
+  the job's next steps, instead of killing it as an orphan. A step gone without an exit code still fails
+  ("interrupted by restart"); cancel still kills the whole tree. The logs go once the job is finished.
 - AI helpers and help ask who speaks first: single narration or cast voice acting. The chat story guide
   (STORY_GUIDE.md) makes the AI ask and wait before any script; the in-app "Voice scripts with AI" asks you (Cast voice
   acting needs cast members) and the prompt states the choice; its reply check refuses cast lines in single narration

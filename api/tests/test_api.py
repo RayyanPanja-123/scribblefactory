@@ -546,6 +546,44 @@ def test_jobs_persist_and_resume_after_restart(client, lib):
     assert saved[8]["status"] == "done" and saved[8]["output"] == ["resumed"] and 9 in saved
 
 
+def test_a_running_step_survives_an_api_restart(client, lib):
+    """the API restarts (dev reload) while a job's step runs: the step goes on, the new API picks it up from its log,
+    and the job carries on with its next step"""
+    job = {"id": 11, "slug": "demo", "part": "part-01", "steps": ["run --stage prep", "run --stage timing"],
+           "status": "running", "current_step": 0, "queued_at": "2026-01-01T00:00:00Z", "started_at": "2026-01-01T00:00:00Z",
+           "finished_at": None, "returncode": None, "output": ["first half"], "error": None,
+           "argv": [[PY, "-c", "print('never run again')"], [PY, "-c", "print('next step')"]]}
+    log = lib / "_jobs" / "11-0.log"
+    log.parent.mkdir()
+    step = subprocess.Popen([PY, "-m", "api.jobstep", str(log), PY, "-c",
+                             "import time; print('first half', flush=True); time.sleep(1.5); print('second half')"],
+                            cwd=jobs.ROOT, **render_stage.GROUP)  # what the last API started
+    while not log.exists() or b"first half" not in log.read_bytes():
+        time.sleep(0.05)
+    db.save_jobs(lib, [{**job, "pid": step.pid}])
+    try:
+        m.startup()
+        j = wait_job(client, 11)
+        assert j["status"] == "done" and j["returncode"] == 0, j
+        assert j["output"][-2:] == ["second half", "next step"] and "never run again" not in j["output"]
+        assert not list((lib / "_jobs").iterdir())  # the logs go with the finished job
+    finally:
+        step.wait(timeout=10)
+
+
+def test_a_step_gone_without_an_exit_code_fails(client, lib):
+    log = lib / "_jobs" / "12-0.log"
+    log.parent.mkdir()
+    log.write_text("half\n", encoding="utf-8")  # killed with the API: no .rc
+    db.save_jobs(lib, [{"id": 12, "slug": "demo", "part": "part-01", "steps": ["run --stage prep"], "status": "running",
+                        "current_step": 0, "queued_at": "2026-01-01T00:00:00Z", "started_at": None, "finished_at": None,
+                        "returncode": None, "output": [], "error": None, "argv": [[PY, "-c", "print(1)"]],
+                        "pid": dead_pid()}])
+    m.startup()
+    j = next(x for x in client.get("/api/jobs").json() if x["id"] == 12)
+    assert (j["status"], j["error"]) == ("failed", "interrupted by restart")
+
+
 def test_startup_fails_stuck_stages_and_keeps_live_ones(client, lib, capsys):
     f = part_dir_of(lib / "database" / "storage" / "demo", "part-01") / "part.json"
     p = load_part(f)
