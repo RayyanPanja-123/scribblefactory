@@ -3,7 +3,7 @@ Plus story.md's @sfx sounds from library/sfx/ (sfx.py: placed and ducked under t
 
 Our own synth (numpy + stdlib wave only): the reference repo's audio kit needs scipy and is built for one story.
 music.wav and sfx.wav are deterministic from story.json (seed, cues, shots) and the voice length. No
-@background-music means a silent music.wav: there is no default music.
+@background-music means the synth loop (music_start/music_stop cues).
 """
 
 import io
@@ -22,6 +22,7 @@ from ..io import atomic_write_bytes, replace_file
 from ..schemas import StoryModel
 from .runner import StageError
 
+MUSIC_UNDER_DB = -6  # synth music loudness relative to the voice
 BACKGROUND_UNDER_DB = -16.5  # the pack's default 15% bed under narration
 SFX_UNDER_DB = -3    # SFX loudness relative to the voice
 TARGET_LUFS, TARGET_TP, LUFS_TOL = -14.0, -1.0, 0.5
@@ -35,10 +36,12 @@ OUTPUTS = ["audio/music.wav", "audio/sfx.wav", "audio/mix.wav"]
 
 SR, FPS = 48000, 30
 SPF = SR // FPS               # samples per video frame
-FADE = int(0.030 * SR)        # background music start / change fade
+FADE = int(0.030 * SR)        # music start / stop / change fade
 YAP = {"every": 9, "count": 3}  # engine/page/dog.js BARK: 3 yaps, 9 frames apart, from the cue frame
 CAR_FADE_FRAMES = 8           # engine fade in / out at car shot edges
 CAR_LEVEL = {"arrive": 1.0, "drive": 1.0, "leave": 1.0, "idle": 0.3, "broken": 0.0}
+SCALE = [0, 2, 4, 5, 7, 9, 11]
+PROGRESSIONS = [(0, 5, 3, 4), (0, 3, 4, 3), (0, 4, 5, 3), (0, 3, 0, 4)]  # scale degrees, one chord per bar
 TAU = 2 * np.pi
 
 
@@ -46,6 +49,10 @@ TAU = 2 * np.pi
 
 def _t(seconds):
     return np.arange(int(seconds * SR)) / SR
+
+
+def _hz(midi):
+    return 440.0 * 2 ** ((midi - 69) / 12)
 
 
 def _edges(x, attack=0.003, release=0.01):
@@ -69,6 +76,92 @@ def _place(buf, x, start, gain=1.0, pan=0.0):
     th = (pan + 1) * np.pi / 4
     buf[a:b, 0] += seg * np.cos(th)
     buf[a:b, 1] += seg * np.sin(th)
+
+
+# --- instruments (the default synth music) ---
+
+def _bass(f, dur):
+    t = _t(dur)
+    return _edges((np.sin(TAU * f * t) + 0.3 * np.sin(TAU * 2 * f * t)) * np.exp(-t / 0.3), 0.005, 0.03)
+
+
+def _keys(f, dur):
+    t = _t(dur)
+    return _edges((np.sin(TAU * f * t) + 0.25 * np.sin(TAU * 2 * f * t) + 0.1 * np.sin(TAU * 3 * f * t))
+                  * np.exp(-t / 0.2), 0.004, 0.03)
+
+
+def _kick():
+    t = _t(0.25)
+    return _edges(np.sin(TAU * np.cumsum(50 + 90 * np.exp(-t / 0.03)) / SR) * np.exp(-t / 0.12))
+
+
+def _shaker(R):
+    return _edges(np.diff(R.standard_normal(int(0.06 * SR) + 1)) * np.exp(-_t(0.06) / 0.015), 0.002, 0.01)
+
+
+def _snap(R):
+    t = _t(0.12)
+    return _edges(np.diff(_lowpass(R.standard_normal(len(t) + 1), 6)) * np.exp(-t / 0.035), 0.001, 0.01)
+
+
+def music_loop(seed: int) -> np.ndarray:
+    """4 bars, stereo, wrapping seamlessly: bass, chord stabs, kick / snap / shaker. Key and tempo from the seed."""
+    R = np.random.default_rng(seed % 2**63)
+    root = 48 + int(R.integers(0, 12))               # C3..B3
+    beat = 60 / int(R.integers(100, 121))            # 100-120 BPM
+    prog = PROGRESSIONS[int(R.integers(len(PROGRESSIONS)))]
+    n = int(round(16 * beat * SR))
+    buf = np.zeros((n + SR * 2, 2))                  # tail past the loop folds back to its start
+    at = lambda b: int(round(b * beat * SR))          # noqa: E731  beat -> sample
+    kick, shaker, snap = _kick(), _shaker(R), _snap(R)
+    for bar, deg in enumerate(prog):
+        b0 = bar * 4
+        triad = [root + SCALE[(deg + k) % 7] + 12 * ((deg + k) // 7) for k in (0, 2, 4)]
+        bass = triad[0] - 12
+        for b, note, length in ((0, bass, 0.9), (1.5, bass, 0.4), (2, triad[2] - 12, 0.9), (3.5, bass + 12, 0.4)):
+            _place(buf, _bass(_hz(note), length * beat), at(b0 + b), 0.5)
+        for b in (1, 2.5, 3):  # off-beat stabs: the playful bit
+            for k, note in enumerate(triad):
+                _place(buf, _keys(_hz(note + 12), 0.35 * beat), at(b0 + b), 0.12, pan=(k - 1) * 0.4)
+        for b in (0, 2):
+            _place(buf, kick, at(b0 + b), 0.5)
+        for b in (1, 3):
+            _place(buf, snap, at(b0 + b), 0.25, pan=-0.2)
+        for e in range(8):
+            _place(buf, shaker, at(b0 + e / 2), 0.08 if e % 2 else 0.04, pan=0.35)
+    loop = buf[:n].copy()
+    loop[:len(buf) - n] += buf[n:]
+    return loop
+
+
+def music_segments(story: StoryModel) -> list[tuple[int, int]]:
+    """(start, stop) frames where music plays: from music_start until the next music_stop (or the end)."""
+    segs, on = [], None
+    for c in sorted(story.cues, key=lambda c: c.frame):
+        if c.kind == "music_start" and on is None:
+            on = c.frame
+        elif c.kind == "music_stop" and on is not None:
+            segs.append((on, c.frame))
+            on = None
+    if on is not None:
+        segs.append((on, story.duration_frames))
+    return segs
+
+
+def render_music(story: StoryModel, n: int) -> np.ndarray:
+    loop, out = music_loop(story.seed), np.zeros((n, 2))
+    for f0, f1 in music_segments(story):
+        a, b = f0 * SPF, min(f1 * SPF + FADE, n)  # the stop fade starts at the cue
+        if a >= b:
+            continue
+        seg = np.resize(loop, (b - a, 2))  # restart the loop from bar 1 at every music_start
+        k = min(FADE, len(seg))
+        seg[:k] *= np.linspace(0, 1, FADE)[:k, None]
+        if f1 * SPF + FADE <= n:
+            seg[-k:] *= np.linspace(1, 0, FADE)[-k:, None]
+        out[a:b] = seg
+    return out
 
 
 def render_background_music(story: StoryModel, n: int) -> tuple[np.ndarray, float]:
@@ -285,8 +378,8 @@ def run(part_dir: Path) -> None:
         rendered_music, music_volume = render_background_music(story, n)
         # Keep the requested 0-1 setting meaningful after loudness matching.
         music_target = BACKGROUND_UNDER_DB + (20 * np.log10(music_volume / 0.15) if music_volume else -60)
-    else:  # no @background-music: no music at all
-        rendered_music, music_target = np.zeros((n, 2)), 0.0
+    else:  # no @background-music: the default synth loop
+        rendered_music, music_target = render_music(story, n), MUSIC_UNDER_DB
     atomic_write_bytes(d / "music.wav", wav_bytes(_peak_norm(rendered_music)))
     atomic_write_bytes(d / "sfx.wav", wav_bytes(_peak_norm(render_sfx(story, n))))
 

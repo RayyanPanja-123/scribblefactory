@@ -169,7 +169,7 @@ fit the story's period or design.
   Use a riser before a reveal, an impact on a strike, or a location sound to establish a scene.
 - `@background-music <track> [volume 0-1]`: starts a named music file from the Stickman History Shorts pack and keeps
   it under the narration until another `@background-music` changes it. The default volume is `0.15` (about 15%); use
-  `@background-music off` to stop it. Without any `@background-music` the part has no music at all. Track IDs: `monkeys-spinning-monkeys`, `comedy-quirky-sneaky`, `sneaky-snitch`,
+  `@background-music off` to stop it. Without any `@background-music` the part plays the default synth loop (it stops on the `!!` line). Track IDs: `monkeys-spinning-monkeys`, `comedy-quirky-sneaky`, `sneaky-snitch`,
   `cartoon-pizzicato`, `fluffing-a-duck`, `scheming-weasel-faster`, and `funny-comedy-quirky`.
 - `!! <line>`: the twist line. The line is read aloud and gets a push-in, roll, and low hit. Use it for the
   final reversal, not for ordinary emphasis.

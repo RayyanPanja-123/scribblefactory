@@ -1,4 +1,4 @@
-"""audio stage: @background-music (none here: silence) + SFX from cues, mix to -14 LUFS. Real ffmpeg, temp dirs only."""
+"""audio stage: @background-music (none here: the synth loop) + SFX from cues, mix to -14 LUFS. Real ffmpeg, temp dirs only."""
 
 from pipeline.scribble.io import part_dir_of
 from pipeline.tests.helpers import new_part
@@ -82,8 +82,17 @@ def test_deterministic(part, tmp_path):
         assert (d / name).read_bytes() == (part / name).read_bytes(), name
 
 
-def test_no_background_music_means_silence(part):
-    assert not np.abs(audio.decode(part / "audio/music.wav")).any()  # no default music
+def test_music_follows_cues(part):
+    m = audio.decode(part / "audio/music.wav")
+    assert rms(m, 0, 118) > 0.05
+    assert rms(m, 122, 180) < 1e-4  # stopped (30 ms fade = ~1 frame) and never restarted
+
+
+def test_music_restarts_only_at_a_later_start():
+    story = StoryModel.model_validate({**STORY, "cues": STORY["cues"] + [{"frame": 150, "kind": "music_start"}]})
+    m = audio.render_music(story, 180 * SPF)
+    assert audio.music_segments(story) == [(0, 120), (150, 180)]
+    assert rms(m, 122, 150) == 0 and rms(m, 151, 180) > 0.05
 
 
 def test_sfx_at_cues_and_car(part):
