@@ -36,13 +36,14 @@ def narrator(part_dir: Path) -> tuple[str, float]:
 
 
 def extra_inputs(part_dir: Path) -> dict:
-    """what else makes the voice: the narrator voice, the gap and the cache tag (never the server: no network here)"""
+    """what else makes the voice: the narrator voice, the gap, the cache tag and the server's model fingerprint last
+    seen (settings: no network here). A new model, once seen, makes every TTS part stale."""
     if not is_tts(part_dir):
         return {"voice_source": "recorded"}
     from .. import settings
     s = settings.load(library_of(part_dir))
     return {"voice_source": "tts", "narrator": narrator(part_dir), "gap": s["tts_line_gap"],
-            "url": s["tts_url"], "tag": s["tts_model_tag"]}
+            "fp": s["tts_server_fp"], "tag": s["tts_model_tag"]}
 
 
 def script_lines(part_dir: Path) -> list[tuple[int, str]]:

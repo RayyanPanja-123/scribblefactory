@@ -2,11 +2,14 @@
 
 ## Unreleased
 - Voice: TTS voices from the in-house Kokoro server (Phase A, single narrator). A part with
-  `set-voice-source <slug> <part> tts` gets a new `tts` stage: one clip per story.md line, cached in
-  `library/_tts-cache` (key: text, voice, speed, server, `tts_model_tag`), joined with `tts_line_gap` silence into
+  `set-voice-source <slug> <part> tts` gets a new `tts` stage: one clip per story.md line, fetched as one job from
+  the server's `/v1/jobs` API (polled; up to 500 lines a job) and cached in `library/_tts-cache` (key: text, voice,
+  speed, the server's model and voices hashes, `tts_model_tag`; a new model makes new clips by itself, a fully
+  cached script needs no server), joined with `tts_line_gap` silence into
   voice.mp3; every later stage runs as for an upload. A recording already there is kept as voice-recorded.mp3, and a
   server that is down leaves the part untouched. Narrator: `set-voice <slug> --tts am_adam --speed 1.1` (else
-  settings `tts_voice`); server: `tts-settings --url http://host:port`; `tts-voices --probe`, `tts-cache-prune`.
+  settings `tts_voice`); server: `tts-settings --url http://host:port`; `tts-voices` (the server's 50 voices),
+  `tts-cache-prune`.
   Recorded parts, plans and frames are byte-identical (the narrator voice is left out of the series hash).
 - World Items: sky lock. In a low angle, sky-layer items (sun, planet) rise to stay high in the sky instead of
   sinking toward the cast (`STYLE.items.skyLock`, 0 = off). Only the sky layer; sets without sky items render as before.

@@ -156,7 +156,8 @@ def cmd_set_voice(args) -> int:
         from .schemas import TtsVoice
         known = settings.load(library_root(args))["tts_voices"]
         if args.tts not in known:
-            raise UserError(f"unknown TTS voice {args.tts!r} (known: {', '.join(known)})")
+            raise UserError(f"unknown TTS voice {args.tts!r} (known: {', '.join(known)}; scribble tts-voices refreshes "
+                            "the list from the server)")
         series.voice.tts = TtsVoice(id=args.tts, speed=args.speed)
     save_series(f, series)
     v = series.voice
@@ -189,22 +190,19 @@ def cmd_tts_settings(args) -> int:
     if values:
         db.put_settings(lib, values)
     s = settings.load(lib)
-    for k in ("tts_url", "tts_voice", "tts_voices", "tts_line_gap", "tts_model_tag"):
+    for k in ("tts_url", "tts_voice", "tts_voices", "tts_line_gap", "tts_model_tag", "tts_server_fp"):
         print(f"{k}: {s[k]}")
     return 0
 
 
 def cmd_tts_voices(args) -> int:
+    """the server's voices (GET /v1/voices, saved to settings), or the last list seen when it does not answer"""
     from . import tts
     lib = library_root(args)
-    if args.probe:
-        url = tts.config(lib)["url"]
-        print(f"probing {len(tts.KOKORO_VOICES)} Kokoro voice ids on {url} ...")
-        found = tts.probe_voices(url, tts.KOKORO_VOICES)
-        if not found:
-            raise UserError("the server took none of the known voice ids")
-        db.put_settings(lib, {"tts_voices": found})
-    print("\n".join(settings.load(lib)["tts_voices"]))
+    cfg = tts.config(lib)
+    if not tts.server_state(lib, cfg):
+        print(f"warning: {cfg['url']} not answering; the voices it had last time:")
+    print("\n".join(cfg["voices"]))
     return 0
 
 
@@ -836,11 +834,10 @@ def build_parser() -> Parser:
     c.add_argument("--url", help="the Kokoro server, e.g. http://192.168.1.6:8765 ('' turns TTS off)")
     c.add_argument("--voice", help="default narrator voice id")
     c.add_argument("--gap", type=float, help="seconds of silence between script lines")
-    c.add_argument("--tag", help="cache tag: change it when the server's model or voices change")
+    c.add_argument("--tag", help="cache tag: change it to make every clip again")
     c.set_defaults(func=cmd_tts_settings)
 
-    c = sub.add_parser("tts-voices", parents=[common], help="list the TTS voices; --probe asks the server which work")
-    c.add_argument("--probe", action="store_true")
+    c = sub.add_parser("tts-voices", parents=[common], help="list the TTS server's voices")
     c.set_defaults(func=cmd_tts_voices)
 
     c = sub.add_parser("tts-cache-prune", parents=[common], help="delete cached TTS clips no part uses")

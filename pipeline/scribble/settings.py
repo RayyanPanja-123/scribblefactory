@@ -10,10 +10,11 @@ audio_directory: root folder where a folder is created for each new series' audi
 gemini_key: the Gemini API key for captions; read only by gemini_key(), never by load(), so it never reaches the browser.
 tts_url: the Kokoro TTS server (e.g. http://192.168.1.6:8765); empty: TTS off.
 tts_voice: the default narrator voice (a series' voice.tts overrides it).
-tts_voices: the voice ids the server takes (it has no list endpoint: `tts-voices --probe` finds them).
+tts_voices: the server's voice ids (GET /v1/voices), refreshed whenever the tts stage or `tts-voices` reaches it.
 tts_line_gap: seconds of silence between two script lines in a TTS voice.
-tts_model_tag: part of every cached clip's key; change it when the server's model or voices change (the server
-  reports no version), so old clips are made again.
+tts_server_fp: the server's model and voices hashes (/health) last seen: part of every cached clip's key, so a new
+  model makes new clips by itself, and kept so a fully cached script needs no server.
+tts_model_tag: also part of every clip's key: change it to make every clip again by hand.
 """
 import ctypes
 import json
@@ -31,9 +32,9 @@ FREE_GEMINI = ("gemini-flash-latest", "gemini-3.8-flash", "gemini-3.7-flash", "g
 DEFAULTS = {"render_workers": "auto", "force_software_gl": False, "socials": dict.fromkeys(SOCIALS, ""),
             "caption_model": FREE_GEMINI[0], "export_directory": r"D:\personal\short-animations\reels",
             "audio_directory": r"D:\personal\short-animations\audios",
-            # the voices the server took when probed 2026-11-24 (of the 54 Kokoro v1.0 ids, only these 4)
+            # until the server is first reached: its 4 voices of 2026-11-24 (it lists 50 now, GET /v1/voices)
             "tts_url": "", "tts_voice": "am_michael", "tts_voices": ["am_adam", "am_fenrir", "am_michael", "am_puck"],
-            "tts_line_gap": 0.3, "tts_model_tag": "kokoro-onnx"}
+            "tts_line_gap": 0.3, "tts_model_tag": "kokoro-onnx", "tts_server_fp": ""}
 MAX_WORKERS = 16
 MAX_AUTO = 8
 GB_PER_WORKER = 1.5  # one Chromium with its page and frames in flight, plus headroom

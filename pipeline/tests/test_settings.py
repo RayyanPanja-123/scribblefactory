@@ -23,7 +23,7 @@ def test_load_defaults_and_workers(tmp_path):
                                 "socials": {"youtube": "", "instagram": "", "facebook": ""}, "caption_model": "gemini-flash-latest",
                                 "export_directory": r"D:\personal\short-animations\reels", "audio_directory": r"D:\personal\short-animations\audios",
                                 "tts_url": "", "tts_voice": "am_michael", "tts_voices": ["am_adam", "am_fenrir", "am_michael", "am_puck"],
-                                "tts_line_gap": 0.3, "tts_model_tag": "kokoro-onnx"}
+                                "tts_line_gap": 0.3, "tts_model_tag": "kokoro-onnx", "tts_server_fp": ""}
     assert s.render_workers(tmp_path) == 6 and s.software_gl(tmp_path)
     for bad in (0, 17, True, "9"):  # out of range or wrong type: auto
         (tmp_path / "settings.json").write_text(json.dumps({"render_workers": bad}))
