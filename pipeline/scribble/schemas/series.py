@@ -307,6 +307,9 @@ class CastMember(Strict):
     headless: bool = Field(default=False, description="creatures with a stump only: the stump instead of the head")
     flame: Flame | None = Field(default=None, description="null: off. " + FLAME_DESC)
     flame_color: HexColor | None = Field(default=None, description=FLAME_COLOR_DESC)
+    voice: TtsVoice | None = Field(default=None, description="the TTS voice of this member's spoken lines "
+                                   "(`<id>: line` in story.md) in parts with voice_source tts. Left out of the saved "
+                                   "file when unset; never part of the look (no new approval)")
     looks: dict[Slug, CastLook] = Field(default={}, description="named variants a story switches to with @look "
                                                                "<cast>: <name> (default: back to this entry's own)")
     approved_at: UtcDateTime | None = None
@@ -318,7 +321,10 @@ class CastMember(Strict):
 
     @model_serializer(mode="wrap")
     def _no_null_flame(self, nxt):
-        return _drop_null_flame(nxt(self))
+        d = _drop_null_flame(nxt(self))
+        if isinstance(d, dict) and d.get("voice") is None:
+            d.pop("voice", None)
+        return d
 
     @field_validator("flame")
     @classmethod
@@ -379,7 +385,7 @@ class CastMember(Strict):
 
     def look(self) -> str:
         """everything the cast sheet shows (hex case ignored): a change here needs a new approval"""
-        return self.model_dump_json(exclude={"id", "name", "approved_at"}).lower()
+        return self.model_dump_json(exclude={"id", "name", "approved_at", "voice"}).lower()
 
 
 def _cast_upgrade(c):

@@ -223,3 +223,65 @@ def test_tts_fields_leave_series_hashes_alone(part):
     assert load_series(f).voice.tts.id == "am_adam"  # stored all the same
     s.voice.tts = None
     assert "tts" not in s.model_dump(mode="json")["voice"]
+
+
+# ---------------- speakers: "kai: line" ----------------
+
+DIALOGUE = ("# Stranded\nThe ship came down hard.\n@do kai: wave\nkai: \"Everyone alive?\"\nmira: Define alive.\n"
+            "!! kai: “Then we walk.”\n")
+
+
+def with_cast(p, voices: dict):
+    from pipeline.scribble.schemas import CastMember
+    f = p.parent / "series.json"
+    s = load_series(f)
+    s.cast = [CastMember(id=c, name=c.title(), top={"color": "#111111"}, eyes="dots",
+                         voice=TtsVoice(id=v) if v else None) for c, v in voices.items()]
+    save_series(f, s)
+    (p / "story.md").write_text(DIALOGUE, encoding="utf-8")
+    from pipeline.scribble.stages.prep import clean_markdown, strip_directives
+    (p / "script-for-tts.txt").write_text(clean_markdown(strip_directives(DIALOGUE)) + "\n", encoding="utf-8")
+
+
+def test_spoken_lines_lose_speaker_and_quotes_only():
+    from pipeline.scribble.stages.prep import clean_markdown, speakers, spoken, strip_directives
+    assert spoken('kai: "Hi there."') == "Hi there." and spoken("!! mira: Not again.") == "Not again."
+    assert spoken("Here's the catch: it works.") == "Here's the catch: it works."  # a narrator bridge stays
+    assert spoken('He said "no" twice.') == 'He said "no" twice.'  # a narrator's quotes stay
+    assert speakers(DIALOGUE) == {4: "kai", 5: "mira", 6: "kai"}
+    assert clean_markdown(strip_directives(DIALOGUE)) == \
+        "The ship came down hard. Everyone alive? Define alive. Then we walk."
+
+
+def test_each_speaker_in_their_own_voice(part, server):
+    url, _ = server
+    use(part, url)
+    with_cast(part, {"kai": "am_adam", "mira": None})  # mira has none: the narrator reads her line
+    tts_stage.run(part)
+    got = {i["text"]: i["voice"] for i in Kokoro.made}
+    assert got == {"The ship came down hard.": "am_michael", "Everyone alive?": "am_adam",
+                   "Define alive.": "am_michael", "Then we walk.": "am_adam"}
+    m = json.loads((part / tts_stage.MANIFEST).read_text(encoding="utf-8"))
+    assert [(ln["line"], ln["speaker"]) for ln in m["lines"]] == [(2, None), (4, "kai"), (5, "mira"), (6, "kai")]
+
+
+def test_a_cast_voice_is_not_part_of_the_look_or_series_hash(part):
+    with_cast(part, {"kai": None})
+    before, look = series_bytes(part.parent), load_series(part.parent / "series.json").cast[0].look()
+    with_cast(part, {"kai": "am_adam"})
+    kai = load_series(part.parent / "series.json").cast[0]
+    assert kai.voice.id == "am_adam" and kai.look() == look and series_bytes(part.parent) == before
+
+
+def test_storycheck_speakers_and_voices(part):
+    from pipeline.scribble.storycheck import check_story
+    with_cast(part, {"kai": "af_nope"})
+    db.put_settings(lib(part), {"tts_voices": ["am_adam", "am_michael"]})
+    r = check_story(part)
+    msgs = [x["message"] for x in r["problems"]]
+    assert any(m.startswith("unknown cast id mira (") and "spoken by cast member mira" in m for m in msgs)
+    assert any("kai's TTS voice 'af_nope' is not one of the server's voices" in m for m in msgs)
+    with_cast(part, {"kai": "am_adam", "mira": None})
+    r = check_story(part)
+    assert not any("voice" in x["message"] or "unknown cast" in x["message"] for x in r["problems"])
+    assert any(w["message"].startswith("mira speaks but has no TTS voice") for w in r["warnings"])

@@ -22,6 +22,8 @@ story.md directives (one per line) are stripped from the script:
   @sfx riser 0.6     a sound effect (library/sfx/sfx.json id, optional volume 0-1) for the next line (see sfx.py)
   @background-music <track> [volume]  a named music bed from assets/music/stickman-history-shorts; use off to stop
   !! text            this line is the twist (prefix stripped, text kept)
+  kai: text          kai (a cast id) says this line; quotes around it are optional and dropped. "!! kai: text" for
+                     a spoken twist. Every other text line is the narrator's
 """
 
 import re
@@ -50,6 +52,32 @@ QUOTES = str.maketrans({"‘": "'", "’": "'", "‚": "'", "‛": "'",
 
 
 TWIST_PREFIX = re.compile(r"^([ \t]*)!![ \t]+")
+SPEAKER = re.compile(r"^([ \t]*)([a-z0-9]+(?:-[a-z0-9]+)*):[ \t]+")  # "kai: line": a lowercase cast id first
+SAID = re.compile(r'^[ \t]*["“„‟](.*)["”‟][ \t]*$')                     # kai: "line": the quotes go
+
+
+def spoken(line: str) -> str:
+    """a text line as spoken: without the twist marker, the speaker and the quotes around a speaker's words (a
+    narrator line is only stripped of its "!!", as it always was)"""
+    line = TWIST_PREFIX.sub(r"\1", line)
+    if not (m := SPEAKER.match(line)):
+        return line
+    rest = line[m.end():]
+    return m[1] + (q[1] if (q := SAID.match(rest)) else rest)
+
+
+def speaker(line: str) -> str | None:
+    """the cast id that says this text line, or None (the narrator)"""
+    m = SPEAKER.match(TWIST_PREFIX.sub(r"\1", line))
+    return m[2] if m else None
+
+
+def speakers(md: str) -> dict[int, str]:
+    """story.md line number -> the cast id that says it (narrator lines left out)"""
+    return {no: s for no, line in enumerate(md.replace("\r\n", "\n").split("\n"), 1)
+            if not _is_directive(line) and (s := speaker(line))}
+
+
 MARKER = "⟦{}⟧"  # a token for the n-th @ line, "!" before a twist line, "/" after the line an @do applies to
 MARKER_RE = re.compile("^⟦([0-9]+|!|/|L[0-9]+)⟧$")
 
@@ -385,7 +413,7 @@ def _is_directive(line: str) -> bool:
 
 def strip_directives(md: str) -> str:
     lines = md.replace("\r\n", "\n").split("\n")
-    return "\n".join(TWIST_PREFIX.sub(r"\1", line) for line in lines if not _is_directive(line))
+    return "\n".join(spoken(line) for line in lines if not _is_directive(line))
 
 
 def mark_directives(md: str) -> tuple[str, list[tuple[int, str]]]:
@@ -402,7 +430,10 @@ def mark_directives(md: str) -> tuple[str, list[tuple[int, str]]]:
             found.append((no, line.strip()[1:]))
             close = close or line.strip()[1:].split(None, 1)[:1] in (["do"], ["face"], ["cam"])
         else:
-            line = TWIST_PREFIX.sub(lambda m: m[1] + MARKER.format("!") + " ", line)
+            twist = TWIST_PREFIX.match(line)
+            line = spoken(line)
+            if twist:  # "!! [kai:] text" -> "⟦!⟧ text", as a twist line always was
+                line = re.sub(r"^([ \t]*)", lambda m: m[1] + MARKER.format("!") + " ", line, count=1)
             if line.strip():
                 line = f"{line} {MARKER.format(f'L{no}')}"
             if close and line.strip():  # an @do covers exactly the next text line

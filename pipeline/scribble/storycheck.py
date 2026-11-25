@@ -17,14 +17,14 @@ import re
 from pathlib import Path
 
 from . import sfx as sfx_lib
-from . import background_music
-from .io import (CREATURE_HINT, all_parts, library_of, part_id_of, storage_root, cast_body_problems, creature_bodies, creature_wardrobe, custom_actions, load_series,
-                 prop_kinds, set_kinds, unknown_cast_props, wardrobe_slots, world_object_kinds)
+from . import background_music, settings
+from .io import (CREATURE_HINT, all_parts, library_of, part_id_of, storage_root, cast_body_problems, creature_bodies, creature_wardrobe, custom_actions, load_part, load_series,
+                 part_exists, prop_kinds, set_kinds, unknown_cast_props, wardrobe_slots, world_object_kinds)
 from .schemas import HAND_RIGS, ITEM_ACTIONS, actions_with
 from .stages.finish import MAX_RUNTIME_S, MIN_RUNTIME_S
-from .stages.prep import (DO_CAR, ITEM_MOVES, item_state_ok, parse_item, FX_LIGHTNING, FX_MODES, MAX_LIGHTNING, TWIST_PREFIX, clean_markdown, parse_do,
+from .stages.prep import (DO_CAR, ITEM_MOVES, item_state_ok, parse_item, FX_LIGHTNING, FX_MODES, MAX_LIGHTNING, TWIST_PREFIX, clean_markdown, parse_do, spoken,
                           parse_cam, parse_face, parse_hold, parse_lightning, parse_look, parse_ride, parse_weather, ride,
-                          respell, strip_directives, RIDE_ACTIONS)
+                          respell, speakers, strip_directives, RIDE_ACTIONS)
 from .stages.runner import StageError
 from .stages.shots import (ACTION_FACE, CAR_MODES, CAR_SEATS, DEFAULT_CAST_SIZE, EXPRESSIONS, MAX_CAST, MAX_DOGS, MAX_ON_STAGE,
                            MAX_RUNNERS, parse_crowd, parse_crowd_look, parse_crowd_weapon, plan_part, token)
@@ -62,7 +62,7 @@ def slow_open(md: str) -> tuple[int, str] | None:
     for no, line in enumerate(md.replace("\r\n", "\n").split("\n"), 1):
         if line.lstrip().startswith("@"):
             continue
-        text = clean_markdown(TWIST_PREFIX.sub(r"\1", line))
+        text = clean_markdown(spoken(line))
         if text:
             return (no, text) if SLOW_OPEN.match(text) else None
     return None
@@ -78,7 +78,7 @@ def spoken_sign_off(md: str) -> tuple[int, str] | None:
     profile."), else None"""
     last = None
     for no, line in enumerate(md.replace("\r\n", "\n").split("\n"), 1):
-        if not line.lstrip().startswith("@") and (text := clean_markdown(TWIST_PREFIX.sub(r"\1", line))):
+        if not line.lstrip().startswith("@") and (text := clean_markdown(spoken(line))):
             last = (no, text)
     return last if last and SIGN_OFF.search(last[1]) else None
 
@@ -89,7 +89,7 @@ def _words_by_line(md: str) -> list[int]:
     out = []
     for no, line in enumerate(md.replace("\r\n", "\n").split("\n"), 1):
         if not line.lstrip().startswith("@"):
-            out += [no] * len(clean_markdown(TWIST_PREFIX.sub(r"\1", line)).split())
+            out += [no] * len(clean_markdown(spoken(line)).split())
     return out if len(out) == len(clean_markdown(strip_directives(md)).split()) else []
 
 
@@ -164,6 +164,26 @@ def check_story(part_dir: Path) -> dict:
                 warnings.append({"line": None, "message": f"{cid} is a {rig}, not a humanoid: "
                                  f"{'look ' + repr(look) if look else 'its own look'} puts on {', '.join(items)}, which "
                                  f"is not drawn ({CREATURE_HINT})"})
+
+    said = speakers(md)  # "kai: line": spoken by a cast member, not the narrator
+    for no, sid in sorted(said.items()):
+        if sid not in ids:
+            bad(no, f"unknown cast id {sid} (a line starting \"{sid}: \" is spoken by cast member {sid}; "
+                    f"series cast: {', '.join(ids) or '-'})")
+    if part_exists(part_dir) and load_part(part_dir / "part.json").voice_source == "tts":
+        s = settings.load(library)
+        narrator = series.voice.tts.id if series.voice.tts else s["tts_voice"]
+        if narrator not in s["tts_voices"]:
+            bad(None, f"narrator TTS voice {narrator!r} is not one of the server's voices (scribble tts-voices)")
+        for c in series.cast:
+            if c.id not in said.values():
+                continue
+            if c.voice is None:
+                warnings.append({"line": min(n for n, x in said.items() if x == c.id), "message":
+                                 f"{c.id} speaks but has no TTS voice: the narrator's voice reads their lines "
+                                 f"(cast-voice {series.slug} {c.id} <voice id>)"})
+            elif c.voice.id not in s["tts_voices"]:
+                bad(None, f"{c.id}'s TTS voice {c.voice.id!r} is not one of the server's voices (scribble tts-voices)")
 
     sounds = sfx_lib.by_id(library)
     cast, car, pending_do, pending_strike, strikes = tuple(ids[:DEFAULT_CAST_SIZE]), "off", None, None, 0
@@ -290,7 +310,7 @@ def check_story(part_dir: Path) -> dict:
             except StageError as e:
                 bad(no, LINE_PREFIX.sub("", str(e)))
             continue
-        if not clean_markdown(TWIST_PREFIX.sub(r"\1", line)):
+        if not clean_markdown(spoken(line)):
             continue  # blank, heading or other markup without spoken words
         for cid in cast:  # riders too: they are on screen
             first_seen.setdefault(cid, no)
@@ -437,7 +457,7 @@ def staging(md: str, series, library: Path, part: str) -> list[dict]:
                 if name == "face" or (name == "do" and what.split()[:1] and what.split()[0] in ACTION_FACE):
                     pending[w] = True
             continue
-        text = clean_markdown(TWIST_PREFIX.sub(r"\1", line))
+        text = clean_markdown(spoken(line))
         if not text:
             continue
         narration += 1

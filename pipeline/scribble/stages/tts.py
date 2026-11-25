@@ -13,6 +13,7 @@ from pathlib import Path
 
 from .. import ff, tts
 from ..io import atomic_write_json, library_of, load_part, load_series, part_exists, series_exists
+from .prep import speakers
 from .runner import StageError
 
 INPUTS = ["script-for-tts.txt", "story.md"]
@@ -35,19 +36,27 @@ def narrator(part_dir: Path) -> tuple[str, float]:
     return settings.load(library_of(part_dir))["tts_voice"], 1.0
 
 
+def cast_voices(part_dir: Path) -> dict[str, tuple[str, float]]:
+    """cast id -> (voice id, speed) for the cast members with a TTS voice"""
+    if not series_exists(part_dir.parent):
+        return {}
+    return {c.id: (c.voice.id, c.voice.speed) for c in load_series(part_dir.parent / "series.json").cast if c.voice}
+
+
 def extra_inputs(part_dir: Path) -> dict:
-    """what else makes the voice: the narrator voice, the gap, the cache tag and the server's model fingerprint last
-    seen (settings: no network here). A new model, once seen, makes every TTS part stale."""
+    """what else makes the voice: the narrator and cast voices, the gap, the cache tag and the server's model
+    fingerprint last seen (settings: no network here). A new model, once seen, makes every TTS part stale."""
     if not is_tts(part_dir):
         return {"voice_source": "recorded"}
     from .. import settings
     s = settings.load(library_of(part_dir))
-    return {"voice_source": "tts", "narrator": narrator(part_dir), "gap": s["tts_line_gap"],
+    return {"voice_source": "tts", "narrator": narrator(part_dir), "cast": cast_voices(part_dir), "gap": s["tts_line_gap"],
             "fp": s["tts_server_fp"], "tag": s["tts_model_tag"]}
 
 
 def script_lines(part_dir: Path) -> list[tuple[int, str]]:
-    """(story.md line number, its spoken text from script-for-tts.txt) per line with words"""
+    """(story.md line number, its spoken text from script-for-tts.txt, without a speaker's "kai:") per line with
+    words"""
     from ..sfx import line_words  # sfx imports the stages package
     words = (part_dir / "script-for-tts.txt").read_text(encoding="utf-8").split()
     spans = line_words((part_dir / "story.md").read_text(encoding="utf-8"))
@@ -68,11 +77,13 @@ def run(part_dir: Path) -> None:
         if not (part_dir / f).is_file():
             raise StageError(f"{f} not found" + (" (run prep)" if f.startswith("script") else ""))
     lib, cfg = library_of(part_dir), tts.config(library_of(part_dir))
-    voice, speed = narrator(part_dir)
     lines = script_lines(part_dir)
     if not lines:
         raise StageError("script-for-tts.txt is empty")
-    paths = tts.clips(lib, [(text, voice, speed) for _, text in lines], cfg)  # all fetched before any part write
+    said = speakers((part_dir / "story.md").read_text(encoding="utf-8"))
+    by_cast, narr = cast_voices(part_dir), narrator(part_dir)
+    voices = [by_cast.get(said.get(no), narr) for no, _ in lines]  # a speaker without a voice: the narrator's
+    paths = tts.clips(lib, [(text, v, s) for (_, text), (v, s) in zip(lines, voices)], cfg)  # all before any write
     wav, spans = tts.stitch(paths, cfg["gap"])
 
     mp3, manifest = part_dir / "voice.mp3", part_dir / MANIFEST
@@ -91,7 +102,8 @@ def run(part_dir: Path) -> None:
         tmp.unlink(missing_ok=True)
     atomic_write_json(manifest, {
         "schema_version": 1, "mp3_sha256": sha(mp3), "gap": cfg["gap"], "tag": cfg["tag"],
-        "lines": [{"line": no, "speaker": None, "voice": voice, "speed": speed, "text": text,
+        "lines": [{"line": no, "speaker": said.get(no), "voice": v, "speed": s, "text": text,
                    "clip": p.stem, "start": a, "end": b}
-                  for (no, text), p, (a, b) in zip(lines, paths, spans)]})
-    print(f"voice.mp3: {len(lines)} lines, {spans[-1][1]:.1f} s, voice {voice} at {speed}x")
+                  for (no, text), (v, s), p, (a, b) in zip(lines, voices, paths, spans)]})
+    used = sorted({f"{v} at {s}x" for v, s in voices})
+    print(f"voice.mp3: {len(lines)} lines, {spans[-1][1]:.1f} s, {len(said)} spoken by the cast; voices: {', '.join(used)}")

@@ -22,7 +22,7 @@ from .. import settings
 from ..io import atomic_write_json, atomic_write_text, library_of, load_part, load_series, part_id_of, replace_file, series_exists
 from ..schemas import PhrasesModel, SeriesModel, StoryModel
 from .audio import loudness
-from .prep import FX_MODES, TWIST_PREFIX, _is_directive, clean_markdown, strip_directives
+from .prep import FX_MODES, _is_directive, clean_markdown, spoken, strip_directives
 from .render import FPS, check_frames
 from .runner import StageError
 from .shots import token
@@ -172,7 +172,7 @@ def fx_overrides(md: str, n_words: int) -> list[str | None]:
             if name == "fx" and arg.strip() in FX_MODES:
                 pending = arg.strip()
             continue
-        line = TWIST_PREFIX.sub(r"\1", line)
+        line = spoken(line)
         if pending and line.strip():  # markers on their own lines: they survive clean_markdown as tokens
             lines += [f"⟦fx:{pending}⟧", line, "⟦/fx⟧"]
             pending = None

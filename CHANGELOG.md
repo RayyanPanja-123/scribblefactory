@@ -1,6 +1,13 @@
 # Changelog
 
 ## Unreleased
+- Voice: cast members speak their own lines (Phase B1). In story.md, `kai: Everyone alive?` (quotes optional,
+  `!! kai: ...` for a spoken twist) is Kai's line; every other line is the narrator's. In a TTS part each line is
+  made in its speaker's voice (`cast-voice <slug> kai am_adam [--speed 1.1]`; a speaker without one is read by the
+  narrator, with a check-story warning) and voice-tts.json names each line's speaker. check-story: a speaker that is
+  no cast id, or a voice the server does not have, is a problem. A cast voice is not part of the look (no new
+  approval) nor of the series hash. Stories without speaker lines plan and render byte-identically; who moves their
+  mouth on a spoken line comes in B3.
 - Voice: TTS voices from the in-house Kokoro server (Phase A, single narrator). A part with
   `set-voice-source <slug> <part> tts` gets a new `tts` stage: one clip per story.md line, fetched as one job from
   the server's `/v1/jobs` API (polled; up to 500 lines a job) and cached in `library/_tts-cache` (key: text, voice,

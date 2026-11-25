@@ -1224,6 +1224,8 @@ export interface components {
              *     }
              */
             top: components["schemas"]["Top"];
+            /** @description the TTS voice of this member's spoken lines (`<id>: line` in story.md) in parts with voice_source tts. Left out of the saved file when unset; never part of the look (no new approval) */
+            voice?: components["schemas"]["TtsVoice"] | null;
         };
         /** CastRender */
         CastRender: {

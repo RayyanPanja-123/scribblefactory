@@ -165,6 +165,26 @@ def cmd_set_voice(args) -> int:
     return 0
 
 
+def cmd_cast_voice(args) -> int:
+    """a cast member's TTS voice for their spoken lines ("<id>: line"); none: the narrator's voice reads them"""
+    f, series = load_existing_series(args)
+    c = next((c for c in series.cast if c.id == args.id), None)
+    if c is None:
+        raise UserError(f"cast id {args.id!r} not in {args.slug} (cast: {', '.join(x.id for x in series.cast) or '-'})")
+    if args.voice == "none":
+        c.voice = None
+    else:
+        from .schemas import TtsVoice
+        known = settings.load(library_root(args))["tts_voices"]
+        if args.voice not in known:
+            raise UserError(f"unknown TTS voice {args.voice!r} (known: {', '.join(known)}; scribble tts-voices "
+                            "refreshes the list from the server)")
+        c.voice = TtsVoice(id=args.voice, speed=args.speed)
+    save_series(f, series)  # the look is unchanged: the approval stays
+    print(f"{args.slug} {c.id} voice: {f'{c.voice.id} at {c.voice.speed}x' if c.voice else 'the narrator'}")
+    return 0
+
+
 def cmd_set_voice_source(args) -> int:
     pdir = part_dir(args)
     p = load_part(pdir / "part.json")
@@ -822,6 +842,14 @@ def build_parser() -> Parser:
     c.add_argument("--tts", help="the narrator's Kokoro voice id (settings tts_voices), or none: settings tts_voice")
     c.add_argument("--speed", type=float, default=1.0, help="with --tts: 0.5..2.0")
     c.set_defaults(func=cmd_set_voice)
+
+    c = sub.add_parser("cast-voice", parents=[common],
+                       help="a cast member's TTS voice for their spoken lines (\"<id>: line\" in story.md)")
+    c.add_argument("slug")
+    c.add_argument("id")
+    c.add_argument("voice", help="a server voice id (scribble tts-voices), or none: the narrator's voice")
+    c.add_argument("--speed", type=float, default=1.0, help="0.5..2.0")
+    c.set_defaults(func=cmd_cast_voice)
 
     c = sub.add_parser("set-voice-source", parents=[common],
                        help="a part's voice: recorded (upload voice.mp3) or tts (the tts stage makes it)")

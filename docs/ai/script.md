@@ -3,6 +3,10 @@
 - One directive per line, alone.
 - `@do`, `@face`, `@cam`, `@fx`, `@sfx`: next narration line only (one must follow). Others last until changed.
 - Narration: plain text, numbers as words; no digits, symbols, abbreviations, parentheses, markdown.
+- A cast member's own line: `<cast id>: words` (the id in lowercase, e.g. `kai: Everyone alive?`); quotes around the
+  words are optional. Every other text line is the narrator's. The narrator and the cast never speak at once: one line,
+  one voice. A spoken twist is `!! kai: Then we walk.` Only start a line with `word:` for a speaker: a narrator line
+  never begins with a lowercase word and a colon.
 
 
 ## Directives

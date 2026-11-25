@@ -20,7 +20,7 @@ from pydantic import Field, field_validator
 from . import ff
 from .io import all_parts, atomic_write_json, library_of, storage_root
 from .schemas import Strict
-from .stages.prep import TWIST_PREFIX, clean_markdown
+from .stages.prep import TWIST_PREFIX, clean_markdown, spoken
 from .stages.runner import StageError
 
 SfxId = Annotated[str, Field(pattern=r"^[a-z0-9]+([_-][a-z0-9]+)*$", max_length=60)]
@@ -131,7 +131,7 @@ def parse_sfx(arg: str, line: int, ids=None) -> tuple[str, float | None]:
 
 
 def _narration(line: str) -> bool:
-    return not line.lstrip().startswith("@") and bool(clean_markdown(TWIST_PREFIX.sub(r"\1", line)))
+    return not line.lstrip().startswith("@") and bool(clean_markdown(spoken(line)))
 
 
 def directives(md: str) -> list[tuple[int, str, float | None, int | None]]:
@@ -157,7 +157,7 @@ def line_words(md: str) -> dict[int, tuple[int, int]]:
     """story.md line number -> indices of its first and last script word (as prep's script / phrases.json count
     them)"""
     lines = md.replace("\r\n", "\n").split("\n")
-    marked = [ln if ln.lstrip().startswith("@") else f"{TWIST_PREFIX.sub(r'\1', ln)} ⟦L{no}⟧"
+    marked = [ln if ln.lstrip().startswith("@") else f"{spoken(ln)} ⟦L{no}⟧"
               for no, ln in enumerate(lines, 1)]
     marked = [ln for ln in marked if not ln.lstrip().startswith("@")]
     out, n, since = {}, 0, 0
@@ -175,7 +175,7 @@ def line_times(md: str, words: list) -> dict[int, tuple[float, float]] | None:
     """story.md line -> (start of its first word, end of its last word) in seconds on voice-tight.wav; None when
     phrases.json is out of date"""
     first = line_words(md)
-    total = len(clean_markdown("\n".join(TWIST_PREFIX.sub(r"\1", ln) for ln in md.replace("\r\n", "\n").split("\n")
+    total = len(clean_markdown("\n".join(spoken(ln) for ln in md.replace("\r\n", "\n").split("\n")
                                          if not ln.lstrip().startswith("@"))).split())
     if total != len(words):
         return None

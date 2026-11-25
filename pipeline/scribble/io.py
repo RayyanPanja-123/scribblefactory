@@ -676,7 +676,9 @@ def series_bytes(series_dir) -> bytes | None:
     if (text := db.series_file_text(*series_where(series_dir))) is not None:
         return text.encode()  # imported and not saved since: the file's own bytes
     d = load_series(Path(series_dir) / SERIES_FILE).model_dump(mode="json")
-    d["voice"].pop("tts", None)  # the TTS narrator voice: hashed by the tts stage alone, so it never re-plans or re-renders
+    d["voice"].pop("tts", None)  # the TTS voices (narrator, cast): hashed by the tts stage alone, so choosing one
+    for c in d["cast"]:            # never re-plans or re-renders
+        c.pop("voice", None)
     return (json.dumps(d, indent=2, ensure_ascii=False) + "\n").encode()
 
 
