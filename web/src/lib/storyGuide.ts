@@ -18,12 +18,21 @@ const setIds = (xs: { id: string; name: string; default_weather?: Weather; use_f
 const castIds = (xs: { id: string; name: string; looks?: Record<string, unknown> }[]) =>
   xs.map((x) => { const l = Object.keys(x.looks ?? {}); return `\`${x.id}\` (${x.name}${l.length ? `; looks: ${l.map((k) => `\`${k}\``).join(', ')}` : ''})` }).join(', ')
 
+/** the server's voices for the library list: English first, as `id` (label); the rest as plain ids */
+export const ttsVoiceList = (vs: { id: string; label: string; lang?: string | null }[]) => {
+  const en = vs.filter((v) => !v.lang || v.lang.startsWith('en'))
+  const other = vs.filter((v) => v.lang && !v.lang.startsWith('en'))
+  return [en.map((v) => `\`${v.id}\`${v.label !== v.id ? ` (${v.label})` : ''}`).join(', '),
+    other.length ? `other languages: ${other.map((v) => v.id).join(', ')}` : ''].filter(Boolean).join(' | ')
+}
+
 /** the "Available in this library" section, or '' when the API can't be reached (the static guide still works).
  * standalone: shared on its own (Overview's "Copy library list"), so the last line doesn't point into the guide */
 export async function libraryRecords(standalone = false): Promise<string> {
   try {
     const [sets, props, objects, creatures, actions, wardrobe, series, sfx] = await Promise.all([api.sets(), api.props(), api.objects(), api.creatures(), api.actions(), api.wardrobe(), api.series(), api.sfx()])
     const casts = await Promise.all(series.map((s) => api.seriesDetail(s.slug).then((d) => d.series, () => null)))
+    const tts = await api.ttsVoices().catch(() => null) // the TTS server's voices: cast voice acting picks from them
     const indoor = sets.custom.filter((s) => s.kind === 'indoor')
     const outdoor = sets.custom.filter((s) => s.kind === 'outdoor')
     const cast = casts.filter((s) => s?.cast.length).map((s) => `  - ${s!.title}: ${castIds(s!.cast)}`)
@@ -51,6 +60,8 @@ export async function libraryRecords(standalone = false): Promise<string> {
         `\`${s.id}\` (${s.purpose || s.name}${s.anchor === 'end_on_line' ? '; ends as the line starts' : s.anchor === 'after_line' ? '; plays after the line is said' : ''})`).join(', ') : 'none yet'}`,
       `CAST${cast.length ? '' : ': none yet'}`,
       ...cast,
+      ...(tts?.voices.length ? [`TTS VOICES (cast voice acting: a cast member's "voice"; narrator default \`${tts.default}\`)`,
+        ttsVoiceList(tts.voices)] : []),
       '',
       standalone ? 'Use ids exactly as listed. Unlisted items must be designed new.' : 'Use ids exactly as listed. Unlisted items go in the Story Package.',
     ].join('\n')

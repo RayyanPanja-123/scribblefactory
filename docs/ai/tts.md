@@ -1,3 +1,16 @@
+## Voice mode (settled with the creator before any script)
+- **Single narration**: one narrator tells the whole story. Every line is narration.
+- **Cast voice acting**: the narrator tells the story and the cast speak their own lines, each in their own voice. A
+  cast line is `<cast id>: words` (the id in lowercase, e.g. `kai: Everyone alive?`); every other line is the
+  narrator's. One line, one voice: the narrator never talks over the cast, and two characters never speak at once.
+  - Cast lines are short (3 to 12 words), in character, and do work: a joke, a reaction, a jab, a bad idea, a
+    reveal. Never a line that only repeats what the narrator just said.
+  - Lines 1 to 3 stay narration (the hook). After that, mix them: about a third to a half of the lines spoken by the
+    cast reads well; a quick back-and-forth (two or three cast lines in a row) is fine.
+  - The twist may be spoken: `!! kai: Then we walk.`
+  - Every speaker is a character of the story, named by the same id every time; word counts include their words.
+  - The narrator still talks to the viewer; the cast talk to each other, never to the viewer.
+
 ## Writing rules
 - **Every part runs 30 to 35 seconds. Never over 35.** That is 70 to 83 words (aim for 75 to 80): words / 2.6, plus
   2.8 s for the silent end screen. Count the words before you answer; over 83 means cut, never "close enough".

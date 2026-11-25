@@ -1,6 +1,13 @@
 # Changelog
 
 ## Unreleased
+- AI helpers and help ask who speaks first: single narration or cast voice acting. The chat story guide
+  (STORY_GUIDE.md) makes the AI ask and wait before any script; the in-app "Voice scripts with AI" asks you (Cast voice
+  acting needs cast members) and the prompt states the choice; its reply check refuses cast lines in single narration
+  and speakers outside the cast. docs/ai/tts.md has the voice-mode rules (lines 1 to 3 narrated, short in-character
+  cast lines, one voice per line); the staging prompt keeps `id:` prefixes and puts the speaker on stage; the package
+  VOICE section leaves speakers out and CAST may carry each character's `voice`; the library list a chat AI gets now
+  includes TTS VOICES. Help: cast lines, `@pause`, `@pace`; USAGE: recorded vs TTS voice.
 - TTS in the web app (Phase C). Cast editor (Character tab): a TTS voice for the member's own lines, with speed and
   a Preview. Series page: the narrator voice (Default: settings). Part Voice tab: Recorded / TTS switch, "Make voice"
   (prep, tts, voice check, timing as one job, with a line-by-line progress bar), and the voice's lines: play each

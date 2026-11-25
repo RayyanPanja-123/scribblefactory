@@ -168,3 +168,17 @@ def test_wardrobe_without_colors_gets_defaults(lib):
     assert ava.top.color == ava.looks["lit"].top.color == "#4a6fa5"
     assert (ava.headwear.color, ava.legwear.color) == ("#2e3a59", "#3a3a3a")
     assert ben.looks["boy"].top.color == "#c0567a"
+
+
+def test_cast_lines_and_cast_voices(lib):
+    """a cast voice travels in CAST; a SCRIPT with "ava: line" lines checks against a VOICE without the speakers"""
+    cast = [{**CAST[0], "voice": {"id": "af_heart", "speed": 1.1}}, CAST[1]]
+    line = 'ben: "I have never told a single lie."'
+    s1 = script("Part 1", "The lantern pointed at Ava. To be continued.").replace("@look ava: lit\n", f"@look ava: lit\n{line}\n")
+    v1 = "I have never told a single lie.\n" + voice("The lantern pointed at Ava. To be continued.")
+    r = package.parse(pkg(cast=cast, script1=s1, voices={1: v1}), lib)
+    assert not r["errors"], r["errors"]
+    assert not [w for w in r["warnings"] if "changed" in w["message"] or "differs" in w["message"]], r["warnings"]
+    assert r["cast"][0].voice.id == "af_heart" and r["cast"][1].voice is None
+    r = package.parse(pkg(cast=cast, script1=s1, voices={1: "ben: " + v1}), lib)  # a speaker left in VOICE
+    assert any("ben" in w["message"] for w in r["warnings"] + r["errors"])

@@ -28,3 +28,12 @@ describe('stagePrompt', () => {
     expect(narration(story)).toEqual(['Caligula threw a parade.', '!! Neptune watched.'])
   })
 })
+
+describe('stagePrompt with cast lines', () => {
+  it('keeps a speaker line as a narration line, prefix and all', async () => {
+    const { narration, stagePrompt } = await import('./stagePrompt')
+    const md = '# Parade\n\n@set street\ncaligula: Attack the water!\nThe soldiers stared.\n'
+    expect(narration(md)).toEqual(['caligula: Attack the water!', 'The soldiers stared.'])
+    expect(stagePrompt({ series: 'S', title: 'Parade', story: md, cast: [], inventory: '' })).toContain('keep the prefix exactly')
+  })
+})

@@ -97,11 +97,25 @@ and words changed since the voice was recorded. Fix everything before making the
 
 ## 4. Voice
 
-1. **Run next** runs `prep`, which writes `script-for-tts.txt` (the narration without directives).
+First decide who speaks (the AI helpers ask you this before writing): **single narration** (one narrator reads every
+line) or **cast voice acting** (the narrator plus the characters' own lines, `kai: Everyone alive?` in story.md, each
+in their own voice). Cast voice acting needs a TTS voice; single narration works either way.
+
+**Recorded** (the part's Voice tab, Recorded):
+1. **Run next** runs `prep`, which writes `script-for-tts.txt` (the spoken lines without directives or speakers).
 2. Paste it into freetts.ai with the series voice, download the mp3.
 3. Part detail → Voice → **Upload mp3** (or save it as `part-NN/voice.mp3`). An import check runs.
 
 Edited story.md after recording? Check story tells you which words no longer match: re-record, or undo the edit.
+
+**TTS** (the in-house Kokoro server; set it once: `cli tts-settings --url http://192.168.1.6:8765`):
+1. Series page → **Narrator voice** (else the default, settings `tts_voice`). For cast voice acting, each speaking
+   character's **TTS voice** in the cast editor (Character tab). Preview plays a sample.
+2. Part detail → Voice → switch to **TTS** → **Make voice**: prep, then one clip per line on the server (only changed
+   lines are made again), the voice check and timing. A recording already there is kept as `voice-recorded.mp3`.
+3. The Lines list plays each line with its speaker and voice. `@pause 1.2` before a line adds a beat, `@pace slow |
+   fast` changes one line's speed. CLI: `set-voice-source <slug> <part> tts`, `set-voice <slug> --tts <id>`,
+   `cast-voice <slug> <id> <voice>`, `run <slug> <part> --stage tts`, `tts-voices`, `tts-cache-prune`.
 
 ## 5. Dashboard flow
 

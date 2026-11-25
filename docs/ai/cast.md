@@ -12,6 +12,8 @@
 ```
 
 - Distinct `color` each; `body` defaults to `human`.
+- Cast voice acting only: `"voice": {"id": "bf_emma", "speed": 1.0}`, the TTS voice of the character's own lines
+  (`<id>: words`), from TTS VOICES in the library list; a distinct voice per speaking character. Speed 0.5 to 2.
 - Changes during the story are `"looks"` (only what changes; `"none"` removes an item), never a second character.
 - Wardrobe slots (humanoids): `hair`, `facial_hair`, `headwear`, `top`, `legwear`, `footwear`, `back`; lists of up to
   3 for `accessory`, `face`. Each id fits one slot.

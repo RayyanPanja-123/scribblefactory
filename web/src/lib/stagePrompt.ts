@@ -22,6 +22,8 @@ export function stagePrompt(o: { series: string; title: string; story: string; c
   return [
     `You stage one part of the scribblefactory series "${o.series}": turn its narration into a story.md with directives.`,
     'Keep every narration line word for word and in order (the voice is read from them); only add `@` lines above them.',
+    'A line starting `<cast id>: ` is that character speaking in their own voice: keep the prefix exactly, and have',
+    'the speaker on stage (`@cast`) for it; they are the one who talks, the others react (`@do`, `@face`).',
     'Use only ids from the cast and inventory below. If the part truly needs an item that does not exist, still write the',
     'best script with what exists, then after the block add one line per missing item: `MISSING: <kind> <id>: <why>`.',
     '',

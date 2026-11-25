@@ -53,16 +53,17 @@ Plain text. Each marker is **alone on its own line**, in exactly this order:
   `"default_weather": {"kind": "fog", "intensity": "light"}` that every `@set` of it starts with.
 - **CAST**: JSON array in the cast-import shape (story guide, Cast JSON in `docs/ai/cast.md`): `{"id", "name", "color"}` plus the
   optional wardrobe slots (`hair`, `facial_hair`, `headwear`, `top`, `legwear`, `footwear`, `back`, `accessory`,
-  `face`), `props`, `body`, `headless` and `looks`. Every character the series ever shows, also those who first
-  appear in a later part. Every wardrobe id must exist (built in, in the library, or in WARDROBE) and belong to
+  `face`), `props`, `body`, `headless`, `looks` and `voice` (cast voice acting: `{"id", "speed"}`, a TTS voice for
+  the character's own lines). Every character the series ever shows, also those who first appear in a later part. Every wardrobe id must exist (built in, in the library, or in WARDROBE) and belong to
   the slot it is worn in.
 - **SCRIPT**: the raw `story.md`, unchanged from the usual script format: `# Part title`, directives each alone on
   its line, narration. That includes `@weather <clear | rain | snow | fog | wind | storm> [light | medium | heavy]`
   (after its `@set`), `@fx lightning [cast | prop]` (at most 3 per part, a narration line right after it) and
   `@sfx <id> [volume 0-1]` (a sound effect from `library/sfx/sfx.json`, at most 5 per part, a narration line
   right after it).
-- **VOICE**: what the text-to-speech voice reads: the script's narration lines in order, word for word, with no
-  `@` lines, no `# title` line and no `!!` marker. It is saved as the part's `script-for-tts.txt`.
+- **VOICE**: what the text-to-speech voice reads: the script's spoken lines in order, word for word, with no
+  `@` lines, no `# title` line, no `!!` marker and no `<cast id>: ` speaker prefix (a cast line `kai: Everyone
+  alive?` is `Everyone alive?` here). It is saved as the part's `script-for-tts.txt`.
 - Every id a SCRIPT or the CAST uses (sets, props, creatures, actions, cast ids, looks) must exist in the library or
   be created by this package. Sound effect ids (`@sfx`) must exist in the library: a package cannot add sounds.
 

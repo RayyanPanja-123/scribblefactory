@@ -117,8 +117,20 @@ const DIRECTIVES: Directive[] = [
       'Use @sfx id 0.6 for a one-use volume override.', 'At most 5 per part, and not on two lines in a row.', 'The Review tab suggests sounds for you.'],
     example: '@sfx riser\n!! The tower was never his to sell.' },
   { id: 'twist', syntax: '!! <text>', what: 'The big twist: the camera pushes in and a deep boom hits.',
-    rules: ['Use it once per part, on the last or second-to-last line.', 'The words are spoken like any other line.'],
+    rules: ['Use it once per part, on the last or second-to-last line.', 'The words are spoken like any other line.', 'A character can say it: !! kai: Then we walk.'],
     example: '!! The tower was never his to sell.' },
+  { id: 'speaker', nav: 'cast lines', syntax: '<cast id>: <words>', what: 'A character says this line in their own voice (cast voice acting). Every other line is the narrator’s.',
+    rules: ['The id comes first, in lowercase, then a colon: kai: Everyone alive? Quotes around the words are optional.',
+      'One line, one voice: the narrator never talks over a character.',
+      'The speaker must be on stage (@cast) to be seen talking; the others turn to them. A quick back-and-forth plays in one wide shot.',
+      'In a story with cast lines, nobody moves their mouth on the narrator’s lines.',
+      'Their voice: the cast editor (TTS voice). A part makes it on the Voice tab with TTS switched on.'],
+    example: 'kai: Everyone alive?\nmira: Define alive.' },
+  { id: 'pause', syntax: '@pause <seconds>', what: 'Silence before the next line, 0 to 3 seconds: a beat before the punchline.',
+    rules: ['Only in a TTS voice: a recorded voice keeps its own timing.', 'It stays in the video: the gap is not shortened later.'],
+    example: '@pause 1.2' },
+  { id: 'pace', syntax: '@pace slow | fast', what: 'The next line spoken slower (0.85×) or faster (1.15×) than its voice.',
+    rules: ['Only in a TTS voice.', 'Panic fast, deadpan slow.'], example: '@pace fast' },
 ]
 </script>
 
@@ -129,6 +141,9 @@ const DIRECTIVES: Directive[] = [
       <p class="text-sm text-muted">Your <code>story.md</code> has two kinds of lines. Normal lines are <b>spoken</b> by the narrator.
         Lines that start with <code>@</code> are <b>stage directions</b>: they are never spoken, they tell the video what to show.
         Most of them work on the spoken line right under them.</p>
+      <p class="text-sm text-muted">Who speaks is your choice per series: <b>single narration</b> (one narrator reads every line)
+        or <b>cast voice acting</b> (the narrator plus the characters saying their own lines, <code>kai: Everyone alive?</code>,
+        each in their own TTS voice). Decide before writing: the AI helpers ask you first. See <a href="#speaker" class="underline">cast lines</a>.</p>
       <pre class="inset overflow-x-auto rounded-md px-3 py-2 font-mono text-xs"><span class="text-muted">@set beach                      ← where
 @cast caligula, marcus          ← who is there
 @do marcus: run                 ← what Marcus does…</span>
