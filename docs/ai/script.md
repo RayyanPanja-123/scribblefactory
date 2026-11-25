@@ -6,7 +6,9 @@
 - A cast member's own line: `<cast id>: words` (the id in lowercase, e.g. `kai: Everyone alive?`); quotes around the
   words are optional. Every other text line is the narrator's. The narrator and the cast never speak at once: one line,
   one voice. A spoken twist is `!! kai: Then we walk.` Only start a line with `word:` for a speaker: a narrator line
-  never begins with a lowercase word and a colon.
+  never begins with a lowercase word and a colon. The speaker must be on stage (`@cast`) to be seen talking; the
+  others turn to them, and a quick back-and-forth plays in one held wide shot. In a story with cast lines nobody
+  mouths the narrator's lines (use `@do` for what people do meanwhile).
 
 
 ## Directives

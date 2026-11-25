@@ -331,3 +331,84 @@ def test_storycheck_pause_and_pace(part):
     r = check_story(part)
     assert not any("@pause" in x["message"] or "@pace" in x["message"] for x in r["problems"])
     assert {w["line"] for w in r["warnings"] if "only shapes a TTS voice" in w["message"]} == {3, 4}
+
+
+# ---------------- planning: the speaker talks, the narrator moves no mouth ----------------
+
+ASTRONAUTS = """# Stranded
+
+@set office
+@cast kai, mira, otto, june
+The ship came down hard on the purple sand.
+kai: Everyone alive?
+mira: Define alive.
+otto: I lost a boot.
+june: You lost the ship, Otto.
+Nobody laughed. Then everyone did.
+!! kai: Then we walk.
+"""
+
+
+def astronaut_plan():
+    from pipeline.scribble.schemas import PhrasesModel, SeriesModel
+    from pipeline.scribble.sfx import line_words
+    from pipeline.scribble.stages import shots
+    from pipeline.scribble.stages.prep import clean_markdown, speakers, strip_directives
+    from pipeline.scribble.stages.timing import SENTENCE_END, split_phrases
+    series = SeriesModel.model_validate({
+        "slug": "stranded", "title": "Stranded", "created_at": "2026-11-25T10:00:00Z", "voice": {"voice_name": ""},
+        "style": {"preset": "default"},
+        "cast": [{"id": c, "name": c.title(), "outfit_color": col, "eyes": "dots"}
+                 for c, col in (("kai", "#3a7bd5"), ("mira", "#e2453c"), ("otto", "#22aa55"), ("june", "#aa22aa"))]})
+    t, words = 0.2, []
+    for w in clean_markdown(strip_directives(ASTRONAUTS)).split():
+        words.append({"text": w, "start": round(t, 3), "end": round(t + 0.3, 3)})
+        t += 0.3 + (0.4 if SENTENCE_END.search(w) else 0.05)
+    lines, said = sorted(line_words(ASTRONAUTS).items()), speakers(ASTRONAUTS)
+    breaks = {b for (n1, (_, b)), (n2, _) in zip(lines, lines[1:]) if said.get(n1) != said.get(n2)}
+    ph = PhrasesModel(duration=round(t + 0.3, 3), words=words, phrases=split_phrases(words, breaks))
+    who = [None] * len(words)  # each word's voice
+    for no, (a, b) in lines:
+        who[a:b + 1] = [said.get(no)] * (b - a + 1)
+    return shots.plan(ASTRONAUTS, ph, series, 1), ph, who, series
+
+
+def test_four_astronauts_one_voice_at_a_time():
+    from pipeline.scribble.validate import validate
+    story, ph, who, series = astronaut_plan()
+    assert validate(story, ph, {c.id for c in series.cast}) == []
+    assert [s.cast_id for s in story.speech] == ["kai", "mira", "otto", "june", "kai"]
+    spoken ={i for s in story.speech for i in range(s.word_start, s.word_end + 1)}
+    assert spoken == {i for i, w in enumerate(who) if w} and {s.cast_id for s in story.speech} == {"kai", "mira", "otto", "june"}
+    for p in ph.phrases:  # a phrase is one voice
+        assert len({who[i] for i in range(p.word_start, p.word_end + 1)}) == 1, p.text
+    group = 0
+    for sh in story.shots:
+        p = ph.phrases[sh.phrase_range[0]]
+        voice = who[p.word_start]
+        talking = {a.cast_id for a in sh.actors if a.action == "talk"}
+        assert talking == ({voice} if voice else set()), (p.text, talking)  # only the speaker; narrator: nobody
+        if voice is None:
+            assert sh.actors[0].action == "idle"  # (its subject first: the engine frames it)
+        group += sh.camera.angle == "wide" and sh.camera.move == "hold"
+        if voice and sh.actors:
+            others = [a for a in sh.actors if a.cast_id != voice and a.facing != "camera"]
+            sx = next(a.start_pos[0] for a in sh.actors if a.cast_id == voice)
+            assert all((a.facing == "left") == (sx < a.start_pos[0]) for a in others)  # listeners face the speaker
+    assert group >= 3  # mira, otto, june answer in one held wide shot, no cut per voice
+
+
+def test_a_story_without_cast_lines_keeps_the_narrated_subject_talking():
+    """no cast lines: the planner as before (the subject mouths the narration), no speech in story.json"""
+    from pipeline.tests.test_shots import plan
+    story, _ = plan("# Plain\n\n@cast bob, amy\nBob sat down. Amy smiled.\n")
+    assert "speech" not in story.model_dump(mode="json")
+    assert any(a.action == "talk" for sh in story.shots for a in sh.actors)
+
+
+def test_storycheck_warns_on_a_speaker_off_stage(part):
+    from pipeline.scribble.storycheck import check_story
+    with_cast(part, {"kai": "am_adam", "mira": "am_adam"})
+    (part / "story.md").write_text("# T\n\n@cast kai\nkai: Hello?\nmira: Over here.\n", encoding="utf-8")
+    r = check_story(part)
+    assert [w["line"] for w in r["warnings"] if "is not on stage" in w["message"]] == [5]

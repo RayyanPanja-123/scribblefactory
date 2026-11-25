@@ -1085,6 +1085,34 @@
       "title": "ShotItem",
       "type": "object"
     },
+    "Speech": {
+      "additionalProperties": false,
+      "description": "one story.md cast line (\"kai: line\"): its words (phrases.json indices, inclusive) and who says them",
+      "properties": {
+        "cast_id": {
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+          "title": "Cast Id",
+          "type": "string"
+        },
+        "word_end": {
+          "minimum": 0,
+          "title": "Word End",
+          "type": "integer"
+        },
+        "word_start": {
+          "minimum": 0,
+          "title": "Word Start",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "word_start",
+        "word_end",
+        "cast_id"
+      ],
+      "title": "Speech",
+      "type": "object"
+    },
     "Strike": {
       "additionalProperties": false,
       "description": "@fx lightning: one bolt + a brief flash, at the first word of the line after the directive",
@@ -1396,6 +1424,22 @@
       },
       "title": "Shots",
       "type": "array"
+    },
+    "speech": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/Speech"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "the cast's spoken lines, in order (every other word is the narrator's), for speaker name tags; left out of a story without cast lines",
+      "title": "Speech"
     },
     "width": {
       "default": 1080,

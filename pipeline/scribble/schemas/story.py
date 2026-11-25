@@ -193,6 +193,13 @@ class EndCard(Strict):
     text: str = Field(description='its headline, "Follow for more" (finish adds the handles from library/settings.json)')
 
 
+class Speech(Strict):
+    """one story.md cast line ("kai: line"): its words (phrases.json indices, inclusive) and who says them"""
+    word_start: int = Field(ge=0)
+    word_end: int = Field(ge=0)
+    cast_id: Slug
+
+
 class StoryModel(Strict):
     schema_version: Literal[1] = 1
     fps: Literal[30] = 30
@@ -207,6 +214,16 @@ class StoryModel(Strict):
                                                       "shake on; older story.json files have none")
     end_card: EndCard | None = Field(default=None, description="every part's closing screen (older story.json files "
                                                                "may have none)")
+    speech: list[Speech] | None = Field(default=None, description="the cast's spoken lines, in order (every other word "
+                                        "is the narrator's), for speaker name tags; left out of a story without cast "
+                                        "lines")
+
+    @model_serializer(mode="wrap")
+    def _no_null_speech(self, handler):
+        d = handler(self)
+        if d.get("speech") is None:
+            d.pop("speech", None)  # story.json as before
+        return d
 
     @model_validator(mode="after")
     def _known_size(self):

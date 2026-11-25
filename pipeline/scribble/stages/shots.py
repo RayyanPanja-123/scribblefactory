@@ -18,12 +18,12 @@ from ..io import (LIBRARY_FILES, atomic_write_json, library_of, load_part, load_
                   outdoor_sets,
                   prop_kinds, set_kinds, set_weather, wardrobe_slots,
                   unknown_cast_props, world_object_kinds)
-from ..schemas import (ITEM_ACTIONS, ITEM_ASPECT, FRAME_SIZE, BUILTIN_CREATURES, BUILTIN_SETS, BUILTIN_WARDROBE, HAND_RIGS, Prop, Top, Headwear, Legwear,
+from ..schemas import (Speech, ITEM_ACTIONS, ITEM_ASPECT, FRAME_SIZE, BUILTIN_CREATURES, BUILTIN_SETS, BUILTIN_WARDROBE, HAND_RIGS, Prop, Top, Headwear, Legwear,
                        actions_with, Actor, FaceChange, Animal, Camera, Cue, EndCard, Extra, PhrasesModel, SeriesModel,
                        ItemSwitch, Shot, ShotItem, StoryModel, Strike, Travel, Vehicle)
 from ..validate import (CAR_SPEED, CROWD_Z, DOG_RUN_SPEED, MAX_SHOT_FRAMES, MOODS, OUTDOOR_SETS, SPEEDS,
                         custom_speeds, end_frame, validate)
-from .prep import (BUILTIN_PROPS, DO_CAR, ITEM_MOVES, item_state_ok, parse_item, parse_cam, FX_LIGHTNING, FX_MODES, MARKER_RE, clean_markdown, mark_directives, parse_do,
+from .prep import (BUILTIN_PROPS, DO_CAR, ITEM_MOVES, item_state_ok, parse_item, parse_cam, FX_LIGHTNING, FX_MODES, MARKER_RE, clean_markdown, mark_directives, parse_do, speakers,
                    parse_face, parse_hold, parse_lightning, parse_look, parse_ride, parse_weather, ride, RIDE_ACTIONS)
 from .. import background_music
 from .runner import StageError
@@ -892,6 +892,7 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
 
     shots, cues = [], [Cue(frame=0, kind="music_start")]
     prev_angle = prev_set = subject = cam_used = None
+    said, prev_sp, prev_group, prev_line = speakers(md), None, False, None  # cast lines ("kai: line"): their speaker talks, a narrator line nobody
     back_pos: dict[str, float] = {}  # back row of the current scene (a scene's first shot places it)
     scene_key = None
     car_mode, car_left, park = "off", False, None  # park: (x, facing) where an arrived car stands
@@ -955,6 +956,10 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
             action = None  # seated on or inside an item: a walk word in the line moves nobody
         if action in MOVE_SPEED and not mentioned and not PRONOUNS.intersection(pw):
             action = None  # "the saucer came back": a walk word moves only a character the phrase names (or a pronoun)
+        sp = said.get(tags[p.word_start].line)
+        if sp in cast:  # a cast line: its speaker is the subject and talks (its words are no stage directions)
+            subject, action = sp, None
+        talk = "talk" if not said or sp in cast else "idle"  # a story with cast lines: the narrator moves no mouth
         mood = moods[p.word_start] if p.word_start < len(moods) else None
         expression = mood or next((EXPRESSIONS[w] for w in pw if w in EXPRESSIONS), None) or (
             puncts[p.word_start] if p.word_start < len(puncts) else None) or "neutral"
@@ -976,6 +981,10 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
                 move = "push_in"
                 roll = round(rng.uniform(*TWIST_ROLL), 2) * rng.choice((-1, 1))
                 cues += [Cue(frame=s0, kind="music_stop"), Cue(frame=s0, kind="low_hit")]
+            group = sp in cast and set_ == prev_set and not is_twist and (  # a new voice, or the rest of a line
+                prev_sp not in (None, sp) or (prev_group and prev_line == tags[p.word_start].line))
+            if group:  # a back-and-forth between the cast: one held wide shot (it frames everyone), no cut per voice
+                angle, move = "wide", "hold"
             if prev_set is not None and set_ != prev_set:
                 cues.append(Cue(frame=s0, kind="whoosh"))
             sid, tdir, zs = f"s{len(shots) + 1:02d}", 0, None
@@ -1011,8 +1020,8 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
             else:
                 # a mounted subject: the mount does the moving, the rider the talking / gesturing (_seat_riders)
                 actors = _actors(spacers, pos, rides.get(subject, subject), pw, seconds, tdir, zs, mood, halves,
-                                 walk_dir, tags[p.word_start].line, action or "talk")
-                actors = _seat_riders(actors, rides, pos, subject, action)
+                                 walk_dir, tags[p.word_start].line, action or talk)
+                actors = _seat_riders(actors, rides, pos, subject, action if talk == "talk" else (action or "idle"))
                 if car_here:
                     v = _car_move(car_mode, park, actors, subject, seconds, seed)
                     vehicles = [v]
@@ -1068,7 +1077,7 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
                     ac.expression, ac.faces = face[ac.cast_id], []
                 elif ac.cast_id == subject and ac.expression == expression:
                     ac.expression, ac.faces = (opened[-1] if opened else expression), switches
-            cam_extra = {}
+            cam_extra = {"forced": True} if group else {}  # a held, repeated wide: meant
             if cam_here:  # only the parts @cam gives; the rest keep the planner's (or the twist's) values
                 cam_used, c = cam_here
                 if "angle" in c and not (c["angle"] == "over_shoulder" and len(actors) < 2):  # needs someone's shoulder
@@ -1087,12 +1096,16 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
                 walk_note.add(line_no)
                 notes.append((line_no, f"'{word.strip('.,!?;:')}' starts a {'travel shot' if travel else action} for "
                                        f"{subject}; add @do {subject}: idle to stop it"))
+            if said:  # the engine frames the first actor that is not idle, else the first: on a narrator line
+                actors = sorted(actors, key=lambda ac: ac.cast_id != subject)  # (nobody talks) that is the subject
             shots.append(Shot(id=sid, start_frame=s0, end_frame=s1, set=set_,
                               phrase_range=(i, i), camera=Camera(angle=angle, move=move, speed=speed, roll_deg=roll, **cam_extra),
                               actors=actors, animals=animals, vehicles=vehicles, extras=extras, twist=is_twist,
                               travel=Travel(speed=tspeed) if travel else None, weather=weather,
                               items=stage.shot(t.items, actors, subject, moves, t.do, do_span, s0, s1, pos)))
             prev_angle, prev_set = angle, set_
+        prev_sp, prev_line = (sp if sp in cast else None), tags[p.word_start].line
+        prev_group = said and group
     lightning = [strike(shots, line, target, min(round(phrases.words[w].start * FPS), total - 1), series)
                  for w, (line, target) in ((w, t.strike) for w, t in enumerate(tags) if t.strike)]
     # @fx shake: the frame finish shows the line's first caption chunk on (finish._frame), so captions and camera hit together
@@ -1109,8 +1122,13 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
     if notes is not None:
         notes.extend(stage.notes)
     width, height = FRAME_SIZE[series.style.aspect]
+    speech = None
+    if said:  # who says which words, for speaker name tags (sfx.line_words: story.md line -> its word indices)
+        from ..sfx import line_words  # sfx imports the stages package
+        speech = [Speech(word_start=a, word_end=b, cast_id=said[no]) for no, (a, b) in sorted(line_words(md).items())
+                  if said.get(no) in by_id]
     return StoryModel(width=width, height=height, duration_frames=total, seed=seed, shots=shots, cues=cues, end_card=end_card, lightning=lightning,
-                      shakes=shakes)
+                      shakes=shakes, speech=speech or None)
 
 
 class ItemStage:

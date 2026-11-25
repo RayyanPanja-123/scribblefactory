@@ -1,6 +1,12 @@
 # Changelog
 
 ## Unreleased
+- Shots for cast lines (Phase B3). In a story with `kai: line` lines, the speaker is the subject and talks (only
+  they move their mouth), everyone else turns to them, and on a narrator line nobody talks (keyword actions and `@do`
+  still apply; the narrated subject stays framed). A back-and-forth between cast members plays in one held wide shot
+  instead of a cut per voice; a twist or `@cam` still cuts. story.json gets `speech` (each cast line's words and
+  speaker) for speaker name tags later. check-story warns when a speaker is not on stage. Stories without cast lines
+  plan byte-identically (golden plans unchanged); no engine change.
 - Voice timing (Phase B2): `@pause <0-3 s>` before a line sets the silence before it, `@pace slow | fast` speaks
   the next line at 0.85x / 1.15x its voice's speed (TTS parts only; check-story warns on a recorded one). The tts
   stage trims each clip's edge silence so the gap between lines is the gap asked for, and timing keeps those gaps

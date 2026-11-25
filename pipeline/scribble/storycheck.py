@@ -318,6 +318,9 @@ def check_story(part_dir: Path) -> dict:
             continue
         if not clean_markdown(spoken(line)):
             continue  # blank, heading or other markup without spoken words
+        if (sid := said.get(no)) in ids and sid not in cast:
+            warnings.append({"line": no, "message": f"{sid} says this line but is not on stage (@cast {', '.join(cast)}):"
+                                                     " the voice plays, nobody's mouth moves"})
         for cid in cast:  # riders too: they are on screen
             first_seen.setdefault(cid, no)
         if car == "ride" and len(cast) > CAR_SEATS:
