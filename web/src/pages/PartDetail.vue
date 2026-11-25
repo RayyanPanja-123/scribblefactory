@@ -267,14 +267,13 @@ async function approve(a: (typeof APPROVALS)[number]) {
 }
 
 // ---- reject: render a waiting item again (approvals are kept for good, so only before approving) ----
-// stills re-plan the shots first, so planner fixes and changed sets / props / cast show up on the new sheet
+// every reject forces every step from the story on: nothing stale survives, whatever the hashes say
+const FROM_STORY = ['prep', 'import_check', 'timing', 'shots', 'validate'].map((s) => `run --stage ${s} --force`)
 const REDO: Record<Approval, { steps: string[]; body: string }> = {
-  stills: { steps: ['run --stage shots --force', 'run --stage validate --force', 'render-stills'],
-    body: 'Plans the shots again from story.md, then renders a new stills sheet. Change the story, cast, sets or props first if something in it was wrong.' },
-  // the story stages first, without --force: they skip themselves unless story.md or voice.mp3 changed
-  final: { steps: ['run --stage prep', 'run --stage import_check', 'run --stage timing', 'run --stage shots', 'run --stage validate',
-    'render --force', 'run --stage audio --force', 'run --stage finish --force'],
-    body: 'Picks up a changed story.md and voice.mp3 (save the new story and upload the new voice first), deletes every frame and renders the whole video again, then the sound and final.mp4. This is the slow one.' },
+  stills: { steps: [...FROM_STORY, 'render-stills'],
+    body: 'Redoes every step from story.md and voice.mp3, plans the shots again, then renders a new stills sheet. Change the story, cast, sets or props first if something in it was wrong.' },
+  final: { steps: [...FROM_STORY, 'render-stills', 'render --force', 'run --stage audio --force', 'run --stage finish --force'],
+    body: 'Redoes every step from story.md and voice.mp3 (save the new story and upload the new voice first), renders new stills, deletes every frame and renders the whole video again, then the sound and final.mp4. This is the slow one.' },
 }
 const canReject = (a: (typeof APPROVALS)[number]) => !approved(a.key) && has(a.file)
 async function reject(a: (typeof APPROVALS)[number]) {
