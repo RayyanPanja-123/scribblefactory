@@ -198,7 +198,7 @@ fit the story's period or design.
   `@do` actions:
 - `idle talk point react wave cheer angry gasp walk run stagger lie collapse`; the library's reaction micro-actions
     (`double-take`, `nervous-fidget`, `lean-in`, `sigh-slump`, `shock-jump`, `smug-nod`, `facepalm`, `point-quick`)
-- `eat [prop]`, `give <prop> <target>`, `don <item>` (hands rise to the head, the headwear or back wardrobe item appears halfway through the line and stays on; face turns smug: `@do ethan: don crown`), `carry <target>` (exactly 2 carriers), `support <target>` (1 or 2)
+- `eat [prop]`, `give <prop> <target>`, `climb [up|down]` (the character walks up the set's stairs or slope, the camera rising with them; only in a set that has a `trail` in the library; they stay at the top until the next `@set`; one `climb` per line, the line should be 2 to 3 s of speech for a natural pace), `don <item>` (hands rise to the head, the headwear or back wardrobe item appears halfway through the line and stays on; face turns smug: `@do ethan: don crown`), `carry <target>` (exactly 2 carriers), `support <target>` (1 or 2)
 - `car: broken` (car on stage)
 - Custom actions, optionally aimed: `@do marcus: attack-with-spears neptune` (faces them and lunges toward them, never
     past; too close: strikes where they stand)
@@ -278,6 +278,7 @@ The picture must show what the line says. For every narration line ask five ques
     - puts on / wears / crowns / dons something: `@do <id>: don <item>` (a `headwear` or `back` wardrobe item that is in the library, e.g. `crown`, `cape`): the hands rise, it appears halfway through the line and stays on until their `@look` changes. A whole outfit change = `@look`.
     - hands over / receives: `@do <id>: give <prop> <target>`. Eats: `eat <prop>`. Picks up / opens / pushes / sits on a drawn thing: `@do <id>: pickup|open|push|sit <item tag>` after `@item <tag>: ...`.
     - strikes / fights: an aimed custom action (`attack-with-spears <target>`). Falls: `collapse`, then `lie` + `dead`.
+    - climbs a mountain, stairs or a slope: `@do <id>: climb` (up) or `climb down`, in a set with a `trail`; plain `walk` only crosses flat ground.
     - goes somewhere: `walk` / `run` (only with free room). Points, waves, cheers: `point`, `wave`, `cheer`.
     - reacts: the reaction actions (`shock-jump`, `double-take`, `facepalm`, `sigh-slump`, `smug-nod`, `nervous-fidget`, `lean-in`, `point-quick`).
 3. **What do we see them holding or wearing?** Switch it on the line it first matters: `@hold <id>: <prop> [left|right]` (the note, the newspaper, the bag), `@look <id>: <look>` for a different outfit (broke / rich / emperor), `@item` for a big drawn object. Take it away with `@hold <id>: none` the moment they lose it ("lost everything").

@@ -50,7 +50,11 @@ Plain text. Each marker is **alone on its own line**, in exactly this order:
   `creatures` / `actions` / `wardrobe` / `objects` list). Anything that already exists in the library is not
   repeated: the scripts and the cast just use its id. WARDROBE and OBJECTS (World Items: drawn ones go on stage with
   `@item`) came later: a package without them reads as `[]`. A new set may carry a
-  `"default_weather": {"kind": "fog", "intensity": "light"}` that every `@set` of it starts with.
+  `"default_weather": {"kind": "fog", "intensity": "light"}` that every `@set` of it starts with. A set with stairs or
+  a slope may carry one `"trail": {"start": [-1.5, 0, -0.5], "end": [1.5, 3, -0.5], "steps": 12}` (`[x, y, z]` of the
+  foot and the top, `steps` for stairs, left out for a smooth slope): `@do <cast>: climb [up|down]` walks a character
+  along it, the card and camera rising with them. Draw the steps as `backdrop` box pieces behind the trail's z; the
+  trail's length (across the ground) must be about 0.6 to 1.8 times the line's seconds so the walk is a natural pace.
 - **CAST**: JSON array in the cast-import shape (story guide, Cast JSON in `docs/story-writter/cast.md`): `{"id", "name", "color"}` plus the
   optional wardrobe slots (`hair`, `facial_hair`, `headwear`, `top`, `legwear`, `footwear`, `back`, `accessory`,
   `face`), `props`, `body`, `headless`, `looks` and `voice` (cast voice acting: `{"id", "speed"}`, a TTS voice for

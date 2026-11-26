@@ -17,4 +17,4 @@
 - Follow the **Library item schemas** below.
 - Props: hand position `[0,0]`, y increases downward, canvas pixels (roughly -40 to 110).
 - Long props (staff, spear, trident, flag) need `angle` (clock-hand degrees, tip pointing away; `30` = one o'clock) and `grip` (hand attachment point). Example: `"props": [{"kind": "trident", "hand": "right", "angle": 30}]`.
-- Sets: actors at y `0`, z `0`, x `-2` to `2`; scenery behind at z `-1`.
+- Sets: actors at y `0`, z `0`, x `-2` to `2`; scenery behind at z `-1`. Anything the cast climbs (a mountain path, stairs, a tower) is a set with a `trail`: its steps as `backdrop` box pieces, and `"trail": {"start": [x, y, z], "end": [x, y, z], "steps": n}` (the foot and the top, in front of the steps; `steps` for stairs). The story then uses `@do <cast>: climb`.

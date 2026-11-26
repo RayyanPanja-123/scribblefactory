@@ -16,7 +16,7 @@ from typing import NamedTuple
 from ..io import (LIBRARY_FILES, atomic_write_json, library_of, load_part, load_series, cast_body_problems, creature_bodies, creature_halves, creature_wardrobe, custom_actions,
                   custom_moves,
                   outdoor_sets,
-                  prop_kinds, set_kinds, set_weather, wardrobe_slots,
+                  prop_kinds, set_kinds, set_trails, set_weather, wardrobe_slots,
                   unknown_cast_props, world_object_kinds)
 from ..schemas import (Speech, ITEM_ACTIONS, ITEM_ASPECT, FRAME_SIZE, BUILTIN_CREATURES, BUILTIN_SETS, BUILTIN_WARDROBE, HAND_RIGS, Prop, Top, Headwear, Legwear,
                        actions_with, Actor, FaceChange, Animal, Camera, Cue, EndCard, Extra, PhrasesModel, SeriesModel,
@@ -41,6 +41,7 @@ ESTABLISHING = "wide"      # first shot of the part and after each set change; i
                            # wide, the first other angle in ANGLES (no-repeat wins)
 MOVES = ["push_in", "pull_out", "truck_left", "truck_right", "crane_up", "crane_down"]
 ORBIT_ANGLES = ("medium", "close", "low")  # framed on the subject: the planner turns their truck moves into orbits
+WALK_MIN, WALK_MAX = SPEEDS["walk"]; RUN_MAX = SPEEDS["run"][1]  # @do climb: the walk / run speed the validator allows
 SPEED = (0.15, 0.35)
 TWIST_ROLL = (6.0, 10.0)   # degrees, sign seeded
 FAST_SPEED = 0.8           # @cam fast: over the engine's fast push (style.js camera.life.punch.fastSpeed, 0.7)
@@ -633,8 +634,29 @@ def _group_move(xs: list[float], role: str, seconds: float) -> float:
     return 0.0
 
 
+def _climb(c, cid, line, trail, seconds, old, pos, elev, bad) -> Actor:
+    """@do <cast>: climb [up | down]: a walk (or run) along the set's trail, the card rising with it. The actor starts
+    at the trail's foot (down: its top) and ends at the other end, where it stays (elev) until the set changes."""
+    if trail is None:
+        bad("climb needs a set with a trail (stairs or a slope: the set's `trail`; add it on the Sets page)")
+    a, b = (trail.end, trail.start) if c.prop == "down" else (trail.start, trail.end)
+    run = math.dist((a[0], a[2]), (b[0], b[2])) / seconds  # the validator's speed: across the ground, not up
+    if run < WALK_MIN:
+        bad(f"climb: {cid} would take {1 / max(run, 1e-6):.1f} s per unit, too slow for this {seconds:.1f} s shot "
+            f"(the trail is too short for a line this long: lengthen the trail or use a shorter line)")
+    if run > RUN_MAX:
+        bad(f"climb: the trail is too long for a {seconds:.1f} s shot ({run:.1f} units/s, the fastest run is {RUN_MAX}): "
+            f"shorten the trail or use a longer line")
+    dx = b[0] - a[0]
+    pos[cid] = round(b[0], 3)
+    elev[cid] = (round(b[2], 3), round(b[1], 3))
+    return Actor(cast_id=cid, action="walk" if run <= WALK_MAX else "run", start_pos=(round(a[0], 3), round(a[2], 3)),
+                 end_pos=(round(b[0], 3), round(b[2], 3)), facing="camera" if abs(dx) < 0.05 else ("left" if dx < 0 else "right"),
+                 expression=old.expression, start_y=round(a[1], 3), end_y=round(b[1], 3), steps=trail.steps)
+
+
 def _apply_do(clauses, line, cast, pos, actors, vehicles, seconds, fallen, handless=None, actions=None,
-              halves=None, dirs=None) -> list[Actor]:
+              halves=None, dirs=None, trail=None, elev=None) -> list[Actor]:
     """@do for one shot: the named actors get the given action (others keep the planner's choice); "car: broken"
     stops the car on stage. pos is updated to where everyone ends. fallen: (line, cast id) already collapsed or
     gave on this line: a collapse or a give happens once, in the line's first shot; later shots lie / carry on.
@@ -678,6 +700,12 @@ def _apply_do(clauses, line, cast, pos, actors, vehicles, seconds, fallen, handl
                           expression=by[g].expression)
             by[t] = Actor(cast_id=t, action="receive", target=g, start_pos=(pos[t], 0.0), facing=face(-dg),
                           expression=by[t].expression)
+        elif c.action == "climb":
+            for cid in c.who:
+                if (line, cid) in fallen:  # climbed in the line's first shot; later shots stand where it ended
+                    continue
+                fallen.add((line, cid))
+                by[cid] = _climb(c, cid, line, trail, seconds, by[cid], pos, elev, bad)
         elif c.action in GROUP_SPEED:
             held, holders = c.target, list(c.who)
             mid = pos[held]
@@ -841,7 +869,7 @@ def _car_move(mode, park, actors, subject, seconds, seed) -> Vehicle:
 
 def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, props=BUILTIN_PROPS,
          outdoor=OUTDOOR_SETS, bodies=BUILTIN_CREATURES, actions=(), weather_of=None, wardrobe=None,
-         widths=None, objects=None, notes=None) -> StoryModel:
+         widths=None, objects=None, notes=None, trails=None) -> StoryModel:
     """bodies: creature id -> (rig, has a stump), io.creature_bodies (built-ins + library/creatures.json).
     actions: the library's custom actions (io.custom_actions), which @do may ask for. weather_of: custom set id ->
     its default_weather (io.set_weather). widths: creature id -> half width in world units (io.creature_halves; none:
@@ -911,6 +939,8 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
     prev_cast, travel_run = (), None  # travel_run: first shot id of the current run of travel shots on one set
     pos: dict[str, float] = {}  # where each actor stands now; reset on a set change
     prev_rides: dict[str, str] = {}  # @ride pairs on stage in the last shot's phrase
+    elev: dict = {}      # cast id -> (z, y) where a @do climb left it: it stands there until the set changes
+    elev_new: dict = {}  # climbs planned in the shot being built: they start from the trail, not from elev
     donned: dict = {}  # cast id -> (wardrobe item it put on (@do don), its @look then): worn from then on while the look holds
     fallen: set = set()  # (@do line, cast id) that already collapsed
     stage = ItemStage(objects)  # @item cards: where they stand, who holds or sits in them; reset by a set change
@@ -925,6 +955,7 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
         cast, back = rows[i]  # from here on, cast is the front row
         if set_ != prev_set:
             pos, park = {}, None
+            elev.clear()
             stage.reset()
         moves = [c for c in do[1] if c.action in ITEM_MOVES] if do else []
         if moves:  # item paths are the items' own; the cast's @do is what is left of the line
@@ -1050,7 +1081,7 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
                 actors = stage.seat(actors, inside, t.items, do, pos, placed, sitters)
                 if do:
                     actors = _apply_do(do[1], do[0], spacers + tuple(inside) + tuple(sitters), pos, actors, vehicles, seconds, fallen,
-                                       handless, actions, halves, walk_dir)
+                                       handless, actions, halves, walk_dir, (trails or {}).get(set_), elev_new)
                     actors = _seat_riders(actors, rides, pos)
                     if any(ac.action == "give" for ac in actors):  # a hand-over needs both people in frame: wide
                         angle = "wide" if prev_angle != "wide" else "medium"  # fits everyone; medium: the pair (engine)
@@ -1083,6 +1114,14 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
                      if j < len(moods) and moods[j] and moods[j] != moods[j - 1]]
             opened = [e for f, e in turns if f <= s0]
             switches = [FaceChange(frame=f, expression=e) for f, e in turns if s0 < f < s1]
+            for ac in actors:  # a climber stays up on the trail's top (or foot) in the shots after its climb
+                if ac.cast_id in elev and ac.cast_id not in elev_new and ac.start_y == 0.0:
+                    z, ac.start_y = elev[ac.cast_id]
+                    ac.start_pos = (ac.start_pos[0], z)
+                    if ac.end_pos:
+                        ac.end_pos = (ac.end_pos[0], z)
+            elev.update(elev_new)
+            elev_new.clear()
             for ac in actors:  # @look: the look each cast member has on this line
                 if ac.action == "don" and ac.wear:
                     donned[ac.cast_id] = (ac.wear, looks.get(ac.cast_id))
@@ -1464,7 +1503,7 @@ def plan_part(part_dir: Path, notes=None):
     story = plan(story_md.read_text(encoding="utf-8"), phrases, series, load_part(part_dir / "part.json").number,
                  prop_kinds(library), outdoor_sets(library), creature_bodies(library), custom_actions(library),
                  set_weather(library), wardrobe_slots(library), creature_halves(library), world_object_kinds(library),
-                 notes)
+                 notes, set_trails(library))
     return story, phrases, series, library
 
 

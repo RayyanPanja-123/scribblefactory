@@ -24,7 +24,7 @@ export const ZZZ = { every: 3.2, show: 2.2 };             // sleeping: a rising 
 // Any other action is custom: library/actions.json keyframes (library.js), played by customPose.
 export const BUILTIN_ACTIONS = new Set(["idle", "walk", "run", "talk", "point", "react", "wave", "ride", "stagger", "lie",
   "collapse", "eat", "give", "receive", "carry", "carried", "support", "supported", "cheer", "angry", "gasp",
-  "pickup", "drop", "open", "close", "push", "sit", "enter", "exit", "stand", "don"]);
+  "pickup", "drop", "open", "close", "push", "sit", "enter", "exit", "stand", "don", "climb"]);
 // don <item> (actor.wear: a wardrobe item id, e.g. a crown): both hands rise to the head, the item appears there at `swap`
 // (a shot fraction) and the hands lower. Every later shot of the part has it on from the start (the planner keeps a.wear).
 export const DON = { swap: 0.5, up: 0.3, down: 0.75, arms: [[-152, -55], [152, 55]] };
@@ -33,6 +33,14 @@ export const donDef = (secs) => ({ duration: secs, loop: false, keys: [{ t: 0 },
   { t: DON.swap + 0.1, arms: DON.arms }, { t: DON.down }, { t: 1 }] });
 /** is actor a's worn item (a.wear) on at shot fraction u? A don puts it on at DON.swap; any other action wears it throughout */
 export const wearOn = (a, u) => !!a.wear && (a.action !== "don" || u >= DON.swap);
+/** height of actor a above the ground at shot fraction u (a @do climb along a set's trail): start_y to end_y, smooth, or
+ *  in a.steps stairs (each rises smoothly, then rests): the card goes up with the walk */
+export const heightAt = (a, u) => {
+  const dy = (a.end_y ?? a.start_y ?? 0) - (a.start_y ?? 0);
+  if (!dy) return a.start_y ?? 0;
+  const k = a.steps ? (s => { const i = Math.min(a.steps - 1, Math.floor(s)); return (i + EASES["in-out"](s - i)) / a.steps; })(u * a.steps) : u;
+  return a.start_y + dy * Math.min(1, Math.max(0, k));
+};
 // World Item interactions (actor.item: the @item tag): the hand reaches for this anchor of the item (schema
 // WorldObject anchors), on giveAt's timing; enter / exit reach for the handle as they step in / out
 export const ITEM_REACH = { pickup: "pickup", drop: "pickup", open: "handle", close: "handle", push: "handle",

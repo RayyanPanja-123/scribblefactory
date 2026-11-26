@@ -178,3 +178,16 @@ test("don: the item goes on at the swap and stays on in later shots; the hands r
   const up = customPose(donDef(2), 2 * DON.swap).arms[1][0], rest = customPose(donDef(2), 0).arms[1][0], end = customPose(donDef(2), 2).arms[1][0];
   assert.ok(up > 120 && rest < 30 && end < 30);
 });
+
+test("climb: height goes from start_y to end_y, in steps on stairs, and stays at start_y when there is no climb", async () => {
+  const { heightAt } = await import("../page/actions.js");
+  assert.equal(heightAt({ start_y: 0 }, 0.5), 0);
+  assert.equal(heightAt({ start_y: 3 }, 0.5), 3);
+  const ramp = { start_y: 0, end_y: 3 };
+  assert.equal(heightAt(ramp, 0), 0); assert.equal(heightAt(ramp, 1), 3); assert.equal(heightAt(ramp, 0.5), 1.5);
+  const stairs = { start_y: 0, end_y: 3, steps: 3 };
+  assert.equal(heightAt(stairs, 0), 0); assert.ok(Math.abs(heightAt(stairs, 1) - 3) < 1e-9);
+  assert.ok(Math.abs(heightAt(stairs, 1 / 3) - 1) < 1e-9); // each step lands on a whole tread
+  const mid = heightAt(stairs, 0.5); assert.ok(mid > 1 && mid < 2);
+  assert.equal(heightAt({ start_y: 3, end_y: 0 }, 1), 0); // down
+});

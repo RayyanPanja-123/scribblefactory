@@ -8,7 +8,7 @@ import { lookup, setLibrary } from "./library.js";
 import { BUILTIN_WARDROBE } from "./wardrobe.js";
 import { DH, DOG_FEET, DW, barkAmount, drawDog, gallopPhase } from "./dog.js";
 import { cameraProgress, isReactionClose, fovPunch, moodLook, noise1, popAt, shakeTriggers, speechEnv, trauma, gestureAmount, idleLife, lookTarget, gesturePlan, mouthCurve, mouthCycles, pointAmount, stressBob, waveAmount } from "./motion.js";
-import { BUILTIN_ACTIONS, CARRIED_LIFT, GIVE, donDef, wearOn, HELD_Z, HOLD_GAP, ITEM_REACH, LIE, REST, SIT, SIT_LAND, STAND_UP, actU, passBehind, poseMix, collapseAt, customPose, eatAt, gaitPhase, giveAt, handOf, heldPlace, itemSide,
+import { BUILTIN_ACTIONS, CARRIED_LIFT, GIVE, donDef, heightAt, wearOn, HELD_Z, HOLD_GAP, ITEM_REACH, LIE, REST, SIT, SIT_LAND, STAND_UP, actU, passBehind, poseMix, collapseAt, customPose, eatAt, gaitPhase, giveAt, handOf, heldPlace, itemSide,
   propsByShot, sideToward, staggerAt, withProp, zzzAt } from "./actions.js";
 import { CAR_CARD_W, CAR_GROUND, DRIVER_X, RIDER_X, VH, VW, carEase, carSpeedShare, drawCar, seatOffset } from "./car.js";
 import { HEAD_GROW, MOOD_EXPRESSION, extraLook, fitCrowd, moodAt, placeExtras } from "./extras.js";
@@ -694,8 +694,9 @@ function drawShot(shot, n) {
   const mounted = subject && pairOf(subject), lift = mounted && !wide
     ? Math.max(0, (CARD_H * (mountedTop(...mounted) - FIGURE_PX)) / CH * 0.85) : 0;
   const drop = (kk) => (subject ? (lift ? -lift : Math.max(LIE.drop * lying(subject, kk, shot), wide || seated.has(subject.cast_id) ? 0 : creatureDrop(subject.cast_id))) : 0);
+  const rise = (uu) => (subject ? heightAt(subject, uu) : 0); // the framing climbs with a climbing subject
   const camAt = (uu) => shotCamera(shot, subject ? focusX((a) => placeAt2(a, uu)) : 0, span, uu,
-    drop(shot.start_frame + uu * (shot.end_frame - shot.start_frame - 1)));
+    drop(shot.start_frame + uu * (shot.end_frame - shot.start_frame - 1)) - rise(uu));
   const placeAt2 = (a, uu) => seated.get(a.cast_id) || heldPlace(a, shot.actors, placeAt, uu) || placeAt(a, uu);
   const clamp = fastClamp(shot, (s) => { shot = s; }, camAt, () => shot.actors.filter((a) => !seated.has(a.cast_id)).map((a) => placeAt2(a, 1)));
   const sky = group.userData.sky?.length || shot.items?.some((it) => it.layer === "sky") ? skyLift(camAt) : null;
@@ -704,7 +705,7 @@ function drawShot(shot, n) {
   const extraShift = extrasFor(shot, camAt, placeAt2);
   const fg = foregroundFor(shot, subject, camAt, placeAt2);
   // the frame's camera: framing, fov punch, then drift and shake (the probes above use the framing alone)
-  shotCamera(shot, subject ? focusX(place) : 0, span, u, drop(kf), fovPunch(shot, (kf - shot.start_frame) / FPS));
+  shotCamera(shot, subject ? focusX(place) : 0, span, u, drop(kf) - rise(u), fovPunch(shot, (kf - shot.start_frame) / FPS));
   const shake = cameraLife(shot, n);
   if (sky) for (const c of group.userData.sky || []) c.root.position.y += sky(c.root.position.z); // anims set y afresh
   const lives = [];
@@ -734,7 +735,8 @@ function drawShot(shot, n) {
     // frame and clear of its neighbours as far as it can
     const reach = roll.k * (FIG_H / 2), hx = -roll.sign * reach * Math.cos(yaw), hz = roll.sign * reach * Math.sin(yaw);
     const hop = o.mood ? MOOD_HOP * o.mood.bounce : 0; // cheering bounces
-    mesh.position.set(x - hx, a.action === "carried" ? CARRIED_LIFT : LIE.lift * roll.k + hop, z - hz);
+    const up = heightAt(a, u); // climbing a trail: the card (and its shadow) ride up it
+    mesh.position.set(x - hx, (a.action === "carried" ? CARRIED_LIFT : LIE.lift * roll.k + hop) + up, z - hz);
     mesh.rotation.set(0, yaw, roll.sign * roll.k * Math.PI / 2);
     // on a World Item's seat: the hips on the seat point, cut at its rim when inside, drawn between its layers
     if (perch) { const y = perch.y - (CARD_H * (FEET_Y - skeleton(figure(a.cast_id, o)).hipY)) / CH; mesh.position.y = perch.k == null ? y : y * perch.k; }
@@ -744,7 +746,7 @@ function drawShot(shot, n) {
     // contact shadow: follows the feet, a little wider when the stride lowers the body; under a lying body it
     // stretches along it
     const { shadow } = cards[a.cast_id], k = 1 + SHADOW.bounce * Math.abs(Math.sin(2 * Math.PI * phase));
-    shadow.position.set(x, SHADOW.y, z);
+    shadow.position.set(x, SHADOW.y + up, z);
     shadow.scale.set(SHADOW.w * k * (1 + 1.3 * roll.k) * (a.action === "carried" ? 0.7 : 1), 1, SHADOW.d * k);
     scene.add(mesh);
     if (perch?.mode !== "ride") scene.add(shadow); // inside: the item's own shadow
@@ -829,7 +831,7 @@ function shotFrame(shot, n) {
     onMount: (a) => a.mount && shot.actors.some((b) => b.cast_id === a.mount) }; // falsy, not false: the riders-first sort relies on it
 }
 
-const ownMove = (a) => (a.end_pos ? Math.hypot(a.end_pos[0] - a.start_pos[0], a.end_pos[1] - a.start_pos[1]) : 0);
+const ownMove = (a) => (a.end_pos ? Math.hypot(a.end_pos[0] - a.start_pos[0], a.end_pos[1] - a.start_pos[1], (a.end_y ?? a.start_y ?? 0) - (a.start_y ?? 0)) : 0);
 
 /** a standing stickman's motion life at frame F (shotFrame) from its poses at neighbouring frames of the same shot:
  *  { velLean degrees, squash (height share), prev: { facing, k: skeleton } for smears }. Speeds are backward

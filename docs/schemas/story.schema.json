@@ -59,6 +59,19 @@
           "default": null,
           "title": "End Pos"
         },
+        "end_y": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "height at the end of the shot; none: the same as start_y",
+          "title": "End Y"
+        },
         "expression": {
           "description": "neutral: the cast member's default_expression",
           "enum": [
@@ -208,6 +221,26 @@
           ],
           "title": "Start Pos",
           "type": "array"
+        },
+        "start_y": {
+          "default": 0.0,
+          "description": "height of the card above the ground at the start of the shot (climbing a set's trail: @do climb; 0 on the ground)",
+          "title": "Start Y",
+          "type": "number"
+        },
+        "steps": {
+          "anyOf": [
+            {
+              "minimum": 2,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "stairs: the height rises in this many steps over the move (none: a smooth slope)",
+          "title": "Steps"
         },
         "target": {
           "anyOf": [

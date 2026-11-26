@@ -280,6 +280,25 @@ class WorldObjectInstance(Strict):
         return omit_defaults(handler(self), type(self), ("state", "color", "accent", "at_wide"))
 
 
+Point3 = tuple[float, float, float]
+
+
+class Trail(Strict):
+    """the path a `@do <cast>: climb` follows on a set: stairs or a slope, from its foot to its top"""
+    start: Point3 = Field(description="[x, y, z] of the foot: where a climb up starts (a climb down ends here)")
+    end: Point3 = Field(description="[x, y, z] of the top; its y is higher than the foot's, x differs from the foot's")
+    steps: int | None = Field(default=None, ge=2, le=60, description="stairs: the height rises in this many steps; "
+                                                                     "none: a smooth slope")
+
+    @model_validator(mode="after")
+    def _rises(self):
+        if self.end[1] <= self.start[1]:
+            raise ValueError("trail: end must be higher than start (y)")
+        if self.end[0] == self.start[0] and self.end[2] == self.start[2]:
+            raise ValueError("trail: end must differ from start in x or z")
+        return self
+
+
 class CustomSet(Strict):
     id: Slug = Field(description="the name used in @set")  # checked: _not_builtin
     name: str = Field(min_length=1, max_length=40)
@@ -295,10 +314,13 @@ class CustomSet(Strict):
                                                                       "(until an @weather); none: clear")
     water: bool | None = Field(default=None, description="outdoor: the floor is a sea or lake (waves, foam, "
                                                          "ripples, reflections); none: when the floor colour reads blue")
+    trail: Trail | None = Field(default=None, description="stairs or a slope a character can `@do climb` (draw the "
+                                                         "steps as pieces; walk in front of them, z in front of the "
+                                                         "steps' face); none: nothing to climb here")
 
     @model_serializer(mode="wrap")
     def _omit_water(self, handler):
-        return omit_defaults(handler(self), type(self), ("water",))
+        return omit_defaults(handler(self), type(self), ("water", "trail"))
 
     @model_validator(mode="after")
     def _water_outdoor(self):
@@ -384,6 +406,7 @@ ACTIONS: dict[str, frozenset[str]] = {k: frozenset(v) for k, v in {
     "pickup": {"do", "hands", "item"}, "drop": {"do", "hands", "item"}, "open": {"do", "hands", "item"},
     "close": {"do", "hands", "item"}, "push": {"do", "hands", "item"}, "sit": {"do", "item"},
     "enter": {"do", "item"}, "exit": {"do", "item"},
+    "climb": {"do"},  # the planner turns it into a walk along the set's trail (the engine never sees it)
     "don": {"do", "hands", "wear"},  # puts on a wardrobe item (headwear, back) halfway through the shot and keeps it on
     "stand": {"do"},  # gets up off what it sits on (sit lasts until the sitter's next @do); else stands as it is
 }.items()}

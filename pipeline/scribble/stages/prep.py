@@ -193,6 +193,10 @@ def parse_do(arg: str, line: int, cast_ids=None, props=BUILTIN_PROPS, actions=()
             if len(args) > 1:
                 bad('eat takes one prop, e.g. "eat apple"')
             prop = args[0] if args else "apple"
+        elif act == "climb":
+            if args not in ([], ["up"], ["down"]):
+                bad('climb takes "up" (default) or "down", e.g. "@do danny: climb" or "@do danny: climb down"')
+            prop = args[0] if args else "up"  # the direction
         elif act == "don":
             if len(args) != 1:
                 bad('don needs one wardrobe item, e.g. "don crown" (headwear or back)')
@@ -215,7 +219,7 @@ def parse_do(arg: str, line: int, cast_ids=None, props=BUILTIN_PROPS, actions=()
             target = args[0]
         elif args:
             bad(f"{act} takes no target or prop (got {' '.join(args)!r})")
-        if prop is not None and act != "don" and prop not in props:
+        if prop is not None and act not in ("don", "climb") and prop not in props:
             bad(f"unknown prop {prop!r} (props: {', '.join(props)})")
         if target is not None and target in who:
             bad(f"{target} cannot {act} itself")

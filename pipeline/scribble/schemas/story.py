@@ -59,6 +59,11 @@ class Actor(Strict):
     target: str | None = Field(default=None, description="give / receive: the other actor; carry / support: the "
                                                          "actor carried / supported")
     prop: PropKind | None = Field(default=None, description="eat / give: the prop eaten / handed over")
+    start_y: float = Field(default=0.0, description="height of the card above the ground at the start of the shot "
+                                                    "(climbing a set's trail: @do climb; 0 on the ground)")
+    end_y: float | None = Field(default=None, description="height at the end of the shot; none: the same as start_y")
+    steps: int | None = Field(default=None, ge=2, description="stairs: the height rises in this many steps over the "
+                                                              "move (none: a smooth slope)")
     wear: Slug | None = Field(default=None, description="don: the wardrobe item (headwear or back) put on halfway through "
                                                         "the shot; every later shot of the part has it on from the start")
     look: Slug | None = Field(default=None, description="the cast member's named look (@look), none: its own")

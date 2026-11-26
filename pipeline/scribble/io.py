@@ -550,6 +550,11 @@ def set_weather(library) -> dict:
     return {s.id: s.default_weather for s in load_sets(library).sets}
 
 
+def set_trails(library) -> dict:
+    """custom set id -> its Trail (only the sets that have one): what `@do climb` follows"""
+    return {s.id: s.trail for s in load_sets(library).sets if s.trail}
+
+
 def outdoor_sets(library) -> set[str]:
     """the sets that can scroll (travel shots)"""
     return {k for k, v in set_kinds(library).items() if v == "outdoor"}

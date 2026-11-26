@@ -67,6 +67,18 @@
           "title": "Pieces",
           "type": "array"
         },
+        "trail": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Trail"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "stairs or a slope a character can `@do climb` (draw the steps as pieces; walk in front of them, z in front of the steps' face); none: nothing to climb here"
+        },
         "use_for": {
           "anyOf": [
             {
@@ -171,6 +183,69 @@
         "color"
       ],
       "title": "SetPiece",
+      "type": "object"
+    },
+    "Trail": {
+      "additionalProperties": false,
+      "description": "the path a `@do <cast>: climb` follows on a set: stairs or a slope, from its foot to its top",
+      "properties": {
+        "end": {
+          "description": "[x, y, z] of the top; its y is higher than the foot's, x differs from the foot's",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "End",
+          "type": "array"
+        },
+        "start": {
+          "description": "[x, y, z] of the foot: where a climb up starts (a climb down ends here)",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Start",
+          "type": "array"
+        },
+        "steps": {
+          "anyOf": [
+            {
+              "maximum": 60,
+              "minimum": 2,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "stairs: the height rises in this many steps; none: a smooth slope",
+          "title": "Steps"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "title": "Trail",
       "type": "object"
     },
     "Weather": {

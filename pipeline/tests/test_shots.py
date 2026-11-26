@@ -963,3 +963,26 @@ def test_planner_orbits_instead_of_trucking_on_subject_shots():
     for s in story.shots:
         assert not (s.camera.move.startswith("truck") and s.camera.angle in ("medium", "close", "low"))
     assert any(s.camera.move.startswith("orbit") for s in story.shots), Counter(s.camera.move for s in story.shots)
+
+
+def test_climb_follows_the_set_trail_and_stays_up_there():
+    from pipeline.scribble.schemas.library import Trail
+    trail = Trail(start=(-1.5, 0.0, -0.5), end=(1.5, 3.0, -0.5), steps=12)
+    md = ("# T\n\n@set street\n@cast bob, amy\n@do bob: climb\nBob went up the long stairs to the very top of the mountain today.\n"
+          "Amy waited below.\n")
+    ph = phrases_for(md)
+    story = shots.plan(md, ph, SERIES, 1, trails={"street": trail})
+    bobs = [next(a for a in s.actors if a.cast_id == "bob") for s in story.shots]
+    first = bobs[0]
+    assert first.action in ("walk", "run") and first.start_pos == (-1.5, -0.5) and first.end_pos == (1.5, -0.5)
+    assert (first.start_y, first.end_y, first.steps) == (0.0, 3.0, 12)
+    assert all(a.start_y == 3.0 and a.start_pos[1] == -0.5 and a.start_pos[0] == 1.5 for a in bobs[1:]), bobs  # stays on top
+    assert all(next(a for a in s.actors if a.cast_id == "amy").start_y == 0.0 for s in story.shots)
+    assert validate(story, ph, {c.id for c in SERIES.cast}) == []
+    down = md.replace("@do bob: climb\n", "@do bob: climb down\n")
+    d = shots.plan(down, ph, SERIES, 1, trails={"street": trail}).shots[0].actors[0]
+    assert (d.start_y, d.end_y) == (3.0, 0.0)
+    with pytest.raises(StageError, match="needs a set with a trail"):
+        shots.plan(md, ph, SERIES, 1)
+    with pytest.raises(StageError, match="too long for"):
+        shots.plan(md, ph, SERIES, 1, trails={"street": Trail(start=(-10.0, 0.0, 0.0), end=(10.0, 9.0, 0.0))})
