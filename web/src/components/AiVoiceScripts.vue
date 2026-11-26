@@ -3,7 +3,8 @@ import { X } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
 import { api } from '../api/client'
 import { act } from '../composables/feedback'
-import { parseVoiceReply, spokenWords, voicePrompt, voiceStory, type VoiceMode, type VoicePart } from '../lib/voicePrompt'
+import { newSpeakers, parseVoiceReply, spokenWords, voicePrompt, voiceStory, type VoiceMode, type VoicePart } from '../lib/voicePrompt'
+import { nameOf } from '../lib/storyIssues'
 import AiBridge from './AiBridge.vue'
 
 // Story step 1: title -> voice scripts. One small prompt, one paste, then one part per script (narration only;
@@ -23,8 +24,9 @@ const saving = ref(false)
 const mode = ref<VoiceMode | null>(null)
 const MODES: { id: VoiceMode; label: string; hint: string }[] = [
   { id: 'narration', label: 'Single narration', hint: 'One narrator reads everything. Best for history explainers.' },
-  { id: 'cast', label: 'Cast voice acting', hint: 'A narrator plus the characters’ own lines, each in their own voice (TTS). Best for comedy and banter.' },
+  { id: 'cast', label: 'Cast voice acting', hint: 'A narrator plus the characters’ own lines, each in their own voice (TTS). Best for comedy and banter. The AI invents the characters; they are added to the cast when you create the parts.' },
 ]
+const PALETTE = ['#3a7bd5', '#d53a3a', '#2e9e5b', '#e0a020', '#8a4fd5', '#d5703a']
 const prompt = computed(() => mode.value ? voicePrompt({ title: props.title, parts: parts.value, mode: mode.value, aspect: props.aspect, minutes: minutes.value, notes: notes.value, cast: props.cast }) : '')
 const words = spokenWords
 
@@ -33,13 +35,20 @@ function close() {
   emit('close')
 }
 function load() {
-  const r = parseVoiceReply(reply.value, parts.value, mode.value === 'cast' ? props.cast.map((c) => c.id) : null)
+  const r = parseVoiceReply(reply.value, parts.value, mode.value === 'cast' ? props.cast.map((c) => c.id) : null, true)
   error.value = r.error ?? ''
   parsed.value = r.parts ?? []
 }
 async function create() {
   saving.value = true
   const ids = props.cast.map((c) => c.id)
+  const fresh = newSpeakers(parsed.value, ids) // characters the AI made up: added to the cast first, outfits come later
+  if (fresh.length) {
+    const ok = await act(() => api.addCast(props.slug, fresh.map((id, i) => ({ id, name: nameOf(id), color: PALETTE[(ids.length + i) % PALETTE.length] }))),
+      `${fresh.length} character${fresh.length === 1 ? '' : 's'} added: ${fresh.join(', ')}`)
+    if (!ok) { saving.value = false; return }
+    ids.push(...fresh)
+  }
   for (const [i, p] of parsed.value.entries()) {
     const ok = await act(() => api.createPart(props.slug, { title: p.title, story: voiceStory(p, ids) }), `Part “${p.title}” created`)
     if (!ok) { parsed.value = parsed.value.slice(i); saving.value = false; return } // keep the rest to retry
@@ -79,10 +88,9 @@ async function create() {
             <div class="mt-1 grid gap-2 sm:grid-cols-2">
               <button v-for="m in MODES" :key="m.id" type="button" class="inset rounded-md p-3 text-left" :aria-pressed="mode === m.id"
                 :class="mode === m.id ? 'border-ink ring-2 ring-ink' : 'hover:border-rule-strong'"
-                :disabled="m.id === 'cast' && !cast.length" :title="m.id === 'cast' && !cast.length ? 'Add cast members first: only they can speak' : undefined"
                 @click="mode = m.id">
                 <span class="block text-sm font-semibold text-ink">{{ m.label }}</span>
-                <span class="mt-0.5 block text-xs text-muted">{{ m.id === 'cast' && !cast.length ? 'Add cast members first: only they can speak.' : m.hint }}</span>
+                <span class="mt-0.5 block text-xs text-muted">{{ m.hint }}</span>
               </button>
             </div>
           </fieldset>

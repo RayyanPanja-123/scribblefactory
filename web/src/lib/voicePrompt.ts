@@ -35,8 +35,8 @@ export function voicePrompt(o: { title: string; parts: number; mode: VoiceMode; 
       ? 'Voice mode (the creator chose it): **cast voice acting**. Lines 1 to 3 are narration; after that the characters speak their own lines as `<cast id>: words`.'
       : 'Voice mode (the creator chose it): **single narration**. Every line is the narrator\'s: no `id: ` speaker lines.',
     cast.length
-      ? `Characters already in this series: ${cast.map((c) => (acting ? `\`${c.id}\` ${c.name}` : c.name)).join(', ')}.${acting ? ' Only these may speak: use their id before the colon.' : ' Use these names.'}`
-      : '',
+      ? `Characters already in this series: ${cast.map((c) => (acting ? `\`${c.id}\` ${c.name}` : c.name)).join(', ')}.${acting ? ' Use their ids before the colon. You may add new characters: the app creates them from their ids.' : ' Use these names.'}`
+      : acting ? 'No characters exist yet: invent the speaking characters yourself. Give each a short lowercase id (letters, digits and dashes, ideally their first name, e.g. `kai`) and use the same id every time; the app creates them from their ids. Three to five speaking characters is plenty.' : '',
     o.notes?.trim() ? `Notes from the creator: ${o.notes.trim()}` : '',
     '',
     voiceRules.trim(),
@@ -58,8 +58,8 @@ export function voicePrompt(o: { title: string; parts: number; mode: VoiceMode; 
 }
 
 /** the reply's parts, or the first problem found. speakers: the cast ids that may speak (cast voice acting), or null
- *  (single narration: no line may be a speaker's) */
-export function parseVoiceReply(text: string, parts: number, speakers: string[] | null = null): { parts?: VoicePart[]; error?: string } {
+ *  (single narration: no line may be a speaker's). open: any speaker id is fine (new characters are created from them) */
+export function parseVoiceReply(text: string, parts: number, speakers: string[] | null = null, open = false): { parts?: VoicePart[]; error?: string } {
   const body = text.replace(/\r/g, '').split('\n').filter((l) => !l.trim().startsWith('```'))
   const out: VoicePart[] = []
   let cur: VoicePart | null = null
@@ -80,13 +80,17 @@ export function parseVoiceReply(text: string, parts: number, speakers: string[] 
     const bad = p.lines.find((l) => l.startsWith('@') || /\d/.test(l))
     if (bad) return { error: `${n}: narration only, numbers as words: "${bad}"` }
     if (p.lines.filter((l) => l.startsWith('!!')).length !== 1) return { error: `${n} needs exactly one "!!" twist line.` }
-    const said = p.lines.find((l) => speakerOf(l) && (!speakers || !speakers.includes(speakerOf(l)!)))
+    const said = p.lines.find((l) => speakerOf(l) && (!speakers || (!open && !speakers.includes(speakerOf(l)!))))
     if (said) return { error: speakers
       ? `${n}: "${speakerOf(said)}" is not in this series' cast (${speakers.join(', ')}): "${said}"`
       : `${n}: single narration, but this is a character's line: "${said}"` }
   }
   return { parts: out }
 }
+
+/** the speaker ids the parts use that are not in `known` yet, in order of first appearance (cast voice acting creates them) */
+export const newSpeakers = (parts: VoicePart[], known: string[]): string[] =>
+  [...new Set(parts.flatMap((p) => p.lines.map(speakerOf)).filter((id): id is string => !!id && !known.includes(id)))]
 
 /** a part's starter story.md: the lines under a placeholder @set, staged later */
 export const voiceStory = (p: VoicePart, cast: string[]) =>

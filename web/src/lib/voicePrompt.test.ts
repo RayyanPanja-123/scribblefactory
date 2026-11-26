@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseVoiceReply, spokenWords, voicePrompt, voiceStory } from './voicePrompt'
+import { newSpeakers, parseVoiceReply, spokenWords, voicePrompt, voiceStory } from './voicePrompt'
 
 const reply = `Sure! Here you go:
 \`\`\`text
@@ -77,5 +77,17 @@ describe('parseVoiceReply without a title', () => {
   it('names the part instead of failing', () => {
     const r = parseVoiceReply('<<<PART 1>>>\nA line.\n!! The twist.\n<<<END>>>', 1)
     expect(r.parts![0].title).toBe('Part 1')
+  })
+})
+
+describe('cast voice acting without a cast', () => {
+  const acted = reply.replace('Cassius counted the days.', ['Cassius counted the days.', 'cassius: Nine more sandals to go.', 'nero: Count faster.'].join('\n'))
+  it('asks the AI to invent the characters, and accepts any speaker id', () => {
+    const p = voicePrompt({ title: 'C', parts: 1, mode: 'cast' })
+    expect(p).toContain('No characters exist yet: invent')
+    const r = parseVoiceReply(acted, 2, [], true)
+    expect(r.error).toBeUndefined()
+    expect(newSpeakers(r.parts!, [])).toEqual(['cassius', 'nero'])
+    expect(newSpeakers(r.parts!, ['cassius'])).toEqual(['nero'])
   })
 })
