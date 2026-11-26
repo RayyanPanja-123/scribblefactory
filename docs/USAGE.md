@@ -28,7 +28,7 @@ bash scripts/serve.sh      # http://127.0.0.1:8765
 
 **Series → New part** (`cli new-part <slug> --title "..."`), then write `library/database/storage/<slug>/<NN>-<title>/story.md` (each part folder is its number and title, e.g. `01-quota-night`).
 Plain text is the narration. Lines starting with `@` are directives: never read aloud, they steer the shots.
-`# Title` lines and markdown syntax are dropped from the narration too. Aim for 30-35 s, never over 35 (70 to 83 words).
+`# Title` lines and markdown syntax are dropped from the narration too. Aim for 45-55 s (109 to 135 words); outside that the app warns.
 
 ### Directives
 

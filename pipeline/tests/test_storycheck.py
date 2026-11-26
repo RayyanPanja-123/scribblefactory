@@ -40,9 +40,9 @@ The end.
 
 def plain(r: dict, short_ok: bool = True) -> dict:
     """a check result without its staging notes (test_staging_report covers those) and, for the deliberately tiny
-    fixture stories (short_ok), without the under-30-s runtime warning (test_runtime_warning_outside_30_to_35_seconds)"""
+    fixture stories (short_ok), without the under-45-s runtime warning (test_runtime_warning_outside_45_to_55_seconds)"""
     return {**r, "warnings": [w for w in r["warnings"] if not w["message"].startswith("staging: ")
-                              and not (short_ok and " s under 30 s (" in w["message"])]}
+                              and not (short_ok and " s under 45 s (" in w["message"])]}
 
 
 def setup(tmp_path, story, approve=("bob", "amy")):
@@ -181,17 +181,17 @@ def test_duration_estimate_uses_measured_words_per_second(tmp_path):
     assert measured_wps(tmp_path) == 3.0
 
 
-def test_runtime_warning_outside_30_to_35_seconds(tmp_path):
-    pdir = setup(tmp_path, "# T\n\n" + "Bob met Amy. " * 30 + "\n")  # 90 words / 2.6 + 2.8 = 37.4 s
+def test_runtime_warning_outside_45_to_55_seconds(tmp_path):
+    pdir = setup(tmp_path, "# T\n\n" + "Bob met Amy. " * 48 + "\n")  # 144 words / 2.6 + 2.8 = 58.2 s
     r = check_story(pdir)
-    assert r["ok"] and r["seconds"] == 37.4
+    assert r["ok"] and r["seconds"] == 58.2
     assert [w["message"] for w in plain(r, short_ok=False)["warnings"]] == [
-        "estimated 37.4 s is 2.4 s over 35 s (90 words at 2.60 words/s): cut about 6 words"]
-    (pdir / "story.md").write_text("# T\n\n" + "Bob met Amy. " * 26 + "\n", encoding="utf-8")  # 78 words: 32.8 s
+        "estimated 58.2 s is 3.2 s over 55 s (144 words at 2.60 words/s): cut about 8 words"]
+    (pdir / "story.md").write_text("# T\n\n" + "Bob met Amy. " * 40 + "\n", encoding="utf-8")  # 120 words: 48.9 s
     assert plain(check_story(pdir), short_ok=False)["warnings"] == []
-    (pdir / "story.md").write_text("# T\n\n" + "Bob met Amy. " * 20 + "\n", encoding="utf-8")  # 60 words: 25.9 s
+    (pdir / "story.md").write_text("# T\n\n" + "Bob met Amy. " * 30 + "\n", encoding="utf-8")  # 90 words: 37.4 s
     assert [w["message"] for w in plain(check_story(pdir), short_ok=False)["warnings"]] == [
-        "estimated 25.9 s is 4.1 s under 30 s (60 words at 2.60 words/s): add about 11 words"]
+        "estimated 37.4 s is 7.6 s under 45 s (90 words at 2.60 words/s): add about 20 words"]
 
 
 @pytest.mark.parametrize("first,slow", [

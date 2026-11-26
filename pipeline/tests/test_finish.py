@@ -390,14 +390,14 @@ def test_finish_reruns_only_for_what_it_uses(lib, capsys):
     assert (pdir(lib) / "captions.ass").read_bytes() == first  # same captions.ass bytes
 
 
-def test_runtime_warning_only_outside_30_to_35_s():
+def test_runtime_warning_only_outside_45_to_55_s():
     from pipeline.scribble.stages.finish import runtime
-    assert runtime(34.9, 80, 32.0)["warnings"] == []
-    assert runtime(30.0, 70, 27.0)["warnings"] == []
-    r = runtime(38.0, 90, 35.0)
-    assert r["runtime"] == {"seconds": 38.0, "words": 90, "speech_seconds": 35.0}
-    assert r["warnings"] == ["runtime 38.0 s is 3.0 s over 35 s (90 words): cut about 8 words"]
-    assert runtime(26.0, 60, 23.0)["warnings"] == ["runtime 26.0 s is 4.0 s under 30 s (60 words): add about 11 words"]
+    assert runtime(54.9, 130, 52.0)["warnings"] == []
+    assert runtime(45.0, 110, 42.0)["warnings"] == []
+    r = runtime(58.0, 140, 55.0)
+    assert r["runtime"] == {"seconds": 58.0, "words": 140, "speech_seconds": 55.0}
+    assert r["warnings"] == ["runtime 58.0 s is 3.0 s over 55 s (140 words): cut about 8 words"]
+    assert runtime(41.0, 100, 38.0)["warnings"] == ["runtime 41.0 s is 4.0 s under 45 s (100 words): add about 11 words"]
 
 
 def test_fx_shake_syncs_with_story_shakes():

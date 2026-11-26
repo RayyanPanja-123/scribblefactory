@@ -70,7 +70,7 @@ QA_FREEZE_NOISE = "-60dB"
 QA_BLACK_S = 0.2
 QA_DURATION_TOL = 0.1
 QA_LUFS, QA_LUFS_TOL, QA_TRUE_PEAK = -14.0, 1.0, -1.0
-MIN_RUNTIME_S, MAX_RUNTIME_S = 30, 35  # every part runs 30 to 35 s: warn outside that
+MIN_RUNTIME_S, MAX_RUNTIME_S = 45, 55  # every part runs 45 to 55 s: warn outside that
 
 # --- end screen (every part: silent, after the last word) ---
 CARD_SIZE = 76             # headline ("Follow for more") px

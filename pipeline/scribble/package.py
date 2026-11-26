@@ -37,7 +37,7 @@ ASSETS = {  # section -> (model, library loader, list field, library model)
 }
 OPTIONAL = {"WARDROBE", "OBJECTS"}  # packages written before them have no such section: read as []
 HEAD = ["META", *ASSETS, "CAST"]
-WORDS = (70, 83)  # 30 to 35 s at 2.6 words/s, with the tail and end screen (docs/story-writter/tts-shorts.md)
+WORDS = (109, 135)  # 45 to 55 s at 2.6 words/s, with the tail and end screen (docs/story-writter/tts-shorts.md)
 
 
 class PackageError(Exception):
