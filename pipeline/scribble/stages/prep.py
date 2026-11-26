@@ -16,7 +16,7 @@ story.md directives (one per line) are stripped from the script:
                      end of the part; it stays mounted across @set changes (see parse_ride)
   @face mike: angry  a cast member's face for the next line only (see parse_face)
   @cam close push_in fast  the camera for the next line's first shot (see parse_cam)
-  @crowd cheer 10    crowd extras behind the stage: cheer | angry | gasp | neutral [N, default 8, max 12] | off
+  @crowd cheer 10    crowd extras behind the stage: cheer | angry | gasp | salute | neutral [N, default 8, max 12] | off
   @runners 4         background runner extras (0-6)
   @item ship: saucer sky right  a World Item on stage until "@item ship: remove" or a set change (see parse_item);
                      "@item ship: state landed" changes its state; "@do ship: fly left" flies it across the next line

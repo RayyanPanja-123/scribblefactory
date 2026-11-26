@@ -713,20 +713,20 @@ DOG = {"id": "dog", "name": "Dog", "rig": "quadruped",
 
 
 def test_actions(client, lib):
-    salute = {"id": "salute", "name": "Salute", "duration": 1.2, "loop": False,
+    curtsy = {"id": "curtsy", "name": "Curtsy", "duration": 1.2, "loop": False,
               "keys": [{"t": 0}, {"t": 0.5, "arms": [[-16, 0], [150, 70]]}]}
     r = client.get("/api/actions").json()
     assert "wave" in r["do"] and "receive" in r["builtin"] and "receive" not in r["do"] and r["custom"] == []
-    assert client.put("/api/actions/wave", json={**salute, "id": "wave"}).status_code == 422  # built-in id
-    assert client.put("/api/actions/bow", json=salute).status_code == 409  # id mismatch
-    assert [a["id"] for a in client.put("/api/actions/salute", json=salute).json()["custom"]] == ["salute"]
+    assert client.put("/api/actions/wave", json={**curtsy, "id": "wave"}).status_code == 422  # built-in id
+    assert client.put("/api/actions/bow", json=curtsy).status_code == 409  # id mismatch
+    assert [a["id"] for a in client.put("/api/actions/curtsy", json=curtsy).json()["custom"]] == ["curtsy"]
     story = part_dir_of(lib / "database" / "storage" / "demo", "part-01") / "story.md"
-    story.write_text("@set room\n@do bob: salute\nBob stood up.\n", encoding="utf-8")
-    r = client.delete("/api/actions/salute")
+    story.write_text("@set room\n@do bob: curtsy\nBob stood up.\n", encoding="utf-8")
+    r = client.delete("/api/actions/curtsy")
     assert r.status_code == 409 and "demo/part-01" in r.json()["detail"]  # still used by a story
     story.write_text("Bob stood up.\n", encoding="utf-8")
-    assert client.delete("/api/actions/salute").json()["custom"] == []
-    assert client.delete("/api/actions/salute").status_code == 404
+    assert client.delete("/api/actions/curtsy").json()["custom"] == []
+    assert client.delete("/api/actions/curtsy").status_code == 404
 
 
 def test_creatures(client, lib):

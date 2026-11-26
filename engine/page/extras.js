@@ -6,7 +6,7 @@ const TAU = Math.PI * 2;
 // muted tops so the cast stays the colour that reads first
 export const EXTRA_TOPS = ["#7a6a58", "#6f7d8c", "#8c7b6b", "#5f6f5e", "#8a6f6f", "#6b6f86", "#9a8f7a", "#7d7d74"];
 const HATS = ["#4a4a4a", "#5a4632", "#3d3d46"], TROUSERS = ["#3a3530", "#43464d", "#4d4338"];
-export const MOOD_EXPRESSION = { cheer: "happy", angry: "angry", gasp: "surprised", neutral: "neutral" };
+export const MOOD_EXPRESSION = { cheer: "happy", angry: "angry", gasp: "surprised", salute: "neutral", neutral: "neutral" };
 export const MOOD = { cheerHz: 1.6, shakeHz: 4, offset: 2.0 }; // pumps / shakes per second; up to 2 s timing offset
 export const EXTRA_SATURATION = 0.85; // extras' colours at 85% of their palette's saturation: the cast reads first
 export const GAP = { crowd: 0.55, runner: 0.6 }; // min x between extras of a kind in one row (planner spacing too)
@@ -122,6 +122,7 @@ export function moodAt(mood, t, key) {
     return { k: 0.85 + 0.15 * s, bounce: Math.max(0, s), crouch: Math.max(0, -s), shake: 0 }; // arms stay high: no sweep into neighbours; knees crouch between hops
   }
   if (mood === "angry" || mood === "fight") return { k: 1, bounce: 0, shake: Math.sin(TAU * MOOD.shakeHz * tt) };
+  if (mood === "salute") return { k: 1, bounce: 0, shake: 0 };
   if (mood === "gasp") return { k: 1, bounce: 0, shake: 0.15 * Math.sin(TAU * 7 * tt) }; // a small tremble
   return { k: 0, bounce: 0, shake: 0 };
 }

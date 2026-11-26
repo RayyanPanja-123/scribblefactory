@@ -41,7 +41,7 @@ One per line. A directive holds until it is changed, except `@do` and `!!`, whic
 | `@dogs N` | Dog pack (0-6). Travel shots: they chase. Otherwise they idle or bark at the edges. | `@dogs 3` |
 | `@car <mode>` | `arrive` (drives in, parks beside the subject), `ride` (the @cast ride, max 3; travel shot outdoors), `leave` (drives off), `off`. | `@car ride` |
 | `@do <cast>: <action> ...` | Overrides the guessed action for every shot of the next line. Actions: idle, talk, walk, run, point, react, wave, stagger, lie, collapse, eat [prop], give &lt;prop&gt; &lt;target&gt;, carry &lt;target&gt; (2 carriers), support &lt;target&gt; (1-2), cheer, angry, gasp; and `car: broken`. Several clauses: comma-separated. | `@do trainer1, trainer2: carry thomas` |
-| `@crowd <mood> [N]` | Crowd extras behind the stage: cheer, angry, gasp or neutral; N 1-12 (default 8). `@crowd off`. Not in travel shots. | `@crowd cheer 10` |
+| `@crowd <mood> [N]` | Crowd extras behind the stage: cheer, angry, gasp, salute or neutral; N 1-12 (default 8). `@crowd off`. Not in travel shots. | `@crowd cheer 10` |
 | `@crowd <group> <mood> [N]` | Named crowd team; teams occupy opposite sides. Use `fight <target>` for a fighting team. | `@crowd red angry 8` |
 | `@crowd-look <group>: <wardrobe ids>` | Gives a crowd team built-in or library wardrobe items (top, headwear, legwear). | `@crowd-look red: suit, flat_cap, trousers` |
 | `@crowd-weapon <group>: <prop>` | Gives every member of a crowd team a held prop from the props library. | `@crowd-weapon red: rifle` |

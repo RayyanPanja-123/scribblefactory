@@ -121,7 +121,7 @@ Write like a human storyteller, not a viral-content template. The story must fee
     Use `@dogs 0` to clear them.
 - `@runners N`: persistent background runners, 0–6. They run with the scroll in travel shots and cross behind the cast
     in ordinary shots. Use `@runners 0` to clear them.
-- `@crowd <mood> [N]`: one anonymous background crowd, with mood `cheer`, `angry`, `gasp`, or `neutral`; N is 1–12,
+- `@crowd <mood> [N]`: one anonymous background crowd, with mood `cheer`, `angry`, `gasp`, `salute`, or `neutral`; N is 1–12,
     default 8. `@crowd off` clears it. Crowds stand behind the stage and are omitted from travel shots. Change the mood
     as the scene turns: cheer → neutral → gasp, or angry for a hostile mob.
 - `@crowd <group> <mood> [N]`: a named team, such as `red` or `blue`. Named teams occupy opposing sides and face
@@ -162,7 +162,7 @@ fit the story's period or design.
 ### Next-line staging
 
 - `@do <cast>: <action> [prop] [target]`: controls the next narration line and must name cast members currently in
-    `@cast`. Actions include `idle`, `talk`, `point`, `react`, `wave`, `cheer`, `angry`, `gasp`, `walk`, `run`, `stagger`,
+    `@cast`. Actions include `idle`, `talk`, `point`, `react`, `wave`, `cheer`, `angry`, `gasp`, `salute`, `walk`, `run`, `stagger`,
     `lie`, `collapse`, `eat [prop]`, `give <prop> <target>`, `carry <target>`, `support <target>`, `car: broken`, and
     custom actions. Several clauses may be comma-separated. A later `@do` before the narration line replaces the earlier one.
 - `@face <cast>: <expression>`: sets a face for the next line: `neutral`, `happy`, `cheer`, `sad`, `angry`, `surprised`, `sleepy`,

@@ -72,7 +72,7 @@ function camParts(arg: string): Rec | null {
 }
 export const WEATHER = ['clear', 'rain', 'snow', 'fog', 'wind', 'storm']
 export const CAR = ['arrive', 'ride', 'leave', 'off']
-export const MOODS = ['cheer', 'angry', 'gasp', 'neutral', 'off', 'fight']
+export const MOODS = ['cheer', 'angry', 'gasp', 'salute', 'neutral', 'off', 'fight']
 // pipeline/scribble/background_music.py TRACKS: keep in step
 export const TRACKS = ['off', 'calm', 'mysterious', 'funny', 'scary', 'monkeys-spinning-monkeys', 'comedy-quirky-sneaky', 'sneaky-snitch',
   'fluffing-a-duck', 'scheming-weasel-faster', 'funny-comedy-quirky', 'darkling', 'hus-hus-hus-numbers']

@@ -23,7 +23,7 @@ export const ZZZ = { every: 3.2, show: 2.2 };             // sleeping: a rising 
 // every built-in actor action: code in stickman.js / creatures.js / main.js (pipeline schemas ACTIONS: keep equal).
 // Any other action is custom: library/actions.json keyframes (library.js), played by customPose.
 export const BUILTIN_ACTIONS = new Set(["idle", "walk", "run", "talk", "point", "react", "wave", "ride", "stagger", "lie",
-  "collapse", "eat", "give", "receive", "carry", "carried", "support", "supported", "cheer", "angry", "gasp",
+  "collapse", "eat", "give", "receive", "carry", "carried", "support", "supported", "cheer", "angry", "gasp", "salute",
   "pickup", "drop", "open", "close", "push", "sit", "enter", "exit", "stand", "don", "climb"]);
 // don <item> (actor.wear: a wardrobe item id, e.g. a crown): both hands rise to the head, the item appears there at `swap`
 // (a shot fraction) and the hands lower. Every later shot of the part has it on from the start (the planner keeps a.wear).

@@ -147,7 +147,7 @@ class Extra(Strict):
     """non-cast stickman: a seeded runner or a crowd member with optional team costume/prop."""
     id: str = Field(pattern=r"^[a-z0-9_-]+$")
     kind: Literal["crowd", "runner"]
-    action: Literal["cheer", "angry", "gasp", "neutral", "fight", "run"]  # crowd: a mood; runner: run
+    action: Literal["cheer", "angry", "gasp", "salute", "neutral", "fight", "run"]  # crowd: a mood; runner: run
     group: str | None = Field(default=None, pattern=r"^[a-z0-9_-]+$")
     target_group: str | None = Field(default=None, pattern=r"^[a-z0-9_-]+$")
     start_pos: Pos

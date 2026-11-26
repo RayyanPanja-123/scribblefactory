@@ -45,7 +45,8 @@ const OVER_SHOULDER = [122, -77], HOLD_ARM = [68, 35], GIVE_ARM = [80, -10], BUC
 // crowd moods (cast members can take them too): cheer arms up in a V, angry fists up beside the head, gasp hands
 // to the cheeks; o.mood { k 0..1, shake -1..1 } animates them (extras.js moodAt)
 const CHEER_ARM = 138, FIST = [105, 60], SHAKE = 10; // cheer: hands stay outside the head outline
-const MOODS = new Set(["cheer", "angry", "gasp"]);
+const SALUTE = [105, 115]; // salute: right upper arm, forearm bend (degrees): the hand meets the brow
+const MOODS = new Set(["cheer", "angry", "gasp", "salute"]);
 const GAITS = new Set(["walk", "run", "stagger", "carry", "support", "supported", "carried"]);
 const LOOSE = new Set(["stagger", "supported"]); // wobbly gait, loose arms
 const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
@@ -202,6 +203,8 @@ export function skeleton(o) {
   } else if (act === "cheer") {
     const k = o.mood ? o.mood.k : 1;
     aL += (-deg(CHEER_ARM) - aL) * k; aR += (deg(CHEER_ARM) - aR) * k;
+  } else if (act === "salute") {
+    aR = deg(SALUTE[0]); bendR = deg(SALUTE[1]);
   } else if (act === "angry") {
     const sh = deg(SHAKE) * (o.mood ? o.mood.shake : 0);
     aL = -deg(FIST[0]); bendL = -deg(FIST[1]) + sh; aR = deg(FIST[0]); bendR = deg(FIST[1]) - sh;

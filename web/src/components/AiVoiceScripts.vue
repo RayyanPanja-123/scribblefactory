@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { X } from 'lucide-vue-next'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { api } from '../api/client'
 import { act } from '../composables/feedback'
 import { newSpeakers, parseVoiceReply, spokenWords, voicePrompt, voiceStory, type VoiceMode, type VoicePart } from '../lib/voicePrompt'
@@ -9,13 +9,15 @@ import AiBridge from './AiBridge.vue'
 
 // Story step 1: title -> voice scripts. One small prompt, one paste, then one part per script (narration only;
 // directives come later per part).
-const props = defineProps<{ open: boolean; slug: string; title: string; cast: { id: string; name: string }[]; aspect?: '9:16' | '16:9' }>()
-const emit = defineEmits<{ close: []; done: [] }>()
+const props = defineProps<{ open: boolean; slug: string; title: string; cast: { id: string; name: string }[]; aspect?: '9:16' | '16:9'
+  single?: boolean; description?: string }>() // single: one part from a part title + description (New part page)
+const emit = defineEmits<{ close: []; done: [firstPartId?: string] }>()
 
-const parts = ref(3)
+const parts = ref(props.single ? 1 : 3)
 const minutes = ref(5) // long video (16:9) only: minutes of speech per part
 const wide = computed(() => props.aspect === '16:9')
-const notes = ref('')
+const notes = ref(props.description ?? '')
+watch(() => props.open, (o) => { if (o && props.single) notes.value = props.description ?? '' })
 const reply = ref('')
 const error = ref('')
 const parsed = ref<VoicePart[]>([])
@@ -49,12 +51,14 @@ async function create() {
     if (!ok) { saving.value = false; return }
     ids.push(...fresh)
   }
+  let first: string | undefined
   for (const [i, p] of parsed.value.entries()) {
     const ok = await act(() => api.createPart(props.slug, { title: p.title, story: voiceStory(p, ids) }), `Part “${p.title}” created`)
+    first ??= ok?.part.id
     if (!ok) { parsed.value = parsed.value.slice(i); saving.value = false; return } // keep the rest to retry
   }
   saving.value = false
-  emit('done')
+  emit('done', first)
   close()
 }
 </script>
@@ -65,21 +69,21 @@ async function create() {
       <section class="raised max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto p-6 shadow-[var(--shadow-pop)]" role="dialog" aria-modal="true" aria-labelledby="ai-voice-title">
         <div class="flex items-start gap-3">
           <div>
-            <h2 id="ai-voice-title" class="font-display text-2xl font-semibold">Voice scripts with AI</h2>
+            <h2 id="ai-voice-title" class="font-display text-2xl font-semibold">{{ single ? 'Make part with AI' : 'Voice scripts with AI' }}</h2>
             <p class="mt-1 text-sm text-muted">Step 1: the AI writes only the spoken lines for “{{ title }}”, real or made up. Staging comes later, part by part.</p>
           </div>
           <button type="button" class="round-btn ml-auto" aria-label="Close" @click="close"><X :size="18" /></button>
         </div>
 
         <div v-if="!parsed.length" class="mt-5 space-y-5">
-          <div class="grid gap-4" :class="wide ? 'sm:grid-cols-[8rem_8rem_1fr]' : 'sm:grid-cols-[8rem_1fr]'">
-            <label class="block text-xs font-semibold text-muted">Parts
+          <div class="grid gap-4" :class="single ? '' : wide ? 'sm:grid-cols-[8rem_8rem_1fr]' : 'sm:grid-cols-[8rem_1fr]'">
+            <label v-if="!single" class="block text-xs font-semibold text-muted">Parts
               <input v-model.number="parts" type="number" min="1" max="20" class="inset mt-1 block h-10 w-full rounded-md px-4 text-sm text-ink outline-none focus:border-blue" />
             </label>
-            <label v-if="wide" class="block text-xs font-semibold text-muted">Minutes per part
+            <label v-if="wide && !single" class="block text-xs font-semibold text-muted">Minutes per part
               <input v-model.number="minutes" type="number" min="1" max="30" class="inset mt-1 block h-10 w-full rounded-md px-4 text-sm text-ink outline-none focus:border-blue" />
             </label>
-            <label class="block text-xs font-semibold text-muted">Tone, angle, things to avoid (optional)
+            <label class="block text-xs font-semibold text-muted">{{ single ? 'What happens in this part, tone, things to avoid' : 'Tone, angle, things to avoid (optional)' }}
               <input v-model="notes" placeholder="Funny, focus on the emperor's madness" class="inset mt-1 block h-10 w-full rounded-md px-4 text-sm text-ink outline-none focus:border-blue" />
             </label>
           </div>

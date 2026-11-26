@@ -29,7 +29,7 @@ const live = computed(() => {
 
 // Moving previews for the @do section: built-ins one person can do alone, then every custom action
 const SOLO: Record<string, string> = {
-  talk: 'chats', point: 'points', wave: 'waves hello', cheer: 'cheers', angry: 'shakes fists', gasp: 'gasps',
+  talk: 'chats', point: 'points', wave: 'waves hello', cheer: 'cheers', angry: 'shakes fists', gasp: 'gasps', salute: 'salutes',
   react: 'hands up in shock', walk: 'walks', run: 'runs', stagger: 'wobbles', idle: 'stands still',
 }
 const gallery = computed(() => {

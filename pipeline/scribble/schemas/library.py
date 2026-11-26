@@ -398,7 +398,7 @@ ACTIONS: dict[str, frozenset[str]] = {k: frozenset(v) for k, v in {
     "eat": {"do", "prop"}, "give": {"do", "hands", "partner", "prop"}, "receive": {"partner"},
     "carry": {"do", "hands", "partner", "moving"}, "carried": {"partner"},
     "support": {"do", "hands", "partner", "moving"}, "supported": {"partner"},
-    "cheer": {"do", "mood"}, "angry": {"do", "mood"}, "gasp": {"do", "mood"},
+    "cheer": {"do", "mood"}, "angry": {"do", "mood"}, "gasp": {"do", "mood"}, "salute": {"do", "mood"},
     # World Item interactions: @do <cast>: <action> <item tag> (ITEM_ACTIONS: the capability each needs)
     "pickup": {"do", "hands", "item"}, "drop": {"do", "hands", "item"}, "open": {"do", "hands", "item"},
     "close": {"do", "hands", "item"}, "push": {"do", "hands", "item"}, "sit": {"do", "item"},

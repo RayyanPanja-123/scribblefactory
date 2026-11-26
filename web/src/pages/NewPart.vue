@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ArrowLeft } from 'lucide-vue-next'
+import { ArrowLeft, Sparkles } from 'lucide-vue-next'
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../api/client'
+import AiVoiceScripts from '../components/AiVoiceScripts.vue'
 import ErrorCard from '../components/ErrorCard.vue'
 import PartStepper from '../components/PartStepper.vue'
 import StoryPainter from '../components/StoryPainter.vue'
@@ -20,6 +21,8 @@ const router = useRouter()
 const { data, error, reload } = useApi(() => api.seriesDetail(props.slug))
 
 const title = ref('')
+const description = ref('')
+const aiOpen = ref(false)
 const story = ref('')
 const storyEdited = ref(false)
 const number = computed(() => (data.value?.parts.length ?? 0) + 1)
@@ -62,7 +65,14 @@ async function create() {
         <label class="block text-xs font-semibold text-muted">Title
           <input v-model="title" :placeholder="`Part ${number}`" class="inset mt-1 block w-full rounded-md px-4 py-2 text-sm text-ink outline-none focus:border-blue" />
         </label>
+        <label class="block text-xs font-semibold text-muted">Description (what happens; the AI uses it)
+          <textarea v-model="description" rows="2" placeholder="Pip posts a video every day, but nobody in town comments" class="inset mt-1 block w-full rounded-md px-4 py-2 text-sm text-ink outline-none focus:border-blue" />
+        </label>
+        <button type="button" class="btn btn-secondary" :disabled="!title.trim() || !data" :title="title.trim() ? undefined : 'Give the part a title first'" @click="aiOpen = true">
+          <Sparkles :size="16" aria-hidden="true" /> Make with AI</button>
       </div>
+      <AiVoiceScripts v-if="data" single :open="aiOpen" :slug="slug" :title="title.trim()" :description="description" :cast="data.series.cast" :aspect="data.series.style.aspect"
+        @close="aiOpen = false" @done="(id) => id && router.push(`/series/${slug}/${id}`)" />
 
       <StoryTips />
       <div>
