@@ -16,7 +16,7 @@ Pos = tuple[float, float]  # [x, z] on the ground plane
 
 
 CamAngle = Literal["wide", "medium", "close", "low", "high", "over_shoulder"]
-CamMove = Literal["push_in", "pull_out", "truck_left", "truck_right", "crane_up", "crane_down"]
+CamMove = Literal["push_in", "pull_out", "truck_left", "truck_right", "crane_up", "crane_down", "orbit_left", "orbit_right"]
 Mood = Literal["tense", "dark", "flashback", "bright"]  # @mood: the engine shifts light, fog and colour tone (style.js mood)
 
 

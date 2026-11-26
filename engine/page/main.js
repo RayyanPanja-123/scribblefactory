@@ -370,6 +370,12 @@ function shotCamera(shot, sx, xs, u, drop = 0, punch = 0) {
     case "truck_right": pos[0] += M.truck * k; look[0] += M.truck * k; break;
     case "crane_up": pos[1] += M.crane * k; look[1] += 0.31 * M.crane * k; break;
     case "crane_down": pos[1] = Math.max(0.2, pos[1] - M.crane * k); look[1] -= 0.25 * M.crane * k; break;
+    case "orbit_left": case "orbit_right": { // arc around the framed point (look), keeping distance and height; left = the camera drifts to screen left
+      const a = rad(Math.min(M.orbitMax, M.orbit * k)) * (shot.camera.move === "orbit_left" ? 1 : -1);
+      const dx = pos[0] - look[0], dz = pos[2] - look[2];
+      pos[0] = look[0] + dx * Math.cos(a) - dz * Math.sin(a); pos[2] = look[2] + dx * Math.sin(a) + dz * Math.cos(a);
+      break;
+    }
   }
   camera.position.set(...pos);
   camera.up.set(0, 1, 0);

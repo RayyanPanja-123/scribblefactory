@@ -359,7 +359,9 @@
                 "truck_left",
                 "truck_right",
                 "crane_up",
-                "crane_down"
+                "crane_down",
+                "orbit_left",
+                "orbit_right"
               ],
               "type": "string"
             },

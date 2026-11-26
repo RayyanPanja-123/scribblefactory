@@ -867,6 +867,7 @@ def test_punctuation_faces_only_when_nothing_else_sets_one():
 def test_parse_cam_forms_and_errors():
     from pipeline.scribble.stages.prep import parse_cam
     assert parse_cam("close push_in fast shake", 3) == {"angle": "close", "move": "push_in", "fast": True, "shake": True}
+    assert parse_cam("medium orbit_left", 3) == {"angle": "medium", "move": "orbit_left"}
     assert parse_cam("close push_in dutch 12", 3) == {"angle": "close", "move": "push_in", "dutch": 12.0}
     assert parse_cam("dutch -15 low", 3) == {"dutch": -15.0, "angle": "low"}
     assert parse_cam("hold", 3) == {"move": "hold"}

@@ -58,7 +58,7 @@ export type Kind = {
 export const FX = ['pop', 'shake', 'drop', 'none', 'lightning']
 // pipeline schemas/story.py CamAngle / CamMove (+ hold): keep in step
 export const CAM_ANGLES = ['wide', 'medium', 'close', 'low', 'high', 'over_shoulder']
-export const CAM_MOVES = ['push_in', 'pull_out', 'truck_left', 'truck_right', 'crane_up', 'crane_down', 'hold']
+export const CAM_MOVES = ['push_in', 'pull_out', 'truck_left', 'truck_right', 'crane_up', 'crane_down', 'orbit_left', 'orbit_right', 'hold']
 /** @cam tokens -> fields (any order, each once), or null when the fields cannot hold them */
 function camParts(arg: string): Rec | null {
   const r: Rec = { angle: '', move: '', fast: '', shake: '', dutch: '' }, w = words(arg)

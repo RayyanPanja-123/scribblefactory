@@ -87,7 +87,7 @@ const DIRECTIVES: Directive[] = [
       'Use @face when the line has no feeling word but the moment does.'],
     example: '@face caligula: angry\nCaligula stomped his little boots.' },
   { id: 'cam', syntax: '@cam [angle] [move] [fast] [shake] [dutch <deg>]', what: 'Picks the camera for the next spoken line’s first shot.',
-    rules: ['Angles: wide, medium, close, low, high, over_shoulder (needs two people on stage). Moves: push_in, pull_out, truck_left, truck_right, crane_up, crane_down, or hold (still).',
+    rules: ['Angles: wide, medium, close, low, high, over_shoulder (needs two people on stage). Moves: push_in, pull_out, truck_left, truck_right, crane_up, crane_down, orbit_left, orbit_right (arc around the subject, the camera drifts to that side of the screen), or hold (still).',
       'Give only what matters: the rest is picked as usual. fast speeds the move up, shake jolts the camera, dutch 15 tilts the horizon (-25 to 25).',
       'Save it for the big beats, two or three a part. On a !! line the twist keeps its push and roll unless you give a move or dutch.'],
     example: '@cam close push_in fast shake\n!! The king was a goat all along.' },

@@ -47,12 +47,12 @@ export const STYLE = {
   },
   // camera. wide: outdoor wide shots (lower, closer: the cast fills the middle third; camY / lookY world units,
   // maxFill = never closer than a figure this share of the frame height, margin = extra x room around the cast).
-  // move: world units (truck, crane) or distance share (push, pull) a move covers at speed 1. ease: moves ease in and
+  // move: world units (truck, crane), distance share (push, pull) or degrees around the subject (orbit, capped at orbitMax) a move covers at speed 1. ease: moves ease in and
   // out. reactionHold: seconds a reaction close-up holds still before its move. tilt: max seeded horizon tilt in
   // degrees per shot (0 = level; capped at 2; a twist shot's roll_deg wins).
   camera: {
     wide: { margin: 0.6, maxFill: 0.33, camY: 1.35, lookY: 0.85 },
-    move: { push: 0.35, pull: 0.5, truck: 0.9, crane: 1.0 },
+    move: { push: 0.35, pull: 0.5, truck: 0.9, crane: 1.0, orbit: 140, orbitMax: 45 },
     ease: true, reactionHold: 0.4, tilt: 0,
     // per-frame camera life (main.js cameraLife; every value a pure function of the frame, so chunks agree).
     // legacyEase: moves use the old smootherstep instead of cubic in-out / quintic out (a fast push).

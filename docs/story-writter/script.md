@@ -174,7 +174,7 @@ fit the story's period or design.
 - `@cam [angle] [move] [fast] [shake] [dutch <deg>]`: picks the camera for the next line's first shot; the planner
     chooses everything you leave out (and every other shot). angle: `wide`, `medium`, `close`, `low`, `high`,
     `over_shoulder` (needs two on stage); move: `push_in`, `pull_out`, `truck_left`, `truck_right`, `crane_up`,
-    `crane_down`, or `hold` (still); `fast` speeds a move up (a fast push punches in); `shake` jolts the camera on the
+    `crane_down`, `orbit_left` / `orbit_right` (the camera arcs up to 45° around the subject and stays centred on them; the side is where the camera drifts on screen), or `hold` (still); `fast` speeds a move up (a fast push punches in); `shake` jolts the camera on the
     line's first word; `dutch <deg>` tilts the horizon (-25..25). On a `!!` line the twist keeps its push and roll
     unless you give a move or `dutch`. `fast` works best with `push_in` / `pull_out`: trucks and cranes on close shots
     barely speed up (the camera slows them so the cast stays in frame). Key beats only (two or three a part), never every line:
