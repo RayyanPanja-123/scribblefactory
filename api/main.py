@@ -226,7 +226,7 @@ class StoryCheck(BaseModel):
 
 @app.get("/api/series/{slug}/parts/{part}/check-story", response_model=StoryCheck)
 def check_story(slug: str, part: str):
-    return storycheck.check_story(part_path(slug, part))
+    return storycheck.check_story(part_path(slug, part), strict=True)
 
 
 @app.get("/api/media/{slug}/{path:path}")

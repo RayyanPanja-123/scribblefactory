@@ -285,12 +285,14 @@ The picture must show what the line says. For every narration line ask five ques
 4. **What is the face?** `@face <id>: <expression>` on every emotional beat (smug on a power move, scared on a loss). Narration mood words also change it.
 5. **Where is the camera?** Only on the beats that matter, `@cam` (see below). Everywhere else the planner already cuts and drifts, and it arcs around the subject on medium, close and low shots.
 
-Camera (`@cam [angle] [move] [fast] [shake] [dutch deg]`, three or four key beats a part, never two in a row, never the same angle twice in a row):
+Camera (`@cam [angle] [move] [fast] [shake] [dutch deg]`, three or four key beats a part (3 is the enforced minimum), never two in a row, never the same angle twice in a row):
 - `orbit_left` / `orbit_right`: the camera arcs up to 45 degrees around the subject, who stays in the middle of the frame. The side is where the camera drifts on screen. Use it for a power move, a transformation, a reveal of what someone is (crowning, a new outfit, a villain's entrance): `@cam medium orbit_left` above the line.
 - `push_in` (`fast` for a hit): a reaction, a secret, a threat closing in. `low crane_up`: someone rises to power. `high crane_down` / `pull_out`: someone is small, lost or alone. `dutch 12`: something is wrong. `shake`: an impact.
 - The `!!` twist already pushes in and rolls: do not add a move unless you mean a different one.
 
 Tone and scene shape: a new `@set` + `@weather` for every place or time jump; `@mood` two or three times a part on the turns (`flashback` for a memory, `tense` into the strike, `bright` for relief); a crowd (`@crowd`) wherever a public scene needs one; keep weather rising toward the twist.
+
+Required every part (the Check enforces it): a `@do` on at least every third line, 3 or 4 `@cam` beats (never two in a row), 2 or 3 `@mood` changes, 2 to 4 `@sfx`, 10+ directives besides `@set`/`@cast`, a `@face` or emotional `@do` on every emotional beat. A thinly staged script fails the Check.
 
 Budget per part: 30 or more directives besides `@set` and `@cast`; every line with a `@do` or `@face`; one reaction action on each emotional turn (about four a part, never on every line); at most one `don` / `@look` change per character per beat; props and looks always switched on at the line where they are first seen.
 

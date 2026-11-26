@@ -5,18 +5,18 @@
 
 ## Directives
 - `@set <id>`: new place/time jump; required before line 1. Resets crowds, positions. Then `@weather clear|rain|snow|fog|wind|storm [light|medium|heavy]` (storm = war/gods/villain, rain = loss, fog = mystery, snow/wind = journey).
-- `@mood tense|dark|flashback|bright|off`: scene lighting, haze and colour until the next `@mood` or `@set` (a new set is neutral). `tense` before a strike or threat, `dark` night/grief, `flashback` memory, `bright` relief/triumph. 2-3 per part.
+- `@mood tense|dark|flashback|bright|off`: scene lighting, haze and colour until the next `@mood` or `@set` (a new set is neutral). `tense` before a strike or threat, `dark` night/grief, `flashback` memory, `bright` relief/triumph. 2-3 per part, required.
 - `@cast a, b`: on stage (max 12, 6 in front). Sudden entrance = new `@cast` right above the entrance line.
 - `@look <cast>: <look>`: only looks listed on that cast member; `default` = own outfit. Lasts until changed.
 - `@hold <cast>: <prop> [left|right]` / `none`: keeps a prop in hand.
 - `@ride <rider>: <creature>` / `none`: rider stays in the saddle while mount is in `@cast`; saddle allows only idle talk point wave react gasp angry cheer give receive.
 - `@car arrive|ride|leave|off`.
 - `@item <tag>: <item> [sky|back|mid|stage] [far-left|left|center|right|far-right] [state]`, `@item <tag>: state <s>`, `@item <tag>: remove`. Drawn items only.
-- `@dogs N`, `@runners N` (0-6). `@crowd <mood> [N]` mood cheer|angry|gasp|neutral, `@crowd off`; teams: `@crowd <group> <mood> [N]`, `@crowd <group> fight <other>`, `@crowd-look <group>: top, headwear, legwear`, `@crowd-weapon <group>: <prop>`.
+- `@dogs N`, `@runners N` (0-6). `@crowd <mood> [N]` mood cheer|angry|gasp|salute|neutral, `@crowd off`; teams: `@crowd <group> <mood> [N]`, `@crowd <group> fight <other>`, `@crowd-look <group>: top, headwear, legwear`, `@crowd-weapon <group>: <prop>`.
 - `@do <cast>: <action>`: actions idle talk point react wave cheer angry gasp walk run stagger lie collapse, `eat [prop]`, `give <prop> <target>`, `climb [up|down]` (walks up or down the set's stairs/slope, only in a set whose library entry has a `trail`; the character stays at the top until the next `@set`), `don <item>` (puts on a headwear or back wardrobe item halfway through the line, smug, and keeps it on for the rest of the part; the item must exist in the wardrobe: `@do ethan: don crown`), `carry <target>` (2 carriers), `support <target>`, `car: broken`, custom actions (`@do marcus: attack-with-spears neptune`; reaction micro-actions when in the inventory: `double-take nervous-fidget lean-in sigh-slump shock-jump smug-nod facepalm point-quick`). Comma-separate several: `@do fred: lie, amy: wave`. Item use: `@do <cast>: pickup|drop|open|close|push|sit|enter|exit <tag>`; `@do <tag>: fly|drive left|right [slow|fast]`.
 - `@face <cast>: <expression>`: neutral happy cheer sad angry surprised sleepy cheeky exhausted worried dead smug proud love excited relieved laughing wink furious annoyed disgusted crying scared embarrassed jealous guilty confused thinking suspicious shocked deadpan bored facepalm_ready dizzy drunk knocked_out evil crazy blank sick.
-- `@cam [wide|medium|close|low|high|over_shoulder] [push_in|pull_out|truck_left|truck_right|crane_up|crane_down|orbit_left|orbit_right|hold] [fast] [shake] [dutch deg]`: key beats only (2-3 per part).
-- `@fx drop|shake|pop` (caption), `@fx lightning [cast|prop]` (max 3 per part). `@sfx <id> [vol 0-1]` (max 5 per part, never back-to-back lines). `@background-music calm|mysterious|funny|scary|off [vol]`. `@pause 0-3`, `@pace slow|fast`.
+- `@cam [wide|medium|close|low|high|over_shoulder] [push_in|pull_out|truck_left|truck_right|crane_up|crane_down|orbit_left|orbit_right|hold] [fast] [shake] [dutch deg]`: key beats only (3-4 per part, never two in a row).
+- `@fx drop|shake|pop` (caption), `@fx lightning [cast|prop]` (max 3 per part). `@sfx <id> [vol 0-1]` (2-4 per part, max 5, never back-to-back lines). `@background-music calm|mysterious|funny|scary|off [vol]`. `@pause 0-3`, `@pace slow|fast`.
 
 ## Staging rules
 - New place = new `@set` + fitting `@weather`. Match the era with a period set from the inventory.
@@ -32,6 +32,14 @@
 - Direction playbook: for every line answer in order: who acts (`@do` names them, lines 1-3), what they physically do (the verb of the line as a `@do`: `don <item>` puts on a headwear/back wardrobe item mid-line and keeps it, `give`, `pickup`, `collapse`, an aimed custom action, a reaction action; never `talk`/`idle` for an act), what they hold or wear (`@hold` / `@look` / `@item` switched on the line it first shows, `@hold <id>: none` the moment they lose it), the face (`@face` on every emotional beat), the camera (`@cam` on 3-4 key beats only).
 - Camera beats: `orbit_left|orbit_right` (arcs up to 45 degrees around the subject, who stays centred: a power move, transformation, crowning, villain's entrance), `push_in` (reaction, threat; `fast` for a hit), `low crane_up` (rise to power), `high crane_down`/`pull_out` (small, lost), `dutch 12` (something is wrong). Never two `@cam` lines in a row or the same angle twice in a row; the planner already orbits on other lines.
 - Per part: 30+ directives besides `@set`/`@cast`, a `@do` or `@face` on every line, 2-3 `@mood`, about 4 reaction actions, a new `@set`+`@weather` on every place/time jump. Never change narration words (the voice is already timed).
+
+## Required in every part (the Check enforces it: a thin script is a problem, not a warning)
+- A `@do` on at least every third narration line, and a `@face` or emotional `@do` on every emotional beat. No line is just people standing and talking.
+- 3 or 4 `@cam` beats on the key lines (reveal, power move, threat, fall, twist), never two in a row, never the same angle twice running.
+- 2 or 3 `@mood` changes on the story's turns (`tense`, `dark`, `flashback`, `bright`, back with `off`).
+- 2 to 4 `@sfx` on the moments that need one, never on back-to-back lines.
+- At least 10 directives besides `@set` and `@cast`. Crowds (`@crowd`, `@crowd-look`, `@crowd-weapon`; mood `cheer|angry|gasp|salute|neutral`) wherever a public scene needs one: police or soldiers saluting a leader are `@crowd-look police: ...` + `@crowd police salute 8`.
+- Use the library fully: its sets, props, items, looks and custom actions. Never leave a part flat.
 
 ## Entrances, attacks, deaths
 - Entrance: new `@cast` right above the line they appear on.

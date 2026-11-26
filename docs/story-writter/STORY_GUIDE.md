@@ -18,6 +18,7 @@
 - Digits, symbols or markdown in narration; narration on a directive line.
 - Scripts before the user has picked single narration or cast voice acting.
 - Cast lines (`id: words`) in a single-narration series; in cast voice acting, a speaker id that is not a cast id.
+- Under-staged scripts: every part needs actions (`@do` at least every third line), faces on the emotional beats, 3-4 `@cam` beats, 2-3 `@mood` changes, 2-4 `@sfx` and 10+ directives; the Check rejects less. Use crowds, props, looks and items from the library.
 - Flat scripts (one `@set`, few directives) and lines where a character only talks or stands while the narration names an act: follow the Direction playbook in the script doc.
 - Characters by role ("the commander") from line 4 on: use their cast `name`. Lines 1 to 3 never name anyone.
 

@@ -128,8 +128,10 @@ def tag_missing(issue: dict) -> dict:
     return issue
 
 
-def check_story(part_dir: Path) -> dict:
-    """{"ok", "problems": [{"line", "message"}], "warnings": [...], "words", "seconds"}"""
+def check_story(part_dir: Path, strict: bool = False) -> dict:
+    """{"ok", "problems": [{"line", "message"}], "warnings": [...], "words", "seconds"}. strict (the Check button and the
+    CLI): a thinly staged script is a problem, not a warning: every part needs actions, faces, camera beats, sounds and
+    mood changes (docs/story-writter/script.md, Direction playbook)"""
     problems, warnings = [], []
     bad = lambda line, msg: problems.append({"line": line, "message": msg})
     story = part_dir / "story.md"
@@ -404,6 +406,10 @@ def check_story(part_dir: Path) -> dict:
                                                     "\"Follow for more\" screen; the voice never asks for a follow"})
     if not problems:
         warnings += staging(md, series, library, part_id_of(part_dir))
+    if strict:
+        staged = [w for w in warnings if w["message"].startswith("staging: ")]
+        warnings = [w for w in warnings if w not in staged]
+        problems += staged
     wps = measured_wps(library)
     seconds = estimate_runtime(len(words), wps)
     if seconds > MAX_RUNTIME_S:
@@ -446,7 +452,8 @@ def _cam_repeats(part_dir: Path, cam_lines: list[int]) -> list[dict]:
             for no, (i, s) in zip(cam_lines, forced) if i and story.shots[i - 1].camera.angle == s.camera.angle]
 
 
-STAGING = ("do", "look", "hold", "ride", "face", "fx", "crowd", "dogs", "runners", "car", "weather", "mood", "sfx")
+STAGING = ("do", "look", "hold", "ride", "face", "fx", "crowd", "dogs", "runners", "car", "weather", "mood", "sfx", "cam")
+MIN_CAM, MIN_MOOD, MIN_SFX = 3, 2, 2  # per part (camera and mood: a part of 8+ narration lines)
 MIN_STAGING = 10  # directives besides @set and @cast (docs/story-writter/script.md, Directives)
 
 
@@ -492,10 +499,14 @@ def staging(md: str, series, library: Path, part: str) -> list[dict]:
                          f"{' ...' if len(flat) > 6 else ''}: no mood word, emotional @do or @face, so the face is the "
                          f"default one: {', '.join(who)}. Add a mood word (angry, laughed, sobbed...) or @face where "
                          "the moment has a feeling")
-    if not used["sfx"]:
-        note(None, "no @sfx: 2 to 4 sound effects where the moment needs one (the Review tab suggests some)")
+    if used["sfx"] < MIN_SFX:
+        note(None, f"{'no' if not used['sfx'] else used['sfx']} @sfx: 2 to 4 sound effects where the moment needs one (the Review tab suggests some)")
+    if narration >= 8 and used["cam"] < MIN_CAM:
+        note(None, f"{used['cam']} @cam: put {MIN_CAM} or 4 camera beats on the key lines (orbit_left, push_in, crane_up, pull_out...), never two in a row")
+    if narration >= 8 and used["mood"] < MIN_MOOD:
+        note(None, f"{used['mood']} @mood: change the scene tone {MIN_MOOD} or 3 times on the turns (flashback, tense, dark, bright)")
     # the series' unused looks, over every part's story.md
-    series_md = "\n".join(f.read_text(encoding="utf-8") for f in sorted((library / series.slug).glob("part-*/story.md")))
+    series_md = "\n".join(f.read_text(encoding="utf-8") for f in sorted((storage_root(library) / series.slug).glob("*/story.md")))
     looked = {(w.strip(), look.strip()) for ln in series_md.split("\n") if ln.strip().startswith("@look ")
               for who, _, look in [ln.strip()[6:].partition(":")] for w in who.split(",")}
     on_stage = {c.id for t in map(token, clean_markdown(strip_directives(md)).split()) if (c := names.get(t))}

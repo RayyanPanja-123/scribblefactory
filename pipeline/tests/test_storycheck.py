@@ -130,8 +130,8 @@ def test_ready_story_and_cast_approvals(tmp_path, capsys):
     assert cli(["approve-cast", "demo", "fred", "--library", str(tmp_path)]) == 0
     assert plain(check_story(pdir)) == {"ok": True, "problems": [], "warnings": [], "words": 3, "seconds": 4.0,
                                  "wps": 2.6}  # 3 words / 2.6 per s + 0.3 s tail + 2.5 s end screen
-    assert cli(["check-story", "demo", "part-01", "--library", str(tmp_path)]) == 0
-    assert capsys.readouterr().out.rstrip().endswith("ready")
+    assert cli(["check-story", "demo", "part-01", "--library", str(tmp_path)]) == 1  # the CLI is strict: this tiny story is under-staged
+    assert capsys.readouterr().out.rstrip().endswith("problems")
 
 
 def test_changed_words_against_the_recorded_script(tmp_path):

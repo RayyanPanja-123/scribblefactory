@@ -509,7 +509,7 @@ def gate(pdir: Path, needs: tuple[str, ...]) -> None:
 
 def cmd_check_story(args) -> int:
     pdir = part_dir(args)
-    result = storycheck.check_story(pdir)
+    result = storycheck.check_story(pdir, strict=True)
     print(storycheck.report(result))
     return 0 if result["ok"] else 1
 
