@@ -280,9 +280,6 @@ class WorldObjectInstance(Strict):
         return omit_defaults(handler(self), type(self), ("state", "color", "accent", "at_wide"))
 
 
-Point3 = tuple[float, float, float]
-
-
 class Trail(Strict):
     """the path a `@do <cast>: climb` follows on a set: stairs or a slope, from its foot to its top"""
     start: Point3 = Field(description="[x, y, z] of the foot: where a climb up starts (a climb down ends here)")
