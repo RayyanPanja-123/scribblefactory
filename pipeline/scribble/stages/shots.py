@@ -40,6 +40,7 @@ ANGLES = ["wide", "medium", "close", "low", "high", "over_shoulder"]
 ESTABLISHING = "wide"      # first shot of the part and after each set change; if the previous shot was already
                            # wide, the first other angle in ANGLES (no-repeat wins)
 MOVES = ["push_in", "pull_out", "truck_left", "truck_right", "crane_up", "crane_down"]
+ORBIT_ANGLES = ("medium", "close", "low")  # framed on the subject: the planner turns their truck moves into orbits
 SPEED = (0.15, 0.35)
 TWIST_ROLL = (6.0, 10.0)   # degrees, sign seeded
 FAST_SPEED = 0.8           # @cam fast: over the engine's fast push (style.js camera.life.punch.fastSpeed, 0.7)
@@ -984,6 +985,8 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
             if set_ != prev_set:  # first shot of the part or of a new set: establish it
                 angle = ESTABLISHING if prev_angle != ESTABLISHING else next(x for x in ANGLES if x != prev_angle)
             move, speed, roll = rng.choice(MOVES), round(rng.uniform(*SPEED), 3), 0.0
+            if move.startswith("truck") and angle in ORBIT_ANGLES:  # a sideways drift on a subject shot arcs around them instead
+                move = move.replace("truck", "orbit")  # (no extra randomness: same plan otherwise; @cam below still wins)
             is_twist = twist and k == 0
             # @cam: the line's first shot only, drawn after the planner's own choices (same randomness either way)
             cam_here = tags[p.word_start].cam if k == 0 else None

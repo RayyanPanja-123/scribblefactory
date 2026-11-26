@@ -954,3 +954,12 @@ def test_don_puts_the_item_on_once_and_keeps_it_on():
     assert all(a.wear is None for a in amys)
     with pytest.raises(StageError, match="don needs one"):
         plan("# T\n\n@cast bob\n@do bob: don\nBob smiled.\n")
+
+
+def test_planner_orbits_instead_of_trucking_on_subject_shots():
+    from collections import Counter
+    md = "# T\n\n@cast bob, amy\n" + "".join(f"Bob walked past the door number {n} and sighed.\n" for n in range(40))
+    story, _ph = plan(md)
+    for s in story.shots:
+        assert not (s.camera.move.startswith("truck") and s.camera.angle in ("medium", "close", "low"))
+    assert any(s.camera.move.startswith("orbit") for s in story.shots), Counter(s.camera.move for s in story.shots)
