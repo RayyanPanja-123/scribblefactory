@@ -166,3 +166,15 @@ test("propsByShot: a new @look brings its props, a set change goes back to the c
   const m = propsByShot([sh("s1", "room"), sh("s2", "room", "medic"), sh("s3", "room", "medic"), sh("s4", "street")], cast, lookProps);
   assert.deepEqual(["s1", "s2", "s3", "s4"].map((s) => m.get(s).bob[0].kind), ["apple", "syringe", "syringe", "apple"]);
 });
+
+test("don: the item goes on at the swap and stays on in later shots; the hands rise then lower", async () => {
+  const { DON, donDef, wearOn } = await import("../page/actions.js");
+  const a = { action: "don", wear: "crown" };
+  assert.equal(wearOn(a, DON.swap - 0.01), false);
+  assert.equal(wearOn(a, DON.swap), true);
+  assert.equal(wearOn({ action: "idle", wear: "crown" }, 0), true);
+  assert.equal(wearOn({ action: "idle" }, 1), false);
+  const { customPose } = await import("../page/actions.js");
+  const up = customPose(donDef(2), 2 * DON.swap).arms[1][0], rest = customPose(donDef(2), 0).arms[1][0], end = customPose(donDef(2), 2).arms[1][0];
+  assert.ok(up > 120 && rest < 30 && end < 30);
+});

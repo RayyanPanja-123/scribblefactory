@@ -941,3 +941,16 @@ def test_cam_fields_left_out_at_their_defaults():
         "angle": "wide", "move": "push_in", "speed": 0.2, "roll_deg": 0.0}
     c = Camera(angle="close", move="hold", speed=0.2, dutch_deg=12, shake=True, forced=True)
     assert Camera.model_validate(c.model_dump(mode="json")) == c
+
+
+def test_don_puts_the_item_on_once_and_keeps_it_on():
+    md = ("# T\n\n@cast bob, amy\n@do bob: don crown\nBob put the crown on his head and then waited for everybody in the room.\n"
+          "Amy clapped.\n")
+    story, _ph = plan(md)
+    bobs = [next(a for a in s.actors if a.cast_id == "bob") for s in story.shots]
+    assert bobs[0].action == "don" and bobs[0].wear == "crown" and bobs[0].expression == "smug"
+    assert all(a.wear == "crown" for a in bobs[1:]) and all(a.action != "don" for a in bobs[1:])
+    amys = [next(a for a in s.actors if a.cast_id == "amy") for s in story.shots]
+    assert all(a.wear is None for a in amys)
+    with pytest.raises(StageError, match="don needs one"):
+        plan("# T\n\n@cast bob\n@do bob: don\nBob smiled.\n")

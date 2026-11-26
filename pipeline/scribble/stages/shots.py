@@ -141,7 +141,7 @@ EXPRESSIONS = {
 DIRECTIONS = {"left": -1, "right": 1}
 # an @do action that is an emotion sets the face when the line names no mood (a "neutral" face shows the cast's
 # default_expression, e.g. a cheeky smirk on someone stomping in rage)
-ACTION_FACE = {"angry": "angry", "gasp": "surprised", "react": "surprised", "cheer": "happy"}
+ACTION_FACE = {"angry": "angry", "gasp": "surprised", "react": "surprised", "cheer": "happy", "don": "smug"}
 
 
 # a walk word moves the line's subject only when the phrase names it or points back at it with one of these
@@ -257,6 +257,10 @@ def tag_words(md: str, cast_ids: list[str], default_cast: list[str], props=BUILT
                 strike = (line, parse_lightning(arg, line, cast_ids, props))
             elif name == "do":
                 new = tuple(parse_do(arg, line, cast_ids, props, actions))
+                for c in new:
+                    if c.action == "don" and wardrobe is not None and wardrobe.get(c.prop) not in ("headwear", "back"):
+                        raise StageError(f"story.md line {line}: @do: don {c.prop!r} is not a headwear or back wardrobe item "
+                                         f"(add it on the Wardrobe page)")
                 if do is not None:  # another @do before the same narration line: both apply (different targets)
                     seen = {w for c in do[1] for w in c.who}
                     if dup := next((w for c in new for w in c.who if w in seen), None):
@@ -725,10 +729,13 @@ def _apply_do(clauses, line, cast, pos, actors, vehicles, seconds, fallen, handl
                 if action == "collapse":
                     action = "lie" if (line, cid) in fallen else action
                     fallen.add((line, cid))
+                if action == "don":  # put on once, in the line's first shot; later shots just stand with it on (plan keeps it)
+                    action = "idle" if (line, cid) in fallen else action
+                    fallen.add((line, cid))
                 by[cid] = Actor(cast_id=cid, action=action, start_pos=(x, 0.0), facing=facing,
                                 expression=old.expression if old.expression != "neutral"
                                 else ACTION_FACE.get(action, "neutral"),  # a mood word in the line wins
-                                prop=c.prop if action == "eat" else None, item=c.target if action in ITEM_ACTIONS else None)
+                                prop=c.prop if action == "eat" else None, wear=c.prop if c.action == "don" else None, item=c.target if action in ITEM_ACTIONS else None)
     return [by[a.cast_id] for a in actors]
 
 
@@ -903,6 +910,7 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
     prev_cast, travel_run = (), None  # travel_run: first shot id of the current run of travel shots on one set
     pos: dict[str, float] = {}  # where each actor stands now; reset on a set change
     prev_rides: dict[str, str] = {}  # @ride pairs on stage in the last shot's phrase
+    donned: dict = {}  # cast id -> the wardrobe item it put on (@do don): worn from then on
     fallen: set = set()  # (@do line, cast id) that already collapsed
     stage = ItemStage(objects)  # @item cards: where they stand, who holds or sits in them; reset by a set change
     walk_dir: dict = {}  # (story.md line, cast id) -> the way a walk on that line goes: its shots never turn back
@@ -1073,6 +1081,10 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
             opened = [e for f, e in turns if f <= s0]
             switches = [FaceChange(frame=f, expression=e) for f, e in turns if s0 < f < s1]
             for ac in actors:  # @look: the look each cast member has on this line
+                if ac.action == "don" and ac.wear:
+                    donned[ac.cast_id] = ac.wear
+                elif ac.cast_id in donned:
+                    ac.wear = donned[ac.cast_id]
                 ac.look = looks.get(ac.cast_id)
                 if held := holds.get(ac.cast_id):  # @hold: the look's props, with each held hand replaced
                     ac.props = [p for p in by_id[ac.cast_id].with_look(ac.look).props if p.hand not in held] + [

@@ -221,6 +221,20 @@
           "default": null,
           "description": "give / receive: the other actor; carry / support: the actor carried / supported",
           "title": "Target"
+        },
+        "wear": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "don: the wardrobe item (headwear or back) put on halfway through the shot; every later shot of the part has it on from the start",
+          "title": "Wear"
         }
       },
       "required": [

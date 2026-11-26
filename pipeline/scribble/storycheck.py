@@ -301,7 +301,9 @@ def check_story(part_dir: Path) -> dict:
                 elif name == "do":
                     clauses = parse_do(arg, no, ids, props, actions)
                     for c in clauses:
-                        if c.action in ITEM_MOVES and c.who[0] not in items:
+                        if c.action == "don" and wardrobe_slots(library).get(c.prop) not in ("headwear", "back"):
+                            bad(no, f"@do: don {c.prop!r} is not a headwear or back wardrobe item (add it on the Wardrobe page)")
+                        elif c.action in ITEM_MOVES and c.who[0] not in items:
                             bad(no, f"@do: {c.who[0]} is not an item on stage (place it first: @item {c.who[0]}: <item>)")
                         elif c.action in ITEM_ACTIONS:
                             _check_item_do(no, c, items, objects, held, inside, handless, bad)

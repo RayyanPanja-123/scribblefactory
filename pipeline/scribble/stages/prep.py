@@ -193,6 +193,10 @@ def parse_do(arg: str, line: int, cast_ids=None, props=BUILTIN_PROPS, actions=()
             if len(args) > 1:
                 bad('eat takes one prop, e.g. "eat apple"')
             prop = args[0] if args else "apple"
+        elif act == "don":
+            if len(args) != 1:
+                bad('don needs one wardrobe item, e.g. "don crown" (headwear or back)')
+            prop = args[0]
         elif act == "give":
             named = [w for w in args if w in props]
             if len(args) == 2 and not named and cast_ids is not None and len(other := [w for w in args if w not in cast_ids]) == 1:
@@ -211,7 +215,7 @@ def parse_do(arg: str, line: int, cast_ids=None, props=BUILTIN_PROPS, actions=()
             target = args[0]
         elif args:
             bad(f"{act} takes no target or prop (got {' '.join(args)!r})")
-        if prop is not None and prop not in props:
+        if prop is not None and act != "don" and prop not in props:
             bad(f"unknown prop {prop!r} (props: {', '.join(props)})")
         if target is not None and target in who:
             bad(f"{target} cannot {act} itself")

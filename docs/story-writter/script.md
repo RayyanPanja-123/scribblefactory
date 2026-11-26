@@ -198,7 +198,7 @@ fit the story's period or design.
   `@do` actions:
 - `idle talk point react wave cheer angry gasp walk run stagger lie collapse`; the library's reaction micro-actions
     (`double-take`, `nervous-fidget`, `lean-in`, `sigh-slump`, `shock-jump`, `smug-nod`, `facepalm`, `point-quick`)
-- `eat [prop]`, `give <prop> <target>`, `carry <target>` (exactly 2 carriers), `support <target>` (1 or 2)
+- `eat [prop]`, `give <prop> <target>`, `don <item>` (hands rise to the head, the headwear or back wardrobe item appears halfway through the line and stays on; face turns smug: `@do ethan: don crown`), `carry <target>` (exactly 2 carriers), `support <target>` (1 or 2)
 - `car: broken` (car on stage)
 - Custom actions, optionally aimed: `@do marcus: attack-with-spears neptune` (faces them and lunges toward them, never
     past; too close: strikes where they stand)

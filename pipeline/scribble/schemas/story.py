@@ -59,6 +59,8 @@ class Actor(Strict):
     target: str | None = Field(default=None, description="give / receive: the other actor; carry / support: the "
                                                          "actor carried / supported")
     prop: PropKind | None = Field(default=None, description="eat / give: the prop eaten / handed over")
+    wear: Slug | None = Field(default=None, description="don: the wardrobe item (headwear or back) put on halfway through "
+                                                        "the shot; every later shot of the part has it on from the start")
     look: Slug | None = Field(default=None, description="the cast member's named look (@look), none: its own")
     props: list[Prop] | None = Field(default=None, max_length=2, description="@hold: the props held from this shot on "
                                                                             "(the look's, with held hands replaced); "

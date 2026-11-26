@@ -5,9 +5,10 @@ import { dolly, glide } from "./borrowed.js";
 import { BODY_W, CH, CW, FEET_Y, FIGURE_PX, HAT_TOP, HEAD_R, drawStickman, figurePx, hipPx, skeleton, smearsOf } from "./stickman.js";
 import { CRW, RIDE, creature, creatureAnchors, drawCreature, measure as creatureSize } from "./creatures.js";
 import { lookup, setLibrary } from "./library.js";
+import { BUILTIN_WARDROBE } from "./wardrobe.js";
 import { DH, DOG_FEET, DW, barkAmount, drawDog, gallopPhase } from "./dog.js";
 import { cameraProgress, isReactionClose, fovPunch, moodLook, noise1, popAt, shakeTriggers, speechEnv, trauma, gestureAmount, idleLife, lookTarget, gesturePlan, mouthCurve, mouthCycles, pointAmount, stressBob, waveAmount } from "./motion.js";
-import { BUILTIN_ACTIONS, CARRIED_LIFT, GIVE, HELD_Z, HOLD_GAP, ITEM_REACH, LIE, REST, SIT, SIT_LAND, STAND_UP, actU, passBehind, poseMix, collapseAt, customPose, eatAt, gaitPhase, giveAt, handOf, heldPlace, itemSide,
+import { BUILTIN_ACTIONS, CARRIED_LIFT, GIVE, donDef, wearOn, HELD_Z, HOLD_GAP, ITEM_REACH, LIE, REST, SIT, SIT_LAND, STAND_UP, actU, passBehind, poseMix, collapseAt, customPose, eatAt, gaitPhase, giveAt, handOf, heldPlace, itemSide,
   propsByShot, sideToward, staggerAt, withProp, zzzAt } from "./actions.js";
 import { CAR_CARD_W, CAR_GROUND, DRIVER_X, RIDER_X, VH, VW, carEase, carSpeedShare, drawCar, seatOffset } from "./car.js";
 import { HEAD_GROW, MOOD_EXPRESSION, extraLook, fitCrowd, moodAt, placeExtras } from "./extras.js";
@@ -897,6 +898,10 @@ function poseOf(F, a, px = 1) {
     wave: a.action === "wave" ? waveAmount(ts) : null,
     props: owned[a.cast_id] || castOf(a.cast_id, a.look).props,
   };
+  if (wearOn(a, u)) { // a worn item (@do don) replaces what the look has in its slot
+    const slot = BUILTIN_WARDROBE[a.wear] ?? lookup("wardrobe", a.wear).slot;
+    o[slot] = slot === "headwear" ? { kind: a.wear } : a.wear;
+  }
   const roll = walking ? { k: 0, sign: a.facing === "left" ? 1 : -1 } : actionPose(shot, a, o, x, actU(a, u), ts, n);
   let turn = 0;
   if (seated.has(a.cast_id) || F.onMount(a) || F.perched.has(a.cast_id)) return { o, roll, turn, phase, gesture }; // no idle life in a seat / saddle
@@ -989,6 +994,7 @@ function actionPose(shot, a, o, x, u, ts, n) {
   let roll = { k: 0, sign: a.facing === "left" ? 1 : -1 }; // head toward the way it faced
   // a custom action (library/actions.json): its keyframed pose; humanoids play it, other creatures stand idle
   if (!BUILTIN_ACTIONS.has(a.action)) o.custom = customPose(lookup("actions", a.action), ts);
+  if (a.action === "don") o.custom = customPose(donDef((shot.end_frame - shot.start_frame) / FPS), ts);
   if (a.action === "stagger" || a.action === "supported") o.stagger = staggerAt(key, o.phase);
   if (MOOD_EXPRESSION[a.action]) o.mood = moodAt(a.action, n / FPS, charSeed(a.cast_id));
   if (a.action === "carry" || a.action === "support") o.reach = { side: sideToward(x, partnerX(other), a.facing), k: 1 };
