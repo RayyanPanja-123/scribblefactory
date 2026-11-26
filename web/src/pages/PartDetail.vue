@@ -143,6 +143,8 @@ async function copyStoryFix() {
 
 // ---- story.md (the voice is read from it: a changed story after recording means recording again) ----
 const storyText = ref('')
+const gutterEl = ref<HTMLElement | null>(null)
+const storyLineCount = computed(() => storyText.value.split('\n').length)
 const storySaved = ref('')
 const storyDirty = computed(() => storyText.value !== storySaved.value)
 watch(() => d.value?.story_md, (md) => {
@@ -599,8 +601,13 @@ watch(() => props.part, () => { chosen.value = null })
           </div>
         </header>
         <label class="sr-only" for="director-story-md">story.md</label>
-        <textarea id="director-story-md" v-model="storyText" class="paper inset min-h-0 flex-1 w-full resize-none overflow-y-auto p-5 font-mono text-sm leading-7 outline-none focus:border-blue"
-          spellcheck="true" @keydown="onStoryKey" />
+        <div class="paper inset flex min-h-0 flex-1 overflow-hidden focus-within:border-blue">
+          <div ref="gutterEl" class="select-none overflow-hidden py-5 pl-3 pr-2 text-right font-mono text-sm leading-7 text-muted" aria-hidden="true">
+            <div v-for="n in storyLineCount" :key="n">{{ n }}</div>
+          </div>
+          <textarea id="director-story-md" v-model="storyText" wrap="off" class="min-h-0 flex-1 resize-none overflow-auto bg-transparent py-5 pr-5 pl-2 font-mono text-sm leading-7 outline-none"
+            spellcheck="true" @keydown="onStoryKey" @scroll="gutterEl && (gutterEl.scrollTop = ($event.target as HTMLTextAreaElement).scrollTop)" />
+        </div>
       </div>
     </Teleport>
 
