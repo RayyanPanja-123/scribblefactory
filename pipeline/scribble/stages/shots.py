@@ -911,7 +911,7 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
     prev_cast, travel_run = (), None  # travel_run: first shot id of the current run of travel shots on one set
     pos: dict[str, float] = {}  # where each actor stands now; reset on a set change
     prev_rides: dict[str, str] = {}  # @ride pairs on stage in the last shot's phrase
-    donned: dict = {}  # cast id -> the wardrobe item it put on (@do don): worn from then on
+    donned: dict = {}  # cast id -> (wardrobe item it put on (@do don), its @look then): worn from then on while the look holds
     fallen: set = set()  # (@do line, cast id) that already collapsed
     stage = ItemStage(objects)  # @item cards: where they stand, who holds or sits in them; reset by a set change
     walk_dir: dict = {}  # (story.md line, cast id) -> the way a walk on that line goes: its shots never turn back
@@ -1085,9 +1085,12 @@ def plan(md: str, phrases: PhrasesModel, series: SeriesModel, part_number: int, 
             switches = [FaceChange(frame=f, expression=e) for f, e in turns if s0 < f < s1]
             for ac in actors:  # @look: the look each cast member has on this line
                 if ac.action == "don" and ac.wear:
-                    donned[ac.cast_id] = ac.wear
-                elif ac.cast_id in donned:
-                    ac.wear = donned[ac.cast_id]
+                    donned[ac.cast_id] = (ac.wear, looks.get(ac.cast_id))
+                elif ac.cast_id in donned:  # worn until the cast member's @look changes
+                    if donned[ac.cast_id][1] == looks.get(ac.cast_id):
+                        ac.wear = donned[ac.cast_id][0]
+                    else:
+                        del donned[ac.cast_id]
                 ac.look = looks.get(ac.cast_id)
                 if held := holds.get(ac.cast_id):  # @hold: the look's props, with each held hand replaced
                     ac.props = [p for p in by_id[ac.cast_id].with_look(ac.look).props if p.hand not in held] + [
