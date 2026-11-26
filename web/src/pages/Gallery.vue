@@ -41,7 +41,7 @@ const label = (p: Part) => `Part ${p.number}: ${p.title}`
     <ErrorCard v-if="error" :message="error" @retry="reload" />
     <div v-else-if="loading" class="skeleton h-96" aria-busy="true" aria-label="Loading the gallery" />
     <EmptyState v-else-if="!data?.length" :icon="Images" title="Nothing in the gallery yet"
-      text="Once every part of a series is posted to YouTube and Instagram, Move to gallery on the series page keeps its titles and links here and frees the disk." />
+      text="Once every part of a series is posted to YouTube or Instagram, Move to gallery on the series page keeps its titles and links here and frees the disk." />
 
     <section v-for="e in data" v-else :key="e.slug" class="raised overflow-hidden" :aria-labelledby="`gallery-${e.slug}`">
       <!-- the title block: the sheet's header fields -->
@@ -64,11 +64,11 @@ const label = (p: Part) => `Part ${p.number}: ${p.title}`
             <span class="truncate text-sm font-semibold" :title="p.title">{{ p.title }}</span>
           </p>
           <ul class="posts" :aria-label="`Where ${label(p)} is posted`">
-            <li v-for="s in POSTS" :key="s.key">
-              <a :href="p[s.key].url" target="_blank" rel="noopener noreferrer" class="post"
-                :aria-label="`${s.name}, posted ${shortDate(p[s.key].posted_at)} (opens in a new tab)`">
+            <li v-for="s in POSTS.filter((x) => p[x.key])" :key="s.key">
+              <a :href="p[s.key]!.url" target="_blank" rel="noopener noreferrer" class="post"
+                :aria-label="`${s.name}, posted ${shortDate(p[s.key]!.posted_at)} (opens in a new tab)`">
                 <span class="post-circle" :class="s.color"><component :is="s.icon" :size="16" aria-hidden="true" /></span>
-                <span class="post-date num" aria-hidden="true">{{ shortDate(p[s.key].posted_at) }}</span>
+                <span class="post-date num" aria-hidden="true">{{ shortDate(p[s.key]!.posted_at) }}</span>
               </a>
             </li>
           </ul>

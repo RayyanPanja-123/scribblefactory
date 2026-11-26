@@ -41,6 +41,7 @@ export async function libraryRecords(standalone = false): Promise<string> {
       `SETS (${sets.builtin.length + sets.custom.length})`,
       `built-in: ${sets.builtin.map((s) => s.id).join(', ')}${indoor.length ? ` | indoor: ${setIds(indoor)}` : ''}${outdoor.length ? ` | outdoor: ${setIds(outdoor)}` : ''}`,
       'weather: clear, rain, snow, fog, wind, storm; intensity light, medium, heavy',
+      'mood (@mood): tense, dark, flashback, bright, off',
       `PROPS (${props.builtin.length + props.custom.length})`,
       `built-in: ${props.builtin.join(', ')}${props.custom.length ? ` | custom: ${ids(props.custom)}` : ''}`,
       `WORLD ITEMS (${objects.objects.length}; drawn ones go on stage with @item <tag>: <id>)`,

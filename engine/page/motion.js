@@ -146,7 +146,7 @@ export function trauma(t, triggers, decay) {
 }
 
 /** shake triggers of a story.json: [{ t0 s, strength, kind }]. twist: its low_hit cue (finish shakes the captions
- *  there too); collapse: the moment the body lands; lightning: each strike; fx: story.shakes (@fx shake); cam: a
+ *  there too); impact: every other low_hit cue (a loud hit lands: the camera only); collapse: the moment the body lands; lightning: each strike; fx: story.shakes (@fx shake); cam: a
  *  shot's camera.shake (@cam shake: the camera only, captions stay still). */
 export function shakeTriggers(story) {
   const S = STYLE.camera.life.shake.strength, out = [], at = (frame, kind) => out.push({ t0: frame / 30, strength: S[kind], kind });
@@ -155,13 +155,28 @@ export function shakeTriggers(story) {
     if (sh.actors?.some((a) => a.action === "collapse")) at(sh.start_frame + COLLAPSE_S * 30, "collapse");
     if (sh.camera?.shake) at(sh.start_frame, "cam"); // @cam shake: the line's first word
   }
+  const inTwist = (f) => (story.shots || []).some((sh) => sh.twist && f >= sh.start_frame && f < sh.end_frame);
+  for (const c of story.cues || []) if (c.kind === "low_hit" && !inTwist(c.frame)) at(c.frame, "impact");
   for (const l of story.lightning || []) at(l.frame, "lightning");
   for (const f of story.shakes || []) at(f, "fx");
   return out;
 }
 
-/** fov degrees over the angle's own at shot-local ts: the punch keys of a fast push (cubic in-out between), else 0 */
+/** fov degrees over the angle's own at shot-local ts: the punch keys of a fast push (cubic in-out between), plus a
+ *  reaction's snap-zoom (snapZoom), else 0 */
 export function fovPunch(shot, ts) {
+  return pushPunch(shot, ts) + snapZoom(shot, ts);
+}
+
+/** snap-zoom of a reaction shot (style.js camera.life.snap): -zoom degrees of fov, reached over `dur` s on easeOutBack
+ *  (overshoots, settles), when an actor does one of the snap actions; 0 otherwise */
+export function snapZoom(shot, ts) {
+  const Z = STYLE.camera.life.snap;
+  if (!Z?.zoom || Z.skip.includes(shot.camera.angle) || !shot.actors.some((a) => Z.actions.includes(a.action))) return 0;
+  return -Z.zoom * EASES["back-out"](Math.min(1, Math.max(0, ts / Z.dur)));
+}
+
+function pushPunch(shot, ts) {
   const P = STYLE.camera.life.punch, k = P.keys;
   if (!isFastPush(shot) || P.skip.includes(shot.camera.angle)) return 0;
   const i = k.findIndex(([t]) => t > ts);
@@ -186,4 +201,43 @@ export function lookTarget(a, actors) {
   const others = actors.filter((b) => b.cast_id !== a.cast_id);
   return others.find((b) => b.cast_id === a.target) || others.find((b) => b.action === "talk")
     || (actors.length === 2 ? others[0] : null);
+}
+
+// Pose pop (style.js stickman.life.pop): an actor that spawns (not in the previous shot, or on another set), changes
+// pose or flips direction squashes then stretches back over `dur` s. idle <-> talk is the same standing pose.
+const STANDING = new Set(["idle", "talk"]);
+const samePose = (p, a) => p.facing === a.facing && (p.action === a.action || (STANDING.has(p.action) && STANDING.has(a.action)));
+/** height share added to the squash `ts` s into actor a's shot; prev: the same cast member in the previous shot of
+ *  the same set (or null / undefined: it spawns). Starts at 0, dips (squash), then stretches, damped. */
+export function popAt(prev, a, ts) {
+  const P = STYLE.stickman.life.pop;
+  if (!P?.dur || !P.squash || ts >= P.dur || (prev && samePose(prev, a))) return 0;
+  const u = ts / P.dur;
+  return -P.squash * Math.sin(2 * Math.PI * u) * (1 - u);
+}
+
+/** 0..1 speech envelope at frame n: the mouth curve averaged over +- `span` frames (a smooth head-nod driver) */
+export function speechEnv(mouth, n, span = STYLE.stickman.life.nod?.span ?? 3) {
+  let s = 0, c = 0;
+  for (let f = Math.max(0, n - span); f <= Math.min(mouth.length - 1, n + span); f++) { s += mouth[f]; c++; }
+  return c ? s / c : 0;
+}
+
+// @mood (style.js mood): the grade shift of a shot. Parameters are the grade shader's (main.js grade): multiplicative
+// contrast / saturation / exposure, additive warmth / lift, vignette, and haze of a tint colour.
+const MOOD0 = { contrast: 1, saturation: 1, warmth: 0, lift: 0, exposure: 1, vignette: 0, haze: 0, tint: [1, 1, 1] };
+const rgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+/** the grade parameters of mood `name` (none / unknown: neutral) */
+export function moodParams(name) {
+  const m = name && STYLE.mood[name];
+  return m && typeof m === "object" ? { ...MOOD0, ...m, tint: rgb(m.tint ?? "#ffffff") } : { ...MOOD0 };
+}
+/** mood parameters at held frame kf of shots[i]: its own, eased in from the previous shot's over mood.blend s */
+export function moodLook(shots, i, kf) {
+  const cur = moodParams(shots[i].mood), prev = i > 0 ? shots[i - 1].mood : null;
+  if (prev === shots[i].mood) return cur;
+  const k = glide(Math.min(1, (kf - shots[i].start_frame) / Math.max(1, STYLE.mood.blend * 30))), from = moodParams(prev);
+  const out = {};
+  for (const key of Object.keys(MOOD0)) out[key] = key === "tint" ? cur.tint.map((v, j) => from.tint[j] + (v - from.tint[j]) * k) : from[key] + (cur[key] - from[key]) * k;
+  return out;
 }

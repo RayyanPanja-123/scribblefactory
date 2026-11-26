@@ -1,0 +1,389 @@
+<<<SCRIBBLE_PACKAGE v1>>>
+<<<META>>>
+{"series_title": "Emperor Norton of America", "parts": 3}
+<<<PROPS>>>
+[
+ {"id": "newspaper", "name": "Newspaper", "use_for": "a printed front page held up: the Bulletin with Norton's declaration", "shapes": [
+  {"shape": "rect", "pts": [[-45, -70], [45, 45]], "fill": "#f3efe2", "width": 6},
+  {"shape": "line", "pts": [[-30, -45], [30, -45]], "width": 5},
+  {"shape": "line", "pts": [[-30, -25], [30, -25]], "width": 3},
+  {"shape": "line", "pts": [[-30, -10], [30, -10]], "width": 3},
+  {"shape": "rect", "pts": [[-30, 10], [0, 35]], "fill": "#cfc8b4", "width": 3}]},
+ {"id": "imperial-note", "name": "Imperial Note", "use_for": "Emperor Norton's homemade paper money", "shapes": [
+  {"shape": "rect", "pts": [[-46, -20], [46, 28]], "fill": "#cfe3b8", "width": 6},
+  {"shape": "circle", "pts": [[0, 4]], "r": 12, "fill": "#b8860b", "width": 4},
+  {"shape": "line", "pts": [[-36, -8], [-18, -8]], "width": 3},
+  {"shape": "line", "pts": [[18, 16], [36, 16]], "width": 3}]}
+]
+<<<SETS>>>
+[
+ {"id": "sf-street", "name": "San Francisco Street 1860s", "use_for": "a foggy 1860s San Francisco street: Norton's marches, saluting police, shops, the funeral and the bridge dream", "kind": "outdoor", "floor": "#8d7b64", "back": "#bcd7e6", "default_weather": {"kind": "fog", "intensity": "light"}, "pieces": [
+  {"shape": "mound", "at": [-22, 0, -34], "size": [8, 0.5], "color": "#8aa07a", "backdrop": true, "outline": true},
+  {"shape": "mound", "at": [26, 0, -38], "size": [9, 0.45], "color": "#7f9672", "backdrop": true, "outline": true},
+  {"shape": "box", "at": [-12, 3, -9], "size": [4, 6, 3], "color": "#c9a46b", "backdrop": true, "outline": true},
+  {"shape": "box", "at": [-12, 6.15, -9], "size": [4.3, 0.3, 3.3], "color": "#5a3a2a", "backdrop": true, "outline": true},
+  {"shape": "box", "at": [-13, 3.6, -7.47], "size": [0.6, 0.9, 0.05], "color": "#f2e3a0", "backdrop": true, "outline": false},
+  {"shape": "box", "at": [-11, 3.6, -7.47], "size": [0.6, 0.9, 0.05], "color": "#f2e3a0", "backdrop": true, "outline": false},
+  {"shape": "box", "at": [-7, 4, -9], "size": [4.5, 8, 3], "color": "#b5654a", "backdrop": true, "outline": true},
+  {"shape": "box", "at": [-7, 8.15, -9], "size": [4.8, 0.3, 3.3], "color": "#5a3a2a", "backdrop": true, "outline": true},
+  {"shape": "box", "at": [-8, 4.8, -7.47], "size": [0.6, 0.9, 0.05], "color": "#f2e3a0", "backdrop": true, "outline": false},
+  {"shape": "box", "at": [-6, 4.8, -7.47], "size": [0.6, 0.9, 0.05], "color": "#f2e3a0", "backdrop": true, "outline": false},
+  {"shape": "box", "at": [-1, 3.25, -9], "size": [5, 6.5, 3], "color": "#d9c7a0", "backdrop": true, "outline": true},
+  {"shape": "box", "at": [-1, 6.65, -9], "size": [5.3, 0.3, 3.3], "color": "#5a3a2a", "backdrop": true, "outline": true},
+  {"shape": "box", "at": [-2, 3.9, -7.47], "size": [0.6, 0.9, 0.05], "color": "#f2e3a0", "backdrop": true, "outline": false},
+  {"shape": "box", "at": [0, 3.9, -7.47], "size": [0.6, 0.9, 0.05], "color": "#f2e3a0", "backdrop": true, "outline": false},
+  {"shape": "box", "at": [5, 4.5, -9], "size": [4.5, 9, 3], "color": "#8f7aa0", "backdrop": true, "outline": true},
+  {"shape": "box", "at": [5, 9.15, -9], "size": [4.8, 0.3, 3.3], "color": "#5a3a2a", "backdrop": true, "outline": true},
+  {"shape": "box", "at": [4, 5.4, -7.47], "size": [0.6, 0.9, 0.05], "color": "#f2e3a0", "backdrop": true, "outline": false},
+  {"shape": "box", "at": [6, 5.4, -7.47], "size": [0.6, 0.9, 0.05], "color": "#f2e3a0", "backdrop": true, "outline": false},
+  {"shape": "box", "at": [11, 3.5, -9], "size": [4, 7, 3], "color": "#c98a5c", "backdrop": true, "outline": true},
+  {"shape": "box", "at": [11, 7.15, -9], "size": [4.3, 0.3, 3.3], "color": "#5a3a2a", "backdrop": true, "outline": true},
+  {"shape": "box", "at": [10, 4.2, -7.47], "size": [0.6, 0.9, 0.05], "color": "#f2e3a0", "backdrop": true, "outline": false},
+  {"shape": "box", "at": [12, 4.2, -7.47], "size": [0.6, 0.9, 0.05], "color": "#f2e3a0", "backdrop": true, "outline": false},
+  {"shape": "box", "at": [0, 0.01, -4], "size": [30, 0.02, 3], "color": "#7a6a55", "backdrop": false, "outline": false},
+  {"shape": "cyl", "at": [-8, 1.5, -3.2], "size": [0.06, 0.09, 3], "color": "#2f3a3a", "backdrop": false, "outline": true},
+  {"shape": "ball", "at": [-8, 3.1, -3.2], "size": [0.22], "color": "#ffe9a8", "backdrop": false, "outline": true},
+  {"shape": "cyl", "at": [-1, 1.5, -3.2], "size": [0.06, 0.09, 3], "color": "#2f3a3a", "backdrop": false, "outline": true},
+  {"shape": "ball", "at": [-1, 3.1, -3.2], "size": [0.22], "color": "#ffe9a8", "backdrop": false, "outline": true},
+  {"shape": "cyl", "at": [6, 1.5, -3.2], "size": [0.06, 0.09, 3], "color": "#2f3a3a", "backdrop": false, "outline": true},
+  {"shape": "ball", "at": [6, 3.1, -3.2], "size": [0.22], "color": "#ffe9a8", "backdrop": false, "outline": true}]},
+ {"id": "bulletin-office", "name": "Bulletin Newspaper Office", "use_for": "an 1860s newspaper office with a desk, shelves and a printing press: the editor's room where Norton hands over his decrees", "kind": "indoor", "floor": "#7a5a3a", "back": "#e6d6b0", "pieces": [
+  {"shape": "box", "at": [0, 0.01, -0.4], "size": [3.2, 0.03, 1.6], "color": "#9a3a3a", "backdrop": false, "outline": false},
+  {"shape": "box", "at": [0, 0.45, -1.9], "size": [2.6, 0.9, 0.8], "color": "#6b4a2a", "backdrop": false, "outline": true},
+  {"shape": "box", "at": [-0.6, 0.95, -1.9], "size": [0.5, 0.04, 0.35], "color": "#f4f1e6", "backdrop": false, "outline": true},
+  {"shape": "box", "at": [-1.9, 1.3, -2.45], "size": [1.3, 2.6, 0.3], "color": "#5a3a22", "backdrop": true, "outline": true},
+  {"shape": "box", "at": [-2.15, 1.9, -2.28], "size": [0.15, 0.5, 0.2], "color": "#a33a3a", "backdrop": true, "outline": true},
+  {"shape": "box", "at": [-1.9, 1.9, -2.28], "size": [0.15, 0.5, 0.2], "color": "#3a6aa3", "backdrop": true, "outline": true},
+  {"shape": "box", "at": [-1.65, 1.9, -2.28], "size": [0.15, 0.5, 0.2], "color": "#4a8a4a", "backdrop": true, "outline": true},
+  {"shape": "box", "at": [1.9, 1.7, -2.57], "size": [1.1, 1.3, 0.06], "color": "#a9d6f2", "backdrop": true, "outline": true},
+  {"shape": "box", "at": [1.6, 0.5, -1.7], "size": [0.9, 1.0, 0.7], "color": "#3a3a3f", "backdrop": false, "outline": true},
+  {"shape": "cyl", "at": [1.6, 1.2, -1.7], "size": [0.15, 0.15, 0.9], "color": "#8a8a90", "backdrop": false, "outline": true},
+  {"shape": "ball", "at": [0, 2.6, -1.5], "size": [0.2], "color": "#ffe9a8", "backdrop": false, "outline": true}]}
+]
+<<<CREATURES>>>
+[]
+<<<ACTIONS>>>
+[]
+<<<WARDROBE>>>
+[
+ {"id": "feather_cap", "name": "Feather cap", "slot": "headwear", "colorable": true, "default_color": "#2b3a67", "default_accent": "#e8b923", "layers": [
+  {"shape": "poly", "anchor": "head_top", "pts": [[-105, 45], [-100, -25], [0, -58], [100, -25], [105, 45]], "fill": "$color", "width": 8},
+  {"shape": "rect", "anchor": "head_top", "pts": [[-115, 38], [115, 58]], "fill": "$accent", "width": 6},
+  {"shape": "poly", "anchor": "head_top", "pts": [[70, -35], [118, -150], [150, -128], [100, -30]], "fill": "#f6f6f2", "width": 5}]},
+ {"id": "epaulettes", "name": "Epaulettes", "slot": "accessory", "colorable": true, "default_color": "#e8b923", "default_accent": "#3a2a1e", "layers": [
+  {"shape": "rect", "anchor": "shoulders", "pts": [[40, -16], [135, 10]], "fill": "$color", "width": 6},
+  {"shape": "line", "anchor": "shoulders", "pts": [[60, 10], [60, 38]], "fill": "#b8860b", "width": 4},
+  {"shape": "line", "anchor": "shoulders", "pts": [[80, 10], [80, 38]], "fill": "#b8860b", "width": 4},
+  {"shape": "line", "anchor": "shoulders", "pts": [[100, 10], [100, 38]], "fill": "#b8860b", "width": 4},
+  {"shape": "line", "anchor": "shoulders", "pts": [[120, 10], [120, 38]], "fill": "#b8860b", "width": 4}]},
+ {"id": "military_coat", "name": "Military coat", "slot": "top", "colorable": true, "default_color": "#2b3a67", "default_accent": "#e8b923", "layers": [
+  {"shape": "poly", "anchor": "neck", "pts": [[-96, 14], [96, 14], [104, 255], [-104, 255]], "fill": "$color", "width": 8},
+  {"shape": "poly", "anchor": "neck", "pts": [[-48, 0], [0, 34], [48, 0], [40, -22], [-40, -22]], "fill": "$accent", "width": 6},
+  {"shape": "circle", "anchor": "neck", "pts": [[-28, 70]], "r": 8, "fill": "#e8b923", "width": 3},
+  {"shape": "circle", "anchor": "neck", "pts": [[28, 70]], "r": 8, "fill": "#e8b923", "width": 3},
+  {"shape": "circle", "anchor": "neck", "pts": [[-28, 120]], "r": 8, "fill": "#e8b923", "width": 3},
+  {"shape": "circle", "anchor": "neck", "pts": [[28, 120]], "r": 8, "fill": "#e8b923", "width": 3},
+  {"shape": "circle", "anchor": "neck", "pts": [[-28, 170]], "r": 8, "fill": "#e8b923", "width": 3},
+  {"shape": "circle", "anchor": "neck", "pts": [[28, 170]], "r": 8, "fill": "#e8b923", "width": 3},
+  {"shape": "line", "anchor": "neck", "pts": [[-100, 252], [100, 252]], "fill": "#e8b923", "width": 7},
+  {"shape": "poly", "anchor": "arms", "pts": [[-24, -8], [24, -8], [21, 148], [-21, 148]], "fill": "$color", "width": 7}]}
+]
+<<<OBJECTS>>>
+[
+ {"id": "rice-sack-pile", "name": "Rice sack pile", "category": "container", "look": "card", "layer": "stage", "size": 2.4, "shapes": [
+  {"shape": "ellipse", "pts": [[-180, -90]], "r": 150, "ry": 90, "fill": "#e8d9b0", "width": 8},
+  {"shape": "ellipse", "pts": [[0, -90]], "r": 150, "ry": 90, "fill": "#efe2bc", "width": 8},
+  {"shape": "ellipse", "pts": [[180, -90]], "r": 150, "ry": 90, "fill": "#e8d9b0", "width": 8},
+  {"shape": "ellipse", "pts": [[-90, -230]], "r": 150, "ry": 90, "fill": "#f1e4c0", "width": 8},
+  {"shape": "ellipse", "pts": [[100, -230]], "r": 150, "ry": 90, "fill": "#e8d9b0", "width": 8},
+  {"shape": "ellipse", "pts": [[0, -360]], "r": 140, "ry": 85, "fill": "#f1e4c0", "width": 8},
+  {"shape": "line", "pts": [[-250, -100], [-110, -100]], "width": 5},
+  {"shape": "line", "pts": [[-60, -240], [60, -240]], "width": 5},
+  {"shape": "line", "pts": [[-60, -370], [60, -370]], "width": 5}]},
+ {"id": "bridge-vision", "name": "Bay bridge vision", "category": "env", "look": "card", "layer": "back", "size": 16, "shapes": [
+  {"shape": "line", "pts": [[-500, -260], [500, -260]], "fill": "#8d98a5", "width": 18},
+  {"shape": "rect", "pts": [[-330, -520], [-290, -260]], "fill": "#8d98a5", "width": 8},
+  {"shape": "rect", "pts": [[290, -520], [330, -260]], "fill": "#8d98a5", "width": 8},
+  {"shape": "line", "pts": [[-500, -262], [-310, -505], [0, -310], [310, -505], [500, -262]], "fill": "#6f7b88", "width": 8},
+  {"shape": "line", "pts": [[-200, -262], [-200, -380]], "fill": "#6f7b88", "width": 4},
+  {"shape": "line", "pts": [[-100, -262], [-100, -330]], "fill": "#6f7b88", "width": 4},
+  {"shape": "line", "pts": [[100, -262], [100, -330]], "fill": "#6f7b88", "width": 4},
+  {"shape": "line", "pts": [[200, -262], [200, -380]], "fill": "#6f7b88", "width": 4}]},
+ {"id": "imperial-plaque", "name": "Imperial plaque", "category": "other", "look": "card", "layer": "stage", "size": 2, "shapes": [
+  {"shape": "rect", "pts": [[-12, -140], [12, 0]], "fill": "#6b4226", "width": 6},
+  {"shape": "rect", "pts": [[-200, -330], [200, -130]], "fill": "#c8a24a", "width": 10},
+  {"shape": "rect", "pts": [[-170, -300], [170, -160]], "fill": "#e2c274", "width": 4},
+  {"shape": "poly", "pts": [[-50, -270], [-60, -230], [-25, -252], [0, -225], [25, -252], [60, -230], [50, -270]], "fill": "#8a5a12", "width": 4},
+  {"shape": "line", "pts": [[-130, -195], [130, -195]], "width": 6}]}
+]
+<<<CAST>>>
+[
+ {"id": "norton", "name": "Norton", "color": "#3a3a44", "top": "suit", "headwear": "bowler", "legwear": "trousers", "footwear": "boots",
+  "hair": {"id": "short_hair", "color": "#8a8a8a"}, "facial_hair": {"id": "long_beard", "color": "#8a8a8a"},
+  "looks": {
+   "broke": {"top": "plain", "headwear": "none", "legwear": "ragged_shorts"},
+   "emperor": {"top": {"id": "military_coat", "color": "#2b3a67", "accent_color": "#e8b923"}, "headwear": "feather_cap", "accessory": ["epaulettes"], "props": [{"kind": "cavalry-sabre", "hand": "right"}]}}},
+ {"id": "edwin", "name": "Edwin", "color": "#7a5a3a", "top": "suit", "headwear": "bowler", "legwear": "trousers", "hair": "short_hair", "facial_hair": "moustache", "face": ["glasses"]},
+ {"id": "dan", "name": "Dan", "color": "#1f4e79", "top": "suit", "headwear": "guard_helmet", "legwear": "trousers", "facial_hair": "moustache", "accessory": ["belt"]},
+ {"id": "marco", "name": "Marco", "color": "#e8e0d0", "top": "shirt", "headwear": "flat_cap", "legwear": "trousers", "hair": "short_hair", "facial_hair": "moustache"},
+ {"id": "henry", "name": "Henry", "color": "#4a3b2a", "top": "suit", "headwear": "bowler", "legwear": "trousers", "facial_hair": "short_beard"}
+]
+<<<PART 1>>>
+<<<SCRIPT>>>
+# The Emperor Nobody Elected
+
+@set bulletin-office
+@weather clear
+@cast norton, edwin
+@look norton: emperor
+@fx shake
+@sfx fahhh
+@face norton: proud
+@do norton: cheer
+A homeless man crowned himself Emperor of the United States.
+@cam close push_in
+@hold norton: contract-scroll left
+@face norton: smug
+@do norton: point-quick
+He did it with one sheet of paper.
+@sfx vine_boom
+@face edwin: surprised
+@do edwin: double-take, norton: smug-nod
+And a newspaper printed it on the front page.
+@set sf-street
+@weather clear
+@cast norton
+@look norton: default
+@hold norton: none
+@mood bright
+@item rice: rice-sack-pile stage right
+@face norton: smug
+@do norton: smug-nod
+You see, Norton was a rich businessman in San Francisco.
+@hold norton: cash-stack left
+@face norton: excited
+@do norton: point-quick
+In eighteen fifty-nine, Norton tried to buy all the rice in the city.
+@mood tense
+@fx shake
+@sfx bass_impact
+@face norton: shocked
+@do norton: shock-jump
+Then a huge ship of rice arrived, and Norton lost everything.
+@mood dark
+@weather rain medium
+@hold norton: none
+@look norton: broke
+@face norton: sad
+@do norton: sigh-slump
+Norton had no money and no home.
+@set bulletin-office
+@weather clear
+@cast norton, edwin
+@look norton: emperor
+@mood bright
+@cam medium push_in
+@face norton: proud
+@do norton: walk
+So Norton walked into the Bulletin newspaper office.
+@hold norton: contract-scroll left
+@face edwin: confused
+@do norton: give contract-scroll edwin
+Edwin the editor opened the note Norton handed him.
+@pause 0.5
+@fx pop
+@face edwin: worried
+@do edwin: lean-in, norton: smug-nod
+It said, I am Norton the First, Emperor of the United States.
+@hold edwin: newspaper right
+@face edwin: laughing
+@do edwin: cheer, norton: smug-nod
+Edwin laughed and printed it on the front page.
+@cast norton, dan
+@mood tense
+@cam close push_in fast
+@fx drop
+@sfx metallic_riser
+@face dan: suspicious
+@do dan: point-quick, norton: nervous-fidget
+@pause 0.5
+!! But the next morning, Officer Dan marched straight toward Norton.
+<<<VOICE>>>
+A homeless man crowned himself Emperor of the United States.
+He did it with one sheet of paper.
+And a newspaper printed it on the front page.
+You see, Norton was a rich businessman in San Francisco.
+In eighteen fifty-nine, Norton tried to buy all the rice in the city.
+Then a huge ship of rice arrived, and Norton lost everything.
+Norton had no money and no home.
+So Norton walked into the Bulletin newspaper office.
+Edwin the editor opened the note Norton handed him.
+It said, I am Norton the First, Emperor of the United States.
+Edwin laughed and printed it on the front page.
+But the next morning, Officer Dan marched straight toward Norton.
+<<<PART 2>>>
+<<<SCRIPT>>>
+# Hail to the Emperor
+
+@set sf-street
+@weather fog light
+@cast norton, dan
+@look norton: emperor
+@mood bright
+@sfx vine_boom
+@fx drop
+@face dan: proud
+@do dan: wave, norton: smug-nod
+Police officers saluted a homeless man like he was a king.
+@cast norton, marco
+@face marco: happy
+@do marco: cheer, norton: walk
+Restaurants fed him for free.
+@cast norton, henry
+@hold henry: imperial-note right
+@face henry: confused
+@do henry: lean-in, norton: smug-nod
+And banks took his homemade money.
+@cast norton, dan
+@face dan: worried
+@do dan: nervous-fidget, norton: smug-nod
+You see, Officer Dan did not arrest Norton.
+@sfx right
+@face dan: proud
+@do dan: wave, norton: walk
+Dan stood straight and gave the emperor a salute.
+@cast norton, dan, marco, henry
+@crowd cheer 10
+@fx pop
+@face norton: proud
+@do norton: walk
+Soon Norton marched through town in an old army coat, with a feather in his cap and a rusty sword.
+@face norton: smug
+@do norton: smug-nod, dan: cheer
+Theaters kept front row seats for Norton.
+@item plaque: imperial-plaque stage right
+@face marco: proud
+@do marco: point-quick, norton: smug-nod
+Marco the chef put a sign outside his shop that said, By appointment to His Imperial Majesty.
+@crowd off
+@cast norton, henry
+@hold norton: imperial-note left
+@face norton: worried
+@do norton: sigh-slump
+When Norton ran out of cash, he printed his own money.
+@sfx money
+@face henry: happy
+@do henry: smug-nod, norton: point-quick
+Henry the banker took the paper notes as real payment.
+@face norton: excited
+@do norton: cheer, henry: cheer
+Norton spent them all over town, and everyone said thank you.
+@mood dark
+@weather fog medium
+@cast norton
+@cam low push_in fast
+@sfx metallic_riser
+@face norton: smug
+@do norton: point-quick
+@pause 0.5
+!! Then Norton started giving orders to the whole country.
+<<<VOICE>>>
+Police officers saluted a homeless man like he was a king.
+Restaurants fed him for free.
+And banks took his homemade money.
+You see, Officer Dan did not arrest Norton.
+Dan stood straight and gave the emperor a salute.
+Soon Norton marched through town in an old army coat, with a feather in his cap and a rusty sword.
+Theaters kept front row seats for Norton.
+Marco the chef put a sign outside his shop that said, By appointment to His Imperial Majesty.
+When Norton ran out of cash, he printed his own money.
+Henry the banker took the paper notes as real payment.
+Norton spent them all over town, and everyone said thank you.
+Then Norton started giving orders to the whole country.
+<<<PART 3>>>
+<<<SCRIPT>>>
+# The Bridge Nobody Believed
+
+@set bulletin-office
+@weather clear
+@cast norton, edwin
+@look norton: emperor
+@mood tense
+@fx shake
+@sfx vine_boom
+@face norton: angry
+@do norton: point-quick
+He tried to shut down the government of America.
+@face edwin: surprised
+@do edwin: double-take
+He fined people twenty-five dollars for saying one little word.
+@fx pop
+@face norton: smug
+@do norton: smug-nod
+And he gave one more order that made people laugh.
+@hold norton: contract-scroll left
+@face norton: proud
+@do norton: point-quick
+You see, Norton ordered Congress to close for good.
+@face edwin: laughing
+@do edwin: smug-nod
+Of course, Congress ignored Norton and kept working.
+@face norton: annoyed
+@do norton: point-quick
+Norton also said anyone who said Frisco must pay twenty-five dollars.
+@face edwin: happy
+@do edwin: cheer
+Edwin printed every order Norton sent him.
+@set sf-street
+@weather clear
+@cast norton, dan, marco
+@look norton: emperor
+@mood bright
+@item bridge: bridge-vision back center
+@cam wide pull_out
+@face norton: proud
+@do norton: point
+Norton said a bridge must connect San Francisco and Oakland.
+@face dan: laughing
+@do dan: cheer, marco: cheer
+Dan and Marco laughed hard at Norton's bridge idea.
+@item bridge: remove
+@mood dark
+@weather rain light
+@cast norton
+@fx drop
+@sfx bass_impact
+@face norton: dead
+@do norton: collapse
+In eighteen eighty, Norton fell down in the street and died.
+@cast norton, dan, marco, henry, edwin
+@crowd neutral 12
+@face norton: dead
+@face dan: sad
+@do norton: lie, dan: sigh-slump, marco: sigh-slump
+Almost thirty thousand people came to say goodbye to Norton.
+@crowd off
+@cast norton, dan
+@mood bright
+@weather clear
+@item bridge: bridge-vision back center
+@cam wide push_in
+@sfx right
+@face norton: proud
+@do norton: cheer, dan: cheer
+@pause 0.5
+!! Years later, the Bay Bridge was built right where Norton said.
+<<<VOICE>>>
+He tried to shut down the government of America.
+He fined people twenty-five dollars for saying one little word.
+And he gave one more order that made people laugh.
+You see, Norton ordered Congress to close for good.
+Of course, Congress ignored Norton and kept working.
+Norton also said anyone who said Frisco must pay twenty-five dollars.
+Edwin printed every order Norton sent him.
+Norton said a bridge must connect San Francisco and Oakland.
+Dan and Marco laughed hard at Norton's bridge idea.
+In eighteen eighty, Norton fell down in the street and died.
+Almost thirty thousand people came to say goodbye to Norton.
+Years later, the Bay Bridge was built right where Norton said.
+<<<END>>>

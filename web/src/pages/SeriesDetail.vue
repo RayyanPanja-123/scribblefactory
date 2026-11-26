@@ -67,15 +67,14 @@ async function deleteSeries() {
   if (ok && (await act(() => api.deleteSeries(props.slug), `${s.title} deleted`))) router.push('/series')
 }
 
-// the gallery: once every part is posted to both, keep the titles and links and free the rest
+// the gallery: once every part is posted to at least one site, keep the titles and links and free the rest
 const galleryReason = computed(() => {
   const d = data.value
   if (!d || deleteReason.value) return deleteReason.value
   if (!d.parts.length) return 'the series has no parts yet'
-  const p = d.parts.find((x) => x.missing || !x.posted?.youtube || !x.posted?.instagram)
+  const p = d.parts.find((x) => x.missing || !(x.posted?.youtube || x.posted?.instagram))
   if (!p) return null
-  const missing = [!p.posted?.youtube && 'YouTube', !p.posted?.instagram && 'Instagram'].filter(Boolean).join(' and ')
-  return `${p.title ?? p.id} is not marked posted to ${missing}`
+  return `${p.title ?? p.id} is not marked posted to YouTube or Instagram`
 })
 async function moveToGallery() {
   const s = series.value!
@@ -183,7 +182,7 @@ const facts = computed(() => {
     <section class="raised flex flex-wrap items-center gap-4 p-5" aria-label="Gallery">
       <div class="min-w-0 flex-1">
         <p class="text-sm font-semibold">Move to gallery</p>
-        <p class="text-xs text-muted">{{ galleryReason ? `Not yet: ${galleryReason}.` : 'Posted everywhere: keep the titles and links, free the disk space.' }}</p>
+        <p class="text-xs text-muted">{{ galleryReason ? `Not yet: ${galleryReason}.` : 'Every part is posted: keep the titles and links, free the disk space.' }}</p>
       </div>
       <button class="btn btn-secondary" :disabled="!!galleryReason" :title="galleryReason ?? undefined" @click="moveToGallery">
         <Images :size="16" aria-hidden="true" /> Move to gallery

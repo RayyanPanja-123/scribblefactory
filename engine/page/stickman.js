@@ -15,6 +15,7 @@ const LEG = 220;         // leg length; hip height follows the leg angle, so fee
 const IDLE_LEG = 6;      // degrees each leg splays when standing
 const BODY_RX = 92, BODY_RY = 150;
 const BREATH = 0.03;     // body height change at full breath
+const HEAD_COUNTER = 1.5; // px the head sinks against the chest at full breath
 const HIP_OVERLAP = 12;  // body blob reaches this far below the hips
 const NECK_OVERLAP = 24; // head sits this far down into the body
 const LUMP = 0.035, JIT = 0.012, LUMP_SUM = 1 + 0.6 + 0.4; // wobble: shape lumps (3 harmonics) + boil jitter
@@ -247,7 +248,9 @@ export function skeleton(o) {
     const elbow = at(shp, a, ARM * 0.52);
     return [shp, elbow, at(elbow, a + bend, ARM * 0.48)];
   });
-  const hs = S.head, head = [CW / 2 + (o.action === "react" ? -10 : 0), top - S.headR + NECK_OVERLAP * hs];
+  // the head eases against the chest (a breath's rise sinks it by HEAD_COUNTER px) and dips with the speech (o.nod 0..1)
+  const hs = S.head, head = [CW / 2 + (o.action === "react" ? -10 : 0),
+    top - S.headR + NECK_OVERLAP * hs + HEAD_COUNTER * (o.breath || 0) + (o.nod || 0) * (STYLE.stickman.life.nod?.px || 0)];
   // eat: the prop hand comes up to the mouth (two-joint reach); gasp: both hands to the cheeks. Those arms are drawn
   // over the head (late).
   const late = [];

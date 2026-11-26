@@ -114,7 +114,8 @@ def overview():
                     per_month[m][platform] += 1
     for gp in (gp for e in gallery.entries(lib()) for gp in e.parts):  # posts of series moved to the gallery count too
         for platform in ("youtube", "instagram"):
-            if (m := getattr(gp, platform).posted_at.strftime("%Y-%m")) in per_month:
+            post = getattr(gp, platform)
+            if post and (m := post.posted_at.strftime("%Y-%m")) in per_month:
                 per_month[m][platform] += 1
     this = per_month[months[-1]]
     return {"kpi": {"series": len(disk), "parts_in_progress": in_progress, "waiting_for_approval": len(waiting),

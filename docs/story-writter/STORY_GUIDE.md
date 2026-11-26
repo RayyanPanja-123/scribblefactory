@@ -23,7 +23,7 @@
 
 ## What this makes
 - Each part = one vertical Short: a voice reads the narration (or, in cast voice acting, the narrator and each speaking character in their own voice), a planner turns each line into stickman shots in 3D. The character who speaks a line is the one whose mouth moves; on a narrator line nobody's does.
-- `@` lines are silent directives.
+- `@` lines are silent directives: `@set`, `@weather`, `@mood` (scene tone: tense, dark, flashback, bright), `@do`, `@face`, `@cam`, `@fx`, `@sfx`, `@pause`. Staging sprinkles the library's reaction actions (`shock-jump`, `double-take`, `facepalm`...) on their beats, a `@pause 0.4` to `0.6` before a punchline or the twist, and `@mood` on turns of the story (details: script and stage docs).
 
 ## Workflow and stop gates
 1. The user provides this guide and the current library list, then gives a story title and the agreed part count. Never ask the user to repeat the inventory if it was already provided.

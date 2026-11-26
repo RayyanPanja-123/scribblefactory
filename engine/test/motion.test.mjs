@@ -194,3 +194,82 @@ test("camera life: an @cam shake triggers at its shot's start with its own stren
   const shot = { id: "s02", start_frame: 40, end_frame: 90, actors: [], camera: { angle: "close", move: "hold", speed: 0.2, shake: true, forced: true } };
   assert.deepEqual(shakeTriggers({ shots: [shot] }), [{ t0: 40 / 30, strength: STYLE.camera.life.shake.strength.cam, kind: "cam" }]);
 });
+
+test("pose pop: spawn / pose change / flip squashes then stretches over 0.18 s; the same pose, idle <-> talk, none", async () => {
+  const { popAt } = await import("../page/motion.js");
+  const idle = { action: "idle", facing: "camera" };
+  assert.ok(Math.abs(popAt(null, idle, 0)) < 1e-9, "starts at rest");
+  assert.ok(popAt(null, idle, 0.045) < 0, "squashes first");
+  assert.ok(popAt(null, idle, 0.135) > 0, "then stretches");
+  assert.equal(popAt(null, idle, 0.18), 0, "settled");
+  assert.ok(Math.abs(popAt(null, idle, 0.045)) <= 0.08);
+  assert.equal(popAt({ action: "talk", facing: "camera" }, idle, 0.045), 0, "idle <-> talk is the same pose");
+  assert.ok(popAt({ action: "walk", facing: "camera" }, idle, 0.045) < 0, "pose change");
+  assert.ok(popAt({ action: "idle", facing: "left" }, idle, 0.045) < 0, "flip");
+  assert.equal(popAt(idle, { ...idle }, 0.045), 0, "unchanged");
+});
+
+test("speech envelope: smooth mouth average, 0 outside speech; snap-zoom: easeOutBack on reaction shots, not on wides", async () => {
+  const { speechEnv, snapZoom, fovPunch } = await import("../page/motion.js");
+  const { STYLE } = await import("../page/style.js");
+  const mouth = new Float32Array(40); mouth.fill(1, 10, 20);
+  assert.equal(speechEnv(mouth, 2), 0);
+  assert.equal(speechEnv(mouth, 15), 1);
+  assert.ok(speechEnv(mouth, 8) > 0 && speechEnv(mouth, 8) < 1, "ramps at the edge");
+  const shot = (angle, action) => ({ camera: { angle, move: "hold", speed: 0.2 }, actors: [{ action }] });
+  const Z = STYLE.camera.life.snap;
+  assert.ok(Math.abs(snapZoom(shot("close", "react"), 0)) < 1e-9);
+  assert.ok(Math.abs(snapZoom(shot("close", "shock-jump"), Z.dur) + Z.zoom) < 1e-9, "settles at the zoom");
+  const dips = [];
+  for (let ts = 0; ts <= Z.dur; ts += 0.01) dips.push(snapZoom(shot("medium", "gasp"), ts));
+  assert.ok(Math.min(...dips) < -Z.zoom, "overshoots past the zoom, then settles");
+  assert.equal(snapZoom(shot("wide", "react"), 0.1), 0);
+  assert.equal(snapZoom(shot("close", "talk"), 0.1), 0);
+  assert.ok(Math.abs(fovPunch(shot("close", "react"), 1) + Z.zoom) < 1e-9, "added to the punch: none here");
+});
+
+test("@mood: neutral without one, own params with one, eased in from the previous shot's; impact shake on loud hits", async () => {
+  const { moodLook, moodParams, shakeTriggers } = await import("../page/motion.js");
+  const { STYLE } = await import("../page/style.js");
+  const n = moodParams(undefined);
+  assert.deepEqual([n.contrast, n.saturation, n.exposure, n.haze, n.vignette], [1, 1, 1, 0, 0]);
+  assert.deepEqual(moodParams("nope"), n, "unknown: neutral");
+  const shots = [{ start_frame: 0 }, { start_frame: 30, mood: "dark" }, { start_frame: 60, mood: "dark" }];
+  assert.equal(moodLook(shots, 0, 0).exposure, 1);
+  assert.equal(moodLook(shots, 1, 30).exposure, 1, "blends in from neutral");
+  assert.equal(moodLook(shots, 1, 30 + STYLE.mood.blend * 30).exposure, STYLE.mood.dark.exposure);
+  assert.equal(moodLook(shots, 2, 60).exposure, STYLE.mood.dark.exposure, "same mood twice: no blend");
+  assert.ok(moodLook(shots, 1, 35).exposure < 1 && moodLook(shots, 1, 35).exposure > STYLE.mood.dark.exposure);
+  const cues = [{ kind: "low_hit", frame: 120 }, { kind: "pop", frame: 130 }];
+  const sh = [{ id: "s1", start_frame: 0, end_frame: 90, actors: [], camera: { angle: "close", move: "hold", speed: 0.2 } }];
+  assert.deepEqual(shakeTriggers({ shots: sh, cues }), [{ t0: 4, strength: STYLE.camera.life.shake.strength.impact, kind: "impact" }]);
+});
+
+test("render: @mood + a library reaction action render deterministically, the mood changes the frame, the snap zooms the shot", async () => {
+  const os = await import("node:os"), path = await import("node:path");
+  const { FIX, png } = await import("./batch.mjs");
+  const lib = fs.mkdtempSync(path.join(os.tmpdir(), "scribble-mood-"));
+  temps.push(lib);
+  fs.copyFileSync(path.join(FIX, "..", "..", "..", "scribble", "seed", "actions.json"), path.join(lib, "actions.json"));
+  const make = (name, mood, action) => {
+    const dir = path.join(lib, name, "part-01");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.copyFileSync(path.join(FIX, "series.json"), path.join(lib, name, "series.json"));
+    fs.copyFileSync(path.join(FIX, "phrases.json"), path.join(dir, "phrases.json"));
+    const story = JSON.parse(fs.readFileSync(path.join(FIX, "story.json"), "utf8"));
+    for (const sh of story.shots) { if (mood) sh.mood = mood; if (action) sh.actors[0].action = action; }
+    fs.writeFileSync(path.join(dir, "story.json"), JSON.stringify(story));
+    return dir;
+  };
+  const jobs = {};
+  for (const [name, mood, action] of [["plain", null, null], ["dark", "dark", null], ["jump", null, "shock-jump"]]) {
+    const dir = make(name, mood, action);
+    jobs[`${name}1`] = frames(dir, "6-6", "a"); jobs[`${name}2`] = frames(dir, "6-6", "b");
+  }
+  const R = await renderNamed(jobs);
+  for (const k of Object.keys(jobs)) jobOk(R, k);
+  const bytes = (name, d) => png(path.join(lib, name, "part-01", d), 6);
+  for (const name of ["plain", "dark", "jump"]) assert.ok(bytes(name, "a").equals(bytes(name, "b")), `${name}: same frame, same bytes`);
+  assert.ok(!bytes("plain", "a").equals(bytes("dark", "a")), "@mood dark changes the frame");
+  assert.ok(!bytes("plain", "a").equals(bytes("jump", "a")), "the reaction action changes the frame");
+});

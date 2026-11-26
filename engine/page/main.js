@@ -6,7 +6,7 @@ import { BODY_W, CH, CW, FEET_Y, FIGURE_PX, HAT_TOP, HEAD_R, drawStickman, figur
 import { CRW, RIDE, creature, creatureAnchors, drawCreature, measure as creatureSize } from "./creatures.js";
 import { lookup, setLibrary } from "./library.js";
 import { DH, DOG_FEET, DW, barkAmount, drawDog, gallopPhase } from "./dog.js";
-import { cameraProgress, isReactionClose, fovPunch, noise1, shakeTriggers, trauma, gestureAmount, idleLife, lookTarget, gesturePlan, mouthCurve, mouthCycles, pointAmount, stressBob, waveAmount } from "./motion.js";
+import { cameraProgress, isReactionClose, fovPunch, moodLook, noise1, popAt, shakeTriggers, speechEnv, trauma, gestureAmount, idleLife, lookTarget, gesturePlan, mouthCurve, mouthCycles, pointAmount, stressBob, waveAmount } from "./motion.js";
 import { BUILTIN_ACTIONS, CARRIED_LIFT, GIVE, HELD_Z, HOLD_GAP, ITEM_REACH, LIE, REST, SIT, SIT_LAND, STAND_UP, actU, passBehind, poseMix, collapseAt, customPose, eatAt, gaitPhase, giveAt, handOf, heldPlace, itemSide,
   propsByShot, sideToward, staggerAt, withProp, zzzAt } from "./actions.js";
 import { CAR_CARD_W, CAR_GROUND, DRIVER_X, RIDER_X, VH, VW, carEase, carSpeedShare, drawCar, seatOffset } from "./car.js";
@@ -88,6 +88,7 @@ camera.add(backMesh);
 const FOG = { z: -1.05, y: 1.5, w: 40, h: 3.2, tile: 8 }; // behind the front row and back row (z -0.9), before the crowd
 let fogTex = null, fadeByShot = new Map();
 const itemCards = new Map(); // "<@item tag>:<item id>:<layer>" -> items.js card, kept for the whole part
+const shotIdx = new Map(); // shot id -> index in story.shots (the previous shot's mood and poses are read by it)
 const fogMeshes = [];
 const sets = {}, cards = {}, hiddenByShot = new Map(), variantByShot = new Map(), extrasByShot = new Map();
 let ownedProps = new Map(); // shot id -> { cast id: props held at the shot's start } (give hands props on)
@@ -97,14 +98,17 @@ const cg = comp.getContext("2d");
 // through this shader. Works on the sRGB bytes as they are (raw shader: no colour space or tone mapping step).
 const gradeMat = new THREE.ShaderMaterial({
   uniforms: { map: { value: null }, contrast: { value: 1 }, saturation: { value: 1 }, warmth: { value: 0 },
-    lift: { value: 0 }, vignette: { value: 0 }, soft: { value: 0.5 } },
+    lift: { value: 0 }, vignette: { value: 0 }, soft: { value: 0.5 }, exposure: { value: 1 }, haze: { value: 0 }, tint: { value: new THREE.Vector3(1, 1, 1) } },
   vertexShader: "varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }",
-  fragmentShader: `uniform sampler2D map; uniform float contrast, saturation, warmth, lift, vignette, soft; varying vec2 vUv;
+  fragmentShader: `uniform sampler2D map; uniform float contrast, saturation, warmth, lift, vignette, soft, exposure, haze; uniform vec3 tint; varying vec2 vUv;
     void main() {
       vec3 c = (texture2D(map, vUv).rgb - 0.5) * contrast + 0.5;
       float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
       c = mix(vec3(l), c, saturation) + warmth * (l - 0.5) * vec3(1.0, 0.2, -1.0); // warm highs, cool lows
       c = lift + c * (1.0 - lift);
+      c *= exposure;
+      float edge = length(vUv - 0.5) * 1.41421;
+      c = mix(c, tint * exposure, haze * (0.4 + 0.6 * edge)); // @mood haze: thickest at the frame edges
       c *= 1.0 - vignette * smoothstep(soft, 1.0, length(vUv - 0.5) * 1.41421);
       gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0);
     }`,
@@ -113,13 +117,21 @@ const gradeMat = new THREE.ShaderMaterial({
 const gradeScene = new THREE.Scene().add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), gradeMat));
 const GRADE0 = { contrast: 1, saturation: 1, warmth: 0, lift: 0, vignette: 0, soft: 0.5 }; // a key a preset leaves out
 let gradeTex = null;
-function grade() {
-  const g = STYLE.grade;
-  if (!g) return;
+/** the series grade (style.js grade, else none), the ambient vignette under it, and the shot's @mood (motion.js
+ *  moodLook) on top: multiplied / added / the stronger vignette. Always runs: the ambient vignette is on by default. */
+function grade(mood) {
+  const g = { ...GRADE0, ...STYLE.grade }, A = STYLE.ambient;
+  g.vignette = Math.max(g.vignette, A?.vignette ?? 0, mood.vignette);
+  g.contrast *= mood.contrast; g.saturation *= mood.saturation; g.warmth += mood.warmth; g.lift += mood.lift;
+  if (g.vignette === 0 && !STYLE.grade && mood.haze === 0 && mood.exposure === 1 && mood.contrast === 1 && mood.saturation === 1
+    && mood.warmth === 0 && mood.lift === 0) return;
   if (gradeTex?.image.width !== W || gradeTex?.image.height !== H) { gradeTex?.dispose(); gradeTex = new THREE.FramebufferTexture(W, H); }
   renderer.copyFramebufferToTexture(new THREE.Vector2(0, 0), gradeTex);
   gradeMat.uniforms.map.value = gradeTex;
-  for (const k in GRADE0) gradeMat.uniforms[k].value = g[k] ?? GRADE0[k];
+  for (const k in GRADE0) gradeMat.uniforms[k].value = g[k];
+  gradeMat.uniforms.exposure.value = mood.exposure;
+  gradeMat.uniforms.haze.value = mood.haze;
+  gradeMat.uniforms.tint.value.set(...mood.tint);
   renderer.render(gradeScene, flatCam);
 }
 
@@ -133,6 +145,34 @@ const SHADOW_TEX = (() => {
   return new THREE.CanvasTexture(c);
 })();
 const SHADOW_GEO = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+// ambient dust motes (style.js ambient.dust): one Points cloud, positions a pure function of (seed, t): each mote has a
+// seeded home in the stage volume, rises DUST.rise units/s (wrapping), and sways on its own phase. Drawn over the set,
+// under the cards (renderOrder 0.8), so a mote never covers a face.
+const DUST_BOX = { x: [-4.5, 4.5], y: [0.05, 3.2], z: [-2, 3.5] };
+const dust = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({ map: SHADOW_TEX, transparent: true, depthWrite: false,
+  fog: false, sizeAttenuation: true }));
+dust.renderOrder = 0.8;
+dust.frustumCulled = false;
+let dustHome = [];
+function buildDust(seed) {
+  const D = STYLE.ambient?.dust, N = D?.count ?? 0, R = rng(seed, "dust"), at = ([a, b]) => a + (b - a) * R();
+  dustHome = Array.from({ length: N }, () => ({ x: at(DUST_BOX.x), y: at(DUST_BOX.y), z: at(DUST_BOX.z), ph: R() * 6.2832, hz: 0.15 + R() * 0.25 }));
+  dust.geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(N * 3), 3));
+  if (D) { dust.material.size = D.size; dust.material.opacity = D.alpha; dust.material.color.set(D.color); }
+}
+/** move the motes to time t and add them to the scene (none in rain or storm, where the weather fills the air) */
+function drawDust(t, layers) {
+  const D = STYLE.ambient?.dust;
+  if (!D?.count || layers.length) return;
+  const pos = dust.geometry.attributes.position, span = DUST_BOX.y[1] - DUST_BOX.y[0];
+  dustHome.forEach((m, i) => {
+    const y = DUST_BOX.y[0] + ((((m.y - DUST_BOX.y[0] + D.rise * t) % span) + span) % span);
+    pos.setXYZ(i, m.x + D.sway * Math.sin(m.hz * t * 6.2832 + m.ph), y, m.z + D.sway * Math.cos(m.hz * t * 4.1 + m.ph));
+  });
+  pos.needsUpdate = true;
+  scene.add(dust);
+}
+
 /** canvas texture from a 2D draw function (size x size) */
 const canvasTex = (size, draw) => {
   const c = Object.assign(document.createElement("canvas"), { width: size, height: size });
@@ -490,6 +530,8 @@ window.setup = (d) => {
   for (const t of fgTex.values()) t.dispose();
   fgTex.clear();
   shakes = shakeTriggers(d.story);
+  shotIdx.clear(); (d.story.shots || []).forEach((s, i) => shotIdx.set(s.id, i));
+  buildDust(d.story.seed);
   fadeByShot = fadePlan(d.story.shots || []);
   fogTex?.dispose(); fogTex = null;
   setLibrary(d); // library/{props,sets,creatures,actions}.json: every custom item, one registry (library.js)
@@ -708,10 +750,11 @@ function drawShot(shot, n) {
   drawForeground(shot, fg);
   const layers = layersAt(shot, fadeByShot.get(shot.id), n);
   drawFog(layers, t, shift);
+  drawDust(t, layers);
   drawBackWeather(layers, t);
   renderer.render(scene, camera);
   const weather = drawWeather(shot, layers, n, t, place);
-  grade();
+  grade(moodLook(data.story.shots, shotIdx.get(shot.id), kf));
   const travel = shot.travel ? { travel: `${shot.travel.speed} u/s ${dir < 0 ? "left" : "right"}, shift ${shift.toFixed(2)}`
     + `, loop excess ${(({ excess, row }) => `${excess.toFixed(3)} (row z ${row})`)(loopExcess(group, shift))}` } : {};
   return { ...(clamp ? { camClamp: clamp } : {}), life: lives, angle: shot.camera.angle, trauma: +shake.toFixed(4), fov: +camera.fov.toFixed(3), fg: fg?.kind ?? null, hidden: hidden.size, gestures, dogs: animals.length, ...extras, ...cars, ...items, ...travel, ...weather,
@@ -802,12 +845,16 @@ function bodyLife(shot, a, o, F) {
   const hop = (pp) => (pp.mood ? MOOD_HOP * pp.mood.bounce : 0) * (CH / CARD_H);
   const h = (f) => { const pp = at(f).o; return FEET_Y - skeleton(figure(id, { ...pp, bob: 0, breath: 0, phase: 0 })).hipY + hop(pp); };
   const lo = Math.max(s0, m - 2), v0 = h(q) - h(p), acc = h(lo + 2) - 2 * h(lo + 1) + h(lo), Q = L.squash;
+  const room = (FEET_Y - 8) / figurePx(bodyOf(id).build) - 1; // the head stays on the card
   let squash = 1;
   if (Q.max && Math.max(Math.abs(v0), Math.abs(acc)) >= Q.min) {
     const stretch = Q.gain * (hop(o) > 0 ? Math.abs(v0) : v0), squeeze = Q.accel * Math.max(0, acc);
-    const room = (FEET_Y - 8) / figurePx(bodyOf(id).build) - 1; // the head stays on the card
     squash = 1 + Math.min(Math.min(Q.max, room), Math.max(-Q.max, stretch - squeeze));
   }
+  // pop: a spawn, pose change or flip at the shot's first frames squashes and stretches back (motion.js popAt)
+  const si = shotIdx.get(shot.id), ps = si > 0 ? data.story.shots[si - 1] : null;
+  const pop = popAt(ps && ps.set === shot.set ? ps.actors.find((b) => b.cast_id === id) : null, a, (m - s0) / FPS);
+  if (pop) squash = Math.min(1 + room, squash * (1 + pop));
   // smears trail where a hand / foot came from: none on the shot's first frame
   const prev = m > s0 ? at(m - 1).o : null;
   return { velLean, squash, prev: prev ? { facing: prev.facing, k: skeleton(figure(id, prev)) } : null };
@@ -838,6 +885,7 @@ function poseOf(F, a, px = 1) {
       : lidAt(n, key, [data.series.cast.findIndex((c) => c.id === a.cast_id), data.series.cast.length]),
     breath: (Hz => (Hz ? Math.sin(2 * Math.PI * Hz * t + 2 * Math.PI * rng(key, "breath")()) : 0))(STYLE.stickman.life.breath.hz),
     mouth: a.action === "talk" && n === kf ? mouth[n] : 0, // shut while drawn outside its shot (wipe)
+    nod: a.action === "talk" && n === kf && !seated.has(a.cast_id) ? speechEnv(mouth, n) : 0, // head dips with the voice
     bob: a.action === "talk" && !seated.has(a.cast_id) ? stressBob(t, shotWords(shot)) : 0,
     gesture, pointK: a.action === "point" ? pointAmount(ts) : 1,
     wave: a.action === "wave" ? waveAmount(ts) : null,

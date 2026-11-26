@@ -27,7 +27,7 @@ Write like a human storyteller, not a viral-content template. The story must fee
 ## Directives
 
 - Directives are silent and must occupy their own line. They are never sent to TTS.
-- Persistent directives remain active until changed. `@do`, `@face`, `@cam`, `@fx`, `@fx lightning`, and `@sfx` apply to the next narration line only.
+- Persistent directives (`@set`, `@weather`, `@mood`, `@cast`...) remain active until changed. `@do`, `@face`, `@cam`, `@fx`, `@fx lightning`, and `@sfx` apply to the next narration line only.
 
 ### Persistent scene state
 
@@ -38,6 +38,11 @@ Write like a human storyteller, not a viral-content template. The story must fee
 - `@weather clear | rain | snow | fog | wind | storm [light | medium | heavy]`: persistent weather until another
     `@weather` or `@set`. Intensity defaults to medium. Use storm for war, gods, or villains; rain for loss; fog for mystery;
     snow or wind for a journey. A new set starts with its configured default weather, or clear.
+- `@mood tense | dark | flashback | bright | off`: persistent scene tone until another `@mood` or `@set` (a new set
+    starts neutral). It shifts the lighting, fog haze and colour of the whole frame and eases in over a third of a second.
+    `tense` (a threat closing in: harder contrast, drained colour, a red edge), `dark` (night, a cellar, grief: dim and
+    cool), `flashback` (memory: washed-out sepia haze), `bright` (relief, triumph, a sunny morning: warm and lifted).
+    Use it on turns of the story, two or three per part; `off` returns to neutral. It stacks with `@weather`.
 - `@cast a, b`: the characters on stage. The character named in the narration, or named by `@do`, is staged in front.
     Maximum 12 cast members; maximum 6 fit in the front row. Remove someone by writing a new `@cast` without them.
     A sudden entrance is a new `@cast` immediately above the entrance line.
@@ -184,14 +189,15 @@ fit the story's period or design.
 - `@background-music <track> [volume 0-1]`: starts a named music file from the Stickman History Shorts pack and keeps
     it under the narration until another `@background-music` changes it. The default volume is `0.5` (about 6 dB under the voice); use
     `@background-music off` to stop it. Without any `@background-music` the part plays the default synth loop (it stops on the `!!` line). Prefer the four moods, switching as the story turns: `calm` (the world at ease), `mysterious` (something unexpected happened, or is building up), `funny` (a funny moment) and `scary` (exploring the unknown). Named tracks also work: `monkeys-spinning-monkeys`, `comedy-quirky-sneaky`, `sneaky-snitch`,
-    `fluffing-a-duck`, `scheming-weasel-faster`, `funny-comedy-quirky` and `darkling`.
+    `fluffing-a-duck`, `scheming-weasel-faster`, `funny-comedy-quirky`, `darkling` and `hus-hus-hus-numbers`.
 - `@pause <seconds>` (0-3): silence before the next line, for comic timing (a beat before the punchline). `@pace
   slow | fast`: the next line spoken slower or faster. Both only shape a TTS voice (a recorded one keeps its own
     timing); the narrator and the cast still never overlap.
 - `!! <line>`: the twist line. The line is read aloud and gets a push-in, roll, and low hit. Use it for the
     final reversal, not for ordinary emphasis.
   `@do` actions:
-- `idle talk point react wave cheer angry gasp walk run stagger lie collapse`
+- `idle talk point react wave cheer angry gasp walk run stagger lie collapse`; the library's reaction micro-actions
+    (`double-take`, `nervous-fidget`, `lean-in`, `sigh-slump`, `shock-jump`, `smug-nod`, `facepalm`, `point-quick`)
 - `eat [prop]`, `give <prop> <target>`, `carry <target>` (exactly 2 carriers), `support <target>` (1 or 2)
 - `car: broken` (car on stage)
 - Custom actions, optionally aimed: `@do marcus: attack-with-spears neptune` (faces them and lunges toward them, never
@@ -251,6 +257,16 @@ fit the story's period or design.
     the spear before the attack).
 - Punch: `@fx shake` or `drop` on line 1 (hook), `@fx pop` on line 3, `@fx drop` or a `@sfx` (`camera_flash`,
     `metallic_riser`) on the rehook line, `@fx lightning` on one to three big beats.
+- Reactions: sprinkle the library's reaction micro-actions on the beat they belong to instead of a plain `react`:
+    `shock-jump` (jump scare, sudden reveal), `double-take` (a second look at something absurd), `facepalm` (someone's
+    stupidity), `sigh-slump` (defeat, bad news), `smug-nod` (pleased with themselves), `nervous-fidget` (worried, caught
+    out), `lean-in` (secrets, listening), `point-quick` (an accusing jab). Pair each with a matching `@face`
+    (`shock-jump` + `surprised`, `facepalm` + `facepalm_ready`, `smug-nod` + `smug`). Only use ids that are in the
+    inventory; one per beat, never on every line. `shock-jump` and `double-take` also snap the camera in.
+- Comic timing: put `@pause 0.4` to `@pause 0.6` right above the line that delivers a punchline or the `!!` twist, so
+    the audience gets a beat of silence first (once or twice per part, not every joke).
+- Mood: set `@mood` when the tone turns (`tense` into the strike, `dark` for the night scene, `flashback` for a memory
+    set, `bright` for the relief), and `@mood off` when it ends.
 - Thirty or more directives besides `@set` and `@cast` (the model part has 39).
 
 ### Entrances, attacks, deaths (do these exactly)

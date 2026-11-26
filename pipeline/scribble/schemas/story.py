@@ -17,6 +17,7 @@ Pos = tuple[float, float]  # [x, z] on the ground plane
 
 CamAngle = Literal["wide", "medium", "close", "low", "high", "over_shoulder"]
 CamMove = Literal["push_in", "pull_out", "truck_left", "truck_right", "crane_up", "crane_down"]
+Mood = Literal["tense", "dark", "flashback", "bright"]  # @mood: the engine shifts light, fog and colour tone (style.js mood)
 
 
 class Camera(Strict):
@@ -168,10 +169,12 @@ class Shot(Strict):
     weather: Weather | None = Field(default=None, description="@weather (or the set's default_weather); none: clear")
     items: list[ShotItem] = Field(default=[], description="@item World Items on stage (left out of story.json when "
                                                           "there are none, so older plans keep their bytes)")
+    mood: Mood | None = Field(default=None, description="@mood: scene lighting, fog and colour tone (left out of "
+                                                        "story.json when there is none); none: neutral")
 
     @model_serializer(mode="wrap")
     def _omit_items(self, handler):
-        return omit_defaults(handler(self), type(self), ("items",))
+        return omit_defaults(handler(self), type(self), ("items", "mood"))
 
 
 class Cue(Strict):

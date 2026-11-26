@@ -24,8 +24,8 @@ class GalleryPart(Strict):
     id: PartId
     number: int
     title: str
-    youtube: Post
-    instagram: Post
+    youtube: Post | None = None  # a part may be posted to only one site
+    instagram: Post | None = None
 
 
 class GalleryEntry(Strict):
@@ -43,16 +43,15 @@ def size(d: Path) -> int:
 
 
 def not_posted(d: Path) -> list[str]:
-    """why the series at d can't move yet (every part posted to YouTube and Instagram), else []"""
+    """why the series at d can't move yet (every part posted to YouTube or Instagram), else []"""
     series = load_series(d / "series.json")
     if not series.parts:
         return ["it has no parts"]
     out = []
     for pid in series.parts:
         p = load_part(part_dir_of(d, pid) / "part.json")
-        missing = [name for k, name in SITES.items() if not (p and getattr(p.posted, k))]
-        if missing:
-            out.append(f"{pid} is not marked posted to {' or '.join(missing)}")
+        if not (p and any(getattr(p.posted, k) for k in SITES)):
+            out.append(f"{pid} is not marked posted to {' or '.join(SITES.values())}")
     return out
 
 

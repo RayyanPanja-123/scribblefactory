@@ -18,6 +18,7 @@ TRACKS = {
     "scheming-weasel-faster": "06-scheming-weasel-faster.mp3",
     "funny-comedy-quirky": "07-funny-comedy-quirky-background-music-inplusmusic.mp3",
     "darkling": "08-darkling.mp3",
+    "hus-hus-hus-numbers": "hus-hus-hus-numbers.mpeg",  # lives in assets/music/background-musics
 }
 DEFAULT_VOLUME = 0.5  # about 6 dB under the voice (audio.BACKGROUND_UNDER_DB is the 0.15 level)
 
@@ -40,7 +41,9 @@ def parse(arg: str, line: int) -> tuple[str | None, float]:
 
 
 def path(track: str) -> Path:
-    return Path(__file__).resolve().parents[2] / "assets" / "music" / "stickman-history-shorts" / TRACKS[track]
+    music = Path(__file__).resolve().parents[2] / "assets" / "music"
+    shorts = music / "stickman-history-shorts" / TRACKS[track]
+    return shorts if shorts.is_file() else music / "background-musics" / TRACKS[track]
 
 
 # --- the "Attach Background Music" button: a mood per story.md line, from its @face / @do directives ---

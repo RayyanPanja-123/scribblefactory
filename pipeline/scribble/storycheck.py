@@ -23,14 +23,14 @@ from .io import (CREATURE_HINT, all_parts, library_of, part_id_of, storage_root,
 from .schemas import HAND_RIGS, ITEM_ACTIONS, actions_with
 from .stages.finish import MAX_RUNTIME_S, MIN_RUNTIME_S
 from .stages.prep import (DO_CAR, ITEM_MOVES, item_state_ok, parse_item, FX_LIGHTNING, FX_MODES, MAX_LIGHTNING, TWIST_PREFIX, clean_markdown, parse_do, spoken,
-                          parse_cam, parse_face, parse_hold, parse_lightning, parse_look, parse_ride, parse_weather, ride,
+                          parse_cam, parse_face, parse_hold, parse_lightning, parse_look, parse_mood, parse_ride, parse_weather, ride,
                           parse_pace, parse_pause, respell, speakers, strip_directives, RIDE_ACTIONS)
 from .stages.runner import StageError
 from .stages.shots import (ACTION_FACE, CAR_MODES, CAR_SEATS, DEFAULT_CAST_SIZE, EXPRESSIONS, MAX_CAST, MAX_DOGS, MAX_ON_STAGE,
                            MAX_RUNNERS, parse_crowd, parse_crowd_look, parse_crowd_weapon, plan_part, token)
 from .validate import END_SCREEN_S, TAIL_S
 
-DIRECTIVES = ("set", "cast", "dogs", "car", "fx", "do", "look", "hold", "ride", "crowd", "crowd-look", "crowd-weapon", "runners", "weather", "sfx", "face", "cam", "background-music", "item", "pause", "pace")
+DIRECTIVES = ("set", "cast", "dogs", "car", "fx", "do", "look", "hold", "ride", "crowd", "crowd-look", "crowd-weapon", "runners", "weather", "mood", "sfx", "face", "cam", "background-music", "item", "pause", "pace")
 LINE_PREFIX = re.compile(r"^story\.md line [0-9]+: ")
 FALLBACK_WPS = 2.6  # words per second before any part has been finished
 # a first line that opens on a date or backstory instead of the hook
@@ -238,6 +238,8 @@ def check_story(part_dir: Path) -> dict:
                     bad(no, f"@fx takes {' | '.join(FX_MODES)} | lightning [target], got {arg!r}")
                 elif name == "weather":
                     parse_weather(arg, no)
+                elif name == "mood":
+                    parse_mood(arg, no)
                 elif name == "face":
                     parse_face(arg, no, ids)
                     pending_face = no
@@ -442,7 +444,7 @@ def _cam_repeats(part_dir: Path, cam_lines: list[int]) -> list[dict]:
             for no, (i, s) in zip(cam_lines, forced) if i and story.shots[i - 1].camera.angle == s.camera.angle]
 
 
-STAGING = ("do", "look", "hold", "ride", "face", "fx", "crowd", "dogs", "runners", "car", "weather", "sfx")
+STAGING = ("do", "look", "hold", "ride", "face", "fx", "crowd", "dogs", "runners", "car", "weather", "mood", "sfx")
 MIN_STAGING = 10  # directives besides @set and @cast (docs/story-writter/script.md, Directives)
 
 

@@ -75,7 +75,7 @@ export const CAR = ['arrive', 'ride', 'leave', 'off']
 export const MOODS = ['cheer', 'angry', 'gasp', 'neutral', 'off', 'fight']
 // pipeline/scribble/background_music.py TRACKS: keep in step
 export const TRACKS = ['off', 'calm', 'mysterious', 'funny', 'scary', 'monkeys-spinning-monkeys', 'comedy-quirky-sneaky', 'sneaky-snitch',
-  'fluffing-a-duck', 'scheming-weasel-faster', 'funny-comedy-quirky', 'darkling']
+  'fluffing-a-duck', 'scheming-weasel-faster', 'funny-comedy-quirky', 'darkling', 'hus-hus-hus-numbers']
 
 // volume as words: '' leaves it out (the sound's own level; music: 50%)
 const volume = (normal: string): Field => ({ key: 'vol', label: 'Loudness', type: 'select', options: ['', '0.25', '0.5', '0.75', '1'],

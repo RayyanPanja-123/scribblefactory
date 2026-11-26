@@ -8,6 +8,7 @@ story.md directives (one per line) are stripped from the script:
   @fx lightning [id] one lightning strike at the next line (near cast id, or whoever holds prop id)
   @weather rain heavy  weather until the next @weather or @set: clear | rain | snow | fog | wind | storm
                      [light | medium | heavy, default medium]; @set starts the set's default_weather (else clear)
+  @mood tense        scene tone until the next @mood or @set: tense | dark | flashback | bright | off (see parse_mood)
   @do fred: collapse actions for the next line's shots, overriding keyword guessing (see parse_do)
   @look mike: headless  a cast member's named look from the next line on (default: its own; see parse_look)
   @hold mike: trident  a prop in a cast member's hand from the next line on, over its look's (see parse_hold)
@@ -32,7 +33,7 @@ from typing import NamedTuple, get_args
 
 from ..io import (CREATURE_HINT, CREATURE_SLOTS, LIBRARY_FILES, atomic_write_text, custom_actions, library_of, load_series, series_exists,
                   prop_kinds)
-from ..schemas import (ITEM_ACTIONS, ITEM_KEYWORDS, BuiltinProp, CamAngle, CamMove, Expression, Intensity, ItemLayer, Weather, WeatherKind,
+from ..schemas import (ITEM_ACTIONS, ITEM_KEYWORDS, BuiltinProp, CamAngle, CamMove, Expression, Intensity, ItemLayer, Mood, Weather, WeatherKind,
                        actions_with)
 from .runner import StageError
 
@@ -45,6 +46,7 @@ FX_LIGHTNING = "lightning"                  # @fx lightning [target]: read by th
 MAX_LIGHTNING = 3                           # strikes per part
 WEATHER_KINDS = ("clear", *get_args(WeatherKind))
 INTENSITIES = get_args(Intensity)
+MOODS = get_args(Mood)
 EXPRESSIONS = get_args(Expression)
 
 QUOTES = str.maketrans({"‘": "'", "’": "'", "‚": "'", "‛": "'",
@@ -431,6 +433,14 @@ def parse_weather(arg: str, line: int) -> Weather | None:
         raise StageError(f"story.md line {line}: bad directive @weather {arg.strip()} (use @weather "
                          f"{' | '.join(WEATHER_KINDS)} [{' | '.join(INTENSITIES)}, default medium]; clear takes none)")
     return None if kind == "clear" else Weather(kind=kind, intensity=rest[0] if rest else "medium")
+
+
+def parse_mood(arg: str, line: int) -> str | None:
+    """@mood <tense|dark|flashback|bright|off> -> the mood, or None for neutral (off). Errors name the story.md line."""
+    word = arg.strip()
+    if word not in (*MOODS, "off"):
+        raise StageError(f"story.md line {line}: bad directive @mood {word} (use @mood {' | '.join(MOODS)} | off)")
+    return None if word == "off" else word
 
 
 def parse_lightning(arg: str, line: int, cast_ids=None, props=BUILTIN_PROPS) -> str | None:

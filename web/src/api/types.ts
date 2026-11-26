@@ -1610,12 +1610,12 @@ export interface components {
         GalleryPart: {
             /** Id */
             id: string;
-            instagram: components["schemas"]["Post"];
+            instagram?: components["schemas"]["Post"] | null;
             /** Number */
             number: number;
             /** Title */
             title: string;
-            youtube: components["schemas"]["Post"];
+            youtube?: components["schemas"]["Post"] | null;
         };
         /** GeminiKey */
         GeminiKey: {

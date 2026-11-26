@@ -889,6 +889,25 @@
           "title": "Items",
           "type": "array"
         },
+        "mood": {
+          "anyOf": [
+            {
+              "enum": [
+                "tense",
+                "dark",
+                "flashback",
+                "bright"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "@mood: scene lighting, fog and colour tone (left out of story.json when there is none); none: neutral",
+          "title": "Mood"
+        },
         "phrase_range": {
           "description": "[first, last] phrase indices into phrases.json, inclusive",
           "maxItems": 2,

@@ -67,7 +67,10 @@ export const STYLE = {
     life: {
       legacyEase: false,
       drift: { pos: 0.02, rot: 0.3, hz: 0.3, scale: { wide: 1, medium: 0.75, low: 0.75, high: 0.75, close: 0.5, over_shoulder: 0.5 } },
-      shake: { pos: 0.05, rot: 1.2, hz: 9, decay: 0.6, strength: { twist: 1.0, collapse: 0.7, lightning: 0.6, fx: 0.8, cam: 0.9 } },
+      shake: { pos: 0.05, rot: 1.2, hz: 9, decay: 0.6, strength: { twist: 1.0, collapse: 0.7, lightning: 0.6, fx: 0.8, cam: 0.9, impact: 0.55 } },
+      // snap: a shot whose actor does one of `actions` zooms in `zoom` degrees of fov over `dur` s (easeOutBack: it
+      // overshoots, then settles); never on the skip angles (edges would clip). 0 zoom turns it off.
+      snap: { actions: ["react", "gasp", "shock-jump", "double-take"], zoom: 5, dur: 0.18, skip: ["wide", "over_shoulder"] },
       punch: { fastSpeed: 0.7, keys: [[0, 0], [0.12, 11], [0.32, -3], [0.8, 0]], skip: ["wide", "over_shoulder"] },
       foreground: { chance: 0.6, alpha: 0.5, blur: 5, depth: 0.7, edge: 0.2, captionTop: { 1920: 0.6, 1080: 0.72 } },
     },
@@ -102,7 +105,25 @@ export const STYLE = {
       blink: { gap: [2, 5], slot: 6, reactionQuiet: 0.5 },
       faceEase: 4,
       spring: { min: 15, full: 60, antic: 0.12, anticFrames: 4, over: 0.15, settle: 8 },
+      // pop: an actor that spawns, changes pose or flips direction at a shot's start squashes then stretches back
+      // over `dur` s (height share `squash`, damped). nod: px the head dips with the speech envelope (talking), 0 = off.
+      pop: { dur: 0.18, squash: 0.08 },
+      nod: { px: 6, span: 3 },
     },
+  },
+  // ambient atmosphere (main.js): dust motes drifting in the stage volume (count, size = world units at 1 unit away,
+  // alpha, rise = world units/s, sway = world units; skipped in rain and storm), and a soft edge vignette under every
+  // grade (the grade's own vignette wins when it is stronger). Seeded, a pure function of the frame.
+  ambient: { dust: { count: 70, size: 0.04, alpha: 0.38, color: "#fff4dc", rise: 0.04, sway: 0.18 }, vignette: 0.14, soft: 0.5 },
+  // @mood (shot.mood): a look shifted over the grade. contrast / saturation / exposure multiply, warmth / lift add,
+  // vignette takes the larger; haze is the share of `tint` mixed in, thickest at the frame edges (a fog that leaves
+  // the middle clear). blend: seconds a shot eases from the previous shot's mood. A shot with no @mood is neutral.
+  mood: {
+    blend: 0.3,
+    tense: { contrast: 1.12, saturation: 0.82, warmth: -0.08, exposure: 0.94, vignette: 0.34, haze: 0.06, tint: "#6b1d1d" },
+    dark: { contrast: 1.1, saturation: 0.7, warmth: -0.12, exposure: 0.62, vignette: 0.45, haze: 0.14, tint: "#0e1830" },
+    flashback: { contrast: 0.9, saturation: 0.22, warmth: 0.2, lift: 0.06, exposure: 1.04, vignette: 0.4, haze: 0.18, tint: "#eadcbc" },
+    bright: { contrast: 1.04, saturation: 1.18, warmth: 0.08, lift: 0.04, exposure: 1.1, vignette: 0.08, haze: 0.05, tint: "#fff3d0" },
   },
   // painted creatures (creatures.js, not humanoids): inside every filled shape at least minSize card px wide or tall,
   // a soft lit spot toward the key light (screen right; x / y its centre as a share of the shape's box from the middle /

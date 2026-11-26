@@ -1,6 +1,15 @@
 # Changelog
 
 ## Unreleased
+- Snappier, more expressive renders (engine, all deterministic: pure functions of the frame and seed). Talking heads
+  nod with the speech envelope and sink against the chest as it breathes; a spawn, pose change or flip squashes and
+  stretches back over 0.18 s; ambient dust motes and a soft default vignette (style.js `ambient`); `@mood tense | dark |
+  flashback | bright | off` (persists until the next `@mood` or `@set`, story.json `shot.mood`, eased in over 0.3 s) shifts
+  exposure, contrast, colour and edge haze; reaction shots (`react`, `gasp`, `shock-jump`, `double-take`) snap the camera in
+  (easeOutBack) and every loud `low_hit` cue shakes it. Eight reaction actions are added to the library
+  (`double-take`, `nervous-fidget`, `lean-in`, `sigh-slump`, `shock-jump`, `smug-nod`, `facepalm`, `point-quick`; seed:
+  pipeline/scribble/seed/actions.json) and the story AI docs tell it to use them, `@mood`, and a `@pause 0.4`-`0.6` before
+  punchlines. Frames of existing parts change slightly (vignette, dust, pop), so they re-render.
 - Jobs survive an API restart (a dev reload, a crash). Each step runs apart from the API (`api/jobstep.py`, its own
   process group) with its output in `library/_jobs/<job>-<step>.log` and its exit code in `<log>.rc`; the worker
   follows the log. A restarted API picks a still-running (or meanwhile finished) step up again and carries on with

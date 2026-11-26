@@ -1,0 +1,719 @@
+{
+  "schema_version": 1,
+  "actions": [
+    {
+      "id": "double-take",
+      "name": "Double Take",
+      "use_for": "a character glances at something, then whips back in disbelief: the second look lands the joke (pair with @face surprised or shocked)",
+      "duration": 1.1,
+      "loop": false,
+      "facing": "camera",
+      "move": 0.0,
+      "keys": [
+        {
+          "t": 0.0,
+          "arms": null,
+          "legs": null,
+          "knees": null,
+          "lean": 0.0,
+          "ease": "in-out"
+        },
+        {
+          "t": 0.18,
+          "arms": [
+            [
+              -20.0,
+              0.0
+            ],
+            [
+              20.0,
+              0.0
+            ]
+          ],
+          "legs": null,
+          "knees": null,
+          "lean": 5.0,
+          "ease": "in-out"
+        },
+        {
+          "t": 0.34,
+          "arms": [
+            [
+              -16.0,
+              0.0
+            ],
+            [
+              16.0,
+              0.0
+            ]
+          ],
+          "legs": null,
+          "knees": null,
+          "lean": 1.0,
+          "ease": "in-out"
+        },
+        {
+          "t": 0.52,
+          "arms": [
+            [
+              -70.0,
+              -30.0
+            ],
+            [
+              70.0,
+              30.0
+            ]
+          ],
+          "legs": [
+            -10.0,
+            10.0
+          ],
+          "knees": [
+            20.0,
+            20.0
+          ],
+          "lean": -14.0,
+          "ease": "back-out"
+        },
+        {
+          "t": 0.78,
+          "arms": [
+            [
+              -122.0,
+              -24.0
+            ],
+            [
+              122.0,
+              24.0
+            ]
+          ],
+          "legs": [
+            -12.0,
+            12.0
+          ],
+          "knees": [
+            12.0,
+            12.0
+          ],
+          "lean": -11.0,
+          "ease": "in-out"
+        },
+        {
+          "t": 1.0,
+          "arms": [
+            [
+              -122.0,
+              -24.0
+            ],
+            [
+              122.0,
+              24.0
+            ]
+          ],
+          "legs": [
+            -12.0,
+            12.0
+          ],
+          "knees": [
+            12.0,
+            12.0
+          ],
+          "lean": -11.0,
+          "ease": "in-out"
+        }
+      ]
+    },
+    {
+      "id": "nervous-fidget",
+      "name": "Nervous Fidget",
+      "use_for": "a character squirms, wrings their hands and shifts their weight while worried, guilty or caught out",
+      "duration": 1.4,
+      "loop": true,
+      "facing": "camera",
+      "move": 0.0,
+      "keys": [
+        {
+          "t": 0.0,
+          "arms": [
+            [
+              -20.0,
+              60.0
+            ],
+            [
+              20.0,
+              -60.0
+            ]
+          ],
+          "legs": [
+            -8.0,
+            6.0
+          ],
+          "knees": [
+            6.0,
+            0.0
+          ],
+          "lean": 2.0,
+          "ease": "in-out"
+        },
+        {
+          "t": 0.25,
+          "arms": [
+            [
+              -26.0,
+              72.0
+            ],
+            [
+              26.0,
+              -72.0
+            ]
+          ],
+          "legs": [
+            -6.0,
+            6.0
+          ],
+          "knees": [
+            0.0,
+            0.0
+          ],
+          "lean": -1.0,
+          "ease": "in-out"
+        },
+        {
+          "t": 0.5,
+          "arms": [
+            [
+              -20.0,
+              58.0
+            ],
+            [
+              20.0,
+              -58.0
+            ]
+          ],
+          "legs": [
+            -6.0,
+            8.0
+          ],
+          "knees": [
+            0.0,
+            6.0
+          ],
+          "lean": -2.0,
+          "ease": "in-out"
+        },
+        {
+          "t": 0.75,
+          "arms": [
+            [
+              -26.0,
+              70.0
+            ],
+            [
+              26.0,
+              -70.0
+            ]
+          ],
+          "legs": [
+            -6.0,
+            6.0
+          ],
+          "knees": [
+            0.0,
+            0.0
+          ],
+          "lean": 1.0,
+          "ease": "in-out"
+        }
+      ]
+    },
+    {
+      "id": "lean-in",
+      "name": "Lean In",
+      "use_for": "a character leans toward someone to listen closely, whisper or take a secret; holds the lean",
+      "duration": 0.8,
+      "loop": false,
+      "facing": "side",
+      "move": 0.0,
+      "keys": [
+        {
+          "t": 0.0,
+          "arms": [
+            [
+              -16.0,
+              0.0
+            ],
+            [
+              16.0,
+              0.0
+            ]
+          ],
+          "legs": null,
+          "knees": null,
+          "lean": 0.0,
+          "ease": "in-out"
+        },
+        {
+          "t": 0.55,
+          "arms": [
+            [
+              -12.0,
+              10.0
+            ],
+            [
+              44.0,
+              96.0
+            ]
+          ],
+          "legs": [
+            -8.0,
+            10.0
+          ],
+          "knees": [
+            12.0,
+            12.0
+          ],
+          "lean": 20.0,
+          "ease": "back-out"
+        },
+        {
+          "t": 1.0,
+          "arms": [
+            [
+              -12.0,
+              10.0
+            ],
+            [
+              44.0,
+              96.0
+            ]
+          ],
+          "legs": [
+            -8.0,
+            10.0
+          ],
+          "knees": [
+            12.0,
+            12.0
+          ],
+          "lean": 18.0,
+          "ease": "in-out"
+        }
+      ]
+    },
+    {
+      "id": "sigh-slump",
+      "name": "Sigh Slump",
+      "use_for": "a character deflates with a long sigh: bad news, defeat, giving up; shoulders drop, knees sag and the pose is held",
+      "duration": 1.5,
+      "loop": false,
+      "facing": "camera",
+      "move": 0.0,
+      "keys": [
+        {
+          "t": 0.0,
+          "arms": null,
+          "legs": null,
+          "knees": null,
+          "lean": 0.0,
+          "ease": "in-out"
+        },
+        {
+          "t": 0.3,
+          "arms": [
+            [
+              -30.0,
+              0.0
+            ],
+            [
+              30.0,
+              0.0
+            ]
+          ],
+          "legs": [
+            -6.0,
+            6.0
+          ],
+          "knees": [
+            0.0,
+            0.0
+          ],
+          "lean": -3.0,
+          "ease": "in-out"
+        },
+        {
+          "t": 0.7,
+          "arms": [
+            [
+              -4.0,
+              0.0
+            ],
+            [
+              4.0,
+              0.0
+            ]
+          ],
+          "legs": [
+            -8.0,
+            8.0
+          ],
+          "knees": [
+            34.0,
+            34.0
+          ],
+          "lean": 9.0,
+          "ease": "in-out"
+        },
+        {
+          "t": 1.0,
+          "arms": [
+            [
+              -3.0,
+              0.0
+            ],
+            [
+              3.0,
+              0.0
+            ]
+          ],
+          "legs": [
+            -8.0,
+            8.0
+          ],
+          "knees": [
+            36.0,
+            36.0
+          ],
+          "lean": 10.0,
+          "ease": "in-out"
+        }
+      ]
+    },
+    {
+      "id": "shock-jump",
+      "name": "Shock Jump",
+      "use_for": "a character is startled: a flinch, then arms fly up; for a jump scare or a sudden reveal",
+      "duration": 0.7,
+      "loop": false,
+      "facing": "camera",
+      "move": 0.0,
+      "keys": [
+        {
+          "t": 0.0,
+          "arms": null,
+          "legs": null,
+          "knees": null,
+          "lean": 0.0,
+          "ease": "in-out"
+        },
+        {
+          "t": 0.12,
+          "arms": [
+            [
+              -10.0,
+              16.0
+            ],
+            [
+              10.0,
+              -16.0
+            ]
+          ],
+          "legs": [
+            -10.0,
+            10.0
+          ],
+          "knees": [
+            46.0,
+            46.0
+          ],
+          "lean": 4.0,
+          "ease": "in-out"
+        },
+        {
+          "t": 0.3,
+          "arms": [
+            [
+              -150.0,
+              -10.0
+            ],
+            [
+              150.0,
+              10.0
+            ]
+          ],
+          "legs": [
+            -4.0,
+            4.0
+          ],
+          "knees": [
+            0.0,
+            0.0
+          ],
+          "lean": -6.0,
+          "ease": "back-out",
+          "snap": true
+        },
+        {
+          "t": 0.6,
+          "arms": [
+            [
+              -118.0,
+              -22.0
+            ],
+            [
+              118.0,
+              22.0
+            ]
+          ],
+          "legs": [
+            -8.0,
+            8.0
+          ],
+          "knees": [
+            10.0,
+            10.0
+          ],
+          "lean": -4.0,
+          "ease": "in-out"
+        },
+        {
+          "t": 1.0,
+          "arms": [
+            [
+              -118.0,
+              -22.0
+            ],
+            [
+              118.0,
+              22.0
+            ]
+          ],
+          "legs": [
+            -8.0,
+            8.0
+          ],
+          "knees": [
+            10.0,
+            10.0
+          ],
+          "lean": -4.0,
+          "ease": "in-out"
+        }
+      ]
+    },
+    {
+      "id": "smug-nod",
+      "name": "Smug Nod",
+      "use_for": "a character is pleased with themselves: hand on hip, leaning back and nodding slowly (pair with @face smug)",
+      "duration": 1.6,
+      "loop": true,
+      "facing": "camera",
+      "move": 0.0,
+      "keys": [
+        {
+          "t": 0.0,
+          "arms": [
+            [
+              -40.0,
+              96.0
+            ],
+            [
+              16.0,
+              0.0
+            ]
+          ],
+          "legs": null,
+          "knees": null,
+          "lean": -4.0,
+          "ease": "in-out"
+        },
+        {
+          "t": 0.2,
+          "arms": [
+            [
+              -40.0,
+              96.0
+            ],
+            [
+              16.0,
+              0.0
+            ]
+          ],
+          "legs": null,
+          "knees": null,
+          "lean": -9.0,
+          "ease": "in-out"
+        },
+        {
+          "t": 0.4,
+          "arms": [
+            [
+              -40.0,
+              96.0
+            ],
+            [
+              16.0,
+              0.0
+            ]
+          ],
+          "legs": null,
+          "knees": null,
+          "lean": -4.0,
+          "ease": "in-out"
+        },
+        {
+          "t": 0.6,
+          "arms": [
+            [
+              -40.0,
+              96.0
+            ],
+            [
+              16.0,
+              0.0
+            ]
+          ],
+          "legs": null,
+          "knees": null,
+          "lean": -9.0,
+          "ease": "in-out"
+        },
+        {
+          "t": 0.8,
+          "arms": [
+            [
+              -40.0,
+              96.0
+            ],
+            [
+              16.0,
+              0.0
+            ]
+          ],
+          "legs": null,
+          "knees": null,
+          "lean": -4.0,
+          "ease": "in-out"
+        }
+      ]
+    },
+    {
+      "id": "facepalm",
+      "name": "Facepalm",
+      "use_for": "a character is exasperated by someone's stupidity: a hand goes to the face, head bows, held (pair with @face facepalm_ready)",
+      "duration": 1.3,
+      "loop": false,
+      "facing": "camera",
+      "move": 0.0,
+      "keys": [
+        {
+          "t": 0.0,
+          "arms": null,
+          "legs": null,
+          "knees": null,
+          "lean": 0.0,
+          "ease": "in-out"
+        },
+        {
+          "t": 0.45,
+          "arms": [
+            [
+              -16.0,
+              0.0
+            ],
+            [
+              150.0,
+              62.0
+            ]
+          ],
+          "legs": [
+            -6.0,
+            6.0
+          ],
+          "knees": [
+            0.0,
+            0.0
+          ],
+          "lean": 8.0,
+          "ease": "back-out"
+        },
+        {
+          "t": 1.0,
+          "arms": [
+            [
+              -16.0,
+              0.0
+            ],
+            [
+              150.0,
+              62.0
+            ]
+          ],
+          "legs": [
+            -6.0,
+            6.0
+          ],
+          "knees": [
+            0.0,
+            0.0
+          ],
+          "lean": 12.0,
+          "ease": "in-out"
+        }
+      ]
+    },
+    {
+      "id": "point-quick",
+      "name": "Point Quick",
+      "use_for": "a sharp accusing or you-there point that snaps out and holds: a punchline jab",
+      "duration": 0.7,
+      "loop": false,
+      "facing": "camera",
+      "move": 0.0,
+      "keys": [
+        {
+          "t": 0.0,
+          "arms": null,
+          "legs": null,
+          "knees": null,
+          "lean": 0.0,
+          "ease": "in-out"
+        },
+        {
+          "t": 0.22,
+          "arms": [
+            [
+              -16.0,
+              0.0
+            ],
+            [
+              96.0,
+              0.0
+            ]
+          ],
+          "legs": null,
+          "knees": null,
+          "lean": 4.0,
+          "ease": "back-out",
+          "snap": true
+        },
+        {
+          "t": 1.0,
+          "arms": [
+            [
+              -16.0,
+              0.0
+            ],
+            [
+              96.0,
+              0.0
+            ]
+          ],
+          "legs": null,
+          "knees": null,
+          "lean": 4.0,
+          "ease": "in-out"
+        }
+      ]
+    }
+  ]
+}
