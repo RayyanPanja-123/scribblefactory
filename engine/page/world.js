@@ -224,14 +224,14 @@ class Builder {
    *  Anything that is not floor or backdrop (walls, windows, posters, buildings) is a prop piece. */
   add(geo, mat, pos, opts = {}) { return this.place(new THREE.Mesh(geo, mat), pos, opts); }
   /** add mesh m (built elsewhere: an item card) like add does */
-  place(m, pos, { outline = true, rot = null, floor = false, backdrop = false, travelHide = false, name = "" } = {}) {
+  place(m, pos, { outline = true, rot = null, floor = false, backdrop = false, travelHide = false, name = "", decal = false } = {}) {
     const geo = m.geometry;
     m.name = name; // tests find named parts (e.g. the stadium rail) through window.loopCheck
     m.position.set(...pos);
     m.userData.kind = floor ? "floor" : backdrop ? "backdrop" : "prop";
     m.userData.travelHide = travelHide; // floor/backdrop mark that makes no sense scrolling past (finish line)
     if (rot) m.rotation.set(...rot);
-    if (!floor) {
+    if (!floor && !decal) { // decal: a flat mat on the ground (a rug) cannot block anyone, so it may lie under the cast
       m.updateMatrixWorld();
       const b = new THREE.Box3().setFromObject(m);
       const onStageX = b.max.x > -STAGE.x && b.min.x < STAGE.x;
@@ -714,6 +714,7 @@ function foam(b, p, mesh) {
   mesh.add(m);
 }
 
+const DECAL_H = 0.05; // a box this flat (world units) is a floor decal: exempt from the stage clearance check
 function custom(b, spec, wide = false) {
   const water = isWater(spec);
   b.group.userData.water = water;
@@ -726,7 +727,7 @@ function custom(b, spec, wide = false) {
     sky(b, spec.back, "#f7f1e1");
   }
   for (const p of spec.pieces || []) {
-    const opts = { backdrop: p.backdrop, outline: p.outline ?? true };
+    const opts = { backdrop: p.backdrop, outline: p.outline ?? true, decal: p.shape === "box" && p.size[1] <= DECAL_H };
     b.piece(() => {
       const m = p.shape === "box" ? b.box(...p.size, p.color, p.at, opts) : p.shape === "cyl" ? b.cyl(...p.size, p.color, p.at, opts)
         : p.shape === "ball" ? b.ball(p.size[0], p.color, p.at, opts) : b.mound(p.size[0], p.size[1], p.color, p.at, opts);
