@@ -53,7 +53,7 @@ FRAME_SIZE = {"9:16": (1080, 1920), "16:9": (1920, 1080)}  # aspect -> (width, h
 
 
 Expression = Literal["neutral", "happy", "cheer", "sad", "angry", "surprised", "sleepy", "cheeky", "exhausted", "worried", "dead",
-                     "smug", "proud", "love", "excited", "relieved", "laughing", "wink", "furious", "annoyed", "disgusted", "crying", "scared", "embarrassed", "jealous", "guilty", "confused", "thinking", "suspicious", "shocked", "deadpan", "bored", "facepalm_ready", "dizzy", "drunk", "knocked_out", "evil", "crazy", "blank", "sick"]
+                     "smug", "proud", "love", "excited", "relieved", "laughing", "wink", "furious", "annoyed", "disgusted", "crying", "scared", "embarrassed", "jealous", "guilty", "confused", "thinking", "suspicious", "shocked", "deadpan", "bored", "facepalm_ready", "dizzy", "drunk", "knocked_out", "evil", "crazy", "blank", "sick", "determined"]
 
 
 # --- wardrobe: clothing, hair and cosmetics, one item per slot (engine/page/wardrobe.js) ---

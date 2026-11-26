@@ -405,7 +405,8 @@
                   "evil",
                   "crazy",
                   "blank",
-                  "sick"
+                  "sick",
+                  "determined"
                 ],
                 "type": "string"
               },
@@ -650,7 +651,8 @@
               "evil",
               "crazy",
               "blank",
-              "sick"
+              "sick",
+              "determined"
             ],
             "title": "Default Expression",
             "type": "string"
@@ -1358,6 +1360,17 @@
             "title": "Pieces",
             "type": "array"
           },
+          "trail": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Trail"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "stairs or a slope a character can `@do climb` (draw the steps as pieces; walk in front of them, z in front of the steps' face); none: nothing to climb here"
+          },
           "use_for": {
             "anyOf": [
               {
@@ -1451,7 +1464,14 @@
             "type": "string"
           },
           "instagram": {
-            "$ref": "#/components/schemas/Post"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Post"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "number": {
             "title": "Number",
@@ -1462,15 +1482,20 @@
             "type": "string"
           },
           "youtube": {
-            "$ref": "#/components/schemas/Post"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Post"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
           "id",
           "number",
-          "title",
-          "youtube",
-          "instagram"
+          "title"
         ],
         "title": "GalleryPart",
         "type": "object"
@@ -4180,6 +4205,68 @@
         "title": "Top",
         "type": "object"
       },
+      "Trail": {
+        "additionalProperties": false,
+        "description": "the path a `@do <cast>: climb` follows on a set: stairs or a slope, from its foot to its top",
+        "properties": {
+          "end": {
+            "description": "[x, y, z] of the top; its y is higher than the foot's, x differs from the foot's",
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "End",
+            "type": "array"
+          },
+          "start": {
+            "description": "[x, y, z] of the foot: where a climb up starts (a climb down ends here)",
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Start",
+            "type": "array"
+          },
+          "steps": {
+            "anyOf": [
+              {
+                "maximum": 60.0,
+                "minimum": 2.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "stairs: the height rises in this many steps; none: a smooth slope",
+            "title": "Steps"
+          }
+        },
+        "required": [
+          "start",
+          "end"
+        ],
+        "title": "Trail",
+        "type": "object"
+      },
       "TtsLine": {
         "properties": {
           "clip": {
@@ -4673,7 +4760,8 @@
                     "evil",
                     "crazy",
                     "blank",
-                    "sick"
+                    "sick",
+                    "determined"
                   ],
                   "type": "string"
                 },
@@ -6490,7 +6578,7 @@
         "summary": "Delete Cast"
       },
       "put": {
-        "description": "replace one cast member (same entry shape as NewCast; the id stays); see merge_cast",
+        "description": "replace one cast member (same entry shape as NewCast); see merge_cast. A different body[\"id\"] renames the\nmember: story.md lines (`<id>: line` and @directives) and its render files follow, its approval stays.",
         "operationId": "edit_cast_api_series__slug__cast__cast_id__put",
         "parameters": [
           {
@@ -6808,6 +6896,53 @@
           }
         },
         "summary": "Approve"
+      }
+    },
+    "/api/series/{slug}/parts/{part}/background-music": {
+      "post": {
+        "description": "the \"Attach Background Music\" button: story.md's @background-music lines replaced by mood cues\n(background_music.score); the next run re-mixes the audio and re-encodes, reusing the rendered frames",
+        "operationId": "attach_background_music_api_series__slug__parts__part__background_music_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "part",
+            "required": true,
+            "schema": {
+              "title": "Part",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Attach Background Music"
       }
     },
     "/api/series/{slug}/parts/{part}/check-story": {

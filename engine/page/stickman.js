@@ -92,7 +92,7 @@ const BROWS = {
   confused: [[-14, -12, 12], [6, 8, 2]], thinking: [[-4, -6, 10], [-12, -14, 12]], suspicious: [0, 10, 0],
   shocked: [-14, -14, 14], deadpan: [0, 0, 0], bored: [6, 6, 2], facepalm_ready: [10, -6, 3],
   dizzy: [0, 0, 8], drunk: [[6, 4, 6], [-8, -6, 10]], knocked_out: [6, 6, 2], evil: [-16, 22, -4],
-  crazy: [[-16, -14, 16], [8, 14, 0]], blank: [0, 0, 4], sick: [12, -6, 3],
+  crazy: [[-16, -14, 16], [8, 14, 0]], blank: [0, 0, 4], sick: [12, -6, 3], determined: [-2, 12, 2],
 };
 
 /** closed wobbly loop: stable per-character lumps (shape) + small per-boil jitter (boil) */
@@ -848,6 +848,7 @@ function face(p, boil, o, fx, hy, look) {
     smug: quad([mx - 20, my + 2], [mx + 4, my + 6], [mx + 24, my - 10]),                // closed-lip smirk
     proud: soft, love: soft, wink: soft,
     annoyed: [[mx - 20, my + 2], [mx + 20, my - 2]], suspicious: [[mx - 16, my], [mx + 16, my]],
+    determined: [[mx - 24, my + 1], [mx + 24, my + 1]],                                 // firm, set mouth
     deadpan: [[mx - 26, my], [mx + 26, my]], bored: [[mx - 18, my + 2], [mx + 18, my + 2]],
     knocked_out: [[mx - 22, my], [mx + 22, my]],
     disgusted: wave(mx, my, 24, 4), crying: wave(mx, my + 4, 22, 5), sick: wave(mx, my, 22, 4),

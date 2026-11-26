@@ -75,7 +75,8 @@
                 "evil",
                 "crazy",
                 "blank",
-                "sick"
+                "sick",
+                "determined"
               ],
               "type": "string"
             },
@@ -336,7 +337,8 @@
             "evil",
             "crazy",
             "blank",
-            "sick"
+            "sick",
+            "determined"
           ],
           "title": "Default Expression",
           "type": "string"

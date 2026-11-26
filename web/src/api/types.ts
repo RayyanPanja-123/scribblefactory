@@ -496,7 +496,8 @@ export interface paths {
         get?: never;
         /**
          * Edit Cast
-         * @description replace one cast member (same entry shape as NewCast; the id stays); see merge_cast
+         * @description replace one cast member (same entry shape as NewCast); see merge_cast. A different body["id"] renames the
+         *     member: story.md lines (`<id>: line` and @directives) and its render files follow, its approval stays.
          */
         put: operations["edit_cast_api_series__slug__cast__cast_id__put"];
         post?: never;
@@ -580,6 +581,27 @@ export interface paths {
         put?: never;
         /** Approve */
         post: operations["approve_api_series__slug__parts__part__approve__what__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/series/{slug}/parts/{part}/background-music": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Attach Background Music
+         * @description the "Attach Background Music" button: story.md's @background-music lines replaced by mood cues
+         *     (background_music.score); the next run re-mixes the audio and re-encodes, reusing the rendered frames
+         */
+        post: operations["attach_background_music_api_series__slug__parts__part__background_music_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1194,7 +1216,7 @@ export interface components {
             accessory?: components["schemas"]["WardrobeSlot"][] | null;
             back?: components["schemas"]["WardrobeSlot"] | null;
             /** Default Expression */
-            default_expression?: ("neutral" | "happy" | "cheer" | "sad" | "angry" | "surprised" | "sleepy" | "cheeky" | "exhausted" | "worried" | "dead" | "smug" | "proud" | "love" | "excited" | "relieved" | "laughing" | "wink" | "furious" | "annoyed" | "disgusted" | "crying" | "scared" | "embarrassed" | "jealous" | "guilty" | "confused" | "thinking" | "suspicious" | "shocked" | "deadpan" | "bored" | "facepalm_ready" | "dizzy" | "drunk" | "knocked_out" | "evil" | "crazy" | "blank" | "sick") | null;
+            default_expression?: ("neutral" | "happy" | "cheer" | "sad" | "angry" | "surprised" | "sleepy" | "cheeky" | "exhausted" | "worried" | "dead" | "smug" | "proud" | "love" | "excited" | "relieved" | "laughing" | "wink" | "furious" | "annoyed" | "disgusted" | "crying" | "scared" | "embarrassed" | "jealous" | "guilty" | "confused" | "thinking" | "suspicious" | "shocked" | "deadpan" | "bored" | "facepalm_ready" | "dizzy" | "drunk" | "knocked_out" | "evil" | "crazy" | "blank" | "sick" | "determined") | null;
             /** Eyes */
             eyes?: ("dots" | "half_closed") | null;
             /** Face */
@@ -1248,7 +1270,7 @@ export interface components {
              * @default neutral
              * @enum {string}
              */
-            default_expression: "neutral" | "happy" | "cheer" | "sad" | "angry" | "surprised" | "sleepy" | "cheeky" | "exhausted" | "worried" | "dead" | "smug" | "proud" | "love" | "excited" | "relieved" | "laughing" | "wink" | "furious" | "annoyed" | "disgusted" | "crying" | "scared" | "embarrassed" | "jealous" | "guilty" | "confused" | "thinking" | "suspicious" | "shocked" | "deadpan" | "bored" | "facepalm_ready" | "dizzy" | "drunk" | "knocked_out" | "evil" | "crazy" | "blank" | "sick";
+            default_expression: "neutral" | "happy" | "cheer" | "sad" | "angry" | "surprised" | "sleepy" | "cheeky" | "exhausted" | "worried" | "dead" | "smug" | "proud" | "love" | "excited" | "relieved" | "laughing" | "wink" | "furious" | "annoyed" | "disgusted" | "crying" | "scared" | "embarrassed" | "jealous" | "guilty" | "confused" | "thinking" | "suspicious" | "shocked" | "deadpan" | "bored" | "facepalm_ready" | "dizzy" | "drunk" | "knocked_out" | "evil" | "crazy" | "blank" | "sick" | "determined";
             /**
              * Eyes
              * @enum {string}
@@ -1571,6 +1593,8 @@ export interface components {
              * @default []
              */
             pieces: components["schemas"]["SetPiece"][];
+            /** @description stairs or a slope a character can `@do climb` (draw the steps as pieces; walk in front of them, z in front of the steps' face); none: nothing to climb here */
+            trail?: components["schemas"]["Trail"] | null;
             /**
              * Use For
              * @description when a story should use it (shown to the story AI; never changes the drawing)
@@ -2758,6 +2782,35 @@ export interface components {
              */
             style: string;
         };
+        /**
+         * Trail
+         * @description the path a `@do <cast>: climb` follows on a set: stairs or a slope, from its foot to its top
+         */
+        Trail: {
+            /**
+             * End
+             * @description [x, y, z] of the top; its y is higher than the foot's, x differs from the foot's
+             */
+            end: [
+                number,
+                number,
+                number
+            ];
+            /**
+             * Start
+             * @description [x, y, z] of the foot: where a climb up starts (a climb down ends here)
+             */
+            start: [
+                number,
+                number,
+                number
+            ];
+            /**
+             * Steps
+             * @description stairs: the height rises in this many steps; none: a smooth slope
+             */
+            steps?: number | null;
+        };
         /** TtsLine */
         TtsLine: {
             /** Clip */
@@ -2949,7 +3002,7 @@ export interface components {
              * When
              * @description only with these expressions (blush: happy)
              */
-            when?: ("neutral" | "happy" | "cheer" | "sad" | "angry" | "surprised" | "sleepy" | "cheeky" | "exhausted" | "worried" | "dead" | "smug" | "proud" | "love" | "excited" | "relieved" | "laughing" | "wink" | "furious" | "annoyed" | "disgusted" | "crying" | "scared" | "embarrassed" | "jealous" | "guilty" | "confused" | "thinking" | "suspicious" | "shocked" | "deadpan" | "bored" | "facepalm_ready" | "dizzy" | "drunk" | "knocked_out" | "evil" | "crazy" | "blank" | "sick")[] | null;
+            when?: ("neutral" | "happy" | "cheer" | "sad" | "angry" | "surprised" | "sleepy" | "cheeky" | "exhausted" | "worried" | "dead" | "smug" | "proud" | "love" | "excited" | "relieved" | "laughing" | "wink" | "furious" | "annoyed" | "disgusted" | "crying" | "scared" | "embarrassed" | "jealous" | "guilty" | "confused" | "thinking" | "suspicious" | "shocked" | "deadpan" | "bored" | "facepalm_ready" | "dizzy" | "drunk" | "knocked_out" | "evil" | "crazy" | "blank" | "sick" | "determined")[] | null;
             /**
              * Width
              * @description outline / line width; 0: no outline
@@ -4385,6 +4438,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PartModel"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    attach_background_music_api_series__slug__parts__part__background_music_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                part: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

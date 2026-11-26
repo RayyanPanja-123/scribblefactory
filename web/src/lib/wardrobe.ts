@@ -97,7 +97,7 @@ Reply with ONE JSON object in a \`\`\`json code block and nothing else.
   e.g. a hat band, trim, stripes, buttons, a tie), a "#rrggbb" hex, or null (outline only). width: black outline 0 to 40 (0: none).
 - optional "behind": true draws the layer behind the head and body (long hair falling down the back, a cape).
 - optional "when": ["happy", ...] shows the layer only with those expressions (neutral, happy, cheer, sad, angry, surprised,
-  sleepy, cheeky, exhausted, worried, dead, smug, proud, love, excited, relieved, laughing, wink, furious, annoyed, disgusted, crying, scared, embarrassed, jealous, guilty, confused, thinking, suspicious, shocked, deadpan, bored, facepalm_ready, dizzy, drunk, knocked_out, evil, crazy, blank, sick).
+  sleepy, cheeky, exhausted, worried, dead, smug, proud, love, excited, relieved, laughing, wink, furious, annoyed, disgusted, crying, scared, embarrassed, jealous, guilty, confused, thinking, suspicious, shocked, deadpan, bored, facepalm_ready, dizzy, drunk, knocked_out, evil, crazy, blank, sick, determined).
 - Coordinates are numbers within -600..600, in canvas px around the anchor. No other keys.
 
 ## Anchors (A): where a layer hangs; x across, y DOWN

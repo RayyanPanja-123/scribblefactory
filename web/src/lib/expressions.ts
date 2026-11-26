@@ -2,7 +2,7 @@
 // Expressions are engine-drawn, so this is a read-only library of built-ins rather than
 // user-authored JSON assets.
 export const EXPRESSIONS = ['neutral', 'happy', 'cheer', 'sad', 'angry', 'surprised', 'sleepy', 'cheeky', 'exhausted', 'worried', 'dead',
-  'smug', 'proud', 'love', 'excited', 'relieved', 'laughing', 'wink', 'furious', 'annoyed', 'disgusted', 'crying', 'scared', 'embarrassed', 'jealous', 'guilty', 'confused', 'thinking', 'suspicious', 'shocked', 'deadpan', 'bored', 'facepalm_ready', 'dizzy', 'drunk', 'knocked_out', 'evil', 'crazy', 'blank', 'sick'] as const
+  'smug', 'proud', 'love', 'excited', 'relieved', 'laughing', 'wink', 'furious', 'annoyed', 'disgusted', 'crying', 'scared', 'embarrassed', 'jealous', 'guilty', 'confused', 'thinking', 'suspicious', 'shocked', 'deadpan', 'bored', 'facepalm_ready', 'dizzy', 'drunk', 'knocked_out', 'evil', 'crazy', 'blank', 'sick', 'determined'] as const
 export type Expression = typeof EXPRESSIONS[number]
 
 export const expressionOptions = EXPRESSIONS.map((id) => ({
@@ -22,5 +22,5 @@ export const expressionNote: Record<Expression, string> = {
   suspicious: 'narrow eyes', shocked: 'tiny pupils, huge open mouth', deadpan: 'dot eyes, straight mouth',
   bored: 'half lids, flat mouth', facepalm_ready: 'eyes closed, tired frown', dizzy: 'spiral eyes',
   drunk: 'wobbly eyes, goofy grin', knocked_out: '> < eyes, tongue out', evil: 'angled brows, wide grin',
-  crazy: 'mismatched pupils, big teeth', blank: 'empty eyes, no mouth', sick: 'green tint, droopy eyes'
+  crazy: 'mismatched pupils, big teeth', blank: 'empty eyes, no mouth', sick: 'green tint, droopy eyes', determined: 'brows low and set, firm straight mouth'
 }
