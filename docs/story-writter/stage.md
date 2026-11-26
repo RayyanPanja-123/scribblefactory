@@ -29,6 +29,9 @@
 - Crowds change mood as the scene turns (cheer, neutral, gasp).
 - Punch: `@fx shake|drop` on line 1, `@fx pop` on the flip, `@fx lightning` on 1-3 big beats. At least 10 directives besides `@set` and `@cast`.
 - Use the inventory: follow "use for" notes, cast looks and custom actions.
+- Direction playbook: for every line answer in order: who acts (`@do` names them, lines 1-3), what they physically do (the verb of the line as a `@do`: `don <item>` puts on a headwear/back wardrobe item mid-line and keeps it, `give`, `pickup`, `collapse`, an aimed custom action, a reaction action; never `talk`/`idle` for an act), what they hold or wear (`@hold` / `@look` / `@item` switched on the line it first shows, `@hold <id>: none` the moment they lose it), the face (`@face` on every emotional beat), the camera (`@cam` on 3-4 key beats only).
+- Camera beats: `orbit_left|orbit_right` (arcs up to 45 degrees around the subject, who stays centred: a power move, transformation, crowning, villain's entrance), `push_in` (reaction, threat; `fast` for a hit), `low crane_up` (rise to power), `high crane_down`/`pull_out` (small, lost), `dutch 12` (something is wrong). Never two `@cam` lines in a row or the same angle twice in a row; the planner already orbits on other lines.
+- Per part: 30+ directives besides `@set`/`@cast`, a `@do` or `@face` on every line, 2-3 `@mood`, about 4 reaction actions, a new `@set`+`@weather` on every place/time jump. Never change narration words (the voice is already timed).
 
 ## Entrances, attacks, deaths
 - Entrance: new `@cast` right above the line they appear on.

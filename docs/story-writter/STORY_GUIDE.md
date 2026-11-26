@@ -18,12 +18,12 @@
 - Digits, symbols or markdown in narration; narration on a directive line.
 - Scripts before the user has picked single narration or cast voice acting.
 - Cast lines (`id: words`) in a single-narration series; in cast voice acting, a speaker id that is not a cast id.
-- Flat scripts (one `@set`, few directives).
+- Flat scripts (one `@set`, few directives) and lines where a character only talks or stands while the narration names an act: follow the Direction playbook in the script doc.
 - Characters by role ("the commander") from line 4 on: use their cast `name`. Lines 1 to 3 never name anyone.
 
 ## What this makes
 - Each part = one vertical Short: a voice reads the narration (or, in cast voice acting, the narrator and each speaking character in their own voice), a planner turns each line into stickman shots in 3D. The character who speaks a line is the one whose mouth moves; on a narrator line nobody's does.
-- `@` lines are silent directives: `@set`, `@weather`, `@mood` (scene tone: tense, dark, flashback, bright), `@do`, `@face`, `@cam`, `@fx`, `@sfx`, `@pause`. Staging sprinkles the library's reaction actions (`shock-jump`, `double-take`, `facepalm`...) on their beats, a `@pause 0.4` to `0.6` before a punchline or the twist, and `@mood` on turns of the story (details: script and stage docs).
+- `@` lines are silent directives: `@set`, `@weather`, `@mood` (scene tone: tense, dark, flashback, bright), `@do` (including `don <item>` to put something on), `@face`, `@cam` (including `orbit_left` / `orbit_right` arcs around the subject), `@fx`, `@sfx`, `@pause`. Staging sprinkles the library's reaction actions (`shock-jump`, `double-take`, `facepalm`...) on their beats, a `@pause 0.4` to `0.6` before a punchline or the twist, and `@mood` on turns of the story (details: script and stage docs).
 
 ## Workflow and stop gates
 1. The user provides this guide and the current library list, then gives a story title and the agreed part count. Never ask the user to repeat the inventory if it was already provided.
@@ -36,6 +36,7 @@
    - Give one proposed item at a time, explain which TTS line requires it, and wait for `next` before giving the next item.
    - Props are exhaustive: every tool or object possessed, held, carried, eaten, given or used by any cast member in the TTS scripts is a prop, from a single coin to a bazooka. Do not omit an object because it is small, ordinary or used only once.
    - Capture every emotional beat as an expression requirement, then continue through the remaining categories only when asked.
+   - Wardrobe covers every item a character puts on during the story (a crown, a cape, a hat): the `@do <id>: don <item>` action needs it in the library as a `headwear` or `back` item.
 6. Stop after the library categories are concluded. Only after the user explicitly asks for directive scripts, write the staged `story.md` scripts and assemble the Story Package:
 
 ```text

@@ -269,6 +269,32 @@ fit the story's period or design.
     set, `bright` for the relief), and `@mood off` when it ends.
 - Thirty or more directives besides `@set` and `@cast` (the model part has 39).
 
+### Direction playbook (make full use of the engine: nobody just stands and narrates)
+
+The picture must show what the line says. For every narration line ask five questions, in this order, and answer each with a directive:
+
+1. **Who acts?** The one the line is about (lines 1 to 3: a `@do` names them). Everyone else stays idle.
+2. **What do they physically do?** A `@do` for the verb of the line, never `talk` or `idle` for an act. Map the verb:
+    - puts on / wears / crowns / dons something: `@do <id>: don <item>` (a `headwear` or `back` wardrobe item that is in the library, e.g. `crown`, `cape`): the hands rise, it appears halfway through the line and stays on until their `@look` changes. A whole outfit change = `@look`.
+    - hands over / receives: `@do <id>: give <prop> <target>`. Eats: `eat <prop>`. Picks up / opens / pushes / sits on a drawn thing: `@do <id>: pickup|open|push|sit <item tag>` after `@item <tag>: ...`.
+    - strikes / fights: an aimed custom action (`attack-with-spears <target>`). Falls: `collapse`, then `lie` + `dead`.
+    - goes somewhere: `walk` / `run` (only with free room). Points, waves, cheers: `point`, `wave`, `cheer`.
+    - reacts: the reaction actions (`shock-jump`, `double-take`, `facepalm`, `sigh-slump`, `smug-nod`, `nervous-fidget`, `lean-in`, `point-quick`).
+3. **What do we see them holding or wearing?** Switch it on the line it first matters: `@hold <id>: <prop> [left|right]` (the note, the newspaper, the bag), `@look <id>: <look>` for a different outfit (broke / rich / emperor), `@item` for a big drawn object. Take it away with `@hold <id>: none` the moment they lose it ("lost everything").
+4. **What is the face?** `@face <id>: <expression>` on every emotional beat (smug on a power move, scared on a loss). Narration mood words also change it.
+5. **Where is the camera?** Only on the beats that matter, `@cam` (see below). Everywhere else the planner already cuts and drifts, and it arcs around the subject on medium, close and low shots.
+
+Camera (`@cam [angle] [move] [fast] [shake] [dutch deg]`, three or four key beats a part, never two in a row, never the same angle twice in a row):
+- `orbit_left` / `orbit_right`: the camera arcs up to 45 degrees around the subject, who stays in the middle of the frame. The side is where the camera drifts on screen. Use it for a power move, a transformation, a reveal of what someone is (crowning, a new outfit, a villain's entrance): `@cam medium orbit_left` above the line.
+- `push_in` (`fast` for a hit): a reaction, a secret, a threat closing in. `low crane_up`: someone rises to power. `high crane_down` / `pull_out`: someone is small, lost or alone. `dutch 12`: something is wrong. `shake`: an impact.
+- The `!!` twist already pushes in and rolls: do not add a move unless you mean a different one.
+
+Tone and scene shape: a new `@set` + `@weather` for every place or time jump; `@mood` two or three times a part on the turns (`flashback` for a memory, `tense` into the strike, `bright` for relief); a crowd (`@crowd`) wherever a public scene needs one; keep weather rising toward the twist.
+
+Budget per part: 30 or more directives besides `@set` and `@cast`; every line with a `@do` or `@face`; one reaction action on each emotional turn (about four a part, never on every line); at most one `don` / `@look` change per character per beat; props and looks always switched on at the line where they are first seen.
+
+Common mistakes: a line that names an act but only `talk`s or idles; a prop used with no `@hold` or `@look` before it; a character used before `@cast` adds them; forgetting to take the prop away; the same camera on every line (or an `@cam` on every line); `@pause` or voice-length changes after the voice is recorded (keep narration word for word).
+
 ### Entrances, attacks, deaths (do these exactly)
 
 - Sudden entrance: a character is not in `@cast` until the line they appear on; add them with a new `@cast` right
