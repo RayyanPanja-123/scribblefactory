@@ -24,7 +24,8 @@ from .stages.prep import TWIST_PREFIX, clean_markdown, spoken
 from .stages.runner import StageError
 
 SfxId = Annotated[str, Field(pattern=r"^[a-z0-9]+([_-][a-z0-9]+)*$", max_length=60)]
-MAX_PER_PART = 5
+MAX_PER_PART = 5            # suggestions never bring a part past this many
+MAX_WRITTEN = 12           # @sfx lines a story may write (the Check)
 MIN_GAP_S = 1.5          # suggestions: never two sfx starting closer than this
 GUESS_S = 2.0            # length assumed for a sound whose file is missing (suggestion spacing only)
 PEAK_UNDER_VOICE = 0.7   # a sound at volume 1 peaks at this fraction of the voice's peak

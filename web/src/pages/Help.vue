@@ -114,7 +114,7 @@ const DIRECTIVES: Directive[] = [
     example: '@do neptune: raise-trident\n@fx lightning\nNeptune raised his trident, and the sky split open.' },
   { id: 'sfx', syntax: '@sfx <id> [volume 0-1]', what: 'Plays a sound effect with the next line.', list: 'sounds',
     rules: ['Put it right above the line it belongs to. Multiple @sfx lines can attach to the same line.', 'Most sounds play as the line starts. Risers end just as it starts. fahhh plays after the line.',
-      'Use @sfx id 0.6 for a one-use volume override.', 'At most 5 per part, and not on two lines in a row.', 'The Review tab suggests sounds for you.'],
+      'Use @sfx id 0.6 for a one-use volume override.', 'At most 12 per part, and not on two lines in a row.', 'The Review tab suggests sounds for you.'],
     example: '@sfx riser\n!! The tower was never his to sell.' },
   { id: 'twist', syntax: '!! <text>', what: 'The big twist: the camera pushes in and a deep boom hits.',
     rules: ['Use it once per part, on the last or second-to-last line.', 'The words are spoken like any other line.', 'A character can say it: !! kai: Then we walk.'],

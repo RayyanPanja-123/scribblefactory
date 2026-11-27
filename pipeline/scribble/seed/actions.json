@@ -714,6 +714,93 @@
           "ease": "in-out"
         }
       ]
+    },
+    {
+      "id": "hug",
+      "name": "Hug",
+      "use_for": "a character opens both arms wide, then wraps them in and squeezes: a hug, a warm greeting, a comfort",
+      "duration": 1.3,
+      "loop": false,
+      "facing": "camera",
+      "move": 0.0,
+      "keys": [
+        {
+          "t": 0.0,
+          "arms": null,
+          "legs": null,
+          "knees": null,
+          "lean": 0.0,
+          "ease": "in-out"
+        },
+        {
+          "t": 0.3,
+          "arms": [
+            [
+              -100.0,
+              -12.0
+            ],
+            [
+              100.0,
+              12.0
+            ]
+          ],
+          "legs": null,
+          "knees": null,
+          "lean": 0.0,
+          "ease": "back-out"
+        },
+        {
+          "t": 0.62,
+          "arms": [
+            [
+              -36.0,
+              125.0
+            ],
+            [
+              36.0,
+              -125.0
+            ]
+          ],
+          "legs": null,
+          "knees": null,
+          "lean": 5.0,
+          "ease": "in-out"
+        },
+        {
+          "t": 0.8,
+          "arms": [
+            [
+              -30.0,
+              138.0
+            ],
+            [
+              30.0,
+              -138.0
+            ]
+          ],
+          "legs": null,
+          "knees": null,
+          "lean": 7.0,
+          "ease": "in-out"
+        },
+        {
+          "t": 1.0,
+          "arms": [
+            [
+              -32.0,
+              132.0
+            ],
+            [
+              32.0,
+              -132.0
+            ]
+          ],
+          "legs": null,
+          "knees": null,
+          "lean": 6.0,
+          "ease": "in-out"
+        }
+      ]
     }
   ]
 }

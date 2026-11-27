@@ -412,3 +412,40 @@ def test_storycheck_warns_on_a_speaker_off_stage(part):
     (part / "story.md").write_text("# T\n\n@cast kai\nkai: Hello?\nmira: Over here.\n", encoding="utf-8")
     r = check_story(part)
     assert [w["line"] for w in r["warnings"] if "is not on stage" in w["message"]] == [5]
+
+
+def test_voice_effect_changes_the_audio_and_keeps_the_timing(part, server):
+    import shutil
+    import subprocess
+    from pipeline.scribble import ff
+    from pipeline.scribble.schemas import VoiceFx
+    if not (shutil.which("ffmpeg") and b"rubberband" in subprocess.run(["ffmpeg", "-hide_banner", "-filters"], capture_output=True).stdout):
+        pytest.skip("ffmpeg with rubberband not found")
+    url, _ = server
+    use(part, url)
+    tts_stage.run(part)
+    plain, plain_inputs = (part / "voice.mp3").read_bytes(), tts_stage.extra_inputs(part)
+    assert "fx" not in plain_inputs  # no effect: the stage's hash is what it was
+    f = part.parent / "series.json"
+    s = load_series(f)
+    s.voice.tts = TtsVoice(id="am_michael", fx=VoiceFx())
+    save_series(f, s)
+    assert tts_stage.extra_inputs(part) != plain_inputs  # editing the effect makes the stage stale
+    tts_stage.run(part)
+    assert len(Kokoro.made) == 2  # the effect never asks the server again
+    m = json.loads((part / tts_stage.MANIFEST).read_text(encoding="utf-8"))
+    assert all(ln["fx"]["pitch"] == -1.5 for ln in m["lines"])
+    assert (part / "voice.mp3").read_bytes() != plain
+    assert ff.duration(part / "voice.mp3") == pytest.approx(m["lines"][-1]["end"], abs=0.15)  # the clip times match
+
+
+def test_a_line_of_dots_is_one_second_of_silence_the_server_never_hears(part, server):
+    url, _ = server
+    use(part, url)
+    assert tts.is_silent("...") and tts.is_silent("....") and tts.is_silent("... . ...") and not tts.is_silent("Hi...")
+    cfg = tts.config(lib(part))
+    p = tts.clips(lib(part), [("Hello there.", "am_michael", 1.0), ("....", "am_michael", 1.0), ("...", "am_adam", 1.2)], cfg)
+    assert [i["text"] for i in Kokoro.made] == ["Hello there."]  # only the spoken line went to the server
+    assert p[1] == p[2]  # one shared silent clip
+    with wave.open(str(p[1])) as w:
+        assert w.getnframes() == 24000 and not any(w.readframes(24000))

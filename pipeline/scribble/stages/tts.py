@@ -11,7 +11,7 @@ import json
 import os
 from pathlib import Path
 
-from .. import ff, tts
+from .. import ff, tts, voicefx
 from ..io import atomic_write_json, library_of, load_part, load_series, part_exists, series_exists
 from .prep import speakers, voice_marks
 from .runner import StageError
@@ -43,6 +43,15 @@ def cast_voices(part_dir: Path) -> dict[str, tuple[str, float]]:
     return {c.id: (c.voice.id, c.voice.speed) for c in load_series(part_dir.parent / "series.json").cast if c.voice}
 
 
+def voice_fx(part_dir: Path) -> tuple:
+    """(the narrator's VoiceFx, {cast id: VoiceFx}): the effects of the voices that have one switched on"""
+    if not series_exists(part_dir.parent):
+        return None, {}
+    s = load_series(part_dir.parent / "series.json")
+    on = lambda v: v.fx if v and voicefx.active(v.fx) else None  # noqa: E731
+    return on(s.voice.tts), {c.id: on(c.voice) for c in s.cast if c.voice}
+
+
 def extra_inputs(part_dir: Path) -> dict:
     """what else makes the voice: the narrator and cast voices, the gap, the cache tag and the server's model
     fingerprint last seen (settings: no network here). A new model, once seen, makes every TTS part stale."""
@@ -50,8 +59,13 @@ def extra_inputs(part_dir: Path) -> dict:
         return {"voice_source": "recorded"}
     from .. import settings
     s = settings.load(library_of(part_dir))
-    return {"voice_source": "tts", "narrator": narrator(part_dir), "cast": cast_voices(part_dir), "gap": s["tts_line_gap"],
-            "fp": s["tts_server_fp"], "tag": s["tts_model_tag"]}
+    got = {"voice_source": "tts", "narrator": narrator(part_dir), "cast": cast_voices(part_dir), "gap": s["tts_line_gap"],
+           "fp": s["tts_server_fp"], "tag": s["tts_model_tag"]}
+    narr_fx, cast_fx = voice_fx(part_dir)
+    if narr_fx or any(cast_fx.values()):  # only with an effect on: a part without one keeps its hash
+        got["fx"] = [narr_fx and narr_fx.model_dump(), {k: v.model_dump() for k, v in cast_fx.items() if v},
+                     voicefx.CHAIN_VERSION]
+    return got
 
 
 def script_lines(part_dir: Path) -> list[tuple[int, str]]:
@@ -88,7 +102,11 @@ def run(part_dir: Path) -> None:
               for (no, _), (v, s) in zip(lines, voices)]
     gaps = [marks.get(no, {}).get("pause", cfg["gap"]) for no, _ in lines]  # @pause: the silence before this line
     paths = tts.clips(lib, [(text, v, s) for (_, text), (v, s) in zip(lines, voices)], cfg)  # all before any write
-    wav, spans = tts.stitch(paths, gaps)
+    narr_fx, cast_fx = voice_fx(part_dir)
+    fxs = [None if tts.is_silent(text) else cast_fx.get(said.get(no)) if said.get(no) in by_cast else narr_fx
+           for no, text in lines]  # silence is left as it is
+    wav, spans = tts.stitch([voicefx.process(p, fx, tts.cache_dir(lib)) for p, fx in zip(paths, fxs)], gaps)
+    level = ["-af", voicefx.LOUDNORM, "-ar", voicefx.SAMPLE_RATE] if any(fxs) else []  # one even level over the voice
 
     mp3, manifest = part_dir / "voice.mp3", part_dir / MANIFEST
     made = json.loads(manifest.read_text(encoding="utf-8")).get("mp3_sha256") if manifest.is_file() else None
@@ -99,7 +117,7 @@ def run(part_dir: Path) -> None:
         print(f"kept the recorded voice as {RECORDED}")
     tmp = part_dir / "voice.tts.tmp.mp3"
     try:
-        ff.run("ffmpeg", "-v", "error", "-y", "-f", "wav", "-i", "-", *MP3_ARGS, tmp, data=wav,
+        ff.run("ffmpeg", "-v", "error", "-y", "-f", "wav", "-i", "-", *level, *MP3_ARGS, tmp, data=wav,
                fail="ffmpeg could not encode the TTS voice")
         os.replace(tmp, mp3)  # voice.mp3 is protected from atomic_write_*: replaced whole, like an upload
     finally:
@@ -108,7 +126,8 @@ def run(part_dir: Path) -> None:
         "schema_version": 1, "mp3_sha256": sha(mp3), "gap": cfg["gap"], "tag": cfg["tag"],
         "lines": [{"line": no, "speaker": said.get(no), "voice": v, "speed": s, "text": text,
                    "clip": p.stem, "start": a, "end": b,
-                   "pause": marks.get(no, {}).get("pause"), "pace": marks.get(no, {}).get("pace")}
-                  for (no, text), (v, s), p, (a, b) in zip(lines, voices, paths, spans)]})
+                   "pause": marks.get(no, {}).get("pause"), "pace": marks.get(no, {}).get("pace"),
+                   **({"fx": fx.model_dump()} if fx else {})}
+                  for (no, text), (v, s), p, (a, b), fx in zip(lines, voices, paths, spans, fxs)]})
     used = sorted({f"{v} at {s}x" for v, s in voices})
     print(f"voice.mp3: {len(lines)} lines, {spans[-1][1]:.1f} s, {len(said)} spoken by the cast; voices: {', '.join(used)}")

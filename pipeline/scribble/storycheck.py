@@ -254,8 +254,8 @@ def check_story(part_dir: Path, strict: bool = False) -> dict:
                 elif name == "sfx":
                     sid, _vol = sfx_lib.parse_sfx(arg, no, list(sounds))
                     n_sfx += 1
-                    if n_sfx == sfx_lib.MAX_PER_PART + 1:
-                        bad(no, f"@sfx: at most {sfx_lib.MAX_PER_PART} per part (only where the moment needs one)")
+                    if n_sfx == sfx_lib.MAX_WRITTEN + 1:
+                        bad(no, f"@sfx: at most {sfx_lib.MAX_WRITTEN} per part (only where the moment needs one)")
                     if not (sfx_lib.sfx_dir(library) / sounds[sid].file).is_file():
                         warnings.append({"line": no, "message": f"@sfx {sid}: {sounds[sid].file} is missing from "
                                                                  "library/sfx/ (left out of the mix)"})

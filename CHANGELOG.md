@@ -1,6 +1,16 @@
 # Changelog
 
 ## Unreleased
+- A story may write up to 12 `@sfx` (the Check; was 5, `sfx.MAX_WRITTEN`); AI sound suggestions still stop at 5. A TTS line
+  made only of dots (a series pronunciation such as `hush: "..."`) is exactly 1 s of silence made locally, never sent to
+  the server or the voice effect, and the timing step pins every word of a TTS voice inside its own line's clip, so an
+  `@sfx` on a silent line starts with its silence. New built-in-library action `hug` (seed + library).
+- Voice effect preset "In This Town" (pipeline/scribble/voicefx.py): per voice (narrator or cast member, `fx` on its TTS
+  voice, series.json), after the TTS and before the clips are stitched: pitch -1.5 semitones and tempo 0.94x with the
+  formant kept (ffmpeg rubberband), lower-mid warmth, softer top, gentle compression, light saturation, peak limiter;
+  the whole voice is levelled once to -18 LUFS. Pitch, speed, warmth, intensity and on/off are sliders in the voice
+  picker (preview applies them); `set-voice --fx in_this_town|off` for the narrator. Clip times follow the processed
+  length, so timing and video stay in sync; processed clips are cached in `_tts-cache/fx/`. Off by default.
 - Snappier, more expressive renders (engine, all deterministic: pure functions of the frame and seed). Talking heads
   nod with the speech envelope and sink against the chest as it breathes; a spawn, pose change or flip squashes and
   stretches back over 0.18 s; ambient dust motes and a soft default vignette (style.js `ambient`); `@mood tense | dark |

@@ -133,13 +133,13 @@ def test_missing_files_warn_not_crash(tmp_path):
 
 
 def test_check_story(tmp_path):
-    pdir = setup(tmp_path, "# T\n\n@set office\n@cast bob, amy\n@sfx pop\n@sfx boing\nBob waved.\n" + "@sfx click\n" * 5
+    pdir = setup(tmp_path, "# T\n\n@set office\n@cast bob, amy\n@sfx pop\n@sfx boing\nBob waved.\n" + "@sfx click\n" * 12
                  + "Amy waved.\n@sfx pop\n")
     r = check_story(pdir)
     msgs = [(p["line"], p["message"]) for p in r["problems"]]
     assert (6, "@sfx: unknown sound 'boing' (sounds: " + ", ".join(ENTRIES) + ")") in msgs
-    assert any(line == 12 and "at most 5 per part" in m for line, m in msgs)
-    assert (14, "@sfx has no narration line after it to play on") in msgs
+    assert any(line == 19 and "at most 12 per part" in m for line, m in msgs)
+    assert (21, "@sfx has no narration line after it to play on") in msgs
     assert any(w["line"] == 5 and "Pop.mp3 is missing" in w["message"] for w in r["warnings"])
 
 

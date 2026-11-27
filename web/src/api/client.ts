@@ -28,6 +28,7 @@ export type PackageResult = S['PackageResult']
 export type CaptionReply = S['Captions']
 export type GalleryEntry = S['GalleryEntry']
 export type TtsVoice = S['TtsVoice']
+export type VoiceFx = S['VoiceFx']
 export type TtsVoices = S['Voices']
 export type TtsLine = S['TtsLine']
 export type Approval = 'stills' | 'final'
@@ -112,8 +113,9 @@ export const api = {
   settings: () => call<SettingsView>('GET', '/api/settings'),
   ttsVoices: () => call<TtsVoices>('GET', '/api/tts/voices'),
   /** a voice sample as an object URL (revoke it when done); the server's error as an ApiError */
-  ttsPreview: async (voice: string, speed: number, text = '') => {
-    const r = await fetch(`/api/tts/preview?${new URLSearchParams({ voice, speed: String(speed), text })}`).catch(() => null)
+  ttsPreview: async (voice: string, speed: number, text = '', fx: VoiceFx | null = null) => {
+    const q = new URLSearchParams({ voice, speed: String(speed), text, ...(fx ? { fx: JSON.stringify(fx) } : {}) })
+    const r = await fetch(`/api/tts/preview?${q}`).catch(() => null)
     if (!r) throw new ApiError(0, 'The API is not reachable. Is uvicorn running on port 8765?')
     if (!r.ok) throw new ApiError(r.status, await r.json().then((b) => String(b?.detail), () => `${r.status} ${r.statusText}`))
     return URL.createObjectURL(await r.blob())

@@ -1000,7 +1000,7 @@ export interface paths {
         };
         /**
          * Preview
-         * @description a short line in this voice (WAV), cached like any other line
+         * @description a short line in this voice (WAV), cached like any other line; fx: a VoiceFx as JSON, applied to it
          */
         get: operations["preview_api_tts_preview_get"];
         put?: never;
@@ -2839,6 +2839,8 @@ export interface components {
          * @description a voice on the Kokoro TTS server (settings tts_url): its id and speaking speed
          */
         TtsVoice: {
+            /** @description audio effect applied to the TTS clips of this voice (none: the plain Kokoro voice) */
+            fx?: components["schemas"]["VoiceFx"] | null;
             /**
              * Id
              * @description Kokoro voice id, e.g. am_michael (settings tts_voices)
@@ -2867,6 +2869,47 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /**
+         * VoiceFx
+         * @description post-TTS audio processing of one voice (pipeline/scribble/voicefx.py): the "In This Town" narration sound
+         */
+        VoiceFx: {
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Intensity
+             * @description scales pitch shift, warmth, compression and saturation; 0 leaves only the speed
+             * @default 1
+             */
+            intensity: number;
+            /**
+             * Pitch
+             * @description semitones, duration unchanged
+             * @default -1.5
+             */
+            pitch: number;
+            /**
+             * Preset
+             * @default in_this_town
+             * @constant
+             */
+            preset: "in_this_town";
+            /**
+             * Speed
+             * @description tempo, pitch unchanged (on top of the TTS speed)
+             * @default 0.94
+             */
+            speed: number;
+            /**
+             * Warmth
+             * @description lower-mid boost and a softer top, 0..1
+             * @default 0.5
+             */
+            warmth: number;
         };
         /** VoiceSourceBody */
         VoiceSourceBody: {
@@ -5282,6 +5325,7 @@ export interface operations {
                 voice: string;
                 speed?: number;
                 text?: string;
+                fx?: string;
             };
             header?: never;
             path?: never;

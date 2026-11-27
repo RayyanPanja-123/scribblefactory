@@ -256,6 +256,38 @@ def line_joins(part_dir: Path, n_words: int) -> tuple[frozenset, frozenset]:
     return frozenset(b for _, (_, b) in spans[:-1]) if ours else frozenset(), breaks
 
 
+def pin_to_lines(words: list[dict], part_dir: Path) -> list[dict]:
+    """voice.mp3 made by the tts stage: each word lies inside its own line's clip (voice-tts.json), and a silent line's
+    word is spread over its silence. Whisper hears nothing (or garbage) in a silent line and would pull the words
+    around it out of place, and @sfx times come from these words. Any other voice: the words as they are."""
+    from ..sfx import line_words  # sfx imports the stages package
+    from ..tts import is_silent
+    from .tts import MANIFEST, sha
+    m, story = part_dir / MANIFEST, part_dir / "story.md"
+    if not (m.is_file() and story.is_file()):
+        return words
+    made = json.loads(m.read_text(encoding="utf-8"))
+    if made.get("mp3_sha256") != sha(part_dir / "voice.mp3"):
+        return words
+    spans = line_words(story.read_text(encoding="utf-8"))
+    if sum(b - a + 1 for a, b in spans.values()) != len(words):
+        return words
+    out = list(words)
+    for ln in made["lines"]:
+        if ln["line"] not in spans:
+            continue
+        a, b = spans[ln["line"]]
+        lo, hi, n = ln["start"], ln["end"], b - a + 1
+        for k, i in enumerate(range(a, b + 1)):
+            if is_silent(ln["text"]):
+                s0, e0 = lo + k * (hi - lo) / n, lo + (k + 1) * (hi - lo) / n
+            else:
+                s0 = min(max(out[i]["start"], lo), hi)
+                e0 = min(max(out[i]["end"], s0), hi)
+            out[i] = {**out[i], "start": round(s0, 3), "end": round(e0, 3)}
+    return out
+
+
 def run(part_dir: Path) -> None:
     voice, script = part_dir / "voice.mp3", part_dir / "script-for-tts.txt"
     if not voice.exists():
@@ -268,6 +300,7 @@ def run(part_dir: Path) -> None:
 
     heard, duration = transcribe(voice)
     words, matched = align(script_words, heard, duration)
+    words = pin_to_lines(words, part_dir)
     story = part_dir / "story.md"
     if story.exists():  # voice.pronunciations: the voice says the respelling, captions show story.md's word
         words = caption_words(words, clean_markdown(strip_directives(story.read_text(encoding="utf-8"))).split())

@@ -13,9 +13,9 @@ from pydantic import BaseModel, Field
 from api.core import lib, part_path, series_json, series_path
 from api.events import publish
 from api.jobs import check_free
-from pipeline.scribble import settings, tts
+from pipeline.scribble import settings, tts, voicefx
 from pipeline.scribble.io import load_part, load_series, save_part, save_series
-from pipeline.scribble.schemas import PartModel, SeriesModel, TtsVoice
+from pipeline.scribble.schemas import PartModel, SeriesModel, TtsVoice, VoiceFx
 from pipeline.scribble.stages.runner import StageError
 
 router = APIRouter()
@@ -52,14 +52,18 @@ def voices():
 
 
 @router.get("/api/tts/preview")
-def preview(voice: str, speed: float = 1.0, text: str = ""):
-    """a short line in this voice (WAV), cached like any other line"""
+def preview(voice: str, speed: float = 1.0, text: str = "", fx: str = ""):
+    """a short line in this voice (WAV), cached like any other line; fx: a VoiceFx as JSON, applied to it"""
     if not 0.5 <= speed <= 2.0:
         raise HTTPException(422, "speed: 0.5..2.0")
+    try:
+        effect = VoiceFx.model_validate_json(fx) if fx else None
+    except ValueError as e:
+        raise HTTPException(422, f"fx: {e}")
     line = " ".join((text or PREVIEW_TEXT).split())[:200]
     try:
         cfg = tts.config(lib())
-        path = tts.clips(lib(), [(line, voice, round(speed, 3))], cfg)[0]
+        path = voicefx.process(tts.clips(lib(), [(line, voice, round(speed, 3))], cfg)[0], effect, tts.cache_dir(lib()))
     except StageError as e:
         raise HTTPException(503, str(e))
     return FileResponse(path, media_type="audio/wav")

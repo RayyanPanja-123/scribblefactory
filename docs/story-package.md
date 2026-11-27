@@ -63,7 +63,7 @@ Plain text. Each marker is **alone on its own line**, in exactly this order:
 - **SCRIPT**: the raw `story.md`, unchanged from the usual script format: `# Part title`, directives each alone on
   its line, narration. That includes `@weather <clear | rain | snow | fog | wind | storm> [light | medium | heavy]`
   (after its `@set`), `@fx lightning [cast | prop]` (at most 3 per part, a narration line right after it) and
-  `@sfx <id> [volume 0-1]` (a sound effect from `library/sfx/sfx.json`, at most 5 per part, a narration line
+  `@sfx <id> [volume 0-1]` (a sound effect from `library/sfx/sfx.json`, at most 12 per part, a narration line
   right after it).
 - **VOICE**: what the text-to-speech voice reads: the script's spoken lines in order, word for word, with no
   `@` lines, no `# title` line, no `!!` marker and no `<cast id>: ` speaker prefix (a cast line `kai: Everyone

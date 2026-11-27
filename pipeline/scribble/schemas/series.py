@@ -9,10 +9,30 @@ from .base import HexColor, PartId, Slug, Strict, UtcDateTime, WardrobeId
 
 # --- series.json ---
 
+class VoiceFx(Strict):
+    """post-TTS audio processing of one voice (pipeline/scribble/voicefx.py): the "In This Town" narration sound"""
+    preset: Literal["in_this_town"] = "in_this_town"
+    enabled: bool = True
+    pitch: float = Field(default=-1.5, ge=-6, le=6, description="semitones, duration unchanged")
+    speed: float = Field(default=0.94, ge=0.7, le=1.3, description="tempo, pitch unchanged (on top of the TTS speed)")
+    warmth: float = Field(default=0.5, ge=0, le=1, description="lower-mid boost and a softer top, 0..1")
+    intensity: float = Field(default=1.0, ge=0, le=1, description="scales pitch shift, warmth, compression and "
+                                                                  "saturation; 0 leaves only the speed")
+
+
 class TtsVoice(Strict):
     """a voice on the Kokoro TTS server (settings tts_url): its id and speaking speed"""
     id: str = Field(min_length=1, max_length=60, description="Kokoro voice id, e.g. am_michael (settings tts_voices)")
     speed: float = Field(default=1.0, ge=0.5, le=2.0)
+    fx: VoiceFx | None = Field(default=None, description="audio effect applied to the TTS clips of this voice "
+                                                         "(none: the plain Kokoro voice)")
+
+    @model_serializer(mode="wrap")
+    def _no_null_fx(self, handler):
+        d = handler(self)
+        if d.get("fx") is None:
+            d.pop("fx", None)  # left out unset: series.json as before
+        return d
 
 
 class Voice(Strict):

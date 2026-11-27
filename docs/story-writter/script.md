@@ -184,7 +184,7 @@ fit the story's period or design.
     a dramatic entrance or punchline. Use sparingly.
 - `@fx lightning [cast | prop]`: creates one lightning bolt and flash beside a cast member or the holder of a prop on
     the next line. Maximum 3 per part. It is useful for divine entrances, weapon reveals, and major reversals.
-- `@sfx <id> [volume 0-1]`: plays a library sound on the next line. Maximum 5 per part and never on back-to-back lines.
+- `@sfx <id> [volume 0-1]`: plays a library sound on the next line. Maximum 12 per part (2 to 4 is typical) and never on back-to-back lines.
     Use a riser before a reveal, an impact on a strike, or a location sound to establish a scene.
 - `@background-music <track> [volume 0-1]`: starts a named music file from the Stickman History Shorts pack and keeps
     it under the narration until another `@background-music` changes it. The default volume is `0.5` (about 6 dB under the voice); use

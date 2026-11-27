@@ -145,8 +145,8 @@ def parse_props(text: str) -> list[dict]:
 
 
 def cmd_set_voice(args) -> int:
-    if args.name is None and args.tts is None:
-        raise UserError("set-voice needs --name and/or --tts")
+    if args.name is None and args.tts is None and args.fx is None:
+        raise UserError("set-voice needs --name, --tts and/or --fx")
     f, series = load_existing_series(args)
     if args.name is not None:
         series.voice.voice_name = args.name
@@ -158,7 +158,13 @@ def cmd_set_voice(args) -> int:
         if args.tts not in known:
             raise UserError(f"unknown TTS voice {args.tts!r} (known: {', '.join(known)}; scribble tts-voices refreshes "
                             "the list from the server)")
-        series.voice.tts = TtsVoice(id=args.tts, speed=args.speed)
+        old = series.voice.tts
+        series.voice.tts = TtsVoice(id=args.tts, speed=args.speed, fx=old.fx if old else None)  # keeps its effect
+    if args.fx is not None:
+        from .schemas import VoiceFx
+        if not series.voice.tts:
+            raise UserError("--fx needs a TTS narrator voice (--tts)")
+        series.voice.tts.fx = None if args.fx == "off" else VoiceFx(preset=args.fx)
     save_series(f, series)
     v = series.voice
     print(f"{args.slug} voice: {v.voice_name!r}, TTS narrator: {f'{v.tts.id} at {v.tts.speed}x' if v.tts else 'default'}")
@@ -179,7 +185,7 @@ def cmd_cast_voice(args) -> int:
         if args.voice not in known:
             raise UserError(f"unknown TTS voice {args.voice!r} (known: {', '.join(known)}; scribble tts-voices "
                             "refreshes the list from the server)")
-        c.voice = TtsVoice(id=args.voice, speed=args.speed)
+        c.voice = TtsVoice(id=args.voice, speed=args.speed, fx=c.voice.fx if c.voice else None)
     save_series(f, series)  # the look is unchanged: the approval stays
     print(f"{args.slug} {c.id} voice: {f'{c.voice.id} at {c.voice.speed}x' if c.voice else 'the narrator'}")
     return 0
@@ -841,6 +847,8 @@ def build_parser() -> Parser:
     c.add_argument("--name")
     c.add_argument("--tts", help="the narrator's Kokoro voice id (settings tts_voices), or none: settings tts_voice")
     c.add_argument("--speed", type=float, default=1.0, help="with --tts: 0.5..2.0")
+    c.add_argument("--fx", choices=["in_this_town", "off"], help="audio effect on the narrator's clips (the preset's "
+                   "defaults; fine-tune in the web app)")
     c.set_defaults(func=cmd_set_voice)
 
     c = sub.add_parser("cast-voice", parents=[common],

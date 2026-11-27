@@ -28,6 +28,13 @@ POLL_S = 1.0              # between job status polls
 STALL_S = 180             # a job whose progress has not moved for this long has failed
 MAX_ITEMS = 500           # per job (the server's limit)
 SAMPLE_RATE = 24000       # what the server sends; every clip is checked against it
+SILENT = "..."            # a line of only dots (a series pronunciation: hush -> ..., with or without a full stop) is
+                          # silence, not speech
+SILENT_S = 1.0            # that silence, in seconds: the room a library sound (e.g. the 1.02 s huss) plays in
+
+
+def is_silent(text: str) -> bool:
+    return bool(text.split()) and all(set(w) == {"."} for w in text.split())
 
 
 def config(library) -> dict:
@@ -157,7 +164,16 @@ def clips(library, lines: list[tuple[str, str, float]], cfg: dict) -> list[Path]
         if voice not in cfg["voices"]:
             raise StageError(f"unknown TTS voice {voice!r} (the server's voices: scribble tts-voices)")
     d = cache_dir(library)
-    keys = [clip_key(t, v, s, cfg) for t, v, s in lines]
+    silent = hashlib.sha256(json.dumps(["silence", SILENT_S]).encode()).hexdigest()  # one clip for every silent line
+    keys = [silent if is_silent(t) else clip_key(t, v, s, cfg) for t, v, s in lines]
+    for k, (text, _, _) in zip(keys, lines):  # silent lines are made here, never asked of the server
+        if is_silent(text) and not (d / f"{k}.wav").is_file():
+            d.mkdir(parents=True, exist_ok=True)
+            out = io.BytesIO()
+            with wave.open(out, "wb") as w:
+                w.setnchannels(1), w.setsampwidth(2), w.setframerate(SAMPLE_RATE)
+                w.writeframes(bytes(2 * round(SILENT_S * SAMPLE_RATE)))
+            save(d / f"{k}.wav", out.getvalue())
     todo = {k: line for k, line in zip(keys, lines) if not (d / f"{k}.wav").is_file()}  # repeated lines: once
     if not todo:
         print(f"tts: all {len(lines)} lines cached")
